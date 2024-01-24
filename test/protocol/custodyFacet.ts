@@ -47,13 +47,14 @@ describe("Custody", function () {
   let facilitator: HardhatEthersSigner, facilitator2: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
   let seaportAddress: string;
-  let wrapper: Contract, wrapperSelfSale: Contract, wrapperSelfCustody: Contract;
+  let wrapper: Contract, wrapperSelfSale: Contract, wrapperSelfCustody: Contract, wrapperCustodianSwitch: Contract;
   const sellerId = "1";
   const verifierId = "2";
   const custodianId = "3";
   const facilitatorId = "4";
   const facilitator2Id = "5";
   const offerId = "1";
+  const offerIdCustodianSwitch = "4"; // buyer != seller, custodian != seller
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
   const custodianFee = {
@@ -63,6 +64,7 @@ describe("Custody", function () {
   const exchange = { tokenId: "", custodianId: "", price: parseEther("1.0") };
   const exchangeSelfSale = { tokenId: "", custodianId: "" };
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
+  const exchangeCustodianSwitch = { tokenId1: "", tokenId2: "", tokenId3: "", custodianId: "" };
   let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
   let minimalPriceSelfSale: bigint;
   async function setupCustodyTest() {
@@ -104,26 +106,30 @@ describe("Custody", function () {
       metadataHash: ZeroHash,
     };
 
-    // Make three offers one for normal sale, one of self sale and one for self custody
+    // Make four offers one for normal sale, one of self sale, one for self custody and one for custodian switch
     const offerIdSelfSale = "2"; // buyer = seller, custodian != seller
     const offerIdSelfCustody = "3"; // buyer != seller, custodian = seller
     await offerFacet.connect(facilitator).createOffer({ ...fermionOffer, facilitatorId });
     await offerFacet.createOffer({ ...fermionOffer, sellerDeposit: "0" });
     await offerFacet.createOffer({ ...fermionOffer, verifierId: "1", custodianId: "1", verifierFee: "0" });
+    await offerFacet.connect(facilitator).createOffer({ ...fermionOffer, facilitatorId });
 
     // Mint and wrap some NFTs
     const quantity = "1";
     await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity); // offerId = 2; exchangeId = 1
     await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
     await offerFacet.mintAndWrapNFTs(offerIdSelfCustody, "2"); // offerId = 3; exchangeId = 3
+    await offerFacet.mintAndWrapNFTs(offerIdCustodianSwitch, "3"); // offerId = 4; exchangeId = 5
+
     const exchangeIdSelf = "1";
     const exchangeId = "2";
     const exchangeIdSelfCustody = "3";
+    const exchangeIdCustodianSwitch = "5";
 
     // Unwrap some NFTs - normal sale and sale with self-custody
     buyer = wallets[6];
 
-    await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
+    await mockToken.approve(fermionProtocolAddress, 5n * sellerDeposit);
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
     const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
     await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
@@ -131,6 +137,20 @@ describe("Custody", function () {
     const { buyerAdvancedOrder: buyerAdvancedOrderSelfCustody, tokenId: tokenIdSelfCustody } =
       await createBuyerAdvancedOrder(buyer, offerIdSelfCustody, exchangeIdSelfCustody);
     await offerFacet.unwrapNFT(tokenIdSelfCustody, WrapType.OS_AUCTION, buyerAdvancedOrderSelfCustody);
+
+    const { buyerAdvancedOrder: buyerAdvancedOrderCustodianSwitch, tokenId: tokenIdCustodianSwitch } =
+      await createBuyerAdvancedOrder(buyer, offerIdCustodianSwitch, exchangeIdCustodianSwitch);
+    await offerFacet.unwrapNFT(tokenIdCustodianSwitch, WrapType.OS_AUCTION, buyerAdvancedOrderCustodianSwitch);
+
+    const exchangeIdCustodianSwitch2 = "6"; // token 2
+    const { buyerAdvancedOrder: buyerAdvancedOrderCustodianSwitch2, tokenId: tokenIdCustodianSwitch2 } =
+      await createBuyerAdvancedOrder(buyer, offerIdCustodianSwitch, exchangeIdCustodianSwitch2);
+    await offerFacet.unwrapNFT(tokenIdCustodianSwitch2, WrapType.OS_AUCTION, buyerAdvancedOrderCustodianSwitch2);
+
+    const exchangeIdCustodianSwitch3 = "7"; // token 3
+    const { buyerAdvancedOrder: buyerAdvancedOrderCustodianSwitch3, tokenId: tokenIdCustodianSwitch3 } =
+      await createBuyerAdvancedOrder(buyer, offerIdCustodianSwitch, exchangeIdCustodianSwitch3);
+    await offerFacet.unwrapNFT(tokenIdCustodianSwitch3, WrapType.OS_AUCTION, buyerAdvancedOrderCustodianSwitch3);
 
     // unwrap to self
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
@@ -158,10 +178,20 @@ describe("Custody", function () {
     exchangeSelfCustody.tokenId = tokenIdSelfCustody;
     exchangeSelfCustody.custodianId = sellerId;
 
+    // Custodian switch
+    exchangeCustodianSwitch.tokenId1 = tokenIdCustodianSwitch;
+    exchangeCustodianSwitch.tokenId2 = tokenIdCustodianSwitch2;
+    exchangeCustodianSwitch.tokenId3 = tokenIdCustodianSwitch3;
+    exchangeCustodianSwitch.custodianId = custodianId;
+
     // Submit verdicts
     await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
     await verificationFacet.connect(verifier).submitVerdict(tokenIdSelf, VerificationStatus.Verified);
     await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified);
+    await verificationFacet.connect(verifier).submitVerdict(tokenIdCustodianSwitch, VerificationStatus.Verified);
+    await verificationFacet.connect(verifier).submitVerdict(tokenIdCustodianSwitch2, VerificationStatus.Verified);
+    await verificationFacet.connect(verifier).submitVerdict(tokenIdCustodianSwitch3, VerificationStatus.Verified);
+
     const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
 
@@ -170,6 +200,9 @@ describe("Custody", function () {
 
     const wrapperAddressSelfCustody = await offerFacet.predictFermionFNFTAddress(offerIdSelfCustody);
     wrapperSelfCustody = await ethers.getContractAt("FermionFNFT", wrapperAddressSelfCustody);
+
+    const wrapperAddressCustodianSwitch = await offerFacet.predictFermionFNFTAddress(offerIdCustodianSwitch);
+    wrapperCustodianSwitch = await ethers.getContractAt("FermionFNFT", wrapperAddressCustodianSwitch);
   }
 
   before(async function () {
@@ -1329,24 +1362,27 @@ describe("Custody", function () {
       newCustodianId = "6"; // Since we already have 5 entities
 
       // Setup a token with current custodian
-      await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
-
+      await custodyFacet.connect(custodian).checkIn(exchangeCustodianSwitch.tokenId1);
+      await custodyFacet.connect(custodian).checkIn(exchangeCustodianSwitch.tokenId2);
+      await custodyFacet.connect(custodian).checkIn(exchangeCustodianSwitch.tokenId3);
       // Fund the vault with sufficient balance
       const vaultAmount = parseEther("1.0"); // Large enough to cover fees
-      await mockToken.approve(fermionProtocolAddress, vaultAmount);
-      await custodyVaultFacet.topUpCustodianVault(exchange.tokenId, vaultAmount);
+      await mockToken.approve(fermionProtocolAddress, vaultAmount * 3n);
+      await custodyVaultFacet.topUpCustodianVault(exchangeCustodianSwitch.tokenId1, vaultAmount);
+      await custodyVaultFacet.topUpCustodianVault(exchangeCustodianSwitch.tokenId2, vaultAmount);
+      await custodyVaultFacet.topUpCustodianVault(exchangeCustodianSwitch.tokenId3, vaultAmount);
     });
 
     context("requestCustodianUpdate", function () {
       it("New custodian can request update", async function () {
         const tx = await custodyFacet
           .connect(newCustodian)
-          .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters);
+          .requestCustodianUpdate(offerIdCustodianSwitch, newCustodianId, newCustodianFee, newCustodianVaultParameters);
 
         await expect(tx)
           .to.emit(custodyFacet, "CustodianUpdateRequested")
           .withArgs(
-            offerId,
+            offerIdCustodianSwitch,
             custodianId,
             newCustodianId,
             Object.values(newCustodianFee),
@@ -1361,7 +1397,12 @@ describe("Custody", function () {
           await expect(
             custodyFacet
               .connect(newCustodian)
-              .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters),
+              .requestCustodianUpdate(
+                offerIdCustodianSwitch,
+                newCustodianId,
+                newCustodianFee,
+                newCustodianVaultParameters,
+              ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Custody);
@@ -1374,7 +1415,12 @@ describe("Custody", function () {
           await expect(
             custodyFacet
               .connect(nonCustodianWallet)
-              .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters),
+              .requestCustodianUpdate(
+                offerIdCustodianSwitch,
+                newCustodianId,
+                newCustodianFee,
+                newCustodianVaultParameters,
+              ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
             .withArgs(newCustodianId, nonCustodianWallet.address, EntityRole.Custodian, AccountRole.Assistant);
@@ -1383,15 +1429,25 @@ describe("Custody", function () {
         it("Cannot request update too soon after previous request", async function () {
           await custodyFacet
             .connect(newCustodian)
-            .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters);
+            .requestCustodianUpdate(
+              offerIdCustodianSwitch,
+              newCustodianId,
+              newCustodianFee,
+              newCustodianVaultParameters,
+            );
 
           await expect(
             custodyFacet
               .connect(newCustodian)
-              .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters),
+              .requestCustodianUpdate(
+                offerIdCustodianSwitch,
+                newCustodianId,
+                newCustodianFee,
+                newCustodianVaultParameters,
+              ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "UpdateRequestTooRecent")
-            .withArgs(offerId, 24 * 60 * 60); // 1 day
+            .withArgs(offerIdCustodianSwitch, 24 * 60 * 60); // 1 day
         });
       });
     });
@@ -1400,16 +1456,21 @@ describe("Custody", function () {
       beforeEach(async function () {
         await custodyFacet
           .connect(newCustodian)
-          .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters);
+          .requestCustodianUpdate(offerIdCustodianSwitch, newCustodianId, newCustodianFee, newCustodianVaultParameters);
       });
 
       it("Token owner can accept update", async function () {
-        const tx = await custodyFacet.connect(buyer).acceptCustodianUpdate(offerId);
+        //chekout token1 from exchangeCustodianSwitch offer
+        await wrapperCustodianSwitch.connect(buyer).approve(fermionProtocolAddress, exchangeCustodianSwitch.tokenId1);
+        await custodyFacet.connect(buyer).requestCheckOut(exchangeCustodianSwitch.tokenId1);
+        await custodyFacet.clearCheckoutRequest(exchangeCustodianSwitch.tokenId1);
+        await custodyFacet.connect(custodian).checkOut(exchangeCustodianSwitch.tokenId1);
 
+        const tx = await custodyFacet.connect(buyer).acceptCustodianUpdate(offerIdCustodianSwitch);
         await expect(tx)
           .to.emit(custodyFacet, "CustodianUpdateAccepted")
           .withArgs(
-            offerId,
+            offerIdCustodianSwitch,
             custodianId,
             newCustodianId,
             Object.values(newCustodianFee),
@@ -1421,16 +1482,34 @@ describe("Custody", function () {
         it("Custody region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Custody]);
 
-          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerId))
+          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerIdCustodianSwitch))
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Custody);
         });
 
         it("Caller is not the token owner of all in-custody tokens", async function () {
           const randomWallet = wallets[8];
-          await expect(custodyFacet.connect(randomWallet).acceptCustodianUpdate(offerId))
+          await expect(custodyFacet.connect(randomWallet).acceptCustodianUpdate(offerIdCustodianSwitch))
             .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
-            .withArgs(offerId, buyer.address, randomWallet.address);
+            .withArgs(offerIdCustodianSwitch, buyer.address, randomWallet.address);
+        });
+
+        it("No tokens in custody", async function () {
+          // Check out all tokens successfully
+          for (const token of [
+            exchangeCustodianSwitch.tokenId1,
+            exchangeCustodianSwitch.tokenId2,
+            exchangeCustodianSwitch.tokenId3,
+          ]) {
+            await wrapperCustodianSwitch.connect(buyer).approve(fermionProtocolAddress, token);
+            await custodyFacet.connect(buyer).requestCheckOut(token);
+            await custodyFacet.clearCheckoutRequest(token);
+            await custodyFacet.connect(custodian).checkOut(token);
+          }
+
+          await expect(custodyFacet.acceptCustodianUpdate(offerIdCustodianSwitch))
+            .to.be.revertedWithCustomError(custodyFacet, "NoTokensInCustody")
+            .withArgs(offerIdCustodianSwitch);
         });
 
         it("Update request has expired", async function () {
@@ -1439,20 +1518,21 @@ describe("Custody", function () {
           const newTime = Number(BigInt(block.timestamp) + BigInt(25 * 60 * 60)); // 25 hours
           await setNextBlockTimestamp(newTime);
 
-          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerId))
+          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerIdCustodianSwitch))
             .to.be.revertedWithCustomError(fermionErrors, "UpdateRequestExpired")
-            .withArgs(offerId);
+            .withArgs(offerIdCustodianSwitch);
         });
 
         it("Reverts when token owner is different from offer owner", async function () {
           // Transfer the NFT to a different address
           const differentOwner = wallets[9];
-          await wrapper.connect(buyer).safeTransferFrom(buyer.address, differentOwner.address, exchange.tokenId);
-
+          await wrapperCustodianSwitch
+            .connect(buyer)
+            .safeTransferFrom(buyer.address, differentOwner.address, exchangeCustodianSwitch.tokenId1);
           // Try to accept the update with the original buyer (who is no longer the token owner)
-          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerId))
+          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerIdCustodianSwitch))
             .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
-            .withArgs(offerId, differentOwner.address, buyer.address);
+            .withArgs(offerIdCustodianSwitch, differentOwner.address, buyer.address);
         });
       });
     });
@@ -1471,17 +1551,19 @@ describe("Custody", function () {
 
         await custodyFacet
           .connect(custodian)
-          .requestCustodianUpdate(offerId, custodianId, custodianFee, currentVaultParameters);
-        await custodyFacet.connect(buyer).acceptCustodianUpdate(offerId);
+          .requestCustodianUpdate(offerIdCustodianSwitch, custodianId, custodianFee, currentVaultParameters);
+        await custodyFacet.connect(buyer).acceptCustodianUpdate(offerIdCustodianSwitch);
       });
 
       it("Current custodian can execute emergency update", async function () {
-        const tx = await custodyFacet.connect(custodian).emergencyCustodianUpdate(offerId, newCustodianId, true);
+        const tx = await custodyFacet
+          .connect(custodian)
+          .emergencyCustodianUpdate(offerIdCustodianSwitch, newCustodianId, true);
 
         await expect(tx)
           .to.emit(custodyFacet, "CustodianUpdateRequested")
           .withArgs(
-            offerId,
+            offerIdCustodianSwitch,
             custodianId,
             newCustodianId,
             Object.values(custodianFee),
@@ -1491,7 +1573,7 @@ describe("Custody", function () {
         await expect(tx)
           .to.emit(custodyFacet, "CustodianUpdateAccepted")
           .withArgs(
-            offerId,
+            offerIdCustodianSwitch,
             custodianId,
             newCustodianId,
             Object.values(custodianFee),
@@ -1500,12 +1582,14 @@ describe("Custody", function () {
       });
 
       it("Seller can execute emergency update", async function () {
-        const tx = await custodyFacet.connect(defaultSigner).emergencyCustodianUpdate(offerId, newCustodianId, false);
+        const tx = await custodyFacet
+          .connect(defaultSigner)
+          .emergencyCustodianUpdate(offerIdCustodianSwitch, newCustodianId, false);
 
         await expect(tx)
           .to.emit(custodyFacet, "CustodianUpdateRequested")
           .withArgs(
-            offerId,
+            offerIdCustodianSwitch,
             custodianId,
             newCustodianId,
             Object.values(custodianFee),
@@ -1515,7 +1599,7 @@ describe("Custody", function () {
         await expect(tx)
           .to.emit(custodyFacet, "CustodianUpdateAccepted")
           .withArgs(
-            offerId,
+            offerIdCustodianSwitch,
             custodianId,
             newCustodianId,
             Object.values(custodianFee),
@@ -1527,20 +1611,24 @@ describe("Custody", function () {
         it("Custody region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Custody]);
 
-          await expect(custodyFacet.connect(custodian).emergencyCustodianUpdate(offerId, newCustodianId, true))
+          await expect(
+            custodyFacet.connect(custodian).emergencyCustodianUpdate(offerIdCustodianSwitch, newCustodianId, true),
+          )
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Custody);
         });
 
         it("Caller is not custodian or seller assistant", async function () {
           const randomWallet = wallets[8];
-          await expect(custodyFacet.connect(randomWallet).emergencyCustodianUpdate(offerId, newCustodianId, true))
+          await expect(
+            custodyFacet.connect(randomWallet).emergencyCustodianUpdate(offerIdCustodianSwitch, newCustodianId, true),
+          )
             .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
             .withArgs(custodianId, randomWallet.address, EntityRole.Custodian, AccountRole.Assistant);
         });
 
         it("New custodian ID is invalid", async function () {
-          await expect(custodyFacet.connect(custodian).emergencyCustodianUpdate(offerId, "999", true))
+          await expect(custodyFacet.connect(custodian).emergencyCustodianUpdate(offerIdCustodianSwitch, "999", true))
             .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
             .withArgs("999", EntityRole.Custodian);
         });
@@ -1553,7 +1641,7 @@ describe("Custody", function () {
           await setNextBlockTimestamp(newTime);
 
           await expect(
-            custodyFacet.connect(custodian).emergencyCustodianUpdate(offerId, newCustodianId, true),
+            custodyFacet.connect(custodian).emergencyCustodianUpdate(offerIdCustodianSwitch, newCustodianId, true),
           ).to.be.revertedWithCustomError(fermionErrors, "InsufficientVaultBalance");
         });
       });
