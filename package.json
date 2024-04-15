@@ -26,6 +26,7 @@
     "chai": "^4.2.0",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.0",
+    "ethers": "^6.11.1",
     "hardhat": "^2.22.2",
     "hardhat-gas-reporter": "^1.0.8",
     "prettier": "^3.2.5",
