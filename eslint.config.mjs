@@ -3,7 +3,7 @@ import eslintConfigPrettier from "eslint-config-prettier";
 
 export default [
   ...tseslint.configs.recommended,
-  eslintConfigPrettier,  
+  eslintConfigPrettier,
   {
     languageOptions: {
       sourceType: "module",
@@ -15,6 +15,11 @@ export default [
     },
   },
   {
-    ignores: ["**/libraries/**/*.ts","artifacts/**/*.ts","typechain-types/**"],
-}
+    ignores: [
+      "**/libraries/**/*.ts",
+      "artifacts/**/*.ts",
+      "typechain-types/**",
+      "submodules/**",
+    ],
+  },
 ];
