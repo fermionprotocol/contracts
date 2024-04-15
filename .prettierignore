@@ -1,0 +1,3 @@
+artifacts/**/*.ts
+typechain-types/**
+submodules/**

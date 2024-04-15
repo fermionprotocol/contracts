@@ -7,8 +7,11 @@
   "author": "Fermion Protocol Maintainers",
   "license": "GPL-3.0-or-later",
   "scripts": {
+    "build": "npx hardhat clean && npx hardhat compile",
+    "check:contracts": "solhint 'contracts/**/*.sol' && prettier --list-different contracts/**",
+    "check:scripts": "eslint . && prettier --list-different .",
     "tidy:contracts": "solhint --fix contracts/**/*.sol && prettier --plugin=prettier-plugin-solidity --write contracts/**",
-    "tidy:scripts": "eslint --fix . && prettier --write test/** scripts/** '*.ts'"
+    "tidy:scripts": "eslint --fix . && prettier --write ."
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.0",
