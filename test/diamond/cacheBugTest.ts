@@ -1,6 +1,6 @@
 import { ethers } from "hardhat";
-import { deployDiamond } from "../scripts/deploy";
-import { FacetCutAction } from "../scripts/libraries/diamond";
+import { deployDiamond } from "../../scripts/deploy";
+import { FacetCutAction } from "../../scripts/libraries/diamond";
 import { assert } from "chai";
 import { Contract } from "ethers";
 

@@ -12,8 +12,8 @@ import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
  * @notice Handles entity management.
  */
 contract EntityFacet is FermionErrors {
-    uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRoles).max);
-    uint256 private constant ENTITY_ROLE_MASK = (1 << (TOTAL_ROLE_COUNT + 1)) - 1;
+    uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRole).max) + 1;
+    uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
 
     /**
      * @notice Creates an entity.
@@ -27,7 +27,7 @@ contract EntityFacet is FermionErrors {
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
      */
-    function createEntity(FermionTypes.EntityRoles[] calldata _roles, string calldata _metadata) external {
+    function createEntity(FermionTypes.EntityRole[] calldata _roles, string calldata _metadata) external {
         if (_roles.length == 0) revert InvalidEntityRoles();
 
         FermionTypes.EntityData storage newEntity = FermionStorage.protocolEntities().entity[msg.sender];
@@ -43,11 +43,12 @@ contract EntityFacet is FermionErrors {
      * Emits an EntityUpdated event if successful.
      *
      * Reverts if:
+     * - Entity does not exist
      *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
      */
-    function updateEntity(FermionTypes.EntityRoles[] calldata _roles, string calldata _metadata) external {
+    function updateEntity(FermionTypes.EntityRole[] calldata _roles, string calldata _metadata) external {
         FermionTypes.EntityData storage newEntity = FermionStorage.protocolEntities().entity[msg.sender];
 
         if (newEntity.roles == 0) revert NoSuchEntity();
@@ -60,29 +61,29 @@ contract EntityFacet is FermionErrors {
      *
      * @param _entityAddres - the address of the entity
      * @return roles - the roles the entity has
-     * @return metadata - the metadata URI for the entity
+     * @return metadataURI - the metadata URI for the entity
      */
     function getEntity(
         address _entityAddres
-    ) external view returns (FermionTypes.EntityRoles[] memory roles, string memory metadata) {
+    ) external view returns (FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
         FermionTypes.EntityData storage entity = FermionStorage.protocolEntities().entity[_entityAddres];
         uint256 compactRole = entity.roles;
-        metadata = entity.metadataURI;
+        metadataURI = entity.metadataURI;
 
         // max number of roles an entity can have
-        roles = new FermionTypes.EntityRoles[](TOTAL_ROLE_COUNT);
+        roles = new FermionTypes.EntityRole[](TOTAL_ROLE_COUNT);
 
         // Return the roles
         if (compactRole == ENTITY_ROLE_MASK) {
             for (uint256 i = 0; i < TOTAL_ROLE_COUNT; i++) {
-                roles[i] = FermionTypes.EntityRoles(i);
+                roles[i] = FermionTypes.EntityRole(i);
             }
         } else {
             uint256 count = 0;
             for (uint256 i = 0; i < TOTAL_ROLE_COUNT; i++) {
                 // Check if the entity has role by bitwise AND operation with shifted 1
                 if (compactRole & (1 << i) != 0) {
-                    roles[count] = FermionTypes.EntityRoles(i);
+                    roles[count] = FermionTypes.EntityRole(i);
 
                     count++;
                 }
@@ -106,7 +107,7 @@ contract EntityFacet is FermionErrors {
      */
     function storeEntity(
         FermionTypes.EntityData storage _entityData,
-        FermionTypes.EntityRoles[] calldata _roles,
+        FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
     ) internal {
         // Calculate the compact role as the sum of individual regions

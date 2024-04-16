@@ -3,8 +3,8 @@ import {
   FacetCutAction,
   removeSelectors,
   findAddressPositionInFacets,
-} from "../scripts/libraries/diamond";
-import { deployDiamond } from "../scripts/deploy";
+} from "../../scripts/libraries/diamond";
+import { deployDiamond } from "../../scripts/deploy";
 import { assert } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";

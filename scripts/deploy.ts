@@ -18,18 +18,7 @@ export async function deployDiamond() {
   console.log("Deploying facets");
   const FacetNames = ["DiamondCutFacet", "DiamondLoupeFacet", "OwnershipFacet"];
   // The `facetCuts` variable is the FacetCut[] that contains the functions to add during diamond deployment
-  const facetCuts = [];
-  for (const FacetName of FacetNames) {
-    const Facet = await ethers.getContractFactory(FacetName);
-    const facet = await Facet.deploy();
-    await facet.waitForDeployment();
-    console.log(`${FacetName} deployed: ${await facet.getAddress()}`);
-    facetCuts.push({
-      facetAddress: await facet.getAddress(),
-      action: FacetCutAction.Add,
-      functionSelectors: getSelectors(facet),
-    });
-  }
+  const facetCuts = await prepareFacetCuts(Object.values(await deployFacets(FacetNames)));
 
   // Creating a function call
   // This call gets executed during deployment and can also be executed in upgrades
@@ -54,9 +43,37 @@ export async function deployDiamond() {
   return await diamond.getAddress();
 }
 
-// We recommend this pattern to be able to use async/await everywhere
-// and properly handle errors.
-deployDiamond().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+export async function deployFacets(facetNames: string[]) {
+  const facets: object = {};
+  for (const facetName of facetNames) {
+    const Facet = await ethers.getContractFactory(facetName);
+    const facet = await Facet.deploy();
+    await facet.waitForDeployment();
+    console.log(`${facetName} deployed: ${await facet.getAddress()}`);
+    facets[facetName] = facet;
+  }
+
+  return facets;
+}
+
+export async function prepareFacetCuts(facets) {
+  const facetCuts: object[] = [];
+  for (const facet of facets) {
+    facetCuts.push({
+      facetAddress: await facet.getAddress(),
+      action: FacetCutAction.Add,
+      functionSelectors: getSelectors(facet),
+    });
+  }
+  return facetCuts;
+}
+
+export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = ethers.ZeroAddress, initData = "0x") {
+  const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", diamondAddress);
+  const tx = await diamondCutFacet.diamondCut(facetCuts, initAddress, initData);
+  const receipt = await tx.wait();
+  if (!receipt.status) {
+    throw Error(`Diamond upgrade failed: ${tx.hash}`);
+  }
+  console.log("Diamond cut executed");
+}
