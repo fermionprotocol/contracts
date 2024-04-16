@@ -1,0 +1,4 @@
+{
+  "filter_paths": "(contracts/test/|node_modules|submodules)",
+  "detectors_to_exclude": "uninitialized-local,timestamp,assembly,naming-convention,similar-names,solc-version"
+}

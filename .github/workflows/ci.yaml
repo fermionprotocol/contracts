@@ -1,0 +1,108 @@
+name: Contracts CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    name: setup
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.12.x
+          cache: "yarn"
+      - run: yarn
+      - name: Compile Contracts
+        run: yarn build
+      - name: Lint
+        run: |
+          yarn check:contracts
+          yarn check:scripts
+
+  test:
+    needs: setup
+    runs-on: ubuntu-latest
+    if: ${{ !github.event.pull_request.draft }}
+    name: unit test
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.12.x
+          cache: "yarn"
+      - name: Install Dependencies
+        run: yarn
+      - name: Compile Contracts
+        run: yarn build
+      - name: Unit Tests
+        run: npx hardhat test
+
+  coverage:
+    needs: setup
+    if: ${{ !github.event.pull_request.draft }}
+    name: code coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.12.x
+          cache: "yarn"
+      - name: Install Dependencies
+        run: yarn
+      - name: Code coverage
+        run: yarn coverage
+      - name: Upload code coverage results
+        uses: actions/upload-artifact@v4
+        with:
+          name: code-coverage-report
+          path: coverage/
+      - name: Check Code Coverage
+        shell: bash
+        run: |
+          MAX_SKIPPED=0
+          { read TOTAL; read COVERED; read COVERAGE; } <<< $(jq '.total.lines.total, .total.lines.covered, .total.lines.pct' coverage/coverage-summary.json)
+          SKIPPED=$(($TOTAL - $COVERED))
+          echo "solidity code coverage is '$COVERAGE'"
+          if (( $(echo "$SKIPPED > $MAX_SKIPPED" | bc -l) )); then echo "Fail: number of skipped statements '$SKIPPED' is higher than configured '$MAX_SKIPPED'" >&2; exit 1; fi
+          echo "Number of skipped statements '$SKIPPED' is within configured '$MAX_SKIPPED'"
+
+  report-coverage:
+    needs: coverage
+    runs-on: ubuntu-latest
+    env:
+      COVERALLS_REPO_TOKEN: ${{ secrets.COVERALLS_REPO_TOKEN }}
+    name: "report: coverage"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.12.x
+          cache: "yarn"
+      - name: Install Dependencies
+        run: yarn
+      - name: Download code coverage results
+        uses: actions/download-artifact@v4
+        with:
+          name: code-coverage-report
+          path: coverage/
+      - name: Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path-to-lcov: ./coverage/lcov.info
