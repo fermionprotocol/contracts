@@ -18,8 +18,9 @@ export default [
     ignores: [
       "**/libraries/**/*.ts",
       "artifacts/**/*.ts",
-      "typechain-types/**",
+      "coverage/**",
       "submodules/**",
+      "typechain-types/**",
     ],
   },
 ];

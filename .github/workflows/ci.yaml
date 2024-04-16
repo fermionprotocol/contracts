@@ -12,9 +12,6 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ !github.event.pull_request.draft }}
     name: setup
-    outputs:
-      test-chunks: ${{ steps['set-test-chunks'].outputs['test-chunks'] }}
-      test-chunk-ids: ${{ steps['set-test-chunk-ids'].outputs['test-chunk-ids'] }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,34 +21,18 @@ jobs:
           node-version: 20.12.x
           cache: "yarn"
       - run: yarn
-      - name: Prepare Environment
-        shell: bash
-        run: |
-          cp .env.example .env
-      - run: yarn build
+      - name: Compile Contracts
+        run: yarn build
       - name: Lint
         run: |
           yarn check:contracts
           yarn check:scripts
-      - id: set-test-chunks
-        name: Set Chunks
-        run: echo "test-chunks=$(jq -c '.' test/util/test-chunks.txt)" >> $GITHUB_OUTPUT
-      - id: set-test-chunk-ids
-        name: Set Chunk IDs
-        run: |
-          echo "test-chunk-ids=$( echo $CHUNKS | jq -cM 'to_entries | map(.key)')" >> $GITHUB_OUTPUT
-        env:
-          CHUNKS: ${{ steps['set-test-chunks'].outputs['test-chunks'] }}
+
   test:
     needs: setup
     runs-on: ubuntu-latest
     if: ${{ !github.event.pull_request.draft }}
-    env:
-      GAS_REPORTER_COINMARKETCAP_API_KEY: ${{ secrets.COINMARKETCAP_API_KEY }}
-    name: test (chunk ${{ matrix.chunk }})
-    strategy:
-      matrix:
-        chunk: ${{ fromJson(needs.setup.outputs['test-chunk-ids']) }}
+    name: unit test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,46 +43,14 @@ jobs:
           cache: "yarn"
       - name: Install Dependencies
         run: yarn
-      - name: Prepare Environment
-        shell: bash
-        run: |
-          cp .env.example .env
       - name: Compile Contracts
         run: yarn build
       - name: Unit Tests
-        run: echo $CHUNKS | jq '.[${{ matrix.chunk }}] | .[] | @text' | xargs npx hardhat test
-        env:
-          CHUNKS: ${{ needs.setup.outputs['test-chunks'] }}
-
-  integration-test:
-    needs: setup
-    runs-on: ubuntu-latest
-    if: ${{ !github.event.pull_request.draft }}
-    env:
-      GAS_REPORTER_COINMARKETCAP_API_KEY: ${{ secrets.COINMARKETCAP_API_KEY }}
-    name: "test:integration"
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.12.x
-          cache: "yarn"
-      - name: Install Dependencies
-        run: yarn
-      - name: Prepare Environment
-        shell: bash
-        run: |
-          cp .env.example .env
-      - name: Integration tests
-        run: npx hardhat test test/integration/*.js
+        run: npx hardhat test
 
   coverage:
     needs: setup
     if: ${{ !github.event.pull_request.draft }}
-    env:
-      GAS_REPORTER_COINMARKETCAP_API_KEY: ${{ secrets.COINMARKETCAP_API_KEY }}
     name: code coverage
     runs-on: ubuntu-latest
     steps:
@@ -114,10 +63,6 @@ jobs:
           cache: "yarn"
       - name: Install Dependencies
         run: yarn
-      - name: Prepare Environment
-        shell: bash
-        run: |
-          cp .env.example .env
       - name: Code coverage
         run: yarn coverage
       - name: Upload code coverage results
@@ -128,7 +73,7 @@ jobs:
       - name: Check Code Coverage
         shell: bash
         run: |
-          MAX_SKIPPED=1 # at this moment msgData() in BosonVoucher is not covered
+          MAX_SKIPPED=0
           { read TOTAL; read COVERED; read COVERAGE; } <<< $(jq '.total.lines.total, .total.lines.covered, .total.lines.pct' coverage/coverage-summary.json)
           SKIPPED=$(($TOTAL - $COVERED))
           echo "solidity code coverage is '$COVERAGE'"
@@ -162,31 +107,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ./coverage/lcov.info
 
-  deploy-dry-run:
-    needs: setup
-    runs-on: ubuntu-latest
-    if: ${{ !github.event.pull_request.draft }}
-    name: "deploy: dry run"
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Setup node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20.12.x
-          cache: "yarn"
-      - name: Install Dependencies
-        run: yarn
-      - name: Prepare Environment
-        shell: bash
-        run: |
-          cp .env.example .env
-      - name: Deploy suite locally
-        run: yarn deploy-suite:hardhat
-      - name: Cancelling tests in case of failure
-        if: failure()
-        uses: andymckay/cancel-action@0.4
-
   analyze:
     needs: setup
     runs-on: ubuntu-latest
@@ -196,10 +116,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      - name: Prepare Environment
-        shell: bash
-        run: |
-          cp .env.example .env
       - name: Slither analyzer
         uses: crytic/slither-action@v0.3.2
         id: slither
