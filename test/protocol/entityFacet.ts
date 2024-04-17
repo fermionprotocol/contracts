@@ -73,10 +73,15 @@ describe("Entity", function () {
       expect(response.metadataURI).to.equal(metadataURI);
 
       const newMetadataURI = "https://example.com/metadata2.json";
-      await entityFacet.updateEntity([EntityRole.Verifier], newMetadataURI);
+      await entityFacet.updateEntity(
+        [EntityRole.Verifier, EntityRole.Agent, EntityRole.Custodian, EntityRole.Buyer],
+        newMetadataURI,
+      );
 
       response = await entityFacet.getEntity(defaultSigner.address);
-      expect(response.roles.map(String)).to.have.members([EntityRole.Verifier].map(String));
+      expect(response.roles.map(String)).to.have.members(
+        [EntityRole.Agent, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
+      );
       expect(response.metadataURI).to.equal(newMetadataURI);
     });
 
