@@ -13,8 +13,8 @@ library FermionStorage {
 
     // Protocol entities storage
     struct ProtocolEntities {
-        // address => entity roles
-        mapping(address => FermionTypes.EntityData) entity;
+        // address => entity data
+        mapping(address => FermionTypes.EntityData) entityData;
     }
 
     /**
