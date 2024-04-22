@@ -2,7 +2,16 @@
 pragma solidity 0.8.24;
 
 interface FermionErrors {
+    // Entity errors
     error InvalidEntityRoles();
     error EntityAlreadyExists();
     error NoSuchEntity();
+
+    // Meta transaction errors
+    error NonceUsedAlready();
+    error FunctionNotAllowlisted();
+    error InvalidFunctionName();
+    error InvalidSignature();
+    error SignerAndSignatureDoNotMatch();
+    error FunctionCallFailed();
 }
