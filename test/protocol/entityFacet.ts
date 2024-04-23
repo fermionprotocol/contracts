@@ -1,33 +1,22 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { deployDiamond, deployFacets, prepareFacetCuts, makeDiamondCut } from "../../scripts/deploy";
 import { EntityRole } from "../utils/enums";
+import { deployFermionProtocolFixture } from "../utils/common";
 
 describe("Entity", function () {
   let entityFacet;
   let wallets, defaultSigner;
   let fermionErrors;
 
-  // We define a fixture to reuse the same setup in every test.
-  // We use loadFixture to run this setup once, snapshot that state,
-  // and reset Hardhat Network to that snapshot in every test.
-  // ToDo: move into shared fixtures
-  async function deployFermionProtocolFixture() {
-    const diamondAddress = await deployDiamond();
-    const facetNames = ["EntityFacet"];
-    const facets = await deployFacets(facetNames);
-
-    await makeDiamondCut(diamondAddress, await prepareFacetCuts(Object.values(facets)));
-
-    return { diamondAddress, entityFacet: facets["EntityFacet"] };
-  }
-
   before(async function () {
     wallets = await ethers.getSigners();
     defaultSigner = wallets[1];
 
-    const { diamondAddress, entityFacet: ef } = await loadFixture(deployFermionProtocolFixture);
+    const {
+      diamondAddress,
+      facets: { EntityFacet: ef },
+    } = await loadFixture(deployFermionProtocolFixture);
     entityFacet = ef.connect(defaultSigner).attach(diamondAddress);
     fermionErrors = await ethers.getContractAt("FermionErrors", diamondAddress);
   });
