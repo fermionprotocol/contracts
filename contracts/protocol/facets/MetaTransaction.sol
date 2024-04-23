@@ -5,6 +5,7 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
+import { Context } from "../libs/Context.sol";
 
 import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEvents.sol";
 
@@ -13,7 +14,7 @@ import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEve
  *
  * @notice Handles meta-transaction requests.
  */
-contract MetaTransactionFacet is Access, FermionErrors, IMetaTransactionEvents {
+contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactionEvents {
     string private constant PROTOCOL_NAME = "Fermion Protocol";
     string private constant PROTOCOL_VERSION = "V0";
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
@@ -24,7 +25,6 @@ contract MetaTransactionFacet is Access, FermionErrors, IMetaTransactionEvents {
                 "MetaTransaction(uint256 nonce,address from,address contractAddress,string functionName,bytes functionSignature)"
             )
         );
-    uint256 private constant ADDRESS_LENGTH = 20;
 
     bytes32 private immutable DOMAIN_SEPARATOR_CACHED;
     uint256 private immutable CHAIN_ID_CACHED;
@@ -49,19 +49,19 @@ contract MetaTransactionFacet is Access, FermionErrors, IMetaTransactionEvents {
      *
      * @param _functionNameHashes - a list of hashed function names (keccak256)
      */
-    function initialize(bytes32[] calldata _functionNameHashes) external {
+    function init(bytes32[] calldata _functionNameHashes) external {
         setAllowlistedFunctionsInternal(_functionNameHashes, true);
+        FermionStorage.metaTransaction().fermionAddress = address(this);
     }
 
     /**
      * @notice Handles the incoming meta transaction.
      *
      * Reverts if:
-     * - The meta-transactions region of protocol is paused
      * - Nonce is already used by the msg.sender for another transaction
      * - Function is not allowlisted to be called using metatransactions
      * - Function name does not match the bytes4 version of the function signature
-     * - sender does not match the recovered signer
+     * - Sender does not match the recovered signer
      * - Any code executed in the signed transaction reverts
      * - Signature is invalid
      *
@@ -363,24 +363,4 @@ contract MetaTransactionFacet is Access, FermionErrors, IMetaTransactionEvents {
     function toTypedMessageHash(bytes32 _messageHash) internal view returns (bytes32) {
         return keccak256(abi.encodePacked("\x19\x01", getDomainSeparator(), _messageHash));
     }
-
-    /**
-     * @notice Returns the message sender address.
-     *
-     * @dev Could be msg.sender or the message sender address from storage (in case of meta transaction).
-     *
-     * @return the message sender address
-     */
-    function msgSender() internal view returns (address) {
-        uint256 msgDataLength = msg.data.length;
-
-        // Get sender from the storage if this is a meta transaction
-        if (msg.sender == FERMION_PROTOCOL_ADDRESS && msgDataLength >= ADDRESS_LENGTH) {
-            return address(bytes20(msg.data[msgDataLength - ADDRESS_LENGTH:]));
-        } else {
-            return msg.sender;
-        }
-    }
-
-    // BLAAA
 }

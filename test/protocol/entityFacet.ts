@@ -1,6 +1,5 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
-import { ethers } from "hardhat";
 import { EntityRole } from "../utils/enums";
 import { deployFermionProtocolFixture } from "../utils/common";
 
@@ -10,15 +9,12 @@ describe("Entity", function () {
   let fermionErrors;
 
   before(async function () {
-    wallets = await ethers.getSigners();
-    defaultSigner = wallets[1];
-
-    const {
-      diamondAddress,
-      facets: { EntityFacet: ef },
-    } = await loadFixture(deployFermionProtocolFixture);
-    entityFacet = ef.connect(defaultSigner).attach(diamondAddress);
-    fermionErrors = await ethers.getContractAt("FermionErrors", diamondAddress);
+    ({
+      facets: { EntityFacet: entityFacet },
+      fermionErrors,
+      wallets,
+      defaultSigner,
+    } = await loadFixture(deployFermionProtocolFixture));
   });
 
   afterEach(async function () {

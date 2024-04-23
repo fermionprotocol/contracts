@@ -20,12 +20,10 @@ library FermionStorage {
 
     // Storage related to Meta Transactions
     struct MetaTransaction {
-        // The domain Separator of the protocol ??
-        bytes32 domainSeparator;
+        // The address of the protocol contract
+        address fermionAddress;
         // address => nonce => nonce used indicator
         mapping(address => mapping(uint256 => bool)) usedNonce;
-        // The cached chain id ??
-        uint256 cachedChainId;
         // Can function be executed using meta transactions
         mapping(bytes32 => bool) isAllowlisted;
     }
