@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+
 import { FermionStorage } from "../libs/Storage.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
@@ -323,6 +325,18 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
         bytes32 _sigS,
         uint8 _sigV
     ) internal view returns (bool) {
+        // Check if user is a contract implementing ERC1271
+        if (_user.code.length > 0) {
+            try IERC1271(_user).isValidSignature(_hashedMetaTx, abi.encodePacked(_sigR, _sigS, _sigV)) returns (
+                bytes4 magicValue
+            ) {
+                if (magicValue != IERC1271.isValidSignature.selector) revert InvalidSignature();
+                return true;
+            } catch {
+                revert InvalidSignature();
+            }
+        }
+
         // Ensure signature is unique
         // See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/04695aecbd4d17dddfd55de766d10e3805d6f42f/contracts/cryptography/ECDSA.sol#63
         if (
