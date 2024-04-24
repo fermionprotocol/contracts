@@ -111,18 +111,13 @@ export async function getStateModifyingFunctions(
     const FacetContractFactory = await getContractFactory(facetName);
     const functions = FacetContractFactory.interface.fragments;
     const facetStateModifyingFunctions = functions
-      .filter((fn) => {
-        if (fn.type == "function" && fn.stateMutability !== "view" && !omitFunctions.some((f) => fn.name.includes(f))) {
-          if (onlyFunctions.length === 0) {
-            return true;
-          }
-
-          if (onlyFunctions.some((f) => fn.name.includes(f))) {
-            return true;
-          }
-        }
-        return false;
-      })
+      .filter(
+        (fn) =>
+          fn.type == "function" &&
+          fn.stateMutability !== "view" &&
+          !omitFunctions.some((f) => fn.name.includes(f)) &&
+          (onlyFunctions.length === 0 || onlyFunctions.some((f) => fn.name.includes(f))),
+      )
       .map((fn) => fn.format("sighash"));
 
     stateModifyingFunctions = stateModifyingFunctions.concat(facetStateModifyingFunctions);
