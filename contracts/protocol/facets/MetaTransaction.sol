@@ -357,9 +357,9 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
     function getDomainSeparator() internal view returns (bytes32) {
         if (address(this) == FERMION_PROTOCOL_ADDRESS && block.chainid == CHAIN_ID_CACHED) {
             return DOMAIN_SEPARATOR_CACHED;
-        } else {
-            return buildDomainSeparator(PROTOCOL_NAME, PROTOCOL_VERSION, address(this));
         }
+
+        return buildDomainSeparator(PROTOCOL_NAME, PROTOCOL_VERSION, address(this));
     }
 
     /**

@@ -27,8 +27,8 @@ contract ContractWallet is IERC1271 {
             return IERC1271.isValidSignature.selector;
         } else if (validity == Validity.Invalid) {
             return 0xffffffff;
-        } else {
-            revert UnknownValidity();
         }
+
+        revert UnknownValidity();
     }
 }
