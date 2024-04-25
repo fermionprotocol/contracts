@@ -1,6 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { Contract } from "ethers";
 import { EntityRole } from "../utils/enums";
 import { deployFermionProtocolFixture } from "../utils/common";
 import {
@@ -15,9 +16,10 @@ import { deployDiamond, prepareFacetCuts, makeDiamondCut } from "../../scripts/d
 const { id, getContractAt, getContractFactory, MaxUint256, toBeHex, ZeroAddress, ZeroHash } = ethers;
 
 describe("MetaTransactions", function () {
-  let entityFacet: any, metaTransactionFacet: any;
+  let entityFacet: Contract, metaTransactionFacet: Contract;
   let wallets, defaultSigner;
-  let fermionErrors;
+  let fermionErrors: Contract;
+  let bosonProtocolAddress: string;
 
   before(async function () {
     ({
@@ -25,6 +27,7 @@ describe("MetaTransactions", function () {
       fermionErrors,
       wallets,
       defaultSigner,
+      bosonProtocolAddress,
     } = await loadFixture(deployFermionProtocolFixture));
   });
 
@@ -316,7 +319,7 @@ describe("MetaTransactions", function () {
             const metaTransactionFacetAddress = await diamondLoupe.facetAddress(functionFragment.selector);
 
             // Deploy a new diamond, from where the existing facet will be called
-            const diamondAddress = await deployDiamond();
+            const { diamondAddress } = await deployDiamond(bosonProtocolAddress);
 
             // Deploy multiInit facet
             const DiamondMutiInit = await ethers.getContractFactory("DiamondMultiInit");

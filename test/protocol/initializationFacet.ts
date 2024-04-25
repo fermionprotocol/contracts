@@ -2,13 +2,14 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { deployFermionProtocolFixture, getBosonHandler } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
+import { Contract } from "ethers";
 import { makeDiamondCut } from "../../scripts/deploy";
 
 const { encodeBytes32String, ZeroAddress, ZeroHash } = ethers;
 
 describe("Entity", function () {
-  let initializationFacet;
-  let fermionErrors;
+  let initializationFacet: Contract;
+  let fermionErrors: Contract;
   let fermionProtocolAddress: string;
   let initializationFacetImplementationAddress: string;
   let wallets;
@@ -50,10 +51,9 @@ describe("Entity", function () {
       context("Revert reasons", function () {
         it("Initializing again fails", async function () {
           const accountHandler = await getBosonHandler("IBosonAccountHandler");
-          const initializeBosonSeller = initializationFacet.interface.encodeFunctionData(
-            "initializeBosonSellerAndBuyer",
-            [await accountHandler.getAddress()],
-          );
+          const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            await accountHandler.getAddress(),
+          ]);
 
           await expect(
             makeDiamondCut(fermionProtocolAddress, [], initializationFacetImplementationAddress, initializeBosonSeller),
@@ -61,10 +61,9 @@ describe("Entity", function () {
         });
 
         it("Boson protocol address is 0", async function () {
-          const initializeBosonSeller = initializationFacet.interface.encodeFunctionData(
-            "initializeBosonSellerAndBuyer",
-            [ZeroAddress],
-          );
+          const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            ZeroAddress,
+          ]);
 
           await expect(
             makeDiamondCut(fermionProtocolAddress, [], initializationFacetImplementationAddress, initializeBosonSeller),
@@ -76,17 +75,17 @@ describe("Entity", function () {
             initializationFacetImplementationAddress,
           );
 
-          await expect(
-            initializationFacetImplementation.initializeBosonSellerAndBuyer(ZeroAddress),
-          ).to.be.revertedWithCustomError(fermionErrors, "DirectInitializationNotAllowed");
+          await expect(initializationFacetImplementation.initializeDiamond(ZeroAddress)).to.be.revertedWithCustomError(
+            fermionErrors,
+            "DirectInitializationNotAllowed",
+          );
         });
 
-        it("initializeBosonSellerAndBuyer is not registered", async function () {
-          const initializeBosonSeller = initializationFacet.interface.encodeFunctionData(
-            "initializeBosonSellerAndBuyer",
-            [ZeroAddress],
-          );
-          const selector = initializationFacet.interface.getFunction("initializeBosonSellerAndBuyer").selector;
+        it("initializeDiamond is not registered", async function () {
+          const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            ZeroAddress,
+          ]);
+          const selector = initializationFacet.interface.getFunction("initializeDiamond").selector;
           const diamond = await ethers.getContractAt("Diamond", fermionProtocolAddress);
 
           await expect(makeDiamondCut(fermionProtocolAddress, [], fermionProtocolAddress, initializeBosonSeller))
@@ -209,6 +208,23 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("initialize is not registered", async function () {
+          const initializationCall = initializationFacet.interface.encodeFunctionData("initialize", [
+            ZeroHash,
+            [],
+            [],
+            [],
+            [],
+          ]);
+
+          const selector = initializationFacet.interface.getFunction("initialize").selector;
+          const diamond = await ethers.getContractAt("Diamond", fermionProtocolAddress);
+
+          await expect(makeDiamondCut(fermionProtocolAddress, [], fermionProtocolAddress, initializationCall))
+            .to.be.revertedWithCustomError(diamond, "FunctionNotFound")
+            .withArgs(selector);
+        });
+
         it("Initializing again fails", async function () {
           const initializationCall = initializationFacet.interface.encodeFunctionData("initialize", [
             ZeroHash,

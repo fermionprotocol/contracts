@@ -12,25 +12,11 @@ let bosonProtocolAddress: string;
 export async function deployFermionProtocolFixture(defaultSigner: any) {
   ({ bosonProtocolAddress } = await initBosonProtocolFixture());
 
-  const diamondAddress = await deployDiamond();
+  const { diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress);
+
   const facetNames = ["EntityFacet", "MetaTransactionFacet"];
   const constructorArgs = { MetaTransactionFacet: [diamondAddress] };
-  const initFacet = await deployFacets(["InitializationFacet"]);
   const facets = await deployFacets(facetNames, constructorArgs);
-
-  // Initialize Boson seller and buyer
-  // ToDo: make this part of "deployDiamond" function
-  const initializationFacet = initFacet["InitializationFacet"];
-  const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeBosonSellerAndBuyer", [
-    bosonProtocolAddress,
-  ]);
-
-  await makeDiamondCut(
-    diamondAddress,
-    await prepareFacetCuts(Object.values(initFacet), ["initializeBosonSellerAndBuyer", "initialize"]),
-    await initializationFacet.getAddress(),
-    initializeBosonSeller,
-  );
 
   // Init other facets, using the initialization facet
   // Prepare init call
@@ -62,7 +48,7 @@ export async function deployFermionProtocolFixture(defaultSigner: any) {
   defaultSigner = wallets[1];
 
   facetNames.push("InitializationFacet");
-  facets["InitializationFacet"] = initFacet["InitializationFacet"];
+  facets["InitializationFacet"] = initializationFacet;
 
   const implementationAddresses = {};
   for (const facetName of facetNames) {
@@ -70,7 +56,15 @@ export async function deployFermionProtocolFixture(defaultSigner: any) {
     facets[facetName] = facets[facetName].connect(defaultSigner).attach(diamondAddress);
   }
 
-  return { diamondAddress, facets, implementationAddresses, fermionErrors, wallets, defaultSigner };
+  return {
+    diamondAddress,
+    facets,
+    implementationAddresses,
+    fermionErrors,
+    wallets,
+    defaultSigner,
+    bosonProtocolAddress,
+  };
 }
 
 // Load Boson handler ABI creates contract instant and attach it to the Boson protocol address

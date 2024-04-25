@@ -8,6 +8,10 @@ import { FermionErrors } from "../domain/Errors.sol";
 import { IInitialziationEvents } from "../interfaces/events/IInitializationEvents.sol";
 
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
+import { IDiamondLoupe } from "../../diamond/interfaces/IDiamondLoupe.sol";
+import { IDiamondCut } from "../../diamond/interfaces/IDiamondCut.sol";
+import { IERC173 } from "../../diamond/interfaces/IERC173.sol";
+import { IERC165 } from "../../diamond/interfaces/IERC165.sol";
 
 /**
  * @title BosonProtocolInitializationHandler
@@ -70,7 +74,30 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
     }
 
     /**
-     * @notice Creates the Boson Seller in the existing Boson Protocol
+     * @notice First Diamond initialization.
+     * Creates the Boson Seller in the existing Boson Protocol and registers the defaul interfaces.
+     *
+     * Must be called before Fermion can be used. Subsequent upgrades should use the initialize function.
+     *
+     * Reverts if:
+     * - Is invoked directly on the deployed contract (not via proxy)
+     * - Boson Protocol address is not set
+     * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
+     *
+     * @param _bosonProtocolAddress - address of the Boson Protocol
+     */
+    function initializeDiamond(address _bosonProtocolAddress) external noDirectInitialization {
+        initializeBosonSellerAndBuyer(_bosonProtocolAddress);
+
+        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
+        ds.supportedInterfaces[type(IERC165).interfaceId] = true;
+        ds.supportedInterfaces[type(IDiamondCut).interfaceId] = true;
+        ds.supportedInterfaces[type(IDiamondLoupe).interfaceId] = true;
+        ds.supportedInterfaces[type(IERC173).interfaceId] = true;
+    }
+
+    /**
+     * @notice Creates the Boson Seller in the existing Boson Protocol and
      *
      * Must be called before Fermion can be used, normaly called as part of the initial deployment.
      *
@@ -81,7 +108,7 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
      */
-    function initializeBosonSellerAndBuyer(address _bosonProtocolAddress) external noDirectInitialization {
+    function initializeBosonSellerAndBuyer(address _bosonProtocolAddress) internal {
         if (_bosonProtocolAddress == address(0)) revert InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);

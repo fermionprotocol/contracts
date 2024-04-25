@@ -1,8 +1,9 @@
 import { ethers } from "hardhat";
-import { deployDiamond } from "../../scripts/deploy";
 import { FacetCutAction } from "../../scripts/libraries/diamond";
 import { assert } from "chai";
 import { Contract } from "ethers";
+import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { deployFermionProtocolFixture } from "../utils/common";
 
 // The diamond example comes with 8 function selectors
 // [cut, loupe, loupe, loupe, loupe, erc165, transferOwnership, owner]
@@ -32,7 +33,8 @@ describe("Cache bug test", async () => {
 
     let selectors = [sel0, sel1, sel2, sel3, sel4, sel5, sel6, sel7, sel8, sel9, sel10];
 
-    const diamondAddress = await deployDiamond();
+    const { diamondAddress } = await loadFixture(deployFermionProtocolFixture);
+
     const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", diamondAddress);
     diamondLoupeFacet = await ethers.getContractAt("DiamondLoupeFacet", diamondAddress);
     const Test1Facet = await ethers.getContractFactory("Test1Facet");
