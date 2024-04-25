@@ -2,6 +2,9 @@
 pragma solidity 0.8.24;
 
 interface FermionErrors {
+    // General errors
+    error InvalidAddress();
+
     // Initialization errors
     error DirectInitializationNotAllowed();
     error VersionMustBeSet();

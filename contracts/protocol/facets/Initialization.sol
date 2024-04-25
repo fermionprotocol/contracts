@@ -41,7 +41,6 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * @param _addresses - array of facet addresses to call initialize methods
      * @param _calldata -  array of facets initialize methods encoded as calldata
      *                    _calldata order must match _addresses order
-     * @param _initializationData - data for initialization of the protocol, using this facet (only if _isUpgrade == true)
      * @param _interfacesToRemove - array of interfaces to remove from the diamond
      * @param _interfacesToAdd - array of interfaces to add to the diamond
      */
@@ -49,11 +48,9 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         bytes32 _version,
         address[] calldata _addresses,
         bytes[] calldata _calldata,
-        bytes calldata _initializationData,
         bytes4[] calldata _interfacesToRemove,
         bytes4[] calldata _interfacesToAdd
-    ) external {
-        if (address(this) == THIS_ADDRESS) revert DirectInitializationNotAllowed();
+    ) external noDirectInitialization {
         if (_version == bytes32(0)) revert VersionMustBeSet();
         if (_addresses.length != _calldata.length) revert AddressesAndCalldataLengthMismatch();
 
@@ -76,9 +73,18 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
     /**
      * @notice Creates the Boson Seller in the existing Boson Protocol
      *
+     * Must be called before Fermion can be used, normaly called as part of the initial deployment.
+     *
+     * Reverts if:
+     * - Is invoked directly on the deployed contract (not via proxy)
+     * - Boson Protocol address is not set
+     * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
+     *
      * @param _bosonProtocolAddress - address of the Boson Protocol
      */
-    function initializeBosonSellerAndBuyer(address _bosonProtocolAddress) external {
+    function initializeBosonSellerAndBuyer(address _bosonProtocolAddress) external noDirectInitialization {
+        if (_bosonProtocolAddress == address(0)) revert InvalidAddress();
+
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
         uint256 bosonSellerId = bosonProtocol.getNextAccountId();
 
@@ -132,5 +138,10 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         for (uint256 i = 0; i < _interfaces.length; i++) {
             ds.supportedInterfaces[(_interfaces[i])] = _isSupported;
         }
+    }
+
+    modifier noDirectInitialization() {
+        if (address(this) == THIS_ADDRESS) revert DirectInitializationNotAllowed();
+        _;
     }
 }

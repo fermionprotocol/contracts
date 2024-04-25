@@ -57,13 +57,13 @@ export async function deployFacets(facetNames: string[], constructorArgs: object
   return facets;
 }
 
-export async function prepareFacetCuts(facets) {
+export async function prepareFacetCuts(facets, omitSelectors = []) {
   const facetCuts: object[] = [];
   for (const facet of facets) {
     facetCuts.push({
       facetAddress: await facet.getAddress(),
       action: FacetCutAction.Add,
-      functionSelectors: getSelectors(facet),
+      functionSelectors: getSelectors(facet).remove(omitSelectors),
     });
   }
   return facetCuts;
