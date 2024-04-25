@@ -11,6 +11,7 @@ import { FermionTypes } from "../domain/Types.sol";
 library FermionStorage {
     bytes32 internal constant PROTOCOL_STATUS_POSITION = keccak256("fermion.protocol.status");
     bytes32 internal constant PROTOCOL_ENTITIES_POSITION = keccak256("fermion.protocol.entities");
+    bytes32 internal constant META_TRANSACTION_POSITION = keccak256("fermion.meta.transaction");
 
     struct ProtocolStatus {
         // Current protocol version
@@ -23,6 +24,16 @@ library FermionStorage {
     struct ProtocolEntities {
         // address => entity data
         mapping(address => FermionTypes.EntityData) entityData;
+    }
+
+    // Storage related to Meta Transactions
+    struct MetaTransaction {
+        // The address of the protocol contract
+        address fermionAddress;
+        // address => nonce => nonce used indicator
+        mapping(address => mapping(uint256 => bool)) usedNonce;
+        // Can function be executed using meta transactions
+        mapping(bytes32 => bool) isAllowlisted;
     }
 
     /**
@@ -46,6 +57,18 @@ library FermionStorage {
         bytes32 position = PROTOCOL_ENTITIES_POSITION;
         assembly {
             pe.slot := position
+        }
+    }
+
+    /**
+     * @notice Gets the meta transaction slot
+     *
+     * @return mt - the meta transaction slot
+     */
+    function metaTransaction() internal pure returns (MetaTransaction storage mt) {
+        bytes32 position = META_TRANSACTION_POSITION;
+        assembly {
+            mt.slot := position
         }
     }
 }

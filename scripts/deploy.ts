@@ -43,11 +43,12 @@ export async function deployDiamond() {
   return await diamond.getAddress();
 }
 
-export async function deployFacets(facetNames: string[]) {
+export async function deployFacets(facetNames: string[], constructorArgs: object = {}) {
   const facets: object = {};
   for (const facetName of facetNames) {
     const Facet = await ethers.getContractFactory(facetName);
-    const facet = await Facet.deploy();
+    const ca: string[] = constructorArgs[facetName] || [];
+    const facet = await Facet.deploy(...ca);
     await facet.waitForDeployment();
     console.log(`${facetName} deployed: ${await facet.getAddress()}`);
     facets[facetName] = facet;

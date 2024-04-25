@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
+import { Context } from "../libs/Context.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
 
 /**
@@ -11,7 +12,7 @@ import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
  *
  * @notice Handles entity management.
  */
-contract EntityFacet is FermionErrors {
+contract EntityFacet is Context, FermionErrors {
     uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRole).max) + 1;
     uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
 
@@ -28,7 +29,7 @@ contract EntityFacet is FermionErrors {
      * @param _metadata - the metadata URI for the entity
      */
     function createEntity(FermionTypes.EntityRole[] calldata _roles, string calldata _metadata) external {
-        FermionTypes.EntityData storage newEntity = FermionStorage.protocolEntities().entityData[msg.sender];
+        FermionTypes.EntityData storage newEntity = FermionStorage.protocolEntities().entityData[msgSender()];
 
         if (newEntity.roles != 0) revert EntityAlreadyExists();
 
@@ -48,7 +49,7 @@ contract EntityFacet is FermionErrors {
      * @param _metadata - the metadata URI for the entity
      */
     function updateEntity(FermionTypes.EntityRole[] calldata _roles, string calldata _metadata) external {
-        FermionTypes.EntityData storage entityData = fetchEntityData(msg.sender);
+        FermionTypes.EntityData storage entityData = fetchEntityData(msgSender());
 
         storeEntity(entityData, _roles, _metadata);
     }
@@ -63,12 +64,13 @@ contract EntityFacet is FermionErrors {
      *
      */
     function deleteEntity() external {
-        FermionTypes.EntityData storage entityData = fetchEntityData(msg.sender);
+        address entityAddress = msgSender();
+        FermionTypes.EntityData storage entityData = fetchEntityData(entityAddress);
 
         delete entityData.roles;
         delete entityData.metadataURI;
 
-        emit IEntityEvents.EntityUpdated(msg.sender, new FermionTypes.EntityRole[](0), "");
+        emit IEntityEvents.EntityUpdated(entityAddress, new FermionTypes.EntityRole[](0), "");
     }
 
     /**
@@ -113,7 +115,7 @@ contract EntityFacet is FermionErrors {
         _entityData.metadataURI = _metadata;
 
         // Notify watchers of state change
-        emit IEntityEvents.EntityUpdated(msg.sender, _roles, _metadata);
+        emit IEntityEvents.EntityUpdated(msgSender(), _roles, _metadata);
     }
 
     /**

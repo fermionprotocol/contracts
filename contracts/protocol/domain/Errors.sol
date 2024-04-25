@@ -7,7 +7,16 @@ interface FermionErrors {
     error VersionMustBeSet();
     error AddressesAndCalldataLengthMismatch();
 
+    // Entity errors
     error InvalidEntityRoles();
     error EntityAlreadyExists();
     error NoSuchEntity();
+
+    // Meta transaction errors
+    error NonceUsedAlready();
+    error FunctionNotAllowlisted();
+    error InvalidFunctionName();
+    error InvalidSignature();
+    error SignerAndSignatureDoNotMatch();
+    error FunctionCallFailed();
 }
