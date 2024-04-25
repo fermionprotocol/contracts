@@ -18,6 +18,8 @@ export async function deployFermionProtocolFixture(defaultSigner: any) {
   const initFacet = await deployFacets(["InitializationFacet"]);
   const facets = await deployFacets(facetNames, constructorArgs);
 
+  // Initialize Boson seller and buyer
+  // ToDo: make this part of "deployDiamond" function
   const initializationFacet = initFacet["InitializationFacet"];
   const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeBosonSellerAndBuyer", [
     bosonProtocolAddress,
@@ -30,12 +32,7 @@ export async function deployFermionProtocolFixture(defaultSigner: any) {
     initializeBosonSeller,
   );
 
-  // Deploy multiInit facet
-  // N.B. This is a temporary solution until we add protocol initialization facet
-  const DiamondMutiInit = await ethers.getContractFactory("DiamondMultiInit");
-  const diamondMutiInit = await DiamondMutiInit.deploy();
-  await diamondMutiInit.waitForDeployment();
-
+  // Init other facets, using the initialization facet
   // Prepare init call
   const init = {
     MetaTransactionFacet: [await getStateModifyingFunctionsHashes(facetNames)],
@@ -44,12 +41,18 @@ export async function deployFermionProtocolFixture(defaultSigner: any) {
   const initCalldatas = Object.keys(init).map((facetName) =>
     facets[facetName].interface.encodeFunctionData("init", init[facetName]),
   );
-  const functionCall = diamondMutiInit.interface.encodeFunctionData("multiInit", [initAddresses, initCalldatas]);
+  const functionCall = initializationFacet.interface.encodeFunctionData("initialize", [
+    ethers.encodeBytes32String("test"),
+    initAddresses,
+    initCalldatas,
+    [],
+    [],
+  ]);
 
   await makeDiamondCut(
     diamondAddress,
     await prepareFacetCuts(Object.values(facets)),
-    await diamondMutiInit.getAddress(),
+    await initializationFacet.getAddress(),
     functionCall,
   );
 

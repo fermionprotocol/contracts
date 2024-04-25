@@ -48,26 +48,25 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         bytes32 _version,
         address[] calldata _addresses,
         bytes[] calldata _calldata,
-        bytes4[] calldata _interfacesToRemove,
-        bytes4[] calldata _interfacesToAdd
+        bytes4[] calldata _interfacesToAdd,
+        bytes4[] calldata _interfacesToRemove
     ) external noDirectInitialization {
         if (_version == bytes32(0)) revert VersionMustBeSet();
-        if (_addresses.length != _calldata.length) revert AddressesAndCalldataLengthMismatch();
+        if (_addresses.length != _calldata.length)
+            revert AddressesAndCalldataLengthMismatch(_addresses.length, _calldata.length);
 
         // Delegate call to initialize methods of facets declared in _addresses
-        for (uint256 i = 0; i < _addresses.length; ) {
+        for (uint256 i = 0; i < _addresses.length; i++) {
             LibDiamond.initializeDiamondCut(_addresses[i], _calldata[i]);
         }
-
-        FermionStorage.ProtocolStatus storage protocolStatus = FermionStorage.protocolStatus();
 
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         addRemoveInterfaces(ds, _interfacesToRemove, false);
         addRemoveInterfaces(ds, _interfacesToAdd, true);
 
-        protocolStatus.version = _version;
+        FermionStorage.protocolStatus().version = _version;
 
-        emit ProtocolInitialized(string(abi.encodePacked(_version)));
+        emit ProtocolInitialized(_version);
     }
 
     /**

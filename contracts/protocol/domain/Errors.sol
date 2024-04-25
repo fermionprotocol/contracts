@@ -8,7 +8,7 @@ interface FermionErrors {
     // Initialization errors
     error DirectInitializationNotAllowed();
     error VersionMustBeSet();
-    error AddressesAndCalldataLengthMismatch();
+    error AddressesAndCalldataLengthMismatch(uint256 addressesLength, uint256 calldataLength);
 
     // Entity errors
     error InvalidEntityRoles();

@@ -9,5 +9,5 @@ import { FermionTypes } from "../../domain/Types.sol";
  * @notice Defines events related to protocol initialization.
  */
 interface IInitialziationEvents {
-    event ProtocolInitialized(string indexed version);
+    event ProtocolInitialized(bytes32 indexed version);
 }

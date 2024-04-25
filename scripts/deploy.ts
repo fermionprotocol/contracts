@@ -77,4 +77,5 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
     throw Error(`Diamond upgrade failed: ${tx.hash}`);
   }
   console.log("Diamond cut executed");
+  return tx;
 }
