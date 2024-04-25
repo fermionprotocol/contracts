@@ -319,27 +319,25 @@ describe("MetaTransactions", function () {
             const metaTransactionFacetAddress = await diamondLoupe.facetAddress(functionFragment.selector);
 
             // Deploy a new diamond, from where the existing facet will be called
-            const { diamondAddress } = await deployDiamond(bosonProtocolAddress);
-
-            // Deploy multiInit facet
-            const DiamondMutiInit = await ethers.getContractFactory("DiamondMultiInit");
-            const diamondMutiInit = await DiamondMutiInit.deploy();
-            await diamondMutiInit.waitForDeployment();
+            const { diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress);
 
             // Prepare init call
             const initAddresses = [metaTransactionFacetAddress];
             const initCalldatas = [
               metaTransactionFacet.interface.encodeFunctionData("init", [[id(message.functionName)]]),
             ];
-            const functionCall = diamondMutiInit.interface.encodeFunctionData("multiInit", [
+            const functionCall = initializationFacet.interface.encodeFunctionData("initialize", [
+              ethers.encodeBytes32String("test"),
               initAddresses,
               initCalldatas,
+              [],
+              [],
             ]);
 
             await makeDiamondCut(
               diamondAddress,
               await prepareFacetCuts([metaTransactionFacet.attach(metaTransactionFacetAddress)]),
-              await diamondMutiInit.getAddress(),
+              await initializationFacet.getAddress(),
               functionCall,
             );
 

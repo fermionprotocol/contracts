@@ -14,7 +14,7 @@ import { IERC173 } from "../../diamond/interfaces/IERC173.sol";
 import { IERC165 } from "../../diamond/interfaces/IERC165.sol";
 
 /**
- * @title BosonProtocolInitializationHandler
+ * @title FermionProtocolInitializationHandler
  *
  * @notice Handle initializion of protocol
  *
