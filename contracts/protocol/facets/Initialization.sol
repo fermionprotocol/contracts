@@ -16,16 +16,16 @@ import { IERC165 } from "../../diamond/interfaces/IERC165.sol";
 /**
  * @title FermionProtocolInitializationHandler
  *
- * @notice Handle initializion of protocol
+ * @notice Handle initialization of protocol
  *
  */
 contract InitializationFacet is FermionErrors, IInitialziationEvents {
-    address private immutable THIS_ADDRESS; // used to prevent invocation of initialize directly on deployed contract. Variable is not used by the protocol.
+    address private immutable THIS_ADDRESS; // used to prevent invocation of 'initialize' directly on deployed contract. Variable is not used by the protocol.
 
     /**
      * @notice Constructor
      *
-     * @dev This constructor is used to prevent invocation of initialize directly on deployed contract.
+     * @dev This constructor is used to prevent invocation of 'initialize' directly on deployed contract.
      */
     constructor() {
         THIS_ADDRESS = address(this);
@@ -33,7 +33,6 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
 
     /**
      * @notice Initializes the protocol after the deployment.
-     * This function is callable only once for each version
      *
      * Reverts if:
      * - Is invoked directly on the deployed contract (not via proxy)
@@ -75,7 +74,7 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
 
     /**
      * @notice First Diamond initialization.
-     * Creates the Boson Seller in the existing Boson Protocol and registers the defaul interfaces.
+     * Creates the Boson Seller in the existing Boson Protocol and registers the default interfaces.
      *
      * Must be called before Fermion can be used. Subsequent upgrades should use the initialize function.
      *
