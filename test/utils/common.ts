@@ -1,16 +1,13 @@
-import fs from "fs";
 import { ethers } from "hardhat";
 import { deployDiamond, deployFacets, prepareFacetCuts, makeDiamondCut } from "../../scripts/deploy";
 import { getStateModifyingFunctionsHashes } from "./metaTransaction";
 import { initBosonProtocolFixture } from "./boson-protocol";
 
-let bosonProtocolAddress: string;
-
 // We define a fixture to reuse the same setup in every test.
 // We use loadFixture to run this setup once, snapshot that state,
 // and reset Hardhat Network to that snapshot in every test.
 export async function deployFermionProtocolFixture(defaultSigner: any) {
-  ({ bosonProtocolAddress } = await initBosonProtocolFixture());
+  const { bosonProtocolAddress } = await initBosonProtocolFixture();
 
   const { diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress);
 
@@ -65,20 +62,4 @@ export async function deployFermionProtocolFixture(defaultSigner: any) {
     defaultSigner,
     bosonProtocolAddress,
   };
-}
-
-// Load Boson handler ABI creates contract instant and attach it to the Boson protocol address
-// If Boson protocol is not initialized yet, it will be initialized
-export async function getBosonHandler(handlerName: string) {
-  if (!bosonProtocolAddress) {
-    ({ bosonProtocolAddress } = await initBosonProtocolFixture());
-  }
-
-  const { abi: facetABI } = JSON.parse(
-    fs.readFileSync(`test/utils/boson-protocol-artifacts/abis/${handlerName}.sol/${handlerName}.json`, "utf8"),
-  );
-
-  const facet = await ethers.getContractAt(facetABI, bosonProtocolAddress);
-
-  return facet;
 }

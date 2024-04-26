@@ -3,6 +3,8 @@ import { ethers } from "hardhat";
 
 const { provider, parseUnits, toBeHex } = ethers;
 
+let bosonProtocolAddress: string;
+
 // Mimic the actual deployed Boson protocol contracts by setting their bytecodes to corresponding addresses
 export async function initBosonProtocolFixture() {
   // Load the deployed bytecodes
@@ -14,7 +16,7 @@ export async function initBosonProtocolFixture() {
     await provider.send("hardhat_setCode", [address, code]);
   }
 
-  const bosonProtocolAddress = deployedByteCodes.find((contract) => contract.name === "ProtocolDiamond").address;
+  bosonProtocolAddress = deployedByteCodes.find((contract) => contract.name === "ProtocolDiamond").address;
   const accessControllerAddress = deployedByteCodes.find((contract) => contract.name === "AccessController").address;
   const voucherBeaconAddress = deployedByteCodes.find((contract) => contract.name === "BosonVoucher Beacon").address;
 
@@ -53,6 +55,25 @@ export async function initBosonProtocolFixture() {
   await provider.send("hardhat_stopImpersonatingAccount", [adminAddress]);
 
   return { bosonProtocolAddress };
+}
+
+// Load Boson handler ABI creates contract instant and attach it to the Boson protocol address
+// If Boson protocol is not initialized yet, it will be initialized
+export async function getBosonHandler(handlerName: string) {
+  if (!bosonProtocolAddress) {
+    ({ bosonProtocolAddress } = await initBosonProtocolFixture());
+  }
+
+  const { abi: facetABI } = JSON.parse(
+    fs.readFileSync(
+      `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/abis/sepolia/test/interfaces/handlers/${handlerName}.sol/${handlerName}.json`,
+      "utf8",
+    ),
+  );
+
+  const facet = await ethers.getContractAt(facetABI, bosonProtocolAddress);
+
+  return facet;
 }
 
 async function setStorage(address: string, pointer: string, value: string) {

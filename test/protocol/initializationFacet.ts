@@ -1,5 +1,6 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployFermionProtocolFixture, getBosonHandler } from "../utils/common";
+import { deployFermionProtocolFixture } from "../utils/common";
+import { getBosonHandler } from "../utils/boson-protocol";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
