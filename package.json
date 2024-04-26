@@ -9,9 +9,9 @@
   "scripts": {
     "build": "npx hardhat clean && npx hardhat compile",
     "coverage": "npx hardhat coverage",
-    "check:contracts": "solhint 'contracts/**/*.sol' && prettier --list-different contracts/**",
+    "check:contracts": "solhint 'contracts/**/*.sol' && prettier --list-different contracts",
     "check:scripts": "eslint . && prettier --list-different .",
-    "tidy:contracts": "solhint --fix contracts/**/*.sol && prettier --plugin=prettier-plugin-solidity --write contracts/**",
+    "tidy:contracts": "solhint --fix contracts/**/*.sol && prettier --plugin=prettier-plugin-solidity --write contracts",
     "tidy:scripts": "eslint --fix . && prettier --write ."
   },
   "devDependencies": {
