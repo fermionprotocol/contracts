@@ -87,7 +87,7 @@ describe("MetaTransactions", function () {
             await expect(tx)
               .to.emit(metaTransactionFacet, "MetaTransactionExecuted")
               .withArgs(entity.address, defaultSigner.address, message.functionName, message.nonce);
-            await expect(tx).to.emit(entityFacet, "EntityUpdated").withArgs(entity.address, entityRoles, metadataURI);
+            await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(entity.address, entityRoles, metadataURI);
 
             // Verify the state
             const response = await entityFacet.getEntity(entity.address);
@@ -463,7 +463,7 @@ describe("MetaTransactions", function () {
           await expect(tx)
             .to.emit(metaTransactionFacet, "MetaTransactionExecuted")
             .withArgs(entityAddress, defaultSigner.address, message.functionName, message.nonce);
-          await expect(tx).to.emit(entityFacet, "EntityUpdated").withArgs(entityAddress, entityRoles, metadataURI);
+          await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(entityAddress, entityRoles, metadataURI);
 
           // Verify the state
           const response = await entityFacet.getEntity(entityAddress);

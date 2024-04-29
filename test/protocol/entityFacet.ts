@@ -38,7 +38,7 @@ describe("Entity", function () {
 
           // test event
           await expect(entityFacet.connect(signer).createEntity([EntityRole[role]], metadataURI))
-            .to.emit(entityFacet, "EntityUpdated")
+            .to.emit(entityFacet, "EntityStored")
             .withArgs(signer.address, [EntityRole[role]], metadataURI);
 
           // verify state
@@ -49,7 +49,7 @@ describe("Entity", function () {
       it("Create an entity with multiple roles", async function () {
         // test event
         await expect(entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI))
-          .to.emit(entityFacet, "EntityUpdated")
+          .to.emit(entityFacet, "EntityStored")
           .withArgs(defaultSigner.address, [EntityRole.Verifier, EntityRole.Custodian], metadataURI);
 
         // verify state
@@ -98,7 +98,7 @@ describe("Entity", function () {
 
         // test event
         await expect(entityFacet.updateEntity([EntityRole.Verifier], newMetadataURI))
-          .to.emit(entityFacet, "EntityUpdated")
+          .to.emit(entityFacet, "EntityStored")
           .withArgs(defaultSigner.address, [EntityRole.Verifier], newMetadataURI);
 
         // verify state
@@ -144,7 +144,7 @@ describe("Entity", function () {
       it("Delete an entity", async function () {
         // test event
         await expect(entityFacet.deleteEntity())
-          .to.emit(entityFacet, "EntityUpdated")
+          .to.emit(entityFacet, "EntityStored")
           .withArgs(defaultSigner.address, [], "");
 
         // verify state

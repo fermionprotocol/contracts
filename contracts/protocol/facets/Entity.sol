@@ -19,7 +19,7 @@ contract EntityFacet is Context, FermionErrors {
     /**
      * @notice Creates an entity.
      *
-     * Emits an EntityUpdated event if successful.
+     * Emits an EntityStored event if successful.
      *
      * Reverts if:
      * - Entity exists already
@@ -39,7 +39,7 @@ contract EntityFacet is Context, FermionErrors {
     /**
      * @notice Updates an entity.
      *
-     * Emits an EntityUpdated event if successful.
+     * Emits an EntityStored event if successful.
      *
      * Reverts if:
      * - Entity does not exist
@@ -57,7 +57,7 @@ contract EntityFacet is Context, FermionErrors {
     /**
      * @notice Deletes an entity.
      *
-     * Emits an EntityUpdated event if successful.
+     * Emits an EntityStored event if successful.
      *
      * Reverts if:
      * - Entity does not exist
@@ -70,7 +70,7 @@ contract EntityFacet is Context, FermionErrors {
         delete entityData.roles;
         delete entityData.metadataURI;
 
-        emit IEntityEvents.EntityUpdated(entityAddress, new FermionTypes.EntityRole[](0), "");
+        emit IEntityEvents.EntityStored(entityAddress, new FermionTypes.EntityRole[](0), "");
     }
 
     /**
@@ -95,7 +95,7 @@ contract EntityFacet is Context, FermionErrors {
     /**
      * @notice Write entity data in the storage.
      *
-     * Emits an EntityUpdated event if successful.
+     * Emits an EntityStored event if successful.
      *
      * Reverts if:
      * - No role is specified
@@ -115,7 +115,7 @@ contract EntityFacet is Context, FermionErrors {
         _entityData.metadataURI = _metadata;
 
         // Notify watchers of state change
-        emit IEntityEvents.EntityUpdated(msgSender(), _roles, _metadata);
+        emit IEntityEvents.EntityStored(msgSender(), _roles, _metadata);
     }
 
     /**
