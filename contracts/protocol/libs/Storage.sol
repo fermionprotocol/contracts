@@ -10,12 +10,21 @@ import { FermionTypes } from "../domain/Types.sol";
  */
 library FermionStorage {
     bytes32 internal constant PROTOCOL_ENTITIES_POSITION = keccak256("fermion.protocol.entities");
+    bytes32 internal constant PROTOCOL_LOOKUPS_POSITION = keccak256("fermion.protocol.lookups");
     bytes32 internal constant META_TRANSACTION_POSITION = keccak256("fermion.meta.transaction");
 
     // Protocol entities storage
     struct ProtocolEntities {
         // address => entity data
-        mapping(address => FermionTypes.EntityData) entityData;
+        mapping(uint256 => FermionTypes.EntityData) entityData;
+    }
+
+    // Protocol lookup storage
+    struct ProtocolLookups {
+        // entity counter
+        uint256 entityCounter;
+        // entity admin => entity id
+        mapping(address => uint256) entityId;
     }
 
     // Storage related to Meta Transactions
@@ -37,6 +46,18 @@ library FermionStorage {
         bytes32 position = PROTOCOL_ENTITIES_POSITION;
         assembly {
             pe.slot := position
+        }
+    }
+
+    /**
+     * @notice Gets the protocol lookups slot
+     *
+     * @return pl - the protocol lookups slot
+     */
+    function protocolLookups() internal pure returns (ProtocolLookups storage pl) {
+        bytes32 position = PROTOCOL_LOOKUPS_POSITION;
+        assembly {
+            pl.slot := position
         }
     }
 

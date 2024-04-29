@@ -29,9 +29,14 @@ contract EntityFacet is Context, FermionErrors {
      * @param _metadata - the metadata URI for the entity
      */
     function createEntity(FermionTypes.EntityRole[] calldata _roles, string calldata _metadata) external {
-        FermionTypes.EntityData storage newEntity = FermionStorage.protocolEntities().entityData[msgSender()];
+        address msgSender = msgSender();
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        uint256 entityId = pl.entityId[msgSender];
+        if (entityId != 0) revert EntityAlreadyExists();
 
-        if (newEntity.roles != 0) revert EntityAlreadyExists();
+        entityId = ++pl.entityCounter;
+        pl.entityId[msgSender] = entityId;
+        FermionTypes.EntityData storage newEntity = FermionStorage.protocolEntities().entityData[entityId];
 
         storeEntity(newEntity, _roles, _metadata);
     }
@@ -69,6 +74,7 @@ contract EntityFacet is Context, FermionErrors {
 
         delete entityData.roles;
         delete entityData.metadataURI;
+        delete FermionStorage.protocolLookups().entityId[entityAddress];
 
         emit IEntityEvents.EntityStored(entityAddress, new FermionTypes.EntityRole[](0), "");
     }
@@ -130,9 +136,10 @@ contract EntityFacet is Context, FermionErrors {
     function fetchEntityData(
         address _entityAddress
     ) internal view returns (FermionTypes.EntityData storage entityData) {
-        entityData = FermionStorage.protocolEntities().entityData[_entityAddress];
+        uint256 entityId = FermionStorage.protocolLookups().entityId[_entityAddress];
+        if (entityId == 0) revert NoSuchEntity();
 
-        if (entityData.roles == 0) revert NoSuchEntity();
+        entityData = FermionStorage.protocolEntities().entityData[entityId];
     }
 
     /**
