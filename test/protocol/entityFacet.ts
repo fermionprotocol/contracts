@@ -32,7 +32,7 @@ describe("Entity", function () {
 
     context("createEntity", function () {
       it("Create an entity", async function () {
-        const roles = ["Agent", "Buyer", "Verifier", "Custodian"];
+        const roles = ["Reseller", "Buyer", "Verifier", "Custodian"];
         for (const [index, role] of Object.entries(roles)) {
           const signer = wallets[index];
 
@@ -59,21 +59,21 @@ describe("Entity", function () {
         const signer2 = wallets[2];
         await entityFacet
           .connect(signer2)
-          .createEntity([EntityRole.Custodian, EntityRole.Buyer, EntityRole.Agent], metadataURI);
-        await verifyState(signer2, [EntityRole.Custodian, EntityRole.Buyer, EntityRole.Agent], metadataURI);
+          .createEntity([EntityRole.Custodian, EntityRole.Buyer, EntityRole.Reseller], metadataURI);
+        await verifyState(signer2, [EntityRole.Custodian, EntityRole.Buyer, EntityRole.Reseller], metadataURI);
 
         const signer3 = wallets[3];
         await entityFacet
           .connect(signer3)
-          .createEntity([EntityRole.Agent, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
-        await verifyState(signer3, [EntityRole.Agent, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
+          .createEntity([EntityRole.Reseller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
+        await verifyState(signer3, [EntityRole.Reseller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
       });
 
       context("Revert reasons", function () {
         it("An entity already exists", async function () {
-          await entityFacet.createEntity([EntityRole.Agent], metadataURI);
+          await entityFacet.createEntity([EntityRole.Reseller], metadataURI);
 
-          await expect(entityFacet.createEntity([EntityRole.Agent], metadataURI)).to.be.revertedWithCustomError(
+          await expect(entityFacet.createEntity([EntityRole.Reseller], metadataURI)).to.be.revertedWithCustomError(
             fermionErrors,
             "EntityAlreadyExists",
           );
@@ -108,15 +108,22 @@ describe("Entity", function () {
         await entityFacet.updateEntity([EntityRole.Custodian, EntityRole.Verifier, EntityRole.Buyer], metadataURI);
         await verifyState(defaultSigner, [EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
 
-        await entityFacet.updateEntity([EntityRole.Agent, EntityRole.Custodian, EntityRole.Verifier], newMetadataURI);
-        await verifyState(defaultSigner, [EntityRole.Agent, EntityRole.Custodian, EntityRole.Verifier], newMetadataURI);
+        await entityFacet.updateEntity(
+          [EntityRole.Reseller, EntityRole.Custodian, EntityRole.Verifier],
+          newMetadataURI,
+        );
+        await verifyState(
+          defaultSigner,
+          [EntityRole.Reseller, EntityRole.Custodian, EntityRole.Verifier],
+          newMetadataURI,
+        );
       });
 
       context("Revert reasons", function () {
         it("An entity does not exists", async function () {
           const signer2 = wallets[2];
           await expect(
-            entityFacet.connect(signer2).updateEntity([EntityRole.Agent], metadataURI),
+            entityFacet.connect(signer2).updateEntity([EntityRole.Reseller], metadataURI),
           ).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
         });
 
@@ -165,13 +172,13 @@ describe("Entity", function () {
 
         const newMetadataURI = "https://example.com/metadata2.json";
         await entityFacet.updateEntity(
-          [EntityRole.Verifier, EntityRole.Agent, EntityRole.Custodian, EntityRole.Buyer],
+          [EntityRole.Verifier, EntityRole.Reseller, EntityRole.Custodian, EntityRole.Buyer],
           newMetadataURI,
         );
 
         response = await entityFacet.getEntity(defaultSigner.address);
         expect(response.roles.map(String)).to.have.members(
-          [EntityRole.Agent, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
+          [EntityRole.Reseller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
         );
         expect(response.metadataURI).to.equal(newMetadataURI);
       });

@@ -3,7 +3,7 @@
  */
 
 export enum EntityRole {
-  Agent,
+  Reseller,
   Buyer,
   Verifier,
   Custodian,
