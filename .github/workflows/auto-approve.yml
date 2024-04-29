@@ -1,9 +1,6 @@
 name: Auto approve
 
-on:
-  pull_request:
-    branches: [main]
-    types: [opened, reopened, synchronize]
+on: pull_request_target
 
 jobs:
   auto-approve:
