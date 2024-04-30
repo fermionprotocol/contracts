@@ -121,7 +121,32 @@ contract Test2Facet {
 }
 
 contract RevertingFacet {
-    function revertWithoutReason() external pure {
+    error revertingFacet();
+    function revertWithReason() public pure {
+        revert revertingFacet();
+    }
+
+    function revertWithoutReason() public pure {
         revert();
+    }
+}
+
+contract TestInitialization is RevertingFacet {
+    enum Revert {
+        No,
+        YesWithReason,
+        YesWithoutReason
+    }
+
+    event FacetInitialized(address _contract);
+
+    function init(Revert _revert) external {
+        if (_revert == Revert.YesWithReason) {
+            revertWithReason();
+        } else if (_revert == Revert.YesWithoutReason) {
+            revertWithoutReason();
+        }
+
+        emit FacetInitialized(address(this));
     }
 }
