@@ -12,7 +12,8 @@
     "check:contracts": "solhint 'contracts/**/*.sol' && prettier --list-different contracts",
     "check:scripts": "eslint . && prettier --list-different .",
     "tidy:contracts": "solhint --fix contracts/**/*.sol && prettier --plugin=prettier-plugin-solidity --write contracts",
-    "tidy:scripts": "eslint --fix . && prettier --write ."
+    "tidy:scripts": "eslint --fix . && prettier --write .",
+    "postinstall": "node ./scripts/postinstall.js"
   },
   "devDependencies": {
     "@bosonprotocol/boson-protocol-contracts": "git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.4.1",
