@@ -147,10 +147,7 @@ async function setBosonContractsCompilationFolder() {
     return [...bosonProtocolContracts].map(path.normalize);
   });
 
-  await hre.run("clean");
-  try {
-    await hre.run("compile");
-  } catch {}
+  await recompileContracts();
 }
 
 // Reset the compilation folder to the Fermion Protocol contracts and compiles them.
@@ -165,10 +162,7 @@ async function resetCompilationFolder() {
     return [...contracts].map(path.normalize);
   });
 
-  await hre.run("clean");
-  try {
-    await hre.run("compile");
-  } catch {}
+  await recompileContracts();
 }
 
 function getConfigHandlerInitArgs() {
@@ -184,4 +178,19 @@ function getConfigHandlerInitArgs() {
     protocolConfig.limits,
     protocolConfig.fees,
   ];
+}
+
+async function recompileContracts() {
+  await hre.run("clean");
+
+  // Right after compilation, Hardhat sometimes wrongly reports missing artifacts.
+  // Ignore this error, but throw any other error.
+  try {
+    await hre.run("compile");
+  } catch (e) {
+    if (e?.message.includes("HH700: Artifact for contract") && e?.message.includes("not found")) {
+      return;
+    }
+    throw e;
+  }
 }
