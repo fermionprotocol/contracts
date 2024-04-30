@@ -15,6 +15,12 @@ contract FermionTypes {
         Custodian
     }
 
+    enum EntityActor {
+        Admin,
+        Assistant,
+        Treasury
+    }
+
     struct EntityData {
         uint256 roles;
         string metadataURI;
