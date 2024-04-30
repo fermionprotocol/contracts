@@ -4,35 +4,39 @@ import {
   removeSelectors,
   findAddressPositionInFacets,
 } from "../../scripts/libraries/diamond";
-import { deployDiamond } from "../../scripts/deploy";
 import { assert } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
+import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { deployFermionProtocolFixture } from "../utils/common";
 
 describe("DiamondTest", async function () {
   let diamondAddress: string;
   let diamondCutFacet: Contract;
   let diamondLoupeFacet: Contract;
   let ownershipFacet: Contract;
+  let initializationFacet: Contract;
   let tx;
   let receipt;
   let result;
   const addresses: string[] = [];
 
   before(async function () {
-    diamondAddress = await deployDiamond();
+    ({ diamondAddress } = await loadFixture(deployFermionProtocolFixture));
+
     console.log({ diamondAddress });
     diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", diamondAddress);
     diamondLoupeFacet = await ethers.getContractAt("DiamondLoupeFacet", diamondAddress);
     ownershipFacet = await ethers.getContractAt("OwnershipFacet", diamondAddress);
+    initializationFacet = await ethers.getContractAt("InitializationFacet", diamondAddress);
   });
 
-  it("should have three facets -- call to facetAddresses function", async () => {
+  it("should have 6 facets -- call to facetAddresses function", async () => {
     for (const address of await diamondLoupeFacet.facetAddresses()) {
       addresses.push(address);
     }
     console.log({ addresses });
-    assert.equal(addresses.length, 3);
+    assert.equal(addresses.length, 6); // default facets: [diamondCut, diamondLoupe, ownership, initialization], protocol: [entity, metaTransaction]
   });
 
   it("facets should have the right function selectors -- call to facetFunctionSelectors function", async () => {
@@ -45,6 +49,9 @@ describe("DiamondTest", async function () {
     assert.sameMembers([...result], selectors);
     selectors = getSelectors(ownershipFacet);
     result = await diamondLoupeFacet.facetFunctionSelectors(addresses[2]);
+    assert.sameMembers([...result], selectors);
+    selectors = getSelectors(initializationFacet).remove(["initialize", "initializeDiamond"]);
+    result = await diamondLoupeFacet.facetFunctionSelectors(addresses[3]);
     assert.sameMembers([...result], selectors);
   });
 
@@ -89,7 +96,7 @@ describe("DiamondTest", async function () {
   it("should replace supportsInterface function", async () => {
     const Test1Facet = await ethers.getContractFactory("Test1Facet");
     const selectors = getSelectors(Test1Facet).get(["supportsInterface(bytes4)"]);
-    const testFacetAddress = addresses[3];
+    const testFacetAddress = addresses[addresses.length - 1];
     tx = await diamondCutFacet.diamondCut(
       [
         {
@@ -157,7 +164,7 @@ describe("DiamondTest", async function () {
     if (!receipt.status) {
       throw Error(`Diamond upgrade failed: ${tx.hash}`);
     }
-    result = await diamondLoupeFacet.facetFunctionSelectors(addresses[4]);
+    result = await diamondLoupeFacet.facetFunctionSelectors(addresses[addresses.length - 1]);
     assert.sameMembers([...result], getSelectors(test2Facet).get(functionsToKeep));
   });
 
@@ -181,11 +188,11 @@ describe("DiamondTest", async function () {
     if (!receipt.status) {
       throw Error(`Diamond upgrade failed: ${tx.hash}`);
     }
-    result = await diamondLoupeFacet.facetFunctionSelectors(addresses[3]);
+    result = await diamondLoupeFacet.facetFunctionSelectors(addresses[addresses.length - 2]); // test2facet was deployed afterwards, so test1facet is at the second last position
     assert.sameMembers([...result], getSelectors(test1Facet).get(functionsToKeep));
   });
 
-  it("remove all functions and facets accept 'diamondCut' and 'facets'", async () => {
+  it("remove all functions and facets except 'diamondCut' and 'facets'", async () => {
     let selectors = [];
     let facets = await diamondLoupeFacet.facets();
     for (let i = 0; i < facets.length; i++) {
@@ -220,6 +227,12 @@ describe("DiamondTest", async function () {
     const diamondLoupeFacetSelectors = getSelectors(diamondLoupeFacet).remove(["supportsInterface(bytes4)"]);
     const Test1Facet = await ethers.getContractFactory("Test1Facet");
     const Test2Facet = await ethers.getContractFactory("Test2Facet");
+
+    // Adjust addresses array, since other facets were removed
+    addresses[3] = addresses[addresses.length - 2];
+    addresses[4] = addresses[addresses.length - 1];
+    addresses.splice(5);
+
     // Any number of functions from any number of facets can be added/replaced/removed in a
     // single transaction
     const cut = [

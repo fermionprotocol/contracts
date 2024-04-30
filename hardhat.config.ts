@@ -1,8 +1,70 @@
-import { HardhatUserConfig } from "hardhat/config";
+import { HardhatUserConfig, subtask } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "hardhat-preprocessor";
+import path from "path";
+import { glob } from "glob";
+import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.24",
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.24",
+        settings: {
+          viaIR: false,
+          optimizer: {
+            enabled: true,
+            runs: 200,
+            details: {
+              yul: true,
+            },
+          },
+          evmVersion: "london",
+        },
+      },
+      {
+        version: "0.8.22",
+        settings: {
+          viaIR: false,
+          optimizer: {
+            enabled: true,
+            runs: 200,
+            details: {
+              yul: true,
+            },
+          },
+          evmVersion: "london",
+        },
+      },
+      {
+        version: "0.5.17", // Mock weth contract
+      },
+    ],
+  },
+  preprocess: {
+    eachLine: () => ({
+      transform: (line, { absolutePath }) => {
+        if (absolutePath.includes("boson-protocol-contracts")) {
+          line = line.replace(
+            "@openzeppelin/contracts/",
+            "@bosonprotocol/boson-protocol-contracts/node_modules/@openzeppelin/contracts/",
+          );
+        }
+        return line;
+      },
+    }),
+  },
 };
+
+subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, { config }) => {
+  const contracts_path = path.join(config.paths.root, "contracts", "**", "*.sol");
+  const contracts = await glob(contracts_path.replace(/\\/g, "/"), {
+    ignore: [
+      path.join(contracts_path, "external", "**", "*.sol").replace(/\\/g, "/"), // Windows support
+    ],
+  });
+
+  return [...contracts].map(path.normalize);
+});
 
 export default config;

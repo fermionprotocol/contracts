@@ -2,6 +2,14 @@
 pragma solidity 0.8.24;
 
 interface FermionErrors {
+    // General errors
+    error InvalidAddress();
+
+    // Initialization errors
+    error DirectInitializationNotAllowed();
+    error VersionMustBeSet();
+    error AddressesAndCalldataLengthMismatch(uint256 addressesLength, uint256 calldataLength);
+
     // Entity errors
     error InvalidEntityRoles();
     error EntityAlreadyExists();
