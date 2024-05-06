@@ -14,6 +14,6 @@ interface IEntityEvents {
         uint256 indexed entityId,
         address indexed wallet,
         FermionTypes.EntityRole[] entityRoles,
-        FermionTypes.WalletRole[] walletRole
+        FermionTypes.WalletRole[][] walletRole
     );
 }

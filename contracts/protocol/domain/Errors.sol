@@ -6,7 +6,7 @@ import { FermionTypes } from "./Types.sol";
 interface FermionErrors {
     // General errors
     error InvalidAddress();
-    error ArrayLengthMismatch(uint256 array1Length, uint256 array2Length);
+    error ArrayLengthMismatch(uint256 expectedLength, uint256 actualLength);
 
     // Initialization errors
     error DirectInitializationNotAllowed();
@@ -17,7 +17,7 @@ interface FermionErrors {
     error InvalidEntityRoles();
     error EntityAlreadyExists();
     error NoSuchEntity();
-    error NotAdmin(uint256 entityId, address admin);
+    error NotAdmin(address admin, uint256 entityId, FermionTypes.EntityRole role);
     error NotPendingAdmin(uint256 entityId, address admin);
     error AlreadyAdmin(uint256 entityId, address admin);
     error EntityHasNoRole(uint256 entityId, FermionTypes.EntityRole role);
