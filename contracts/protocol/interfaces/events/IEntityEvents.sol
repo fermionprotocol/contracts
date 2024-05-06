@@ -10,10 +10,10 @@ import { FermionTypes } from "../../domain/Types.sol";
  */
 interface IEntityEvents {
     event EntityStored(address indexed wallet, FermionTypes.EntityRole[] roles, string metadata);
-    event EntityActorAdded(
-        uint256 indexed _entityId,
-        address indexed _actorWallet,
-        FermionTypes.EntityRole[] _actorRoles,
-        FermionTypes.EntityActor[] _actorTypes
+    event EntityWalletAdded(
+        uint256 indexed entityId,
+        address indexed wallet,
+        FermionTypes.EntityRole[] entityRoles,
+        FermionTypes.WalletRole[] walletRole
     );
 }

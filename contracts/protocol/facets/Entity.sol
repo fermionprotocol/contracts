@@ -17,7 +17,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
     // uint8 constant private ROLE_PERMISSION_MASK = 0xFF;
     uint8 private constant ROLE_PERMISSION_MASK =
-        (uint8(1) << (uint8(type(FermionTypes.EntityActor).max) + uint8(1))) - 1;
+        (uint8(1) << (uint8(type(FermionTypes.WalletRole).max) + uint8(1))) - 1;
 
     /**
      * @notice Creates an entity.
@@ -45,24 +45,22 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     }
 
     /**
-     * @notice Add entity actors.
+     * @notice Add entity wallets.
      *
-     * Each address can have multiple actor roles from FermionTypes.EntityActor
-     * For each role that the entity has, the permissions are set independently.
+     * Each address can have multiple wallet roles from FermionTypes.WalletRole
+     * For each role that the entity has, the wallet roles are set independently.
      *
-     * @param _actorWallets - list of wallets that acts on the seller's behalf
-     * @param _actorRoles - list of corresponding roles, for which the address is given a certain permission. If actorRoles[i] is empty, the address is given the permissions for all roles.
-     * @param _actorPermissions - list of permissions for each wallet and role
+     * @param _wallets - list of wallets that acts on the seller's behalf
+     * @param _entityRoles - list of corresponding roles, for which the address is given a certain wallet role. If entityRoles[i] is empty, the address is given the wallet role to all entity roles.
+     * @param _walletRole - list of wallet roles for each wallet and entity role
      */
-    function addEntityActors(
-        address[] calldata _actorWallets,
-        FermionTypes.EntityRole[][] calldata _actorRoles,
-        FermionTypes.EntityActor[][][] calldata _actorPermissions
+    function addEntityWallets(
+        address[] calldata _wallets,
+        FermionTypes.EntityRole[][] calldata _entityRoles,
+        FermionTypes.WalletRole[][][] calldata _walletRole
     ) external {
-        if (_actorWallets.length != _actorRoles.length)
-            revert ArrayLengthMismatch(_actorWallets.length, _actorRoles.length);
-        if (_actorWallets.length != _actorPermissions.length)
-            revert ArrayLengthMismatch(_actorWallets.length, _actorPermissions.length);
+        if (_wallets.length != _entityRoles.length) revert ArrayLengthMismatch(_wallets.length, _entityRoles.length);
+        if (_wallets.length != _walletRole.length) revert ArrayLengthMismatch(_wallets.length, _walletRole.length);
 
         // address msgSender = msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
@@ -72,70 +70,70 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
 
         uint256 compactEntityRoles = pe.entityData[entityId].roles;
-        for (uint256 i = 0; i < _actorWallets.length; i++) {
-            address actorWallet = _actorWallets[i];
-            uint256 actorId = pl.actorId[actorWallet];
+        for (uint256 i = 0; i < _wallets.length; i++) {
+            address wallet = _wallets[i];
+            uint256 walletId = pl.walletId[wallet];
 
-            if (actorId == 0) {
-                actorId = ++pl.actorsCounter;
-                pl.actorId[actorWallet] = actorId;
+            if (walletId == 0) {
+                walletId = ++pl.walletsCounter;
+                pl.walletId[wallet] = walletId;
             }
 
-            mapping(uint256 => uint256) storage actorPermissions = pe.actorPermissions[entityId];
-            uint256 compactActorPermissions;
+            mapping(uint256 => uint256) storage walletRole = pe.walletRole[entityId];
+            uint256 compactWalletRole;
 
-            if (_actorRoles[i].length == 0) {
-                uint8 compactPermissionPerRole = actorPermissionsToCompactPermissions(_actorPermissions[i][0]);
-                uint256 role = compactPermissionPerRole << (31 * 8); // put in the first byte. 8 bits of permissions for each role
-                compactActorPermissions |= role;
+            if (_entityRoles[i].length == 0) {
+                uint8 compactWalletRolePerEntityRole = walletRoleToCompactWalletRoles(_walletRole[i][0]);
+                uint256 role = compactWalletRolePerEntityRole << (31 * 8); // put in the first byte. 8 bits of wallet roles for each entity role
+                compactWalletRole |= role;
             } else {
-                for (uint256 j = 0; j < _actorRoles[i].length; j++) {
-                    FermionTypes.EntityRole actorRole = _actorRoles[i][j];
+                for (uint256 j = 0; j < _entityRoles[i].length; j++) {
+                    FermionTypes.EntityRole entityRole = _entityRoles[i][j];
                     // Check that the entity has the role
-                    if (compactEntityRoles & (1 << uint256(actorRole)) == 0) {
-                        revert EntityHasNoRole(entityId, actorRole);
+                    if (compactEntityRoles & (1 << uint256(entityRole)) == 0) {
+                        revert EntityHasNoRole(entityId, entityRole);
                     }
 
-                    uint8 compactPermissionPerRole = actorPermissionsToCompactPermissions(_actorPermissions[i][j]);
-                    uint256 role = compactPermissionPerRole << uint8(uint256(actorRole) * 8); // 8 bits of permissions for each role
-                    compactActorPermissions |= role;
+                    uint8 compactWalletRolePerEntityRole = walletRoleToCompactWalletRoles(_walletRole[i][j]);
+                    uint256 role = compactWalletRolePerEntityRole << uint8(uint256(entityRole) * 8); //8 bits of wallet roles for each entity role
+                    compactWalletRole |= role;
                 }
             }
 
-            actorPermissions[entityId] |= compactActorPermissions;
+            walletRole[entityId] |= compactWalletRole;
         }
     }
 
     /**
-     * @notice Tells if a wallet has a specific permission for entity id and its role.
+     * @notice Tells if a wallet has a specific wallet role for entity id and its role.
      *
-     * @param _actorAddress - the address of the wallet
+     * @param _walletAddress - the address of the wallet
      * @param _entityId - the entity ID
      * @param _role - the role of the entity
-     * @param _actor - the permission
+     * @param _walletRole - the wallet role
      */
     function hasRole(
-        address _actorAddress,
+        address _walletAddress,
         uint256 _entityId,
         FermionTypes.EntityRole _role,
-        FermionTypes.EntityActor _actor
+        FermionTypes.WalletRole _walletRole
     ) external view returns (bool) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        uint256 actorId = pl.actorId[_actorAddress];
-        if (actorId == 0) return false;
+        uint256 walletId = pl.walletId[_walletAddress];
+        if (walletId == 0) return false;
 
-        uint256 compactActorPermissions = FermionStorage.protocolEntities().actorPermissions[actorId][_entityId];
+        uint256 compactWalletRole = FermionStorage.protocolEntities().walletRole[walletId][_entityId];
 
-        uint256 permission = 1 << uint256(_actor);
-        uint256 entityWidePermission = compactActorPermissions >> (31 * 8);
-        uint256 roleSpecificPermission = compactActorPermissions >> (uint256(_role) * 8);
-        return (entityWidePermission & permission != 0) || (roleSpecificPermission & permission != 0);
+        uint256 walletRole = 1 << uint256(_walletRole);
+        uint256 entityWidePermission = compactWalletRole >> (31 * 8);
+        uint256 roleSpecificPermission = compactWalletRole >> (uint256(_role) * 8);
+        return (entityWidePermission & walletRole != 0) || (roleSpecificPermission & walletRole != 0);
     }
 
     /**
      * @notice Accept the admin role for an entity.
      *
-     * Emits an EntityActorAdded event if successful.
+     * Emits an EntityWalletAdded event if successful.
      *
      * Reverts if:
      * - Caller is not pending admin for the entity
@@ -153,9 +151,9 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         delete pl.pendingAdminEntity[_entityId][msgSender];
         pl.entityId[msgSender] = _entityId;
 
-        FermionTypes.EntityActor[] memory adminActor = new FermionTypes.EntityActor[](1);
-        adminActor[0] = FermionTypes.EntityActor.Admin;
-        emit EntityActorAdded(_entityId, msgSender, new FermionTypes.EntityRole[](0), adminActor);
+        FermionTypes.WalletRole[] memory adminWallet = new FermionTypes.WalletRole[](1);
+        adminWallet[0] = FermionTypes.WalletRole.Admin;
+        emit EntityWalletAdded(_entityId, msgSender, new FermionTypes.EntityRole[](0), adminWallet);
     }
 
     /**
@@ -309,24 +307,24 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     }
 
     /**
-     * @notice Converts array of Permisions to compact permission.
+     * @notice Converts array of Permisions to compact wallet roles.
      *
-     * Calculates the compact permission as the sum of individual permission.
+     * Calculates the compact wallet roles as the sum of individual wallet roles.
      * Use "or" to get the correct value even if the same role is specified more than once.
      *
-     * @param _actorPermissions - the array of permissions
-     * @return compactPermissionPerRole - the compact representation of permissions
+     * @param _walletRole - the array of wallet roles
+     * @return compactWalletRole - the compact representation of wallet roles
      */
-    function actorPermissionsToCompactPermissions(
-        FermionTypes.EntityActor[] calldata _actorPermissions
-    ) internal pure returns (uint8 compactPermissionPerRole) {
-        if (_actorPermissions.length == 0) {
+    function walletRoleToCompactWalletRoles(
+        FermionTypes.WalletRole[] calldata _walletRole
+    ) internal pure returns (uint8 compactWalletRole) {
+        if (_walletRole.length == 0) {
             return ROLE_PERMISSION_MASK;
         }
 
-        for (uint256 i = 0; i < _actorPermissions.length; i++) {
-            uint8 permission = uint8(1) << uint8(_actorPermissions[i]);
-            compactPermissionPerRole |= permission;
+        for (uint256 i = 0; i < _walletRole.length; i++) {
+            uint8 walletRole = uint8(1) << uint8(_walletRole[i]);
+            compactWalletRole |= walletRole;
         }
     }
 }

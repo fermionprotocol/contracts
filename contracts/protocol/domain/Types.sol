@@ -15,7 +15,7 @@ contract FermionTypes {
         Custodian
     }
 
-    enum EntityActor {
+    enum WalletRole {
         Admin,
         Assistant,
         Treasury

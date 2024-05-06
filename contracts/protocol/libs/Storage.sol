@@ -25,20 +25,20 @@ library FermionStorage {
     struct ProtocolEntities {
         // entity id => entity data
         mapping(uint256 => FermionTypes.EntityData) entityData;
-        // actor id => entity id => actor permissions (compact)
-        mapping(uint256 => mapping(uint256 => uint256)) actorPermissions;
+        // wallet id => entity id => wallet permissions (compact)
+        mapping(uint256 => mapping(uint256 => uint256)) walletRole;
     }
 
     // Protocol lookup storage
     struct ProtocolLookups {
         // entity counter
         uint256 entityCounter;
-        // actors counter
-        uint256 actorsCounter;
+        // wallets counter
+        uint256 walletsCounter;
         // entity admin => entity id
         mapping(address => uint256) entityId;
-        // actor => actor id
-        mapping(address => uint256) actorId;
+        // wallet => wallet id
+        mapping(address => uint256) walletId;
         // entity id => entity admin => pending status
         mapping(uint256 => mapping(address => bool)) pendingAdminEntity;
     }
