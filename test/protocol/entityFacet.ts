@@ -2,11 +2,13 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { EntityRole, WalletRole, enumIterator } from "../utils/enums";
 import { deployFermionProtocolFixture } from "../utils/common";
+import { Contract } from "ethers";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("Entity", function () {
-  let entityFacet;
-  let wallets, defaultSigner;
-  let fermionErrors;
+  let entityFacet: Contract;
+  let wallets: HardhatEthersSigner[], defaultSigner: HardhatEthersSigner;
+  let fermionErrors: Contract;
 
   before(async function () {
     ({
@@ -24,7 +26,7 @@ describe("Entity", function () {
   describe("Entity facet", function () {
     const metadataURI = "https://example.com/metadata.json";
 
-    async function verifyState(signer, roles, metadataURI) {
+    async function verifyState(signer: Wallet, roles, metadataURI: string) {
       const response = await entityFacet.getEntity(signer.address);
       expect(response.admin).to.equal(signer.address);
       expect(response.roles.map(String)).to.have.members(roles.map(String));
