@@ -23,6 +23,7 @@ contract FermionTypes {
     }
 
     struct EntityData {
+        address admin;
         uint256 roles;
         string metadataURI;
     }

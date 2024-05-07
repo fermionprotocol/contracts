@@ -40,7 +40,7 @@ library FermionStorage {
         // wallet => wallet id
         mapping(address => uint256) walletId;
         // entity id => entity admin => pending status
-        mapping(uint256 => mapping(address => bool)) pendingAdminEntity;
+        mapping(uint256 => mapping(address => bool)) pendingEntityAdmin;
     }
 
     // Storage related to Meta Transactions

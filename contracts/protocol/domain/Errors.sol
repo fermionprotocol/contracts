@@ -18,9 +18,10 @@ interface FermionErrors {
     error EntityAlreadyExists();
     error NoSuchEntity();
     error NotAdmin(address admin, uint256 entityId, FermionTypes.EntityRole role);
-    error NotPendingAdmin(uint256 entityId, address admin);
+    error NotEntityAdmin(uint256 entityId, address admin);
     error AlreadyAdmin(uint256 entityId, address admin);
     error EntityHasNoRole(uint256 entityId, FermionTypes.EntityRole role);
+    error ChangeNotAllowed();
 
     // Meta transaction errors
     error NonceUsedAlready();
