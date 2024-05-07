@@ -132,10 +132,11 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         if (_status) {
             storeCompactWalletRole(_entityId, _wallet, 0xff << (31 * BYTE_SIZE), pl, FermionStorage.protocolEntities()); // compact role for all current and potential future roles
             emitAdminWalletAdded(_entityId, _wallet);
-        } else {
-            // removeCompactWalletRole(entityId, _wallet, pl, pe);
-            // emit EntityWalletRemoved(_entityId, _wallet);
         }
+        // else {
+        // removeCompactWalletRole(entityId, _wallet, pl, pe);
+        // emit EntityWalletRemoved(_entityId, _wallet);
+        // }
     }
 
     /**
@@ -152,7 +153,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      *
      * Reverts if:
      * - Caller is an entity admin
-     * - Caller is not an wallet for any enitity
+     * - Caller is not a wallet for any enitity
      *
      * @param _newWallet - the new wallet address
      */
@@ -161,7 +162,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
 
-        if (entityId != 0) revert ChangeNotAllowed(); // to change entity admin, use setEntityAdmin and then revoke the old admin
+        if (entityId != 0) revert ChangeNotAllowed(); // to change the entity admin, use setEntityAdmin and then revoke the old admin
 
         uint256 walletId = pl.walletId[msgSender];
         if (walletId == 0) revert NoSuchEntity();

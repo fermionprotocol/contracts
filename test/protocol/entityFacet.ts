@@ -26,9 +26,8 @@ describe("Entity", function () {
   describe("Entity facet", function () {
     const metadataURI = "https://example.com/metadata.json";
 
-    async function verifyState(signer: Wallet, roles, metadataURI: string) {
+    async function verifyState(signer: HardhatEthersSigner, roles, metadataURI: string) {
       const response = await entityFacet.getEntity(signer.address);
-      expect(response.admin).to.equal(signer.address);
       expect(response.roles.map(String)).to.have.members(roles.map(String));
       expect(response.metadataURI).to.equal(metadataURI);
     }
@@ -296,6 +295,25 @@ describe("Entity", function () {
             .withArgs(wallet.address, entityId, EntityRole.Verifier);
         });
 
+        it("Caller is not an entity admin", async function () {
+          const wallet = wallets[2];
+
+          // make the wallet an admin for all roles, but not an entity-wide admin
+          await entityFacet.addEntityWallets(
+            entityId,
+            [wallet.address],
+            [[EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian]],
+            [[[WalletRole.Admin], [WalletRole.Admin], [WalletRole.Admin]]],
+          ),
+            await expect(
+              entityFacet
+                .connect(wallet)
+                .addEntityWallets(entityId, [wallets[3].address], [[]], [[[WalletRole.Assistant]]]),
+            )
+              .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+              .withArgs(entityId, wallet.address);
+        });
+
         it("Array mismatch", async function () {
           const newWallets = [wallets[2].address];
           const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
@@ -306,19 +324,28 @@ describe("Entity", function () {
             .withArgs(newWallets.length, entityRoles.length);
 
           entityRoles.pop();
-          newWallets.push(wallets[3].address);
+          walletRoles.push([[]], [[]], [[]]);
 
           await expect(entityFacet.addEntityWallets(entityId, newWallets, entityRoles, walletRoles))
             .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
             .withArgs(newWallets.length, walletRoles.length);
-
-          newWallets.pop();
 
           await expect(
             entityFacet.addEntityWallets(entityId, newWallets, [[]], [[[WalletRole.Admin], [WalletRole.Assistant]]]),
           )
             .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
             .withArgs(1, 2);
+
+          await expect(
+            entityFacet.addEntityWallets(
+              entityId,
+              newWallets,
+              [[EntityRole.Verifier, EntityRole.Custodian, EntityRole.Reseller]],
+              [[[WalletRole.Admin], [WalletRole.Assistant]]],
+            ),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+            .withArgs(3, 2);
         });
 
         it("Entity does not have the role", async function () {
@@ -371,7 +398,7 @@ describe("Entity", function () {
         await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true)).to.not.be.reverted;
 
         // entity is referenced by the new admin signer
-        verifyState(newAdmin, entity.roles, entity.metadataURI);
+        await verifyState(newAdmin, entity.roles, entity.metadataURI);
         await expect(entityFacet.getEntity(defaultSigner.address)).to.be.revertedWithCustomError(
           fermionErrors,
           "NoSuchEntity",
@@ -455,14 +482,65 @@ describe("Entity", function () {
       });
     });
 
-    context("changeWallet", function () {});
+    context("changeWallet", function () {
+      const entityId = 1;
+      const entityRoles = [[EntityRole.Custodian, EntityRole.Verifier]];
+      let wallet: HardhatEthersSigner;
+
+      beforeEach(async function () {
+        await entityFacet.createEntity([EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        wallet = wallets[2];
+        const walletRoles = [[[], []]];
+
+        await entityFacet.addEntityWallets(entityId, [wallet.address], entityRoles, walletRoles);
+      });
+
+      it("new wallet has all roles", async function () {
+        const newWallet = wallets[3].address;
+
+        // test event
+        await expect(entityFacet.connect(wallet).changeWallet(newWallet))
+          .to.emit(entityFacet, "WalletChanged")
+          .withArgs(wallet.address, newWallet);
+
+        // verify state
+        for (const entityRole of entityRoles[0]) {
+          for (const walletRole of enumIterator(WalletRole)) {
+            const newWallethasRole = await entityFacet.hasRole(entityId, newWallet, entityRole, walletRole);
+            expect(newWallethasRole).to.be.true;
+
+            const oldWallethasRole = await entityFacet.hasRole(entityId, wallet.address, entityRole, walletRole);
+            expect(oldWallethasRole).to.be.false;
+          }
+        }
+      });
+
+      context("Revert reasons", function () {
+        it("Caller is an entity adming", async function () {
+          const newAdmin = wallets[2];
+
+          await expect(entityFacet.changeWallet(newAdmin.address)).to.be.revertedWithCustomError(
+            fermionErrors,
+            "ChangeNotAllowed",
+          );
+        });
+
+        it("Caller is not a wallet for any enitity", async function () {
+          const wallet = wallets[3];
+
+          await expect(entityFacet.connect(wallet).changeWallet(wallets[2].address)).to.be.revertedWithCustomError(
+            fermionErrors,
+            "NoSuchEntity",
+          );
+        });
+      });
+    });
 
     context("getEntity", function () {
       it("Get an entity", async function () {
         await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
 
         let response = await entityFacet.getEntity(defaultSigner.address);
-        expect(response.admin).to.equal(defaultSigner.address);
         expect(response.roles.map(String)).to.have.members([EntityRole.Verifier, EntityRole.Custodian].map(String));
         expect(response.metadataURI).to.equal(metadataURI);
 
@@ -473,7 +551,6 @@ describe("Entity", function () {
         );
 
         response = await entityFacet.getEntity(defaultSigner.address);
-        expect(response.admin).to.equal(defaultSigner.address);
         expect(response.roles.map(String)).to.have.members(
           [EntityRole.Reseller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
         );
