@@ -16,5 +16,11 @@ interface IEntityEvents {
         FermionTypes.EntityRole[] entityRoles,
         FermionTypes.WalletRole[][] walletRole
     );
+    event EntityWalletRemoved(
+        uint256 indexed entityId,
+        address indexed wallet,
+        FermionTypes.EntityRole[] entityRoles,
+        FermionTypes.WalletRole[][] walletRole
+    );
     event WalletChanged(address indexed oldWallet, address indexed newWallet);
 }
