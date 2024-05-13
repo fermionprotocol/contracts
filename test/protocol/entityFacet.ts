@@ -357,7 +357,242 @@ describe("Entity", function () {
       });
     });
 
-    context("removeEntityWallets", function () {});
+    context("removeEntityWallets", function () {
+      const entityId = 1;
+      const entityRolesAll = [EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian];
+      let entityWallets: string[];
+
+      beforeEach(async function () {
+        const metadataURI = "https://example.com/metadata.json";
+        await entityFacet.createEntity(entityRolesAll, metadataURI);
+
+        entityWallets = wallets.slice(2, 4).map((wallet) => wallet.address);
+        const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
+        const walletRoles = [[[WalletRole.Assistant], []], [[WalletRole.Treasury, WalletRole.Admin]]];
+
+        await entityFacet.addEntityWallets(entityId, entityWallets, entityRoles, walletRoles);
+      });
+
+      it("Remove entity wallets", async function () {
+        const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
+        const walletRoles = [[[], [WalletRole.Admin]], [[WalletRole.Treasury]]];
+
+        // test event
+        const tx = await entityFacet.removeEntityWallets(entityId, entityWallets, entityRoles, walletRoles);
+
+        for (const [i, wallet] of entityWallets.entries()) {
+          await expect(tx)
+            .to.emit(entityFacet, "EntityWalletRemoved")
+            .withArgs(entityId, wallet, entityRoles[i], walletRoles[i]);
+        }
+
+        // verify state
+        const expectedRoles = {};
+        const wallet0 = entityWallets[0];
+        expectedRoles[wallet0] = {};
+        expectedRoles[wallet0][EntityRole.Custodian] = {};
+        expectedRoles[wallet0][EntityRole.Custodian][WalletRole.Assistant] = true;
+        expectedRoles[wallet0][EntityRole.Custodian][WalletRole.Treasury] = true;
+
+        const wallet1 = entityWallets[1];
+        expectedRoles[wallet1] = {};
+        expectedRoles[wallet1][EntityRole.Reseller] = {};
+        expectedRoles[wallet1][EntityRole.Reseller][WalletRole.Admin] = true;
+
+        for (const wallet of entityWallets) {
+          for (const entityRole of enumIterator(EntityRole)) {
+            for (const walletRole of enumIterator(WalletRole)) {
+              const expectedValue =
+                !!expectedRoles[wallet][entityRole] && !!expectedRoles[wallet][entityRole][walletRole];
+              const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, walletRole);
+
+              expect(hasRole).to.equal(expectedValue);
+            }
+          }
+        }
+      });
+
+      it("Remove all wallet roles for one entity role", async function () {
+        const wallet = entityWallets[1];
+        const entityRoles = [[EntityRole.Reseller]];
+        const walletRoles = [[[]]];
+
+        // test event
+        const tx = await entityFacet.removeEntityWallets(entityId, [wallet], entityRoles, walletRoles);
+
+        await expect(tx)
+          .to.emit(entityFacet, "EntityWalletRemoved")
+          .withArgs(entityId, wallet, entityRoles[0], walletRoles[0]);
+
+        // verify state
+        for (const walletRole of enumIterator(WalletRole)) {
+          const hasRole = await entityFacet.hasRole(entityId, wallet, EntityRole.Custodian, walletRole);
+          expect(hasRole).to.be.false;
+        }
+      });
+
+      it("Remove entity-wide wallet roles", async function () {
+        const wallet = wallets[4].address;
+        const entityRoles = [[]];
+        const walletRoles = [[[WalletRole.Assistant]]];
+
+        // test event
+        await entityFacet.addEntityWallets(entityId, [wallet], entityRoles, walletRoles);
+
+        // verify state
+        for (const entityRole of enumIterator(EntityRole)) {
+          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          expect(hasRole).to.be.true;
+        }
+
+        await entityFacet.removeEntityWallets(entityId, [wallet], entityRoles, walletRoles);
+
+        // verify state
+        for (const entityRole of enumIterator(EntityRole)) {
+          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          expect(hasRole).to.be.false;
+        }
+      });
+
+      it("Removing entity-wide wallet roles does not remove specific wallet roles", async function () {
+        const wallet = wallets[4].address;
+        const entityRoles = [[], [EntityRole.Custodian]];
+        const walletRoles = [[[WalletRole.Assistant]], [[WalletRole.Assistant]]];
+
+        // test event
+        await entityFacet.addEntityWallets(entityId, [wallet, wallet], entityRoles, walletRoles);
+
+        // verify state
+        for (const entityRole of enumIterator(EntityRole)) {
+          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          expect(hasRole).to.be.true;
+        }
+
+        // remove entity-wide roles, but keep the specific wallet roles
+        await entityFacet.removeEntityWallets(entityId, [wallet], entityRoles.slice(0, 1), walletRoles.slice(0, 1));
+
+        // verify state
+        for (const entityRole of enumIterator(EntityRole)) {
+          const expectedRole = entityRole == String(EntityRole.Custodian);
+          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          expect(hasRole).to.equal(expectedRole);
+        }
+      });
+
+      it("Remove unassigned role", async function () {
+        const wallet = entityWallets[1];
+        const entityRoles = [[EntityRole.Reseller]];
+        const walletRoles = [[[WalletRole.Assistant]]];
+
+        // check the assigned roles
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Admin)).to.be.true;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Assistant)).to.be.false;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Treasury)).to.be.true;
+
+        // test event
+        await expect(entityFacet.removeEntityWallets(entityId, [wallet], entityRoles, walletRoles))
+          .to.emit(entityFacet, "EntityWalletRemoved")
+          .withArgs(entityId, wallet, entityRoles[0], walletRoles[0]);
+
+        // verify state, nothing should change
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Admin)).to.be.true;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Assistant)).to.be.false;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Treasury)).to.be.true;
+      });
+
+      context("Revert reasons", function () {
+        it("Entity does not exists", async function () {
+          await expect(entityFacet.removeEntityWallets(0, [], [], [])).to.be.revertedWithCustomError(
+            fermionErrors,
+            "NoSuchEntity",
+          );
+
+          await expect(entityFacet.removeEntityWallets(10, [], [], [])).to.be.revertedWithCustomError(
+            fermionErrors,
+            "NoSuchEntity",
+          );
+        });
+
+        it("Caller is not an admin for the entity role", async function () {
+          const wallet = wallets[2];
+
+          await expect(
+            entityFacet
+              .connect(wallet)
+              .removeEntityWallets(
+                entityId,
+                [wallet.address],
+                [[EntityRole.Verifier, EntityRole.Custodian]],
+                [[[WalletRole.Admin], []]],
+              ),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
+            .withArgs(wallet.address, entityId, EntityRole.Verifier);
+        });
+
+        it("Caller is not an entity admin", async function () {
+          const wallet = wallets[2];
+
+          // make the wallet an admin for all roles, but not an entity-wide admin
+          await entityFacet.addEntityWallets(
+            entityId,
+            [wallet.address],
+            [[EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian]],
+            [[[WalletRole.Admin], [WalletRole.Admin], [WalletRole.Admin]]],
+          ),
+            await expect(
+              entityFacet
+                .connect(wallet)
+                .removeEntityWallets(entityId, [wallets[3].address], [[]], [[[WalletRole.Assistant]]]),
+            )
+              .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+              .withArgs(entityId, wallet.address);
+        });
+
+        it("Array mismatch", async function () {
+          const newWallets = [wallets[2].address];
+          const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
+          const walletRoles = [[[WalletRole.Admin]]];
+
+          await expect(entityFacet.removeEntityWallets(entityId, newWallets, entityRoles, walletRoles))
+            .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+            .withArgs(newWallets.length, entityRoles.length);
+
+          entityRoles.pop();
+          walletRoles.push([[]], [[]], [[]]);
+
+          await expect(entityFacet.removeEntityWallets(entityId, newWallets, entityRoles, walletRoles))
+            .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+            .withArgs(newWallets.length, walletRoles.length);
+
+          await expect(
+            entityFacet.removeEntityWallets(entityId, newWallets, [[]], [[[WalletRole.Admin], [WalletRole.Assistant]]]),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+            .withArgs(1, 2);
+
+          await expect(
+            entityFacet.removeEntityWallets(
+              entityId,
+              newWallets,
+              [[EntityRole.Verifier, EntityRole.Custodian, EntityRole.Reseller]],
+              [[[WalletRole.Admin], [WalletRole.Assistant]]],
+            ),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+            .withArgs(3, 2);
+        });
+
+        it("Entity does not have the role", async function () {
+          const wallet = wallets[2].address;
+          await expect(
+            entityFacet.removeEntityWallets(entityId, [wallet], [[EntityRole.Buyer]], [[[WalletRole.Admin]]]),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+            .withArgs(entityId, EntityRole.Buyer);
+        });
+      });
+    });
 
     context("setEntityAdmin", function () {
       const entityId = 1;
@@ -423,14 +658,14 @@ describe("Entity", function () {
           .reverted;
       });
 
-      it.skip("Unset entity admin", async function () {
+      it("Unset entity admin", async function () {
         const newAdmin = wallets[2];
 
         // first set it
         await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
 
         // unset it
-        const tx = await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
+        const tx = await entityFacet.setEntityAdmin(entityId, newAdmin.address, false);
         await expect(tx)
           .to.emit(entityFacet, "EntityWalletRemoved")
           .withArgs(entityId, newAdmin.address, [], [[WalletRole.Admin]]);

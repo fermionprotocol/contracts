@@ -81,7 +81,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      *
      * Reverts if:
      * - Entity does not exist
-     * - Caller neither has the role that is being removed, nor is the admin for the entity role
+     * - Caller is not the admin for the entity role
      * - Length of _wallets, _entityRoles and _walletRoles do not match
      * - Entity does not have the role
      *
