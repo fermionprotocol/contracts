@@ -9,7 +9,7 @@ pragma solidity 0.8.24;
 
 contract FermionTypes {
     enum EntityRole {
-        Reseller,
+        Seller,
         Buyer,
         Verifier,
         Custodian

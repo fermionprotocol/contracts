@@ -34,7 +34,7 @@ describe("Entity", function () {
 
     context("createEntity", function () {
       it("Create an entity", async function () {
-        const roles = ["Reseller", "Buyer", "Verifier", "Custodian"];
+        const roles = ["Seller", "Buyer", "Verifier", "Custodian"];
         for (const [index, role] of Object.entries(roles)) {
           const signer = wallets[index];
           const entityId = Number(index) + 1;
@@ -72,21 +72,21 @@ describe("Entity", function () {
         const signer2 = wallets[2];
         await entityFacet
           .connect(signer2)
-          .createEntity([EntityRole.Custodian, EntityRole.Buyer, EntityRole.Reseller], metadataURI);
-        await verifyState(signer2, [EntityRole.Custodian, EntityRole.Buyer, EntityRole.Reseller], metadataURI);
+          .createEntity([EntityRole.Custodian, EntityRole.Buyer, EntityRole.Seller], metadataURI);
+        await verifyState(signer2, [EntityRole.Custodian, EntityRole.Buyer, EntityRole.Seller], metadataURI);
 
         const signer3 = wallets[3];
         await entityFacet
           .connect(signer3)
-          .createEntity([EntityRole.Reseller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
-        await verifyState(signer3, [EntityRole.Reseller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
+          .createEntity([EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
+        await verifyState(signer3, [EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
       });
 
       context("Revert reasons", function () {
         it("An entity already exists", async function () {
-          await entityFacet.createEntity([EntityRole.Reseller], metadataURI);
+          await entityFacet.createEntity([EntityRole.Seller], metadataURI);
 
-          await expect(entityFacet.createEntity([EntityRole.Reseller], metadataURI)).to.be.revertedWithCustomError(
+          await expect(entityFacet.createEntity([EntityRole.Seller], metadataURI)).to.be.revertedWithCustomError(
             fermionErrors,
             "EntityAlreadyExists",
           );
@@ -121,13 +121,10 @@ describe("Entity", function () {
         await entityFacet.updateEntity([EntityRole.Custodian, EntityRole.Verifier, EntityRole.Buyer], metadataURI);
         await verifyState(defaultSigner, [EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
 
-        await entityFacet.updateEntity(
-          [EntityRole.Reseller, EntityRole.Custodian, EntityRole.Verifier],
-          newMetadataURI,
-        );
+        await entityFacet.updateEntity([EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier], newMetadataURI);
         await verifyState(
           defaultSigner,
-          [EntityRole.Reseller, EntityRole.Custodian, EntityRole.Verifier],
+          [EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier],
           newMetadataURI,
         );
       });
@@ -136,7 +133,7 @@ describe("Entity", function () {
         it("An entity does not exists", async function () {
           const signer2 = wallets[2];
           await expect(
-            entityFacet.connect(signer2).updateEntity([EntityRole.Reseller], metadataURI),
+            entityFacet.connect(signer2).updateEntity([EntityRole.Seller], metadataURI),
           ).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
         });
 
@@ -177,7 +174,7 @@ describe("Entity", function () {
 
     context("addEntityWallets", function () {
       const entityId = 1;
-      const entityRolesAll = [EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian];
+      const entityRolesAll = [EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian];
       beforeEach(async function () {
         const metadataURI = "https://example.com/metadata.json";
         await entityFacet.createEntity(entityRolesAll, metadataURI);
@@ -185,7 +182,7 @@ describe("Entity", function () {
 
       it("Add entity wallets", async function () {
         const newWallets = wallets.slice(2, 4).map((wallet) => wallet.address);
-        const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
+        const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
         const walletRoles = [[[WalletRole.Assistant], []], [[WalletRole.Treasury, WalletRole.Admin]]];
 
         // test event
@@ -210,9 +207,9 @@ describe("Entity", function () {
 
         const wallet1 = newWallets[1];
         expectedRoles[wallet1] = {};
-        expectedRoles[wallet1][EntityRole.Reseller] = {};
-        expectedRoles[wallet1][EntityRole.Reseller][WalletRole.Admin] = true;
-        expectedRoles[wallet1][EntityRole.Reseller][WalletRole.Treasury] = true;
+        expectedRoles[wallet1][EntityRole.Seller] = {};
+        expectedRoles[wallet1][EntityRole.Seller][WalletRole.Admin] = true;
+        expectedRoles[wallet1][EntityRole.Seller][WalletRole.Treasury] = true;
 
         for (const wallet of newWallets) {
           for (const entityRole of enumIterator(EntityRole)) {
@@ -302,7 +299,7 @@ describe("Entity", function () {
           await entityFacet.addEntityWallets(
             entityId,
             [wallet.address],
-            [[EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian]],
+            [[EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian]],
             [[[WalletRole.Admin], [WalletRole.Admin], [WalletRole.Admin]]],
           ),
             await expect(
@@ -316,7 +313,7 @@ describe("Entity", function () {
 
         it("Array mismatch", async function () {
           const newWallets = [wallets[2].address];
-          const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
+          const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
           const walletRoles = [[[WalletRole.Admin]]];
 
           await expect(entityFacet.addEntityWallets(entityId, newWallets, entityRoles, walletRoles))
@@ -340,7 +337,7 @@ describe("Entity", function () {
             entityFacet.addEntityWallets(
               entityId,
               newWallets,
-              [[EntityRole.Verifier, EntityRole.Custodian, EntityRole.Reseller]],
+              [[EntityRole.Verifier, EntityRole.Custodian, EntityRole.Seller]],
               [[[WalletRole.Admin], [WalletRole.Assistant]]],
             ),
           )
@@ -359,7 +356,7 @@ describe("Entity", function () {
 
     context("removeEntityWallets", function () {
       const entityId = 1;
-      const entityRolesAll = [EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian];
+      const entityRolesAll = [EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian];
       let entityWallets: string[];
 
       beforeEach(async function () {
@@ -367,14 +364,14 @@ describe("Entity", function () {
         await entityFacet.createEntity(entityRolesAll, metadataURI);
 
         entityWallets = wallets.slice(2, 4).map((wallet) => wallet.address);
-        const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
+        const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
         const walletRoles = [[[WalletRole.Assistant], []], [[WalletRole.Treasury, WalletRole.Admin]]];
 
         await entityFacet.addEntityWallets(entityId, entityWallets, entityRoles, walletRoles);
       });
 
       it("Remove entity wallets", async function () {
-        const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
+        const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
         const walletRoles = [[[], [WalletRole.Admin]], [[WalletRole.Treasury]]];
 
         // test event
@@ -396,8 +393,8 @@ describe("Entity", function () {
 
         const wallet1 = entityWallets[1];
         expectedRoles[wallet1] = {};
-        expectedRoles[wallet1][EntityRole.Reseller] = {};
-        expectedRoles[wallet1][EntityRole.Reseller][WalletRole.Admin] = true;
+        expectedRoles[wallet1][EntityRole.Seller] = {};
+        expectedRoles[wallet1][EntityRole.Seller][WalletRole.Admin] = true;
 
         for (const wallet of entityWallets) {
           for (const entityRole of enumIterator(EntityRole)) {
@@ -414,7 +411,7 @@ describe("Entity", function () {
 
       it("Remove all wallet roles for one entity role", async function () {
         const wallet = entityWallets[1];
-        const entityRoles = [[EntityRole.Reseller]];
+        const entityRoles = [[EntityRole.Seller]];
         const walletRoles = [[[]]];
 
         // test event
@@ -481,13 +478,13 @@ describe("Entity", function () {
 
       it("Remove unassigned role", async function () {
         const wallet = entityWallets[1];
-        const entityRoles = [[EntityRole.Reseller]];
+        const entityRoles = [[EntityRole.Seller]];
         const walletRoles = [[[WalletRole.Assistant]]];
 
         // check the assigned roles
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Admin)).to.be.true;
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Assistant)).to.be.false;
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Treasury)).to.be.true;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Admin)).to.be.true;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Assistant)).to.be.false;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Treasury)).to.be.true;
 
         // test event
         await expect(entityFacet.removeEntityWallets(entityId, [wallet], entityRoles, walletRoles))
@@ -495,9 +492,9 @@ describe("Entity", function () {
           .withArgs(entityId, wallet, entityRoles[0], walletRoles[0]);
 
         // verify state, nothing should change
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Admin)).to.be.true;
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Assistant)).to.be.false;
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Reseller, WalletRole.Treasury)).to.be.true;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Admin)).to.be.true;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Assistant)).to.be.false;
+        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Treasury)).to.be.true;
       });
 
       context("Revert reasons", function () {
@@ -537,7 +534,7 @@ describe("Entity", function () {
           await entityFacet.addEntityWallets(
             entityId,
             [wallet.address],
-            [[EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian]],
+            [[EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian]],
             [[[WalletRole.Admin], [WalletRole.Admin], [WalletRole.Admin]]],
           ),
             await expect(
@@ -551,7 +548,7 @@ describe("Entity", function () {
 
         it("Array mismatch", async function () {
           const newWallets = [wallets[2].address];
-          const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Reseller]];
+          const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
           const walletRoles = [[[WalletRole.Admin]]];
 
           await expect(entityFacet.removeEntityWallets(entityId, newWallets, entityRoles, walletRoles))
@@ -575,7 +572,7 @@ describe("Entity", function () {
             entityFacet.removeEntityWallets(
               entityId,
               newWallets,
-              [[EntityRole.Verifier, EntityRole.Custodian, EntityRole.Reseller]],
+              [[EntityRole.Verifier, EntityRole.Custodian, EntityRole.Seller]],
               [[[WalletRole.Admin], [WalletRole.Assistant]]],
             ),
           )
@@ -599,7 +596,7 @@ describe("Entity", function () {
       const metadataURI = "https://example.com/metadata.json";
 
       beforeEach(async function () {
-        await entityFacet.createEntity([EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
       });
 
       it("Set entity admin", async function () {
@@ -654,7 +651,7 @@ describe("Entity", function () {
         ).to.not.be.reverted;
 
         // old admin can create a new entity
-        await expect(entityFacet.createEntity([EntityRole.Reseller, EntityRole.Custodian], metadataURI)).to.not.be
+        await expect(entityFacet.createEntity([EntityRole.Seller, EntityRole.Custodian], metadataURI)).to.not.be
           .reverted;
       });
 
@@ -708,7 +705,7 @@ describe("Entity", function () {
         it("Caller is not an admin for another entity", async function () {
           const newAdmin = wallets[2];
 
-          await entityFacet.connect(newAdmin).createEntity([EntityRole.Reseller, EntityRole.Custodian], metadataURI);
+          await entityFacet.connect(newAdmin).createEntity([EntityRole.Seller, EntityRole.Custodian], metadataURI);
 
           await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true))
             .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
@@ -723,7 +720,7 @@ describe("Entity", function () {
       let wallet: HardhatEthersSigner;
 
       beforeEach(async function () {
-        await entityFacet.createEntity([EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
         wallet = wallets[2];
         const walletRoles = [[[], []]];
 
@@ -781,13 +778,13 @@ describe("Entity", function () {
 
         const newMetadataURI = "https://example.com/metadata2.json";
         await entityFacet.updateEntity(
-          [EntityRole.Verifier, EntityRole.Reseller, EntityRole.Custodian, EntityRole.Buyer],
+          [EntityRole.Verifier, EntityRole.Seller, EntityRole.Custodian, EntityRole.Buyer],
           newMetadataURI,
         );
 
         response = await entityFacet.getEntity(defaultSigner.address);
         expect(response.roles.map(String)).to.have.members(
-          [EntityRole.Reseller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
+          [EntityRole.Seller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
         );
         expect(response.metadataURI).to.equal(newMetadataURI);
       });
@@ -807,7 +804,7 @@ describe("Entity", function () {
       const entityId = 1;
       beforeEach(async function () {
         const metadataURI = "https://example.com/metadata.json";
-        await entityFacet.createEntity([EntityRole.Reseller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
       });
 
       it("Get entity", async function () {
