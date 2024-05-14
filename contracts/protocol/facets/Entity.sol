@@ -6,7 +6,6 @@ import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Context } from "../libs/Context.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
-import "hardhat/console.sol";
 
 /**
  * @title EntityFacet
@@ -42,7 +41,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
         FermionTypes.EntityData storage newEntity = pe.entityData[entityId];
 
-        storeEntity(msgSender, newEntity, _roles, _metadata);
+        storeEntity(entityId, msgSender, newEntity, _roles, _metadata);
         storeCompactWalletRole(entityId, msgSender, 0xff << (31 * BYTE_SIZE), true, pl, pe); // compact role for all current and potential future roles
         emitAdminWalletAddedOrRemoved(entityId, msgSender, true);
     }
@@ -102,11 +101,11 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     /**
      * @notice Remove entity wallets.
      *
-     * Emits an EntityWalletRemove event if successful.
+     * Emits an EntityWalletRemoved event if successful.
      *
      * Reverts if:
      * - Entity does not exist
-     * - Caller neither has the role that is being removed, nor is the admin for the entity role
+     * - Caller is not the admin for the entity role
      * - Length of _wallets, _entityRoles and _walletRoles do not match
      * - Entity does not have the role
      *
@@ -156,7 +155,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * This is different from adding a wallet with admin role for each entity role.
      * The wallet is given the admin role for all entity roles, even for roles that do not exist yet.
      * A wallet can be an entity-wide admin for only one entity. This is not checked here, but
-     * only when the new admin makes it's first entity admin action.
+     * only when the new admin makes its first entity admin action.
      *
      * Emits an EntityWalletAdded event if successful.
      *
@@ -170,16 +169,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     function setEntityAdmin(uint256 _entityId, address _wallet, bool _status) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         validateEntityId(_entityId, pl);
-
-        // check that the caller is the entity admin
-        address msgSender = msgSender();
-        uint256 callerEntityId = pl.entityId[msgSender];
-        if (callerEntityId == 0) {
-            // Try to accept the admin role
-            acceptAdminRole(_entityId, msgSender, pl);
-        } else {
-            if (callerEntityId != _entityId) revert NotEntityAdmin(_entityId, msgSender);
-        }
+        validateEntityAdmin(_entityId, pl);
 
         // set the pending admin
         pl.pendingEntityAdmin[_entityId][_wallet] = _status;
@@ -241,30 +231,36 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
      */
-    function updateEntity(FermionTypes.EntityRole[] calldata _roles, string calldata _metadata) external {
-        FermionTypes.EntityData storage entityData = fetchEntityData(msgSender());
+    function updateEntity(
+        uint256 _entityId,
+        FermionTypes.EntityRole[] calldata _roles,
+        string calldata _metadata
+    ) external {
+        validateEntityAdmin(_entityId, FermionStorage.protocolLookups());
+        FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
 
-        storeEntity(address(0), entityData, _roles, _metadata);
+        storeEntity(_entityId, address(0), entityData, _roles, _metadata);
     }
 
     /**
      * @notice Deletes an entity.
      *
-     * Emits an EntityStored event if successful.
+     * Emits an EntityDeleted event if successful.
      *
      * Reverts if:
      * - Entity does not exist
      *
+     * @param _entityId - the entity ID
      */
-    function deleteEntity() external {
-        address entityAddress = msgSender();
-        FermionTypes.EntityData storage entityData = fetchEntityData(entityAddress);
+    function deleteEntity(uint256 _entityId) external {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        validateEntityId(_entityId, pl);
+        address entityAddress = validateEntityAdmin(_entityId, pl);
 
-        delete entityData.roles;
-        delete entityData.metadataURI;
-        delete FermionStorage.protocolLookups().entityId[entityAddress];
+        delete FermionStorage.protocolEntities().entityData[_entityId];
+        delete pl.entityId[entityAddress];
 
-        emit EntityStored(entityAddress, new FermionTypes.EntityRole[](0), "");
+        emit EntityDeleted(_entityId, entityAddress);
     }
 
     /**
@@ -273,14 +269,16 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Reverts if:
      * - Entity does not exist
      *
-     * @param _entityAddres - the address of the entity
+     * @param _entityAddress - the address of the entity
+     * @return entityId - the entity ID
      * @return roles - the roles the entity has
      * @return metadataURI - the metadata URI for the entity
      */
     function getEntity(
-        address _entityAddres
-    ) external view returns (FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
-        FermionTypes.EntityData storage entityData = fetchEntityData(_entityAddres);
+        address _entityAddress
+    ) external view returns (uint256 entityId, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
+        FermionTypes.EntityData storage entityData;
+        (entityId, entityData) = fetchEntityData(_entityAddress);
 
         roles = compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
@@ -364,21 +362,19 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      *
      * Emits an EntityStored event if successful.
      *
-     * Reverts if:
-     * - No role is specified
-     *
+     * @param _entityId - the entity ID
+     * @param _admin - the address of the entity
      * @param _entityData - storage pointer to data location
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
      */
     function storeEntity(
+        uint256 _entityId,
         address _admin,
         FermionTypes.EntityData storage _entityData,
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
     ) internal {
-        if (_roles.length == 0) revert InvalidEntityRoles();
-
         if (_admin != address(0)) {
             _entityData.admin = _admin;
         }
@@ -386,7 +382,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         _entityData.metadataURI = _metadata;
 
         // Notify watchers of state change
-        emit EntityStored(msgSender(), _roles, _metadata);
+        emit EntityStored(_entityId, msgSender(), _roles, _metadata);
     }
 
     /**
@@ -396,12 +392,13 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * - Entity does not exist
      *
      * @param _entityAddress - the address of the entity
+     * @return entityId - the entity ID
      * @return entityData -  storage pointer to data location
      */
     function fetchEntityData(
         address _entityAddress
-    ) internal view returns (FermionTypes.EntityData storage entityData) {
-        uint256 entityId = FermionStorage.protocolLookups().entityId[_entityAddress];
+    ) internal view returns (uint256 entityId, FermionTypes.EntityData storage entityData) {
+        entityId = FermionStorage.protocolLookups().entityId[_entityAddress];
         if (entityId == 0) revert NoSuchEntity();
 
         entityData = FermionStorage.protocolEntities().entityData[entityId];
@@ -516,15 +513,14 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         address msgSender = msgSender();
 
         if (_entityRoles.length == 0) {
-            if (_walletRoles.length > 1) revert ArrayLengthMismatch(1, _walletRoles.length);
+            if (_walletRoles.length != 1) revert ArrayLengthMismatch(1, _walletRoles.length);
 
             // To set entity-wide wallet roles, the callem must have entity-wide admin role
             if (!hasEntityRole(_entityId, msgSender, FermionTypes.WalletRole.Admin))
                 revert NotEntityAdmin(_entityId, msgSender);
 
             uint256 compactWalletRolePerEntityRole = walletRoleToCompactWalletRoles(_walletRoles[0]);
-            uint256 role = compactWalletRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
-            compactWalletRole |= role;
+            compactWalletRole = compactWalletRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
         } else {
             if (_entityRoles.length != _walletRoles.length)
                 revert ArrayLengthMismatch(_entityRoles.length, _walletRoles.length);
@@ -579,7 +575,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     }
 
     /**
-     * @notice Creates event arguments and emits EntityWalletAdded, when entity-wide admin is added.
+     * @notice Creates event arguments and emits EntityWalletAdded, when entity-wide admin is added or removed.
      *
      * @param _entityId - the entity ID
      * @param _wallet - the admin wallet address
@@ -603,9 +599,31 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     }
 
     /**
-     * @notice Accept the admin role for an entity.
+     * @notice Check if the caller is the admin or accept the admin role if it's pending admin.
      *
-     * Emits an EntityWalletAdded event if successful.
+     * Reverts if:
+     * - Caller is neither the admin and nor the pending admin for the entity
+     * - Caller is already an admin for another entity
+     *
+     * @param _entityId - the entity ID
+     */
+    function validateEntityAdmin(
+        uint256 _entityId,
+        FermionStorage.ProtocolLookups storage pl
+    ) internal returns (address) {
+        address msgSender = msgSender();
+        uint256 callerEntityId = pl.entityId[msgSender];
+        if (callerEntityId == 0) {
+            // Try to accept the admin role
+            acceptAdminRole(_entityId, msgSender, pl);
+        } else {
+            if (callerEntityId != _entityId) revert NotEntityAdmin(_entityId, msgSender);
+        }
+        return msgSender;
+    }
+
+    /**
+     * @notice Accept the admin role for an entity.
      *
      * Reverts if:
      * - Caller is not pending admin for the entity

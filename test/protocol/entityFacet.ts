@@ -130,7 +130,7 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
-        it("An entity does not exists", async function () {
+        it("An entity does not exist", async function () {
           const signer2 = wallets[2];
           await expect(
             entityFacet.connect(signer2).updateEntity([EntityRole.Seller], metadataURI),
@@ -162,7 +162,7 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
-        it("An entity does not exists", async function () {
+        it("An entity does not exist", async function () {
           const signer2 = wallets[2];
           await expect(entityFacet.connect(signer2).deleteEntity()).to.be.revertedWithCustomError(
             fermionErrors,
@@ -263,7 +263,7 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
-        it("Entity does not exists", async function () {
+        it("Entity does not exist", async function () {
           await expect(entityFacet.addEntityWallets(0, [], [], [])).to.be.revertedWithCustomError(
             fermionErrors,
             "NoSuchEntity",
@@ -498,7 +498,7 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
-        it("Entity does not exists", async function () {
+        it("Entity does not exist", async function () {
           await expect(entityFacet.removeEntityWallets(0, [], [], [])).to.be.revertedWithCustomError(
             fermionErrors,
             "NoSuchEntity",
@@ -680,7 +680,7 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
-        it("Entity does not exists", async function () {
+        it("Entity does not exist", async function () {
           const newAdmin = wallets[2];
 
           await expect(entityFacet.setEntityAdmin(0, newAdmin.address, true)).to.be.revertedWithCustomError(
@@ -790,7 +790,7 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
-        it("An entity does not exists", async function () {
+        it("An entity does not exist", async function () {
           const signer2 = wallets[2];
           await expect(entityFacet.getEntity(signer2.address)).to.be.revertedWithCustomError(
             fermionErrors,
@@ -829,7 +829,7 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
-        it("An entity does not exists", async function () {
+        it("An entity does not exist", async function () {
           const wallet = wallets[3];
           await expect(
             entityFacet.hasRole(0, wallet, EntityRole.Buyer, WalletRole.Admin),

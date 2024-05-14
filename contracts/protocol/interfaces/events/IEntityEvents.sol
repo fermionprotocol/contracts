@@ -9,7 +9,13 @@ import { FermionTypes } from "../../domain/Types.sol";
  * @notice Defines events related to management of entites within the protocol.
  */
 interface IEntityEvents {
-    event EntityStored(address indexed wallet, FermionTypes.EntityRole[] roles, string metadata);
+    event EntityStored(
+        uint256 indexed entityId,
+        address indexed wallet,
+        FermionTypes.EntityRole[] roles,
+        string metadata
+    );
+    event EntityDeleted(uint256 indexed entityId, address indexed wallet);
     event EntityWalletAdded(
         uint256 indexed entityId,
         address indexed wallet,
