@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { FermionTypes } from "./Types.sol";
+
 interface FermionErrors {
     // General errors
     error InvalidAddress();
+    error ArrayLengthMismatch(uint256 expectedLength, uint256 actualLength);
 
     // Initialization errors
     error DirectInitializationNotAllowed();
@@ -14,6 +17,11 @@ interface FermionErrors {
     error InvalidEntityRoles();
     error EntityAlreadyExists();
     error NoSuchEntity();
+    error NotAdmin(address admin, uint256 entityId, FermionTypes.EntityRole role);
+    error NotEntityAdmin(uint256 entityId, address admin);
+    error AlreadyAdmin(uint256 entityId, address admin);
+    error EntityHasNoRole(uint256 entityId, FermionTypes.EntityRole role);
+    error ChangeNotAllowed();
 
     // Meta transaction errors
     error NonceUsedAlready();

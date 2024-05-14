@@ -3,8 +3,18 @@
  */
 
 export enum EntityRole {
-  Agent,
+  Seller,
   Buyer,
   Verifier,
   Custodian,
+}
+
+export enum WalletRole {
+  Admin,
+  Assistant,
+  Treasury,
+}
+
+export function enumIterator(enumObject: any) {
+  return Object.keys(enumObject).filter((key) => !isNaN(Number(key)));
 }

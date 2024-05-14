@@ -9,13 +9,21 @@ pragma solidity 0.8.24;
 
 contract FermionTypes {
     enum EntityRole {
-        Agent,
+        Seller,
         Buyer,
         Verifier,
         Custodian
     }
 
+    // Make at most 8 roles so they can be compacted into a byte
+    enum WalletRole {
+        Admin,
+        Assistant,
+        Treasury
+    }
+
     struct EntityData {
+        address admin;
         uint256 roles;
         string metadataURI;
     }

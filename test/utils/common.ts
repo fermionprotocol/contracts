@@ -2,11 +2,12 @@ import { ethers } from "hardhat";
 import { deployDiamond, deployFacets, prepareFacetCuts, makeDiamondCut } from "../../scripts/deploy";
 import { getStateModifyingFunctionsHashes } from "./metaTransaction";
 import { initBosonProtocolFixture } from "./boson-protocol";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 // We define a fixture to reuse the same setup in every test.
 // We use loadFixture to run this setup once, snapshot that state,
 // and reset Hardhat Network to that snapshot in every test.
-export async function deployFermionProtocolFixture(defaultSigner: any) {
+export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersSigner) {
   const { bosonProtocolAddress } = await initBosonProtocolFixture();
 
   const { diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress);
