@@ -897,7 +897,7 @@ describe("Entity", function () {
           await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
 
           let response = await entityFacet["getEntity(uint256)"](entityId);
-          expect(response.entityAddress).to.equal(defaultSigner.address);
+          expect(response.adminWallet).to.equal(defaultSigner.address);
           expect(response.roles.map(String)).to.have.members([EntityRole.Verifier, EntityRole.Custodian].map(String));
           expect(response.metadataURI).to.equal(metadataURI);
 
@@ -909,7 +909,7 @@ describe("Entity", function () {
           );
 
           response = await entityFacet["getEntity(uint256)"](entityId);
-          expect(response.entityAddress).to.equal(defaultSigner.address);
+          expect(response.adminWallet).to.equal(defaultSigner.address);
           expect(response.roles.map(String)).to.have.members(
             [EntityRole.Seller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
           );

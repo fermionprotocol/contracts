@@ -422,7 +422,7 @@ describe("MetaTransactions", function () {
       });
 
       context("Contract account", function () {
-        let entity, entityAddress, message;
+        let entity, adminWallet, message;
         beforeEach(async function () {
           const nonce = randomNonce();
 
@@ -431,12 +431,12 @@ describe("MetaTransactions", function () {
           const contractWallet = await contractWalletFactory.deploy();
           await contractWallet.waitForDeployment();
           entity = contractWallet;
-          entityAddress = await entity.getAddress();
+          adminWallet = await entity.getAddress();
 
           // Prepare the message
           message = {
             nonce: nonce,
-            from: entityAddress,
+            from: adminWallet,
             contractAddress: await entityFacet.getAddress(),
             functionName: entityFacet.interface.getFunction("createEntity").format("sighash"),
             functionSignature: "0x",
@@ -457,7 +457,7 @@ describe("MetaTransactions", function () {
 
           // Send as meta transaction
           const tx = await metaTransactionFacet.executeMetaTransaction(
-            entityAddress,
+            adminWallet,
             message.functionName,
             message.functionSignature,
             message.nonce,
@@ -470,18 +470,18 @@ describe("MetaTransactions", function () {
           const entityId = "1";
           await expect(tx)
             .to.emit(metaTransactionFacet, "MetaTransactionExecuted")
-            .withArgs(entityAddress, defaultSigner.address, message.functionName, message.nonce);
+            .withArgs(adminWallet, defaultSigner.address, message.functionName, message.nonce);
           await expect(tx)
             .to.emit(entityFacet, "EntityStored")
-            .withArgs(entityId, entityAddress, entityRoles, metadataURI);
+            .withArgs(entityId, adminWallet, entityRoles, metadataURI);
 
           // Verify the state
-          const response = await entityFacet["getEntity(address)"](entityAddress);
+          const response = await entityFacet["getEntity(address)"](adminWallet);
           expect(response.entityId).to.equal(entityId);
           expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
           expect(response.metadataURI).to.equal(metadataURI);
 
-          expect(await metaTransactionFacet.isUsedNonce(entityAddress, message.nonce)).to.be.true;
+          expect(await metaTransactionFacet.isUsedNonce(adminWallet, message.nonce)).to.be.true;
         });
 
         context("Revert reasons", function () {
@@ -499,7 +499,7 @@ describe("MetaTransactions", function () {
 
             // First transaction should succeed
             await metaTransactionFacet.executeMetaTransaction(
-              entityAddress,
+              adminWallet,
               message.functionName,
               message.functionSignature,
               message.nonce,
@@ -511,7 +511,7 @@ describe("MetaTransactions", function () {
             // Second transaction should fail
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                entityAddress,
+                adminWallet,
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
@@ -529,7 +529,7 @@ describe("MetaTransactions", function () {
             // Contract wallet returns wrong magic value
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                entityAddress,
+                adminWallet,
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
@@ -544,7 +544,7 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                entityAddress,
+                adminWallet,
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
