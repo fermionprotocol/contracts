@@ -1,5 +1,97 @@
-import { ethers } from "hardhat";
+import { ethers, network } from "hardhat";
 import { FacetCutAction, getSelectors } from "./libraries/diamond";
+import { getStateModifyingFunctionsHashes } from "./libraries/metaTransaction";
+import { writeContracts, readContracts } from "./libraries/utils";
+
+import { initBosonProtocolFixture } from "./../test/utils/boson-protocol";
+
+const version = "0.0.1";
+let deploymentData: any[] = [];
+
+export async function deploySuite(env: string, modules: string[] = []) {
+  const allModules = modules.length === 0 || network.name === "hardhat";
+
+  // if deploying with hardhat, first deploy the boson protocol
+  let bosonProtocolAddress: string;
+  if (network.name === "hardhat") {
+    ({ bosonProtocolAddress } = await initBosonProtocolFixture());
+  }
+
+  // deploy diamond
+  let diamondAddress, initializationFacet;
+  if (allModules || modules.includes("diamond")) {
+    ({ diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress));
+    //  setEnvironmentData()
+    await writeContracts(deploymentData, env, version);
+  } else {
+    // get the diamond address and initialization from contracts file
+    const contractsFile = await readContracts(env);
+    deploymentData = contractsFile.contracts;
+
+    diamondAddress = deploymentData.find((contract) => contract.name === "FermionDiamond")?.address;
+    const initializationFacetAddress = deploymentData.find(
+      (contract) => contract.name === "InitializationFacet",
+    )?.address;
+
+    if (!diamondAddress || !initializationFacetAddress) {
+      throw Error("Diamond address or initialization facet not found in contracts file");
+    }
+
+    initializationFacet = await ethers.getContractAt("InitializationFacet", initializationFacetAddress);
+  }
+
+  // deploy facets
+  const facetNames = ["EntityFacet", "MetaTransactionFacet"];
+  let facets = {};
+
+  if (allModules || modules.includes("facets")) {
+    const constructorArgs = { MetaTransactionFacet: [diamondAddress] };
+    facets = await deployFacets(facetNames, constructorArgs, true);
+    await writeContracts(deploymentData, env, version);
+  } else if (modules.includes("initialize")) {
+    // get the facets from from contracts file
+    const contractsFile = await readContracts(env);
+    deploymentData = contractsFile.contracts;
+    console.log(deploymentData);
+
+    for (const facetName of facetNames) {
+      const faceAddress = deploymentData.find((contract) => contract.name === facetName)?.address;
+
+      if (!faceAddress) {
+        throw Error(`${facetName} address not found in contracts file`);
+      }
+
+      facets[facetName] = await ethers.getContractAt(facetName, faceAddress);
+    }
+  }
+
+  // initialize facets
+  if (allModules || modules.includes("initialize")) {
+    // Init other facets, using the initialization facet
+    // Prepare init call
+    const init = {
+      MetaTransactionFacet: [await getStateModifyingFunctionsHashes(facetNames)],
+    };
+    const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
+    const initCalldatas = Object.keys(init).map((facetName) =>
+      facets[facetName].interface.encodeFunctionData("init", init[facetName]),
+    );
+    const functionCall = initializationFacet.interface.encodeFunctionData("initialize", [
+      ethers.encodeBytes32String(version),
+      initAddresses,
+      initCalldatas,
+      [],
+      [],
+    ]);
+
+    await makeDiamondCut(
+      diamondAddress,
+      await prepareFacetCuts(Object.values(facets)),
+      await initializationFacet.getAddress(),
+      functionCall,
+    );
+  }
+}
 
 export async function deployDiamond(bosonProtocolAddress: string) {
   const accounts = await ethers.getSigners();
@@ -10,7 +102,7 @@ export async function deployDiamond(bosonProtocolAddress: string) {
   console.log("Deploying facets");
   const FacetNames = ["DiamondCutFacet", "DiamondLoupeFacet", "OwnershipFacet", "InitializationFacet"];
   // The `facetCuts` variable is the FacetCut[] that contains the functions to add during diamond deployment
-  const facets = await deployFacets(FacetNames);
+  const facets = await deployFacets(FacetNames, {}, true);
   const facetCuts = await prepareFacetCuts(Object.values(facets), ["init", "initialize", "initializeDiamond"]);
 
   // Creating a function call
@@ -33,20 +125,20 @@ export async function deployDiamond(bosonProtocolAddress: string) {
   const diamond = await Diamond.deploy(facetCuts, diamondArgs);
   await diamond.waitForDeployment();
   console.log();
-  console.log("Diamond deployed:", await diamond.getAddress());
+  deploymentComplete("FermionDiamond", await diamond.getAddress(), [facetCuts, diamondArgs], true);
 
   // returning the address of the diamond and the initialization contract
   return { diamondAddress: await diamond.getAddress(), initializationFacet };
 }
 
-export async function deployFacets(facetNames: string[], constructorArgs: object = {}) {
+export async function deployFacets(facetNames: string[], constructorArgs: object = {}, save: boolean = false) {
   const facets: object = {};
   for (const facetName of facetNames) {
     const Facet = await ethers.getContractFactory(facetName);
     const ca: string[] = constructorArgs[facetName] || [];
     const facet = await Facet.deploy(...ca);
     await facet.waitForDeployment();
-    console.log(`${facetName} deployed: ${await facet.getAddress()}`);
+    deploymentComplete(facetName, await facet.getAddress(), ca, save);
     facets[facetName] = facet;
   }
 
@@ -74,4 +166,9 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
   }
   console.log("Diamond cut executed");
   return tx;
+}
+
+function deploymentComplete(name: string, address: string, args: string[], save: boolean = false) {
+  if (save) deploymentData.push({ name, address, args });
+  console.log(`✅ ${name} deployed to: ${address}`);
 }

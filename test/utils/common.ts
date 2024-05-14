@@ -1,6 +1,6 @@
 import { ethers } from "hardhat";
 import { deployDiamond, deployFacets, prepareFacetCuts, makeDiamondCut } from "../../scripts/deploy";
-import { getStateModifyingFunctionsHashes } from "./metaTransaction";
+import { getStateModifyingFunctionsHashes } from "../../scripts/libraries/metaTransaction";
 import { initBosonProtocolFixture } from "./boson-protocol";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 

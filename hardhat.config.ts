@@ -1,9 +1,17 @@
-import { HardhatUserConfig, subtask } from "hardhat/config";
+import { HardhatUserConfig, subtask, task } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-preprocessor";
 import path from "path";
 import { glob } from "glob";
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
+
+task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and initializes the protocol diamond")
+  .addOptionalParam("env", "The deployment environment")
+  .addOptionalParam("modules", "The modules to execute")
+  .setAction(async ({ env, modules }) => {
+    const { deploySuite } = await import("./scripts/deploy");
+    await deploySuite(env, modules && modules.split(","));
+  });
 
 const config: HardhatUserConfig = {
   solidity: {
