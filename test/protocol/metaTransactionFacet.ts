@@ -96,7 +96,7 @@ describe("MetaTransactions", function () {
               .withArgs(entityId, entity.address, entityRoles, metadataURI);
 
             // Verify the state
-            const response = await entityFacet.getEntity(entity.address);
+            const response = await entityFacet["getEntity(address)"](entity.address);
             expect(response.entityId).to.equal(entityId);
             expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
             expect(response.metadataURI).to.equal(metadataURI);
@@ -476,7 +476,7 @@ describe("MetaTransactions", function () {
             .withArgs(entityId, entityAddress, entityRoles, metadataURI);
 
           // Verify the state
-          const response = await entityFacet.getEntity(entityAddress);
+          const response = await entityFacet["getEntity(address)"](entityAddress);
           expect(response.entityId).to.equal(entityId);
           expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
           expect(response.metadataURI).to.equal(metadataURI);

@@ -289,6 +289,27 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     }
 
     /**
+     * @notice Gets the details about the entity.
+     *
+     * Reverts if:
+     * - Entity does not exist
+     *
+     * @param _entityId - the entity ID
+     * @return entityAddress - the address of the entity
+     * @return roles - the roles the entity has
+     * @return metadataURI - the metadata URI for the entity
+     */
+    function getEntity(
+        uint256 _entityId
+    ) external view returns (address entityAddress, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
+        validateEntityId(_entityId, FermionStorage.protocolLookups());
+        FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
+        entityAddress = entityData.admin;
+        roles = compactRoleToRoles(entityData.roles);
+        metadataURI = entityData.metadataURI;
+    }
+
+    /**
      * @notice Tells if a wallet has a specific wallet role for entity id and its role.
      *
      * @param _entityId - the entity ID

@@ -32,7 +32,7 @@ describe("Entity", function () {
       roles: EntityRole[],
       metadataURI: string,
     ) {
-      const response = await entityFacet.getEntity(signer.address);
+      const response = await entityFacet["getEntity(address)"](signer.address);
       expect(response.entityId).to.equal(entityId);
       expect(response.roles.map(String)).to.have.members(roles.map(String));
       expect(response.metadataURI).to.equal(metadataURI);
@@ -179,7 +179,7 @@ describe("Entity", function () {
 
         // verify state
         await verifyState(newAdmin, entityId, [EntityRole.Buyer, EntityRole.Custodian], newMetadataURI);
-        await expect(entityFacet.getEntity(defaultSigner.address)).to.be.revertedWithCustomError(
+        await expect(entityFacet["getEntity(address)"](defaultSigner.address)).to.be.revertedWithCustomError(
           fermionErrors,
           "NoSuchEntity",
         );
@@ -704,10 +704,10 @@ describe("Entity", function () {
       it("When new admin perform first admin action, the entity admin is changed", async function () {
         const newAdmin = wallets[2];
         await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
-        const entity = await entityFacet.getEntity(defaultSigner.address);
+        const entity = await entityFacet["getEntity(address)"](defaultSigner.address);
 
         // before new admin performs any action, the entity admin is the old admin
-        await expect(entityFacet.getEntity(newAdmin.address)).to.be.revertedWithCustomError(
+        await expect(entityFacet["getEntity(address)"](newAdmin.address)).to.be.revertedWithCustomError(
           fermionErrors,
           "NoSuchEntity",
         );
@@ -717,7 +717,7 @@ describe("Entity", function () {
 
         // entity is referenced by the new admin signer
         await verifyState(newAdmin, entityId, entity.roles, entity.metadataURI);
-        await expect(entityFacet.getEntity(defaultSigner.address)).to.be.revertedWithCustomError(
+        await expect(entityFacet["getEntity(address)"](defaultSigner.address)).to.be.revertedWithCustomError(
           fermionErrors,
           "NoSuchEntity",
         );
@@ -834,7 +834,7 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
-        it("Caller is an entity adming", async function () {
+        it("Caller is an entity admin", async function () {
           const newAdmin = wallets[2];
 
           await expect(entityFacet.changeWallet(newAdmin.address)).to.be.revertedWithCustomError(
@@ -843,7 +843,7 @@ describe("Entity", function () {
           );
         });
 
-        it("Caller is not a wallet for any enitity", async function () {
+        it("Caller is not a wallet for any entity", async function () {
           const wallet = wallets[3];
 
           await expect(entityFacet.connect(wallet).changeWallet(wallets[2].address)).to.be.revertedWithCustomError(
@@ -855,36 +855,79 @@ describe("Entity", function () {
     });
 
     context("getEntity", function () {
-      it("Get an entity", async function () {
-        const entityId = "1";
-        await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+      context("By address", function () {
+        it("Get an entity", async function () {
+          const entityId = "1";
+          await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
 
-        let response = await entityFacet.getEntity(defaultSigner.address);
-        expect(response.roles.map(String)).to.have.members([EntityRole.Verifier, EntityRole.Custodian].map(String));
-        expect(response.metadataURI).to.equal(metadataURI);
+          let response = await entityFacet["getEntity(address)"](defaultSigner.address);
+          expect(response.entityId).to.equal(entityId);
+          expect(response.roles.map(String)).to.have.members([EntityRole.Verifier, EntityRole.Custodian].map(String));
+          expect(response.metadataURI).to.equal(metadataURI);
 
-        const newMetadataURI = "https://example.com/metadata2.json";
-        await entityFacet.updateEntity(
-          entityId,
-          [EntityRole.Verifier, EntityRole.Seller, EntityRole.Custodian, EntityRole.Buyer],
-          newMetadataURI,
-        );
+          const newMetadataURI = "https://example.com/metadata2.json";
+          await entityFacet.updateEntity(
+            entityId,
+            [EntityRole.Verifier, EntityRole.Seller, EntityRole.Custodian, EntityRole.Buyer],
+            newMetadataURI,
+          );
 
-        response = await entityFacet.getEntity(defaultSigner.address);
-        expect(response.entityId).to.equal(entityId);
-        expect(response.roles.map(String)).to.have.members(
-          [EntityRole.Seller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
-        );
-        expect(response.metadataURI).to.equal(newMetadataURI);
+          response = await entityFacet["getEntity(address)"](defaultSigner.address);
+          expect(response.entityId).to.equal(entityId);
+          expect(response.roles.map(String)).to.have.members(
+            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
+          );
+          expect(response.metadataURI).to.equal(newMetadataURI);
+        });
+
+        context("Revert reasons", function () {
+          it("An entity does not exist", async function () {
+            const signer2 = wallets[2];
+            await expect(entityFacet["getEntity(address)"](signer2.address)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "NoSuchEntity",
+            );
+          });
+        });
       });
 
-      context("Revert reasons", function () {
-        it("An entity does not exist", async function () {
-          const signer2 = wallets[2];
-          await expect(entityFacet.getEntity(signer2.address)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
+      context("By entity id", function () {
+        it("Get an entity", async function () {
+          const entityId = "1";
+          await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+
+          let response = await entityFacet["getEntity(uint256)"](entityId);
+          expect(response.entityAddress).to.equal(defaultSigner.address);
+          expect(response.roles.map(String)).to.have.members([EntityRole.Verifier, EntityRole.Custodian].map(String));
+          expect(response.metadataURI).to.equal(metadataURI);
+
+          const newMetadataURI = "https://example.com/metadata2.json";
+          await entityFacet.updateEntity(
+            entityId,
+            [EntityRole.Verifier, EntityRole.Seller, EntityRole.Custodian, EntityRole.Buyer],
+            newMetadataURI,
           );
+
+          response = await entityFacet["getEntity(uint256)"](entityId);
+          expect(response.entityAddress).to.equal(defaultSigner.address);
+          expect(response.roles.map(String)).to.have.members(
+            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
+          );
+          expect(response.metadataURI).to.equal(newMetadataURI);
+        });
+
+        context("Revert reasons", function () {
+          it("An entity does not exist", async function () {
+            await expect(entityFacet["getEntity(uint256)"](0)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "NoSuchEntity",
+            );
+
+            await expect(entityFacet["getEntity(uint256)"](10)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "NoSuchEntity",
+            );
+          });
         });
       });
     });
