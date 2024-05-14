@@ -227,6 +227,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Reverts if:
      * - Entity does not exist
      * - No role is specified
+     * - Caller is not an admin for the entity role
      *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
@@ -236,6 +237,8 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
     ) external {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        validateEntityId(_entityId, pl);
         validateEntityAdmin(_entityId, FermionStorage.protocolLookups());
         FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
 
@@ -249,6 +252,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      *
      * Reverts if:
      * - Entity does not exist
+     * - Caller is not an admin for the entity role
      *
      * @param _entityId - the entity ID
      */

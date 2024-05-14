@@ -87,13 +87,17 @@ describe("MetaTransactions", function () {
             );
 
             // Verify the event
+            const entityId = "1";
             await expect(tx)
               .to.emit(metaTransactionFacet, "MetaTransactionExecuted")
               .withArgs(entity.address, defaultSigner.address, message.functionName, message.nonce);
-            await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(entity.address, entityRoles, metadataURI);
+            await expect(tx)
+              .to.emit(entityFacet, "EntityStored")
+              .withArgs(entityId, entity.address, entityRoles, metadataURI);
 
             // Verify the state
             const response = await entityFacet.getEntity(entity.address);
+            expect(response.entityId).to.equal(entityId);
             expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
             expect(response.metadataURI).to.equal(metadataURI);
 
@@ -101,6 +105,8 @@ describe("MetaTransactions", function () {
           });
 
           it("Forwarded call fails", async function () {
+            await entityFacet.connect(entity).createEntity([], "https://example.com/metadata.json");
+
             // Prepare the function signature for the facet function.
             message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
 
@@ -125,7 +131,7 @@ describe("MetaTransactions", function () {
                 s,
                 v,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "InvalidEntityRoles");
+            ).to.be.revertedWithCustomError(fermionErrors, "EntityAlreadyExists");
           });
         });
 
@@ -206,7 +212,7 @@ describe("MetaTransactions", function () {
 
           it("Function name does not match the bytes4 version of the function signature", async function () {
             // Encode different function than specified in the function name
-            message.functionSignature = entityFacet.interface.encodeFunctionData("updateEntity", [[], ""]);
+            message.functionSignature = entityFacet.interface.encodeFunctionData("updateEntity", ["0", [], ""]);
 
             // Collect the signature components
             const { r, s, v } = await prepareDataSignatureParameters(
@@ -461,13 +467,17 @@ describe("MetaTransactions", function () {
           );
 
           // Verify the event
+          const entityId = "1";
           await expect(tx)
             .to.emit(metaTransactionFacet, "MetaTransactionExecuted")
             .withArgs(entityAddress, defaultSigner.address, message.functionName, message.nonce);
-          await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(entityAddress, entityRoles, metadataURI);
+          await expect(tx)
+            .to.emit(entityFacet, "EntityStored")
+            .withArgs(entityId, entityAddress, entityRoles, metadataURI);
 
           // Verify the state
           const response = await entityFacet.getEntity(entityAddress);
+          expect(response.entityId).to.equal(entityId);
           expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
           expect(response.metadataURI).to.equal(metadataURI);
 

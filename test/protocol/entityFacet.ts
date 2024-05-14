@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { EntityRole, WalletRole, enumIterator } from "../utils/enums";
 import { deployFermionProtocolFixture } from "../utils/common";
-import { Contract } from "ethers";
+import { BigNumberish, Contract } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("Entity", function () {
@@ -26,8 +26,14 @@ describe("Entity", function () {
   describe("Entity facet", function () {
     const metadataURI = "https://example.com/metadata.json";
 
-    async function verifyState(signer: HardhatEthersSigner, roles, metadataURI: string) {
+    async function verifyState(
+      signer: HardhatEthersSigner,
+      entityId: BigNumberish,
+      roles: EntityRole[],
+      metadataURI: string,
+    ) {
       const response = await entityFacet.getEntity(signer.address);
+      expect(response.entityId).to.equal(entityId);
       expect(response.roles.map(String)).to.have.members(roles.map(String));
       expect(response.metadataURI).to.equal(metadataURI);
     }
@@ -43,14 +49,14 @@ describe("Entity", function () {
           const tx = await entityFacet.connect(signer).createEntity([EntityRole[role]], metadataURI);
           await expect(tx)
             .to.emit(entityFacet, "EntityStored")
-            .withArgs(signer.address, [EntityRole[role]], metadataURI);
+            .withArgs(entityId, signer.address, [EntityRole[role]], metadataURI);
 
           await expect(tx)
             .to.emit(entityFacet, "EntityWalletAdded")
             .withArgs(entityId, signer.address, [], [[WalletRole.Admin]]);
 
           // verify state
-          await verifyState(signer, [EntityRole[role]], metadataURI);
+          await verifyState(signer, entityId, [EntityRole[role]], metadataURI);
 
           for (const entityRole of enumIterator(EntityRole)) {
             const hasRole = await entityFacet.hasRole(entityId, signer.address, entityRole, WalletRole.Admin);
@@ -60,26 +66,38 @@ describe("Entity", function () {
       });
 
       it("Create an entity with multiple roles", async function () {
+        const entityId = "1";
         // test event
         await expect(entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI))
           .to.emit(entityFacet, "EntityStored")
-          .withArgs(defaultSigner.address, [EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+          .withArgs(entityId, defaultSigner.address, [EntityRole.Verifier, EntityRole.Custodian], metadataURI);
 
         // verify state
-        await verifyState(defaultSigner, [EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        await verifyState(defaultSigner, entityId, [EntityRole.Verifier, EntityRole.Custodian], metadataURI);
 
         // test the state with different order of roles
         const signer2 = wallets[2];
         await entityFacet
           .connect(signer2)
           .createEntity([EntityRole.Custodian, EntityRole.Buyer, EntityRole.Seller], metadataURI);
-        await verifyState(signer2, [EntityRole.Custodian, EntityRole.Buyer, EntityRole.Seller], metadataURI);
+        await verifyState(signer2, "2", [EntityRole.Custodian, EntityRole.Buyer, EntityRole.Seller], metadataURI);
 
         const signer3 = wallets[3];
         await entityFacet
           .connect(signer3)
           .createEntity([EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
-        await verifyState(signer3, [EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
+        await verifyState(signer3, "3", [EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
+      });
+
+      it("Create an entity without any role", async function () {
+        const entityId = "1";
+        // test event
+        await expect(entityFacet.createEntity([], metadataURI))
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(entityId, defaultSigner.address, [], metadataURI);
+
+        // verify state
+        await verifyState(defaultSigner, entityId, [], metadataURI);
       });
 
       context("Revert reasons", function () {
@@ -91,83 +109,151 @@ describe("Entity", function () {
             "EntityAlreadyExists",
           );
         });
-
-        it("Missing entity roles", async function () {
-          await expect(entityFacet.createEntity([], metadataURI)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "InvalidEntityRoles",
-          );
-        });
       });
     });
 
     context("updateEntity", function () {
+      const entityId = "1";
+      const newMetadataURI = "https://example.com/metadata2.json";
+
       beforeEach(async function () {
         await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
       });
 
       it("Update an entity", async function () {
-        const newMetadataURI = "https://example.com/metadata2.json";
-
         // test event
-        await expect(entityFacet.updateEntity([EntityRole.Verifier], newMetadataURI))
+        await expect(entityFacet.updateEntity(entityId, [EntityRole.Verifier], newMetadataURI))
           .to.emit(entityFacet, "EntityStored")
-          .withArgs(defaultSigner.address, [EntityRole.Verifier], newMetadataURI);
+          .withArgs(entityId, defaultSigner.address, [EntityRole.Verifier], newMetadataURI);
 
         // verify state
-        await verifyState(defaultSigner, [EntityRole.Verifier], newMetadataURI);
+        await verifyState(defaultSigner, entityId, [EntityRole.Verifier], newMetadataURI);
 
         // test the state with different order of roles
-        await entityFacet.updateEntity([EntityRole.Custodian, EntityRole.Verifier, EntityRole.Buyer], metadataURI);
-        await verifyState(defaultSigner, [EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier], metadataURI);
-
-        await entityFacet.updateEntity([EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier], newMetadataURI);
+        await entityFacet.updateEntity(
+          entityId,
+          [EntityRole.Custodian, EntityRole.Verifier, EntityRole.Buyer],
+          metadataURI,
+        );
         await verifyState(
           defaultSigner,
+          entityId,
+          [EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier],
+          metadataURI,
+        );
+
+        await entityFacet.updateEntity(
+          entityId,
+          [EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier],
+          newMetadataURI,
+        );
+        await verifyState(
+          defaultSigner,
+          entityId,
           [EntityRole.Seller, EntityRole.Custodian, EntityRole.Verifier],
           newMetadataURI,
         );
       });
 
+      it("Remove entity roles (but keep the entity)", async function () {
+        // test event
+        await expect(entityFacet.updateEntity(entityId, [], newMetadataURI))
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(entityId, defaultSigner.address, [], newMetadataURI);
+
+        // verify state
+        await verifyState(defaultSigner, entityId, [], newMetadataURI);
+      });
+
+      it("Pending admin can update roles", async function () {
+        const newAdmin = wallets[2];
+        await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
+
+        await expect(
+          entityFacet
+            .connect(newAdmin)
+            .updateEntity(entityId, [EntityRole.Buyer, EntityRole.Custodian], newMetadataURI),
+        )
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(entityId, newAdmin.address, [EntityRole.Buyer, EntityRole.Custodian], newMetadataURI);
+
+        // verify state
+        await verifyState(newAdmin, entityId, [EntityRole.Buyer, EntityRole.Custodian], newMetadataURI);
+        await expect(entityFacet.getEntity(defaultSigner.address)).to.be.revertedWithCustomError(
+          fermionErrors,
+          "NoSuchEntity",
+        );
+      });
+
       context("Revert reasons", function () {
         it("An entity does not exist", async function () {
-          const signer2 = wallets[2];
-          await expect(
-            entityFacet.connect(signer2).updateEntity([EntityRole.Seller], metadataURI),
-          ).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
+          await expect(entityFacet.updateEntity(0, [EntityRole.Seller], metadataURI)).to.be.revertedWithCustomError(
+            fermionErrors,
+            "NoSuchEntity",
+          );
+
+          await expect(entityFacet.updateEntity(10, [EntityRole.Seller], metadataURI)).to.be.revertedWithCustomError(
+            fermionErrors,
+            "NoSuchEntity",
+          );
         });
 
-        it("Missing entity roles", async function () {
-          await expect(entityFacet.updateEntity([], metadataURI)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "InvalidEntityRoles",
-          );
+        it("Caller is not the admin", async function () {
+          const signer2 = wallets[2];
+          await expect(entityFacet.connect(signer2).updateEntity(entityId, [EntityRole.Seller], metadataURI))
+            .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+            .withArgs(entityId, signer2.address);
         });
       });
     });
 
     context("deleteEntity", function () {
+      const entityId = "1";
+
       beforeEach(async function () {
         await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
       });
 
       it("Delete an entity", async function () {
         // test event
-        await expect(entityFacet.deleteEntity())
-          .to.emit(entityFacet, "EntityStored")
-          .withArgs(defaultSigner.address, [], "");
+        await expect(entityFacet.deleteEntity(entityId))
+          .to.emit(entityFacet, "EntityDeleted")
+          .withArgs(entityId, defaultSigner.address);
 
         // verify state
-        await expect(verifyState(defaultSigner, [], "")).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
+        await expect(verifyState(defaultSigner, entityId, [], "")).to.be.revertedWithCustomError(
+          fermionErrors,
+          "NoSuchEntity",
+        );
+      });
+
+      it("Pending admin can delete the entity", async function () {
+        const newAdmin = wallets[2];
+        await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
+
+        await expect(entityFacet.connect(newAdmin).deleteEntity(entityId))
+          .to.emit(entityFacet, "EntityDeleted")
+          .withArgs(entityId, newAdmin.address);
+
+        // verify state
+        await expect(verifyState(newAdmin, entityId, [], "")).to.be.revertedWithCustomError(
+          fermionErrors,
+          "NoSuchEntity",
+        );
       });
 
       context("Revert reasons", function () {
         it("An entity does not exist", async function () {
+          await expect(entityFacet.deleteEntity(0)).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
+
+          await expect(entityFacet.deleteEntity(10)).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
+        });
+
+        it("Caller is not the admin", async function () {
           const signer2 = wallets[2];
-          await expect(entityFacet.connect(signer2).deleteEntity()).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.connect(signer2).deleteEntity(entityId))
+            .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+            .withArgs(entityId, signer2.address);
         });
       });
     });
@@ -630,7 +716,7 @@ describe("Entity", function () {
         await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true)).to.not.be.reverted;
 
         // entity is referenced by the new admin signer
-        await verifyState(newAdmin, entity.roles, entity.metadataURI);
+        await verifyState(newAdmin, entityId, entity.roles, entity.metadataURI);
         await expect(entityFacet.getEntity(defaultSigner.address)).to.be.revertedWithCustomError(
           fermionErrors,
           "NoSuchEntity",
@@ -770,6 +856,7 @@ describe("Entity", function () {
 
     context("getEntity", function () {
       it("Get an entity", async function () {
+        const entityId = "1";
         await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
 
         let response = await entityFacet.getEntity(defaultSigner.address);
@@ -778,11 +865,13 @@ describe("Entity", function () {
 
         const newMetadataURI = "https://example.com/metadata2.json";
         await entityFacet.updateEntity(
+          entityId,
           [EntityRole.Verifier, EntityRole.Seller, EntityRole.Custodian, EntityRole.Buyer],
           newMetadataURI,
         );
 
         response = await entityFacet.getEntity(defaultSigner.address);
+        expect(response.entityId).to.equal(entityId);
         expect(response.roles.map(String)).to.have.members(
           [EntityRole.Seller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
         );
