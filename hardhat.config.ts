@@ -1,9 +1,10 @@
-import { HardhatUserConfig, subtask, task } from "hardhat/config";
+import { HardhatUserConfig, subtask, task, vars } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-preprocessor";
 import path from "path";
 import { glob } from "glob";
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
+const DEFAULT_DEPLOYER_KEY = "123456789abcdef123456789abcdef123456789abcdef123456789abcdef1234"; // Used only for initialization
 
 task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and initializes the protocol diamond")
   .addOptionalParam("env", "The deployment environment")
@@ -14,6 +15,12 @@ task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and init
   });
 
 const config: HardhatUserConfig = {
+  networks: {
+    polygonAmoy: {
+      url: vars.get("RPC_PROVIDER_POLYGONAMOY", "https://rpc-amoy.polygon.technology"),
+      accounts: [vars.get("DEPLOYER_KEY_POLYGONAMOY", DEFAULT_DEPLOYER_KEY)],
+    },
+  },
   solidity: {
     compilers: [
       {
