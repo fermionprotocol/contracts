@@ -1,3 +1,4 @@
+import fs from "fs";
 import { ethers, network } from "hardhat";
 import { vars } from "hardhat/config";
 import { FacetCutAction, getSelectors } from "./libraries/diamond";
@@ -16,18 +17,29 @@ export async function deploySuite(env: string, modules: string[] = []) {
   let bosonProtocolAddress: string;
   if (network.name === "hardhat") {
     ({ bosonProtocolAddress } = await initBosonProtocolFixture());
-  }
-  {
-    // Get the deployer private key
+  } else {
+    // Check if the deployer key is set
     const NETWORK = network.name.toUpperCase();
     if (!vars.has(`DEPLOYER_KEY_${NETWORK}`)) {
       throw Error(
         `DEPLOYER_KEY_${NETWORK} not found in configuration variables. Use 'npx hardhat vars set DEPLOYER_KEY_${NETWORK}' to set it or 'npx hardhat vars setup' to list all the configuration variables used by this project.`,
       );
     }
+
+    // Get boson protocol address
+    const { chainId } = await ethers.provider.getNetwork();
+    const { contracts: bosonContracts } = JSON.parse(
+      fs.readFileSync(
+        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${network.name.toLowerCase()}-${env}.json`,
+        "utf8",
+      ),
+    );
+
+    bosonProtocolAddress = bosonContracts.find((contract) => contract.name === "ProtocolDiamond")?.address;
   }
   const deployerAddress = (await ethers.getSigners())[0].address;
-  console.log(`Deploying to network: ${network.name} with deployer: ${deployerAddress}`);
+  console.log(`Deploying to network: ${network.name} (env: ${env}) with deployer: ${deployerAddress}`);
+  console.log(`Boson Protocol address: ${bosonProtocolAddress}`);
 
   // deploy diamond
   let diamondAddress, initializationFacet;
