@@ -1,0 +1,77 @@
+{
+  "chainId": 80002,
+  "network": "amoy",
+  "env": "test",
+  "protocolVersion": "0.0.1",
+  "contracts": [
+    {
+      "name": "DiamondCutFacet",
+      "address": "0xcEAC5d357cD41c9F922A9c96a1573c365cB65c8C",
+      "args": []
+    },
+    {
+      "name": "DiamondLoupeFacet",
+      "address": "0xDa9e055b33E68B828A9f6237e8E70393db70dD56",
+      "args": []
+    },
+    {
+      "name": "OwnershipFacet",
+      "address": "0xD211FEB768Aa4fb3a522Ba9BFcF5880D7C1Eb18f",
+      "args": []
+    },
+    {
+      "name": "InitializationFacet",
+      "address": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
+      "args": []
+    },
+    {
+      "name": "FermionDiamond",
+      "address": "0xdE2522fd81d90cACF69229186792b5A0F2852FbF",
+      "args": [
+        [
+          {
+            "facetAddress": "0xcEAC5d357cD41c9F922A9c96a1573c365cB65c8C",
+            "action": 0,
+            "functionSelectors": ["0x1f931c1c"]
+          },
+          {
+            "facetAddress": "0xDa9e055b33E68B828A9f6237e8E70393db70dD56",
+            "action": 0,
+            "functionSelectors": [
+              "0xcdffacc6",
+              "0x52ef6b2c",
+              "0xadfca15e",
+              "0x7a0ed627",
+              "0x01ffc9a7"
+            ]
+          },
+          {
+            "facetAddress": "0xD211FEB768Aa4fb3a522Ba9BFcF5880D7C1Eb18f",
+            "action": 0,
+            "functionSelectors": ["0x8da5cb5b", "0xf2fde38b"]
+          },
+          {
+            "facetAddress": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
+            "action": 0,
+            "functionSelectors": ["0x0d8e6e2c"]
+          }
+        ],
+        {
+          "owner": "0x2a91A0148EE62fA638bE38C7eE05c29a3e568dD8",
+          "init": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
+          "initCalldata": "0x0751e5b50000000000000000000000007de418a7ce94debd057c34ebac232e7027634ade"
+        }
+      ]
+    },
+    {
+      "name": "EntityFacet",
+      "address": "0x32ed11a3545037bbE91A28addc13c02DdB454C2a",
+      "args": []
+    },
+    {
+      "name": "MetaTransactionFacet",
+      "address": "0xD8971422F647B5124E8Ae110840475B30fb86b79",
+      "args": ["0xdE2522fd81d90cACF69229186792b5A0F2852FbF"]
+    }
+  ]
+}

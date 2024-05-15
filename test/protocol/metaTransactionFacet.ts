@@ -10,7 +10,7 @@ import {
   metaTransactionType,
   prepareDataSignatureParameters,
   randomNonce,
-} from "../utils/metaTransaction";
+} from "../../scripts/libraries/metaTransaction";
 import { deployDiamond, prepareFacetCuts, makeDiamondCut } from "../../scripts/deploy";
 
 const { id, getContractAt, getContractFactory, MaxUint256, toBeHex, ZeroAddress, ZeroHash } = ethers;
