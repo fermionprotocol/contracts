@@ -10,7 +10,7 @@ import { initBosonProtocolFixture } from "./../test/utils/boson-protocol";
 const version = "0.0.1";
 let deploymentData: any[] = [];
 
-export async function deploySuite(env: string, modules: string[] = []) {
+export async function deploySuite(env: string = "", modules: string[] = []) {
   const allModules = modules.length === 0 || network.name === "hardhat";
 
   // if deploying with hardhat, first deploy the boson protocol
@@ -114,7 +114,11 @@ export async function deploySuite(env: string, modules: string[] = []) {
       await initializationFacet.getAddress(),
       functionCall,
     );
+
+    facets["InitializationFacet"] = initializationFacet;
   }
+
+  return { diamondAddress, facets, bosonProtocolAddress };
 }
 
 export async function deployDiamond(bosonProtocolAddress: string) {

@@ -32,9 +32,7 @@
           {
             "facetAddress": "0xcEAC5d357cD41c9F922A9c96a1573c365cB65c8C",
             "action": 0,
-            "functionSelectors": [
-              "0x1f931c1c"
-            ]
+            "functionSelectors": ["0x1f931c1c"]
           },
           {
             "facetAddress": "0xDa9e055b33E68B828A9f6237e8E70393db70dD56",
@@ -50,17 +48,12 @@
           {
             "facetAddress": "0xD211FEB768Aa4fb3a522Ba9BFcF5880D7C1Eb18f",
             "action": 0,
-            "functionSelectors": [
-              "0x8da5cb5b",
-              "0xf2fde38b"
-            ]
+            "functionSelectors": ["0x8da5cb5b", "0xf2fde38b"]
           },
           {
             "facetAddress": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
             "action": 0,
-            "functionSelectors": [
-              "0x0d8e6e2c"
-            ]
+            "functionSelectors": ["0x0d8e6e2c"]
           }
         ],
         {
@@ -78,9 +71,7 @@
     {
       "name": "MetaTransactionFacet",
       "address": "0xD8971422F647B5124E8Ae110840475B30fb86b79",
-      "args": [
-        "0xdE2522fd81d90cACF69229186792b5A0F2852FbF"
-      ]
+      "args": ["0xdE2522fd81d90cACF69229186792b5A0F2852FbF"]
     }
   ]
 }
