@@ -43,5 +43,6 @@ contract FermionTypes {
         uint256 verifierFee;
         uint256 custodianId;
         string metadataURI;
+        string metadataHash;
     }
 }

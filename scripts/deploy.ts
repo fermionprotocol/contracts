@@ -65,11 +65,11 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   }
 
   // deploy facets
-  const facetNames = ["EntityFacet", "MetaTransactionFacet"];
+  const facetNames = ["EntityFacet", "MetaTransactionFacet", "OfferFacet"];
   let facets = {};
 
   if (allModules || modules.includes("facets")) {
-    const constructorArgs = { MetaTransactionFacet: [diamondAddress] };
+    const constructorArgs = { MetaTransactionFacet: [diamondAddress], OfferFacet: [bosonProtocolAddress] };
     facets = await deployFacets(facetNames, constructorArgs, true);
     await writeContracts(deploymentData, env, version);
   } else if (modules.includes("initialize")) {

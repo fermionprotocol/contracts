@@ -160,4 +160,25 @@ interface IBosonProtocol {
         uint256 _agentId,
         uint256 _feeLimit
     ) external;
+
+    /**
+     * @notice Adds DisputeResolverFees to an existing dispute resolver.
+     *
+     * @param _disputeResolverId - id of the dispute resolver
+     * @param _disputeResolverFees - list of fees dispute resolver charges per token type. Zero address is native currency. See {BosonTypes.DisputeResolverFee}
+     *                               feeAmount will be ignored because protocol doesn't yet support fees yet but DR still needs to provide array of fees to choose supported tokens
+     */
+    function addFeesToDisputeResolver(
+        uint256 _disputeResolverId,
+        DisputeResolverFee[] calldata _disputeResolverFees
+    ) external;
+
+    /**
+     * @notice Gets the next offer id.
+     *
+     * @dev Does not increment the counter.
+     *
+     * @return nextOfferId - the next offer id
+     */
+    function getNextOfferId() external view returns (uint256 nextOfferId);
 }
