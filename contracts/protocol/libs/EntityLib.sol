@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.24;
+
+import { FermionTypes } from "../domain/Types.sol";
+import { FermionStorage } from "../libs/Storage.sol";
+
+import { FermionErrors } from "../domain/Errors.sol";
+
+/**
+ * @title EntityLib
+ *
+ * @notice Entity methods used by multiple facets.
+ */
+library EntityLib {
+    uint256 private constant BYTE_SIZE = 8;
+
+    /**
+     * @notice Tells if a wallet has a specific wallet role for entity id and its role.
+     *
+     * @param _entityId - the entity ID
+     * @param _walletAddress - the address of the wallet
+     * @param _entityRole - the role of the entity
+     * @param _walletRole - the wallet role
+     * @param _requireEntityWide - if true, the wallet must have the role entity-wide
+     */
+    function hasRole(
+        uint256 _entityId,
+        address _walletAddress,
+        FermionTypes.EntityRole _entityRole,
+        FermionTypes.WalletRole _walletRole,
+        bool _requireEntityWide
+    ) internal view returns (bool) {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        validateEntityId(_entityId, pl);
+
+        uint256 walletId = pl.walletId[_walletAddress];
+
+        if (walletId == 0) return false;
+
+        uint256 compactWalletRole = FermionStorage.protocolEntities().walletRole[walletId][_entityId];
+        uint256 walletRole = 1 << uint256(_walletRole);
+        uint256 entityWidePermission = compactWalletRole >> (31 * BYTE_SIZE);
+
+        return
+            (entityWidePermission & walletRole != 0) ||
+            (!_requireEntityWide && hasRoleSpecificPermission(_entityRole, walletRole, compactWalletRole));
+    }
+
+    function hasRoleSpecificPermission(
+        FermionTypes.EntityRole _entityRole,
+        uint256 _walletRole,
+        uint256 _compactWalletRole
+    ) internal pure returns (bool) {
+        uint256 roleSpecificPermission = _compactWalletRole >> (uint256(_entityRole) * BYTE_SIZE);
+        return roleSpecificPermission & _walletRole != 0;
+    }
+
+    /** Reverts if the entity ID is invalid
+     */
+    function validateEntityId(uint256 _entityId, FermionStorage.ProtocolLookups storage pl) internal view {
+        if (_entityId == 0 || _entityId > pl.entityCounter) revert FermionErrors.NoSuchEntity();
+    }
+}

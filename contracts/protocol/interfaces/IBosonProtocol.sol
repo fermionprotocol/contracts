@@ -5,14 +5,9 @@ pragma solidity 0.8.24;
  * @title BosonInterface
  *
  * @notice Minimal interface to interact with the Boson Protocol.
+ * Interface methods are copied here instead of being imported from bosonprotocol because of pragma incompatibility.
  */
 interface IBosonProtocol {
-    struct Buyer {
-        uint256 id;
-        address payable wallet;
-        bool active;
-    }
-
     struct Seller {
         uint256 id;
         address assistant;
@@ -35,10 +30,54 @@ interface IBosonProtocol {
         ENS
     }
 
+    enum PriceType {
+        Static, // Default should always be at index 0. Never change this value.
+        Discovery
+    }
+    struct Buyer {
+        uint256 id;
+        address payable wallet;
+        bool active;
+    }
+
     struct VoucherInitValues {
         string contractURI;
         uint256 royaltyPercentage;
         bytes32 collectionSalt;
+    }
+
+    struct Offer {
+        uint256 id;
+        uint256 sellerId;
+        uint256 price;
+        uint256 sellerDeposit;
+        uint256 buyerCancelPenalty;
+        uint256 quantityAvailable;
+        address exchangeToken;
+        PriceType priceType;
+        string metadataUri;
+        string metadataHash;
+        bool voided;
+        uint256 collectionIndex;
+        RoyaltyInfo[] royaltyInfo;
+    }
+
+    struct OfferDates {
+        uint256 validFrom;
+        uint256 validUntil;
+        uint256 voucherRedeemableFrom;
+        uint256 voucherRedeemableUntil;
+    }
+
+    struct OfferDurations {
+        uint256 disputePeriod;
+        uint256 voucherValid;
+        uint256 resolutionPeriod;
+    }
+
+    struct RoyaltyInfo {
+        address payable[] recipients;
+        uint256[] bps;
     }
 
     /**
@@ -77,4 +116,24 @@ interface IBosonProtocol {
      * @return nextAccountId - the account id
      */
     function getNextAccountId() external view returns (uint256 nextAccountId);
+
+    /**
+     * @notice Creates an offer.
+     *
+     *
+     * @param _offer - the fully populated struct with offer id set to 0x0 and voided set to false
+     * @param _offerDates - the fully populated offer dates struct
+     * @param _offerDurations - the fully populated offer durations struct
+     * @param _disputeResolverId - the id of chosen dispute resolver (can be 0)
+     * @param _agentId - the id of agent
+     * @param _feeLimit - the maximum fee that seller is willing to pay per exchange (for static offers)
+     */
+    function createOffer(
+        Offer memory _offer,
+        OfferDates calldata _offerDates,
+        OfferDurations calldata _offerDurations,
+        uint256 _disputeResolverId,
+        uint256 _agentId,
+        uint256 _feeLimit
+    ) external;
 }

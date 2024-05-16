@@ -5,6 +5,7 @@ import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Context } from "../libs/Context.sol";
+import { EntityLib } from "../libs/EntityLib.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
 
 /**
@@ -124,7 +125,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     ) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = _entityId; // for some reason this solves the stack too deep error
-        validateEntityId(entityId, pl);
+        EntityLib.validateEntityId(entityId, pl);
         if (_wallets.length != _entityRoles.length) revert ArrayLengthMismatch(_wallets.length, _entityRoles.length);
         if (_wallets.length != _walletRoles.length) revert ArrayLengthMismatch(_wallets.length, _walletRoles.length);
 
@@ -168,7 +169,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      */
     function setEntityAdmin(uint256 _entityId, address _wallet, bool _status) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        validateEntityId(_entityId, pl);
+        EntityLib.validateEntityId(_entityId, pl);
         validateEntityAdmin(_entityId, pl);
 
         // set the pending admin
@@ -238,7 +239,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         string calldata _metadata
     ) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        validateEntityId(_entityId, pl);
+        EntityLib.validateEntityId(_entityId, pl);
         validateEntityAdmin(_entityId, FermionStorage.protocolLookups());
         FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
 
@@ -258,7 +259,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      */
     function deleteEntity(uint256 _entityId) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        validateEntityId(_entityId, pl);
+        EntityLib.validateEntityId(_entityId, pl);
         address adminWallet = validateEntityAdmin(_entityId, pl);
 
         delete FermionStorage.protocolEntities().entityData[_entityId];
@@ -302,7 +303,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     function getEntity(
         uint256 _entityId
     ) external view returns (address adminWallet, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
-        validateEntityId(_entityId, FermionStorage.protocolLookups());
+        EntityLib.validateEntityId(_entityId, FermionStorage.protocolLookups());
         FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
         adminWallet = entityData.admin;
         roles = compactRoleToRoles(entityData.roles);
@@ -323,7 +324,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         FermionTypes.EntityRole _entityRole,
         FermionTypes.WalletRole _walletRole
     ) public view returns (bool) {
-        return hasRole(_entityId, _walletAddress, _entityRole, _walletRole, false);
+        return EntityLib.hasRole(_entityId, _walletAddress, _entityRole, _walletRole, false);
     }
 
     /**
@@ -338,48 +339,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         address _walletAddress,
         FermionTypes.WalletRole _walletRole
     ) internal view returns (bool) {
-        return hasRole(_entityId, _walletAddress, FermionTypes.EntityRole(0), _walletRole, true);
-    }
-
-    /**
-     * @notice Tells if a wallet has a specific wallet role for entity id and its role.
-     *
-     * @param _entityId - the entity ID
-     * @param _walletAddress - the address of the wallet
-     * @param _entityRole - the role of the entity
-     * @param _walletRole - the wallet role
-     * @param _requireEntityWide - if true, the wallet must have the role entity-wide
-     */
-    function hasRole(
-        uint256 _entityId,
-        address _walletAddress,
-        FermionTypes.EntityRole _entityRole,
-        FermionTypes.WalletRole _walletRole,
-        bool _requireEntityWide
-    ) internal view returns (bool) {
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        validateEntityId(_entityId, pl);
-
-        uint256 walletId = pl.walletId[_walletAddress];
-
-        if (walletId == 0) return false;
-
-        uint256 compactWalletRole = FermionStorage.protocolEntities().walletRole[walletId][_entityId];
-        uint256 walletRole = 1 << uint256(_walletRole);
-        uint256 entityWidePermission = compactWalletRole >> (31 * BYTE_SIZE);
-
-        return
-            (entityWidePermission & walletRole != 0) ||
-            (!_requireEntityWide && hasRoleSpecificPermission(_entityRole, walletRole, compactWalletRole));
-    }
-
-    function hasRoleSpecificPermission(
-        FermionTypes.EntityRole _entityRole,
-        uint256 _walletRole,
-        uint256 _compactWalletRole
-    ) internal pure returns (bool) {
-        uint256 roleSpecificPermission = _compactWalletRole >> (uint256(_entityRole) * BYTE_SIZE);
-        return roleSpecificPermission & _walletRole != 0;
+        return EntityLib.hasRole(_entityId, _walletAddress, FermionTypes.EntityRole(0), _walletRole, true);
     }
 
     /**
@@ -440,7 +400,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      */
     function fetchEntityData(uint256 _entityId) internal view returns (FermionTypes.EntityData storage entityData) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        validateEntityId(_entityId, pl);
+        EntityLib.validateEntityId(_entityId, pl);
 
         entityData = FermionStorage.protocolEntities().entityData[_entityId];
     }
@@ -615,12 +575,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         } else {
             emit EntityWalletRemoved(_entityId, _wallet, new FermionTypes.EntityRole[](0), adminWallet);
         }
-    }
-
-    /** Reverts if the entity ID is invalid
-     */
-    function validateEntityId(uint256 _entityId, FermionStorage.ProtocolLookups storage pl) internal view {
-        if (_entityId == 0 || _entityId > pl.entityCounter) revert NoSuchEntity();
     }
 
     /**
