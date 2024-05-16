@@ -926,7 +926,7 @@ describe("Entity", function () {
         await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
       });
 
-      it("Get entity", async function () {
+      it("hasRole returns correct values", async function () {
         const wallet = wallets[2];
         const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian]];
         const walletRoles = [[[WalletRole.Assistant], []]];
@@ -955,6 +955,33 @@ describe("Entity", function () {
             .withArgs(0);
 
           await expect(entityFacet.hasWalletRole(10, wallet, EntityRole.Buyer, WalletRole.Admin))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(10);
+        });
+      });
+    });
+
+    context("hasEntityRole", function () {
+      const entityId = 1;
+      beforeEach(async function () {
+        const metadataURI = "https://example.com/metadata.json";
+        await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+      });
+
+      it("hasEntityRole returns correct values", async function () {
+        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Seller)).to.be.true;
+        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Verifier)).to.be.true;
+        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Custodian)).to.be.true;
+        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Buyer)).to.be.false;
+      });
+
+      context("Revert reasons", function () {
+        it("An entity does not exist", async function () {
+          await expect(entityFacet.hasEntityRole(0, EntityRole.Buyer))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
+
+          await expect(entityFacet.hasEntityRole(10, EntityRole.Seller))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(10);
         });

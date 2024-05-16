@@ -333,7 +333,9 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * @param _entityId - the entity ID
      * @param _entityRole - the role of the entity
      */
-    function hasEntityRole(uint256 _entityId, FermionTypes.EntityRole _entityRole) internal view returns (bool) {
+    function hasEntityRole(uint256 _entityId, FermionTypes.EntityRole _entityRole) external view returns (bool) {
+        EntityLib.validateEntityId(_entityId, FermionStorage.protocolLookups());
+
         uint256 compactEntityRoles = FermionStorage.protocolEntities().entityData[_entityId].roles;
 
         return EntityLib.checkEntityRole(compactEntityRoles, _entityRole);

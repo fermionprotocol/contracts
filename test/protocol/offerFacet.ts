@@ -14,7 +14,7 @@ describe("Offer", function () {
   let offerFacet: Contract, entityFacet: Contract;
   let mockToken: Contract;
   let fermionErrors: Contract;
-  // let fermionProtocolAddress: string;
+  let fermionProtocolAddress: string;
   let wallets: HardhatEthersSigner[];
 
   async function setupOfferTest() {
@@ -34,7 +34,7 @@ describe("Offer", function () {
 
   before(async function () {
     ({
-      // diamondAddress: fermionProtocolAddress,
+      diamondAddress: fermionProtocolAddress,
       facets: { EntityFacet: entityFacet, OfferFacet: offerFacet },
       fermionErrors,
       wallets,
@@ -225,6 +225,36 @@ describe("Offer", function () {
       expect(offer.custodianId).to.equal(0);
       expect(offer.metadataURI).to.equal("");
       expect(offer.metadataHash).to.equal("");
+    });
+  });
+
+  context("addSupportedToken", function () {
+    let accountHandler: Contract;
+
+    before(async function () {
+      accountHandler = await getBosonHandler("IBosonAccountHandler");
+    });
+
+    it("Anyone can add a new supported token", async function () {
+      const [mockToken2] = await deployMockTokens(["ERC20"]);
+      const mockToken2Address = await mockToken2.getAddress();
+
+      await expect(offerFacet.connect(wallets[4]).addSupportedToken(mockToken2))
+        .to.emit(accountHandler, "DisputeResolverFeesAdded")
+        .withArgs("3", [[mockToken2Address, "", 0n]], fermionProtocolAddress);
+
+      const [, , disputeResolverFees] = await accountHandler.getDisputeResolverByAddress(fermionProtocolAddress);
+      expect(disputeResolverFees).to.eql([
+        [await mockToken.getAddress(), "", 0n],
+        [mockToken2Address, "", 0n],
+      ]); // mockToken is there from the setup
+    });
+
+    it("Adding existing token fail", async function () {
+      await expect(offerFacet.addSupportedToken(await mockToken.getAddress())).to.be.revertedWithCustomError(
+        accountHandler,
+        "DuplicateDisputeResolverFees",
+      );
     });
   });
 });
