@@ -47,6 +47,15 @@ describe("Entity", function () {
 
         expect(existsBuyer).to.be.true;
         expect(buyer.wallet).to.equal(fermionProtocolAddress);
+
+        const [existDR, disputeResolver, , sellerAllowList] =
+          await accountHandler.getDisputeResolverByAddress(fermionProtocolAddress);
+        expect(existDR).to.be.true;
+        expect(disputeResolver.assistant).to.equal(fermionProtocolAddress);
+        expect(disputeResolver.admin).to.equal(fermionProtocolAddress);
+        expect(disputeResolver.treasury).to.equal(fermionProtocolAddress);
+        expect(disputeResolver.metadataUri).to.equal("");
+        expect(sellerAllowList).to.eql([seller.id]);
       });
 
       context("Revert reasons", function () {

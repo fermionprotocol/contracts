@@ -35,4 +35,13 @@ contract FermionTypes {
         string functionName;
         bytes functionSignature;
     }
+
+    struct Offer {
+        address exchangeToken;
+        uint256 sellerDeposit;
+        uint256 verifierId;
+        uint256 verifierFee;
+        uint256 custodianId;
+        string metadataURI;
+    }
 }
