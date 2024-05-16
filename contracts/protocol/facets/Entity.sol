@@ -212,7 +212,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         if (entityId != 0) revert ChangeNotAllowed(); // to change the entity admin, use setEntityAdmin and then revoke the old admin
 
         uint256 walletId = pl.walletId[msgSender];
-        if (walletId == 0) revert NoSuchEntity();
+        if (walletId == 0) revert NoSuchEntity(0);
 
         pl.walletId[_newWallet] = walletId;
         delete pl.walletId[msgSender];
@@ -318,28 +318,25 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * @param _entityRole - the role of the entity
      * @param _walletRole - the wallet role
      */
-    function hasRole(
+    function hasWalletRole(
         uint256 _entityId,
         address _walletAddress,
         FermionTypes.EntityRole _entityRole,
         FermionTypes.WalletRole _walletRole
-    ) public view returns (bool) {
-        return EntityLib.hasRole(_entityId, _walletAddress, _entityRole, _walletRole, false);
+    ) external view returns (bool) {
+        return EntityLib.hasWalletRole(_entityId, _walletAddress, _entityRole, _walletRole, false);
     }
 
     /**
-     * @notice Tells if a wallet has a specific wallet role for whole entity.
+     * @notice Tells if a entity has a specific role.
      *
      * @param _entityId - the entity ID
-     * @param _walletAddress - the address of the wallet
-     * @param _walletRole - the wallet role
+     * @param _entityRole - the role of the entity
      */
-    function hasEntityRole(
-        uint256 _entityId,
-        address _walletAddress,
-        FermionTypes.WalletRole _walletRole
-    ) internal view returns (bool) {
-        return EntityLib.hasRole(_entityId, _walletAddress, FermionTypes.EntityRole(0), _walletRole, true);
+    function hasEntityRole(uint256 _entityId, FermionTypes.EntityRole _entityRole) internal view returns (bool) {
+        uint256 compactEntityRoles = FermionStorage.protocolEntities().entityData[_entityId].roles;
+
+        return EntityLib.checkEntityRole(compactEntityRoles, _entityRole);
     }
 
     /**
@@ -384,7 +381,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         address _adminWallet
     ) internal view returns (uint256 entityId, FermionTypes.EntityData storage entityData) {
         entityId = FermionStorage.protocolLookups().entityId[_adminWallet];
-        if (entityId == 0) revert NoSuchEntity();
+        if (entityId == 0) revert NoSuchEntity(0);
 
         entityData = FermionStorage.protocolEntities().entityData[entityId];
     }
@@ -500,9 +497,16 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         if (_entityRoles.length == 0) {
             if (_walletRoles.length != 1) revert ArrayLengthMismatch(1, _walletRoles.length);
 
-            // To set entity-wide wallet roles, the callem must have entity-wide admin role
-            if (!hasEntityRole(_entityId, msgSender, FermionTypes.WalletRole.Admin))
-                revert NotEntityAdmin(_entityId, msgSender);
+            // To set entity-wide wallet roles, the caller must have entity-wide admin role
+            if (
+                !EntityLib.hasWalletRole(
+                    _entityId,
+                    msgSender,
+                    FermionTypes.EntityRole(0),
+                    FermionTypes.WalletRole.Admin,
+                    true
+                )
+            ) revert NotEntityAdmin(_entityId, msgSender);
 
             uint256 compactWalletRolePerEntityRole = walletRoleToCompactWalletRoles(_walletRoles[0]);
             compactWalletRole = compactWalletRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
@@ -512,11 +516,9 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
             for (uint256 i = 0; i < _entityRoles.length; i++) {
                 FermionTypes.EntityRole entityRole = _entityRoles[i];
                 // Check that the entity has the role
-                if (_compactEntityRoles & (1 << uint256(entityRole)) == 0) {
-                    revert EntityHasNoRole(_entityId, entityRole);
-                }
+                EntityLib.validateEntityRole(_entityId, _compactEntityRoles, entityRole);
 
-                if (!hasRole(_entityId, msgSender, entityRole, FermionTypes.WalletRole.Admin))
+                if (!EntityLib.hasWalletRole(_entityId, msgSender, entityRole, FermionTypes.WalletRole.Admin, false))
                     revert NotAdmin(msgSender, _entityId, entityRole);
 
                 uint256 compactWalletRolePerEntityRole = walletRoleToCompactWalletRoles(_walletRoles[i]);

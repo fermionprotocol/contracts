@@ -59,7 +59,7 @@ describe("Entity", function () {
           await verifyState(signer, entityId, [EntityRole[role]], metadataURI);
 
           for (const entityRole of enumIterator(EntityRole)) {
-            const hasRole = await entityFacet.hasRole(entityId, signer.address, entityRole, WalletRole.Admin);
+            const hasRole = await entityFacet.hasWalletRole(entityId, signer.address, entityRole, WalletRole.Admin);
             expect(hasRole).to.be.true;
           }
         }
@@ -179,23 +179,20 @@ describe("Entity", function () {
 
         // verify state
         await verifyState(newAdmin, entityId, [EntityRole.Buyer, EntityRole.Custodian], newMetadataURI);
-        await expect(entityFacet["getEntity(address)"](defaultSigner.address)).to.be.revertedWithCustomError(
-          fermionErrors,
-          "NoSuchEntity",
-        );
+        await expect(entityFacet["getEntity(address)"](defaultSigner.address))
+          .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+          .withArgs(0);
       });
 
       context("Revert reasons", function () {
         it("An entity does not exist", async function () {
-          await expect(entityFacet.updateEntity(0, [EntityRole.Seller], metadataURI)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.updateEntity(0, [EntityRole.Seller], metadataURI))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
 
-          await expect(entityFacet.updateEntity(10, [EntityRole.Seller], metadataURI)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.updateEntity(10, [EntityRole.Seller], metadataURI))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(10);
         });
 
         it("Caller is not the admin", async function () {
@@ -221,10 +218,9 @@ describe("Entity", function () {
           .withArgs(entityId, defaultSigner.address);
 
         // verify state
-        await expect(verifyState(defaultSigner, entityId, [], "")).to.be.revertedWithCustomError(
-          fermionErrors,
-          "NoSuchEntity",
-        );
+        await expect(verifyState(defaultSigner, entityId, [], ""))
+          .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+          .withArgs(0);
       });
 
       it("Pending admin can delete the entity", async function () {
@@ -236,17 +232,20 @@ describe("Entity", function () {
           .withArgs(entityId, newAdmin.address);
 
         // verify state
-        await expect(verifyState(newAdmin, entityId, [], "")).to.be.revertedWithCustomError(
-          fermionErrors,
-          "NoSuchEntity",
-        );
+        await expect(verifyState(newAdmin, entityId, [], ""))
+          .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+          .withArgs(0);
       });
 
       context("Revert reasons", function () {
         it("An entity does not exist", async function () {
-          await expect(entityFacet.deleteEntity(0)).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
+          await expect(entityFacet.deleteEntity(0))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
 
-          await expect(entityFacet.deleteEntity(10)).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
+          await expect(entityFacet.deleteEntity(10))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(10);
         });
 
         it("Caller is not the admin", async function () {
@@ -302,7 +301,7 @@ describe("Entity", function () {
             for (const walletRole of enumIterator(WalletRole)) {
               const expectedValue =
                 !!expectedRoles[wallet][entityRole] && !!expectedRoles[wallet][entityRole][walletRole];
-              const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, walletRole);
+              const hasRole = await entityFacet.hasWalletRole(entityId, wallet, entityRole, walletRole);
 
               expect(hasRole).to.equal(expectedValue);
             }
@@ -324,7 +323,7 @@ describe("Entity", function () {
 
         // verify state
         for (const walletRole of enumIterator(WalletRole)) {
-          const hasRole = await entityFacet.hasRole(entityId, wallet, EntityRole.Custodian, walletRole);
+          const hasRole = await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Custodian, walletRole);
           expect(hasRole).to.be.true;
         }
       });
@@ -343,22 +342,20 @@ describe("Entity", function () {
 
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
-          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          const hasRole = await entityFacet.hasWalletRole(entityId, wallet, entityRole, WalletRole.Assistant);
           expect(hasRole).to.be.true;
         }
       });
 
       context("Revert reasons", function () {
         it("Entity does not exist", async function () {
-          await expect(entityFacet.addEntityWallets(0, [], [], [])).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.addEntityWallets(0, [], [], []))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
 
-          await expect(entityFacet.addEntityWallets(10, [], [], [])).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.addEntityWallets(10, [], [], []))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(10);
         });
 
         it("Caller is not an admin for the entity role", async function () {
@@ -487,7 +484,7 @@ describe("Entity", function () {
             for (const walletRole of enumIterator(WalletRole)) {
               const expectedValue =
                 !!expectedRoles[wallet][entityRole] && !!expectedRoles[wallet][entityRole][walletRole];
-              const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, walletRole);
+              const hasRole = await entityFacet.hasWalletRole(entityId, wallet, entityRole, walletRole);
 
               expect(hasRole).to.equal(expectedValue);
             }
@@ -509,7 +506,7 @@ describe("Entity", function () {
 
         // verify state
         for (const walletRole of enumIterator(WalletRole)) {
-          const hasRole = await entityFacet.hasRole(entityId, wallet, EntityRole.Custodian, walletRole);
+          const hasRole = await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Custodian, walletRole);
           expect(hasRole).to.be.false;
         }
       });
@@ -524,7 +521,7 @@ describe("Entity", function () {
 
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
-          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          const hasRole = await entityFacet.hasWalletRole(entityId, wallet, entityRole, WalletRole.Assistant);
           expect(hasRole).to.be.true;
         }
 
@@ -532,7 +529,7 @@ describe("Entity", function () {
 
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
-          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          const hasRole = await entityFacet.hasWalletRole(entityId, wallet, entityRole, WalletRole.Assistant);
           expect(hasRole).to.be.false;
         }
       });
@@ -547,7 +544,7 @@ describe("Entity", function () {
 
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
-          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          const hasRole = await entityFacet.hasWalletRole(entityId, wallet, entityRole, WalletRole.Assistant);
           expect(hasRole).to.be.true;
         }
 
@@ -557,7 +554,7 @@ describe("Entity", function () {
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
           const expectedRole = entityRole == String(EntityRole.Custodian);
-          const hasRole = await entityFacet.hasRole(entityId, wallet, entityRole, WalletRole.Assistant);
+          const hasRole = await entityFacet.hasWalletRole(entityId, wallet, entityRole, WalletRole.Assistant);
           expect(hasRole).to.equal(expectedRole);
         }
       });
@@ -568,9 +565,9 @@ describe("Entity", function () {
         const walletRoles = [[[WalletRole.Assistant]]];
 
         // check the assigned roles
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Admin)).to.be.true;
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Assistant)).to.be.false;
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Treasury)).to.be.true;
+        expect(await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Seller, WalletRole.Admin)).to.be.true;
+        expect(await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Seller, WalletRole.Assistant)).to.be.false;
+        expect(await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Seller, WalletRole.Treasury)).to.be.true;
 
         // test event
         await expect(entityFacet.removeEntityWallets(entityId, [wallet], entityRoles, walletRoles))
@@ -578,22 +575,20 @@ describe("Entity", function () {
           .withArgs(entityId, wallet, entityRoles[0], walletRoles[0]);
 
         // verify state, nothing should change
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Admin)).to.be.true;
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Assistant)).to.be.false;
-        expect(await entityFacet.hasRole(entityId, wallet, EntityRole.Seller, WalletRole.Treasury)).to.be.true;
+        expect(await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Seller, WalletRole.Admin)).to.be.true;
+        expect(await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Seller, WalletRole.Assistant)).to.be.false;
+        expect(await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Seller, WalletRole.Treasury)).to.be.true;
       });
 
       context("Revert reasons", function () {
         it("Entity does not exist", async function () {
-          await expect(entityFacet.removeEntityWallets(0, [], [], [])).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.removeEntityWallets(0, [], [], []))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
 
-          await expect(entityFacet.removeEntityWallets(10, [], [], [])).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.removeEntityWallets(10, [], [], []))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(10);
         });
 
         it("Caller is not an admin for the entity role", async function () {
@@ -696,7 +691,7 @@ describe("Entity", function () {
 
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
-          const hasRole = await entityFacet.hasRole(entityId, newAdmin.address, entityRole, WalletRole.Admin);
+          const hasRole = await entityFacet.hasWalletRole(entityId, newAdmin.address, entityRole, WalletRole.Admin);
           expect(hasRole).to.be.true;
         }
       });
@@ -707,20 +702,18 @@ describe("Entity", function () {
         const entity = await entityFacet["getEntity(address)"](defaultSigner.address);
 
         // before new admin performs any action, the entity admin is the old admin
-        await expect(entityFacet["getEntity(address)"](newAdmin.address)).to.be.revertedWithCustomError(
-          fermionErrors,
-          "NoSuchEntity",
-        );
+        await expect(entityFacet["getEntity(address)"](newAdmin.address))
+          .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+          .withArgs(0);
 
         // make some action with the new admin
         await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true)).to.not.be.reverted;
 
         // entity is referenced by the new admin signer
         await verifyState(newAdmin, entityId, entity.roles, entity.metadataURI);
-        await expect(entityFacet["getEntity(address)"](defaultSigner.address)).to.be.revertedWithCustomError(
-          fermionErrors,
-          "NoSuchEntity",
-        );
+        await expect(entityFacet["getEntity(address)"](defaultSigner.address))
+          .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+          .withArgs(0);
 
         // old admin should not be able to perform entity admin actions, but can perform wallet admin actions
         await expect(entityFacet.setEntityAdmin(entityId, newAdmin.address, true))
@@ -755,7 +748,7 @@ describe("Entity", function () {
 
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
-          const hasRole = await entityFacet.hasRole(entityId, newAdmin.address, entityRole, WalletRole.Admin);
+          const hasRole = await entityFacet.hasWalletRole(entityId, newAdmin.address, entityRole, WalletRole.Admin);
           expect(hasRole).to.be.false;
         }
 
@@ -769,15 +762,13 @@ describe("Entity", function () {
         it("Entity does not exist", async function () {
           const newAdmin = wallets[2];
 
-          await expect(entityFacet.setEntityAdmin(0, newAdmin.address, true)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.setEntityAdmin(0, newAdmin.address, true))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
 
-          await expect(entityFacet.setEntityAdmin(10, newAdmin.address, true)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.setEntityAdmin(10, newAdmin.address, true))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(10);
         });
 
         it("Caller is not an admin for the entity role", async function () {
@@ -824,10 +815,10 @@ describe("Entity", function () {
         // verify state
         for (const entityRole of entityRoles[0]) {
           for (const walletRole of enumIterator(WalletRole)) {
-            const newWallethasRole = await entityFacet.hasRole(entityId, newWallet, entityRole, walletRole);
+            const newWallethasRole = await entityFacet.hasWalletRole(entityId, newWallet, entityRole, walletRole);
             expect(newWallethasRole).to.be.true;
 
-            const oldWallethasRole = await entityFacet.hasRole(entityId, wallet.address, entityRole, walletRole);
+            const oldWallethasRole = await entityFacet.hasWalletRole(entityId, wallet.address, entityRole, walletRole);
             expect(oldWallethasRole).to.be.false;
           }
         }
@@ -846,10 +837,9 @@ describe("Entity", function () {
         it("Caller is not a wallet for any entity", async function () {
           const wallet = wallets[3];
 
-          await expect(entityFacet.connect(wallet).changeWallet(wallets[2].address)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "NoSuchEntity",
-          );
+          await expect(entityFacet.connect(wallet).changeWallet(wallets[2].address))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
         });
       });
     });
@@ -883,10 +873,9 @@ describe("Entity", function () {
         context("Revert reasons", function () {
           it("An entity does not exist", async function () {
             const signer2 = wallets[2];
-            await expect(entityFacet["getEntity(address)"](signer2.address)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "NoSuchEntity",
-            );
+            await expect(entityFacet["getEntity(address)"](signer2.address))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(0);
           });
         });
       });
@@ -918,15 +907,13 @@ describe("Entity", function () {
 
         context("Revert reasons", function () {
           it("An entity does not exist", async function () {
-            await expect(entityFacet["getEntity(uint256)"](0)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "NoSuchEntity",
-            );
+            await expect(entityFacet["getEntity(uint256)"](0))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(0);
 
-            await expect(entityFacet["getEntity(uint256)"](10)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "NoSuchEntity",
-            );
+            await expect(entityFacet["getEntity(uint256)"](10))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(10);
           });
         });
       });
@@ -946,16 +933,16 @@ describe("Entity", function () {
 
         await entityFacet.addEntityWallets(entityId, [wallet], entityRoles, walletRoles);
 
-        let hasRole = await entityFacet.hasRole(entityId, wallet, EntityRole.Verifier, WalletRole.Assistant);
+        let hasRole = await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Verifier, WalletRole.Assistant);
         expect(hasRole).to.be.true;
 
-        hasRole = await entityFacet.hasRole(entityId, wallet, EntityRole.Verifier, WalletRole.Admin);
+        hasRole = await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Verifier, WalletRole.Admin);
         expect(hasRole).to.be.false;
       });
 
       it("Wallet does not belong to an entity", async function () {
         const wallet = wallets[3];
-        const hasRole = await entityFacet.hasRole(entityId, wallet, EntityRole.Buyer, WalletRole.Admin);
+        const hasRole = await entityFacet.hasWalletRole(entityId, wallet, EntityRole.Buyer, WalletRole.Admin);
 
         expect(hasRole).to.equal(false);
       });
@@ -963,13 +950,13 @@ describe("Entity", function () {
       context("Revert reasons", function () {
         it("An entity does not exist", async function () {
           const wallet = wallets[3];
-          await expect(
-            entityFacet.hasRole(0, wallet, EntityRole.Buyer, WalletRole.Admin),
-          ).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
+          await expect(entityFacet.hasWalletRole(0, wallet, EntityRole.Buyer, WalletRole.Admin))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
 
-          await expect(
-            entityFacet.hasRole(10, wallet, EntityRole.Buyer, WalletRole.Admin),
-          ).to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity");
+          await expect(entityFacet.hasWalletRole(10, wallet, EntityRole.Buyer, WalletRole.Admin))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(10);
         });
       });
     });
