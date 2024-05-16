@@ -5,7 +5,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole } from "../utils/enums";
+import { EntityRole, WalletRole } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
 
 const { id, MaxUint256 } = ethers;
@@ -13,7 +13,7 @@ const { id, MaxUint256 } = ethers;
 describe("Offer", function () {
   let offerFacet: Contract, entityFacet: Contract;
   let mockToken: Contract;
-  // let fermionErrors: Contract;
+  let fermionErrors: Contract;
   // let fermionProtocolAddress: string;
   let wallets: HardhatEthersSigner[];
 
@@ -36,7 +36,7 @@ describe("Offer", function () {
     ({
       // diamondAddress: fermionProtocolAddress,
       facets: { EntityFacet: entityFacet, OfferFacet: offerFacet },
-      // fermionErrors,
+      fermionErrors,
       wallets,
     } = await loadFixture(deployFermionProtocolFixture));
 
@@ -47,18 +47,21 @@ describe("Offer", function () {
     await loadFixture(setupOfferTest);
   });
 
-  describe("List offer", function () {
-    const entityId = "1";
+  context("createOffer", function () {
+    const sellerId = "1";
     const verifierId = "2";
     const custodianId = "3";
+    const sellerDeposit = 100;
+    const verifierFee = 10;
+    const metadataURI = "https://example.com/offer-metadata.json";
+    let exchangeToken: string;
+    let fermionOffer: FermionTypes.OfferStruct;
+    const bosonOfferId = "1";
 
-    it("Boson Offer is created", async function () {
-      const sellerDeposit = 100;
-      const verifierFee = 10;
-      const exchangeToken = await mockToken.getAddress();
-      const metadataURI = "https://example.com/offer-metadata.json";
+    before(async function () {
+      exchangeToken = await mockToken.getAddress();
 
-      const fermionOffer: FermionTypes.OfferStruct = {
+      fermionOffer = {
         exchangeToken,
         sellerDeposit,
         verifierId,
@@ -67,14 +70,32 @@ describe("Offer", function () {
         metadataURI,
         metadataHash: id(metadataURI),
       };
+    });
 
-      const tx = await offerFacet.createOffer(entityId, fermionOffer);
+    it("Create fermion offer", async function () {
+      // test event
+      await expect(offerFacet.createOffer(sellerId, fermionOffer))
+        .to.emit(offerFacet, "OfferCreated")
+        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), bosonOfferId);
 
-      const offerHandler = await getBosonHandler("IBosonOfferHandler");
-      await expect(tx).to.emit(offerHandler, "OfferCreated");
+      // verify state
+      const offer = await offerFacet.getOffer(bosonOfferId);
+      expect(offer.exchangeToken).to.equal(exchangeToken);
+      expect(offer.sellerDeposit).to.equal(sellerDeposit);
+      expect(offer.verifierId).to.equal(verifierId);
+      expect(offer.verifierFee).to.equal(verifierFee);
+      expect(offer.custodianId).to.equal(custodianId);
+      expect(offer.metadataURI).to.equal(metadataURI);
+      expect(offer.metadataHash).to.equal(id(metadataURI));
+    });
+
+    it("Boson Offer is created", async function () {
+      const bosonOfferHandler = await getBosonHandler("IBosonOfferHandler");
+
+      await expect(offerFacet.createOffer(sellerId, fermionOffer)).to.emit(bosonOfferHandler, "OfferCreated");
 
       const [exists, offer, offerDates, offerDurations, disputeResolutionTerms, offerFees] =
-        await offerHandler.getOffer(1n);
+        await bosonOfferHandler.getOffer(1n);
       expect(exists).to.be.true;
       expect(offer.sellerId).to.equal("1"); // fermion's seller id inside Boson
       // expect(offer.price).to.equal(verifierFee);
@@ -107,6 +128,59 @@ describe("Offer", function () {
       // expect(offerFees.protocolFee).to.equal(verifierFee*50/10000); // 0.5% of the verifier fee
       expect(offerFees.protocolFee).to.equal(0); // change after boson v2.4.2
       expect(offerFees.agentFee).to.equal(0);
+    });
+
+    it("Create fermion offer with self verification and self custody", async function () {
+      fermionOffer.verifierId = sellerId;
+      fermionOffer.custodianId = sellerId;
+
+      // test event
+      await expect(offerFacet.createOffer(sellerId, fermionOffer))
+        .to.emit(offerFacet, "OfferCreated")
+        .withArgs(sellerId, sellerId, sellerId, Object.values(fermionOffer), bosonOfferId);
+
+      // verify state
+      const offer = await offerFacet.getOffer(bosonOfferId);
+      expect(offer.verifierId).to.equal(sellerId);
+      expect(offer.custodianId).to.equal(sellerId);
+    });
+
+    context("Revert reasons", function () {
+      it("Caller is not the seller's assistant", async function () {
+        const wallet = wallets[4];
+
+        await expect(offerFacet.connect(wallet).createOffer(sellerId, fermionOffer))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
+      });
+
+      it("Provided verifier ID is incorrect", async function () {
+        // existent id, but not a verifier
+        const fermionOffer2 = { ...fermionOffer, verifierId: "3" };
+        await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+          .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+          .withArgs("3", EntityRole.Verifier);
+
+        // non existent id
+        fermionOffer2.verifierId = "10";
+        await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+          .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+          .withArgs("10", EntityRole.Verifier);
+      });
+
+      it("Provided custodian ID is incorrect", async function () {
+        // existent id, but not a custodian
+        const fermionOffer2 = { ...fermionOffer, custodianId: "2" };
+        await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+          .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+          .withArgs("2", EntityRole.Custodian);
+
+        // non existent id
+        fermionOffer2.custodianId = "10";
+        await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+          .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+          .withArgs("10", EntityRole.Custodian);
+      });
     });
   });
 });

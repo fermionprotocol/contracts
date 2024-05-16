@@ -54,10 +54,20 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             );
         }
 
-        uint256 compactEntityRoles = FermionStorage.protocolEntities().entityData[_sellerId].roles;
-        EntityLib.validateEntityRole(_offer.custodianId, compactEntityRoles, FermionTypes.EntityRole.Custodian);
-        EntityLib.validateEntityRole(_offer.verifierId, compactEntityRoles, FermionTypes.EntityRole.Verifier);
+        // Validate verifier and custodian IDs
+        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
+        EntityLib.validateEntityRole(
+            _offer.verifierId,
+            pe.entityData[_offer.verifierId].roles,
+            FermionTypes.EntityRole.Verifier
+        );
+        EntityLib.validateEntityRole(
+            _offer.custodianId,
+            pe.entityData[_offer.custodianId].roles,
+            FermionTypes.EntityRole.Custodian
+        );
 
+        // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
         bosonOffer.sellerId = bosonSellerId;
@@ -92,7 +102,10 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             type(uint256).max // no fee limit
         );
 
-        emit OfferCreated(_sellerId, _offer.verifierId, _offer.custodianId, _offer);
+        // Store fermion offer properties
+        FermionStorage.protocolEntities().offer[bosonOfferId] = _offer;
+
+        emit OfferCreated(_sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
     }
 
     /**
@@ -113,5 +126,16 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
 
         uint256 bosonDisputeResolverId = FermionStorage.protocolStatus().bosonSellerId + 2;
         IBosonProtocol(BOSON_PROTOCOL).addFeesToDisputeResolver(bosonDisputeResolverId, disputeResolverFees);
+    }
+
+    /**
+     * @notice Get an offer by ID
+     *
+     * @param _offerId Offer ID
+     *
+     * @return offer Offer details
+     */
+    function getOffer(uint256 _offerId) external view returns (FermionTypes.Offer memory offer) {
+        return FermionStorage.protocolEntities().offer[_offerId];
     }
 }

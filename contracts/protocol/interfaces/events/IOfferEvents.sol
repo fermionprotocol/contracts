@@ -13,6 +13,7 @@ interface IOfferEvents {
         uint256 indexed sellerId,
         uint256 indexed verifierId,
         uint256 indexed custodianId,
-        FermionTypes.Offer offer
+        FermionTypes.Offer offer,
+        uint256 bosonOfferId
     );
 }
