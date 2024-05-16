@@ -8,7 +8,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, WalletRole } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
 
-const { id, MaxUint256 } = ethers;
+const { id, MaxUint256, ZeroAddress } = ethers;
 
 describe("Offer", function () {
   let offerFacet: Contract, entityFacet: Contract;
@@ -181,6 +181,50 @@ describe("Offer", function () {
           .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
           .withArgs("10", EntityRole.Custodian);
       });
+    });
+  });
+
+  context("getOffer", function () {
+    it("Get offer", async function () {
+      const bosonOfferId = "1";
+      const exchangeToken = await mockToken.getAddress();
+      const sellerDeposit = 100;
+      const verifierId = "2";
+      const verifierFee = 10;
+      const custodianId = "3";
+      const metadataURI = "https://example.com/offer-metadata.json";
+
+      const fermionOffer = {
+        exchangeToken,
+        sellerDeposit,
+        verifierId,
+        verifierFee,
+        custodianId,
+        metadataURI,
+        metadataHash: id(metadataURI),
+      };
+
+      await offerFacet.createOffer("1", fermionOffer);
+
+      const offer = await offerFacet.getOffer(bosonOfferId);
+      expect(offer.exchangeToken).to.equal(exchangeToken);
+      expect(offer.sellerDeposit).to.equal(sellerDeposit);
+      expect(offer.verifierId).to.equal(verifierId);
+      expect(offer.verifierFee).to.equal(verifierFee);
+      expect(offer.custodianId).to.equal(custodianId);
+      expect(offer.metadataURI).to.equal(metadataURI);
+      expect(offer.metadataHash).to.equal(id(metadataURI));
+    });
+
+    it("Get non-existent offer", async function () {
+      const offer = await offerFacet.getOffer("2");
+      expect(offer.exchangeToken).to.equal(ZeroAddress);
+      expect(offer.sellerDeposit).to.equal(0);
+      expect(offer.verifierId).to.equal(0);
+      expect(offer.verifierFee).to.equal(0);
+      expect(offer.custodianId).to.equal(0);
+      expect(offer.metadataURI).to.equal("");
+      expect(offer.metadataHash).to.equal("");
     });
   });
 });
