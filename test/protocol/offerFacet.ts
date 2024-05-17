@@ -131,13 +131,12 @@ describe("Offer", function () {
     });
 
     it("Create fermion offer with self verification and self custody", async function () {
-      fermionOffer.verifierId = sellerId;
-      fermionOffer.custodianId = sellerId;
+      const fermionOffer2 = { ...fermionOffer, verifierId: sellerId, custodianId: sellerId };
 
       // test event
-      await expect(offerFacet.createOffer(sellerId, fermionOffer))
+      await expect(offerFacet.createOffer(sellerId, fermionOffer2))
         .to.emit(offerFacet, "OfferCreated")
-        .withArgs(sellerId, sellerId, sellerId, Object.values(fermionOffer), bosonOfferId);
+        .withArgs(sellerId, sellerId, sellerId, Object.values(fermionOffer2), bosonOfferId);
 
       // verify state
       const offer = await offerFacet.getOffer(bosonOfferId);
