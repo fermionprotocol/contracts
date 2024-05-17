@@ -15,6 +15,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
+import { FermionWrapper } from "../clients/FermionWrapper.sol";
+
 /**
  * @title OfferFacet
  *
@@ -125,11 +127,12 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         }
         FermionStorage.ProtocolStatus storage ps = FermionStorage.protocolStatus();
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        address msgSender = msgSender();
 
         // Check the caller is the the seller's assistant
         EntityLib.validateWalletRole(
             offer.sellerId,
-            msgSender(),
+            msgSender,
             FermionTypes.EntityRole.Seller,
             FermionTypes.WalletRole.Assistant
         );
@@ -170,9 +173,18 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         // address wrapperAddress = address(new BeaconProxy{salt: bytes32(startingNFTId)}(ps.wrapperBeacon, ""));
 
         FermionStorage.protocolLookups().wrapperAddress[_offerId] = wrapperAddress;
+        FermionWrapper(wrapperAddress).initialize(ps.bosonNftCollection, msgSender);
 
+        bosonVoucher.setApprovalForAll(wrapperAddress, true);
         // wrap NFTs
-        // IFermionWrapper(wrapperAddress).wrapNFTs(startingNFTId, _quantity, msgSender());
+        // ToDo: move loop into the wrapper
+        uint256[] memory nftIds = new uint256[](_quantity);
+        for (uint256 i = 0; i < _quantity; i++) {
+            nftIds[i] = startingNFTId + i;
+        }
+
+        FermionWrapper(wrapperAddress).wrapForAuction(nftIds, msgSender);
+        bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         // emit event
         emit NFTsMinted(_offerId, startingNFTId, _quantity);

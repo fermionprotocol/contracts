@@ -20,6 +20,15 @@ interface IBosonProtocol {
         Discovery
     }
 
+    enum ExchangeState {
+        Committed,
+        Revoked,
+        Canceled,
+        Redeemed,
+        Completed,
+        Disputed
+    }
+
     struct Seller {
         uint256 id;
         address assistant;
@@ -101,6 +110,33 @@ interface IBosonProtocol {
     struct RoyaltyInfo {
         address payable[] recipients;
         uint256[] bps;
+    }
+
+    struct Exchange {
+        uint256 id;
+        uint256 offerId;
+        uint256 buyerId;
+        uint256 finalizedDate;
+        ExchangeState state;
+    }
+
+    struct Voucher {
+        uint256 committedDate;
+        uint256 validUntilDate;
+        uint256 redeemedDate;
+        bool expired;
+    }
+
+    struct DisputeResolutionTerms {
+        uint256 disputeResolverId;
+        uint256 escalationResponsePeriod;
+        uint256 feeAmount;
+        uint256 buyerEscalationDeposit;
+    }
+
+    struct OfferFees {
+        uint256 protocolFee;
+        uint256 agentFee;
     }
 
     /**
@@ -223,6 +259,43 @@ interface IBosonProtocol {
      * @return nextExchangeId - the next exchange id
      */
     function getNextExchangeId() external view returns (uint256 nextExchangeId);
+
+    /**
+     * @notice Gets the details about a given exchange.
+     *
+     * @param _exchangeId - the id of the exchange to check
+     * @return exists - true if the exchange exists
+     * @return exchange - the exchange details. See {BosonTypes.Exchange}
+     * @return voucher - the voucher details. See {BosonTypes.Voucher}
+     */
+    function getExchange(
+        uint256 _exchangeId
+    ) external view returns (bool exists, Exchange memory exchange, Voucher memory voucher);
+
+    /**
+     * @notice Gets the details about a given offer.
+     *
+     * @param _offerId - the id of the offer to retrieve
+     * @return exists - the offer was found
+     * @return offer - the offer details. See {BosonTypes.Offer}
+     * @return offerDates - the offer dates details. See {BosonTypes.OfferDates}
+     * @return offerDurations - the offer durations details. See {BosonTypes.OfferDurations}
+     * @return disputeResolutionTerms - the details about the dispute resolution terms. See {BosonTypes.DisputeResolutionTerms}
+     * @return offerFees - the offer fees details. See {BosonTypes.OfferFees}
+     */
+    function getOffer(
+        uint256 _offerId
+    )
+        external
+        view
+        returns (
+            bool exists,
+            Offer memory offer,
+            OfferDates memory offerDates,
+            OfferDurations memory offerDurations,
+            DisputeResolutionTerms memory disputeResolutionTerms,
+            OfferFees memory offerFees
+        );
 }
 
 interface IBosonVoucher {
@@ -257,4 +330,16 @@ interface IBosonVoucher {
      * @param _amount - the amount to mint
      */
     function preMint(uint256 _offerId, uint256 _amount) external;
+
+    /**
+     * @dev Approve or remove `operator` as an operator for the caller.
+     * Operators can call {transferFrom} or {safeTransferFrom} for any token owned by the caller.
+     *
+     * Requirements:
+     *
+     * - The `operator` cannot be the caller.
+     *
+     * Emits an {ApprovalForAll} event.
+     */
+    function setApprovalForAll(address operator, bool approved) external;
 }

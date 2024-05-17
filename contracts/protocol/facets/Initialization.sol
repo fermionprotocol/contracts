@@ -174,6 +174,7 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         bosonProtocol.createDisputeResolver(disputeResolver, disputeResolverFees, sellerAllowList);
 
         // Wrapper beacon
+        // ? maybe deploy a wrapper implementation here ?
         ps.wrapperBeacon = address(new UpgradeableBeacon(_wrapperImplementation, address(this)));
         ps.wrapperBeaconProxy = address(new BeaconProxy(ps.wrapperBeacon, ""));
     }
