@@ -4,6 +4,8 @@ pragma solidity 0.8.24;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 contract MockERC20 is ERC20 {
+    uint256 private burnAmount;
+
     constructor() ERC20("MockERC20", "MCK_20") {}
 
     /**
@@ -13,5 +15,20 @@ contract MockERC20 is ERC20 {
      */
     function mint(address _account, uint256 _amount) public {
         _mint(_account, _amount);
+    }
+
+    /**
+     * Sets the amount that is burned on every transfer
+     */
+    function setBurnAmount(uint256 _burnAmount) public {
+        burnAmount = _burnAmount;
+    }
+
+    function _update(address from, address to, uint256 amount) internal override {
+        if (burnAmount > 0 && to != address(0)) {
+            _burn(from, burnAmount);
+            amount -= burnAmount;
+        }
+        super._update(from, to, amount);
     }
 }

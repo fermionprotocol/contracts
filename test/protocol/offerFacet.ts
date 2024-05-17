@@ -471,8 +471,15 @@ describe("Offer", function () {
           .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
           .withArgs(fermionProtocolAddress, totalSellerDeposit - 1n, totalSellerDeposit);
 
-        // ERC20 offer - insufficient balacne
+        // ERC20 offer - contract sends insufficient funds
         await mockToken.approve(fermionProtocolAddress, totalSellerDeposit);
+        await mockToken.setBurnAmount(1);
+        await expect(offerFacet.mintNFTs(bosonOfferId, quantity))
+          .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
+          .withArgs(totalSellerDeposit, totalSellerDeposit - 1n);
+        await mockToken.setBurnAmount(0);
+
+        // ERC20 offer - insufficient balance
         const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
         await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
 

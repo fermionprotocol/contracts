@@ -58,19 +58,17 @@ library FundsLib {
      * @param _amount - amount to be transferred
      */
     function transferFundsToProtocol(address _tokenAddress, address _from, uint256 _amount) internal {
-        if (_amount > 0) {
-            // protocol balance before the transfer
-            uint256 protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
+        // protocol balance before the transfer
+        uint256 protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
 
-            // transfer ERC20 tokens from the caller
-            IERC20(_tokenAddress).safeTransferFrom(_from, address(this), _amount);
+        // transfer ERC20 tokens from the caller
+        IERC20(_tokenAddress).safeTransferFrom(_from, address(this), _amount);
 
-            // protocol balance after the transfer
-            uint256 protocolTokenBalanceAfter = IERC20(_tokenAddress).balanceOf(address(this));
+        // protocol balance after the transfer
+        uint256 protocolTokenBalanceAfter = IERC20(_tokenAddress).balanceOf(address(this));
 
-            // make sure that expected amount of tokens was transferred
-            uint256 receivedAmount = protocolTokenBalanceAfter - protocolTokenBalanceBefore;
-            if (receivedAmount != _amount) revert FermionErrors.InsufficientValueReceived(_amount, receivedAmount);
-        }
+        // make sure that expected amount of tokens was transferred
+        uint256 receivedAmount = protocolTokenBalanceAfter - protocolTokenBalanceBefore;
+        if (receivedAmount != _amount) revert FermionErrors.InsufficientValueReceived(_amount, receivedAmount);
     }
 }
