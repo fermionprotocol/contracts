@@ -41,10 +41,13 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   console.log(`Deploying to network: ${network.name} (env: ${env}) with deployer: ${deployerAddress}`);
   console.log(`Boson Protocol address: ${bosonProtocolAddress}`);
 
+  // ToDo:deploy wrapper implementation
+  const wrapperImplementationAddress = bosonProtocolAddress;
+
   // deploy diamond
   let diamondAddress, initializationFacet;
   if (allModules || modules.includes("diamond")) {
-    ({ diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress));
+    ({ diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress, wrapperImplementationAddress));
     //  setEnvironmentData()
     await writeContracts(deploymentData, env, version);
   } else {
@@ -121,7 +124,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   return { diamondAddress, facets, bosonProtocolAddress };
 }
 
-export async function deployDiamond(bosonProtocolAddress: string) {
+export async function deployDiamond(bosonProtocolAddress: string, wrapperImplementationAddress: string) {
   const accounts = await ethers.getSigners();
   const contractOwner = accounts[0];
 
@@ -139,6 +142,7 @@ export async function deployDiamond(bosonProtocolAddress: string) {
   const initializationFacet = facets["InitializationFacet"];
   const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
     bosonProtocolAddress,
+    wrapperImplementationAddress,
   ]);
 
   // Setting arguments that will be used in the diamond constructor

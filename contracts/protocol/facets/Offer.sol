@@ -13,6 +13,7 @@ import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
 /**
  * @title OfferFacet
@@ -161,7 +162,17 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
 
         // create wrapper if needed
 
+        // opt1: minimal clone
+        address wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(startingNFTId)); // ToDo: investigate the salt options
+
+        // opt2: beacon proxy <= alternative approach. Keep for now, estimate gas after more functions are implemented
+        // deployment: ~80k more per deployment. But the next calls should be cheaper.
+        // address wrapperAddress = address(new BeaconProxy{salt: bytes32(startingNFTId)}(ps.wrapperBeacon, ""));
+
+        FermionStorage.protocolLookups().wrapperAddress[_offerId] = wrapperAddress;
+
         // wrap NFTs
+        // IFermionWrapper(wrapperAddress).wrapNFTs(startingNFTId, _quantity, msgSender());
 
         // emit event
         emit NFTsMinted(_offerId, startingNFTId, _quantity);

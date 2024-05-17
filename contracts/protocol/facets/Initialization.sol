@@ -14,6 +14,9 @@ import { IDiamondCut } from "../../diamond/interfaces/IDiamondCut.sol";
 import { IERC173 } from "../../diamond/interfaces/IERC173.sol";
 import { IERC165 } from "../../diamond/interfaces/IERC165.sol";
 
+import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+
 /**
  * @title FermionProtocolInitializationHandler
  *
@@ -85,9 +88,13 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
+     * @param _wrapperImplementation - address of the initial wrapper implementation
      */
-    function initializeDiamond(address _bosonProtocolAddress) external noDirectInitialization {
-        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress);
+    function initializeDiamond(
+        address _bosonProtocolAddress,
+        address _wrapperImplementation
+    ) external noDirectInitialization {
+        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress, _wrapperImplementation);
 
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;
@@ -107,8 +114,12 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
+     * @param _wrapperImplementation - address of the initial wrapper implementation
      */
-    function initializeBosonSellerAndBuyerAndDR(address _bosonProtocolAddress) internal {
+    function initializeBosonSellerAndBuyerAndDR(
+        address _bosonProtocolAddress,
+        address _wrapperImplementation
+    ) internal {
         if (_bosonProtocolAddress == address(0)) revert InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
@@ -161,6 +172,10 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         uint256[] memory sellerAllowList = new uint256[](1);
         sellerAllowList[0] = bosonSellerId;
         bosonProtocol.createDisputeResolver(disputeResolver, disputeResolverFees, sellerAllowList);
+
+        // Wrapper beacon
+        ps.wrapperBeacon = address(new UpgradeableBeacon(_wrapperImplementation, address(this)));
+        ps.wrapperBeaconProxy = address(new BeaconProxy(ps.wrapperBeacon, ""));
     }
 
     /**
