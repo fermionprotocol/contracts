@@ -19,6 +19,8 @@ library FermionStorage {
         bytes32 version;
         // Boson seller id
         uint256 bosonSellerId;
+        // Boson NFT collection address
+        address bosonNftCollection;
     }
 
     // Protocol entities storage

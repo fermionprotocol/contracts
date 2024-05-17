@@ -130,6 +130,12 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
 
         bosonProtocol.createSeller(seller, authToken, voucherInitValues);
 
+        (address bosonNftCollection, ) = bosonProtocol.getSellersCollections(bosonSellerId);
+
+        FermionStorage.ProtocolStatus storage ps = FermionStorage.protocolStatus();
+        ps.bosonSellerId = bosonSellerId;
+        ps.bosonNftCollection = bosonNftCollection;
+
         // Create a buyer
         IBosonProtocol.Buyer memory buyer = IBosonProtocol.Buyer({
             id: bosonSellerId + 1,
@@ -155,8 +161,6 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         uint256[] memory sellerAllowList = new uint256[](1);
         sellerAllowList[0] = bosonSellerId;
         bosonProtocol.createDisputeResolver(disputeResolver, disputeResolverFees, sellerAllowList);
-
-        FermionStorage.protocolStatus().bosonSellerId = bosonSellerId;
     }
 
     /**

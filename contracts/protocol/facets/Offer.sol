@@ -6,8 +6,9 @@ import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
+import { FundsLib } from "../libs/Funds.sol";
 import { Context } from "../libs/Context.sol";
-import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
+import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 
 /**
@@ -16,10 +17,10 @@ import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
  * @notice Handles offer listing.
  */
 contract OfferFacet is Context, FermionErrors, IOfferEvents {
-    address private immutable BOSON_PROTOCOL;
+    IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol) {
-        BOSON_PROTOCOL = _bosonProtocol;
+        BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }
 
     /**
@@ -34,25 +35,13 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _offer Offer to list
      */
     function createOffer(FermionTypes.Offer calldata _offer) external {
-        address msgSender = msgSender();
-
         // Caller must be the seller's assistant
-        if (
-            !EntityLib.hasWalletRole(
-                _offer.sellerId,
-                msgSender,
-                FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant,
-                false
-            )
-        ) {
-            revert WalletHasNoRole(
-                _offer.sellerId,
-                msgSender,
-                FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant
-            );
-        }
+        EntityLib.validateWalletRole(
+            _offer.sellerId,
+            msgSender(),
+            FermionTypes.EntityRole.Seller,
+            FermionTypes.WalletRole.Assistant
+        );
 
         // Validate verifier and custodian IDs
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
@@ -91,9 +80,9 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         bosonOfferDurations.voucherValid = 1; // It could be 0, since in fermion offers, commit and redeem happen atomically, but Boson does not allow it
         bosonOfferDurations.resolutionPeriod = 7 days; // Not needed for fermion, but Boson requires it
 
-        uint256 bosonOfferId = IBosonProtocol(BOSON_PROTOCOL).getNextOfferId();
+        uint256 bosonOfferId = BOSON_PROTOCOL.getNextOfferId();
 
-        IBosonProtocol(BOSON_PROTOCOL).createOffer(
+        BOSON_PROTOCOL.createOffer(
             bosonOffer,
             bosonOfferDates,
             bosonOfferDurations,
@@ -106,6 +95,47 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         FermionStorage.protocolEntities().offer[bosonOfferId] = _offer;
 
         emit OfferCreated(_offer.sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
+    }
+
+    function mintNFTs(uint256 _offerId, uint256 _quantity) external payable {
+        if (_quantity == 0) {
+            revert InvalidQuantity(_quantity);
+        }
+        FermionStorage.ProtocolStatus storage ps = FermionStorage.protocolStatus();
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+
+        // Check the caller is the the seller's assistant
+        EntityLib.validateWalletRole(
+            offer.sellerId,
+            msgSender(),
+            FermionTypes.EntityRole.Seller,
+            FermionTypes.WalletRole.Assistant
+        );
+
+        // Validate that the seller deposit is provided
+        uint256 sellerDeposit = offer.sellerDeposit;
+        if (sellerDeposit > 0) {
+            uint256 totalDeposit = sellerDeposit * _quantity;
+
+            // Transfer the deposit to the protocol.
+            address exchangeToken = offer.exchangeToken;
+            FundsLib.validateIncomingPayment(exchangeToken, totalDeposit);
+
+            // Deposit to the boson protocol
+            uint256 bosonSellerId = ps.bosonSellerId;
+            BOSON_PROTOCOL.depositFunds{ value: msg.value }(bosonSellerId, exchangeToken, totalDeposit);
+        }
+
+        // Reserve range in Boson
+        BOSON_PROTOCOL.reserveRange(_offerId, _quantity, address(this)); // The recipient is this contract, so the NFTs can be wrapped later on
+
+        // Premint NFTs on boson voucher
+        IBosonVoucher bosonVoucher = IBosonVoucher(ps.bosonNftCollection);
+        bosonVoucher.preMint(_offerId, _quantity);
+
+        // create wrapper if needed
+
+        // wrap NFTs
     }
 
     /**
@@ -125,7 +155,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         });
 
         uint256 bosonDisputeResolverId = FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET;
-        IBosonProtocol(BOSON_PROTOCOL).addFeesToDisputeResolver(bosonDisputeResolverId, disputeResolverFees);
+        BOSON_PROTOCOL.addFeesToDisputeResolver(bosonDisputeResolverId, disputeResolverFees);
     }
 
     /**

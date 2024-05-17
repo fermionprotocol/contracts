@@ -54,6 +54,25 @@ library EntityLib {
     }
 
     /**
+     * @notice  Reverts if wallet does not have the role
+     *
+     * @param _entityId - the entity ID
+     * @param _walletAddress - the address of the wallet
+     * @param _entityRole - the role to check
+     * @param _walletRole - the wallet role to check
+     */
+    function validateWalletRole(
+        uint256 _entityId,
+        address _walletAddress,
+        FermionTypes.EntityRole _entityRole,
+        FermionTypes.WalletRole _walletRole
+    ) internal view {
+        if (!hasWalletRole(_entityId, _walletAddress, _entityRole, _walletRole, false)) {
+            revert FermionErrors.WalletHasNoRole(_entityId, _walletAddress, _entityRole, _walletRole);
+        }
+    }
+
+    /**
      * @notice  Reverts if entity does not have the role
      *
      * @param _entityId - the entity ID

@@ -41,6 +41,11 @@ interface IBosonProtocol {
         bytes32 collectionSalt;
     }
 
+    struct Collection {
+        address collectionAddress;
+        string externalId;
+    }
+
     struct Buyer {
         uint256 id;
         address payable wallet;
@@ -142,6 +147,18 @@ interface IBosonProtocol {
     function getNextAccountId() external view returns (uint256 nextAccountId);
 
     /**
+     * @notice Gets the details about all seller's collections.
+     * In case seller has too many collections and this runs out of gas, please use getSellersCollectionsPaginated.
+     *
+     * @param _sellerId - the id of the seller to check
+     * @return defaultVoucherAddress - the address of the default voucher contract for the seller
+     * @return additionalCollections - an array of additional collections that the seller has created
+     */
+    function getSellersCollections(
+        uint256 _sellerId
+    ) external view returns (address defaultVoucherAddress, Collection[] memory additionalCollections);
+
+    /**
      * @notice Creates an offer.
      *
      *
@@ -181,4 +198,56 @@ interface IBosonProtocol {
      * @return nextOfferId - the next offer id
      */
     function getNextOfferId() external view returns (uint256 nextOfferId);
+
+    /**
+     * @notice Receives funds from the caller, maps funds to the seller id and stores them so they can be used during the commitToOffer.
+     *
+     * @param _sellerId - id of the seller that will be credited
+     * @param _tokenAddress - contract address of token that is being deposited (0 for native currency)
+     * @param _amount - amount to be credited
+     */
+    function depositFunds(uint256 _sellerId, address _tokenAddress, uint256 _amount) external payable;
+
+    /**
+     * @notice Reserves a range of vouchers to be associated with an offer
+     *
+     * @param _offerId - the id of the offer
+     * @param _length - the length of the range
+     * @param _to - the address to send the pre-minted vouchers to (contract address or contract owner)
+     */
+    function reserveRange(uint256 _offerId, uint256 _length, address _to) external;
+}
+
+interface IBosonVoucher {
+    /**
+     * @notice Pre-mints all or part of an offer's reserved vouchers.
+     *
+     * For small offer quantities, this method may only need to be
+     * called once.
+     *
+     * But, if the range is large, e.g., 10k vouchers, block gas limit
+     * could cause the transaction to fail. Thus, in order to support
+     * a batched approach to pre-minting an offer's vouchers,
+     * this method can be called multiple times, until the whole
+     * range is minted.
+     *
+     * A benefit to the batched approach is that the entire reserved
+     * range for an offer need not be pre-minted at one time. A seller
+     * could just mint batches periodically, controlling the amount
+     * that are available on the market at any given time, e.g.,
+     * creating a pre-minted offer with a validity period of one year,
+     * causing the token range to be reserved, but only pre-minting
+     * a certain amount monthly.
+     *
+     * Caller must be contract owner (seller assistant address).
+     *
+     * Reverts if:
+     * - Offer id is not associated with a range
+     * - Amount to mint is more than remaining un-minted in range
+     * - Too many to mint in a single transaction, given current block gas limit
+     *
+     * @param _offerId - the id of the offer
+     * @param _amount - the amount to mint
+     */
+    function preMint(uint256 _offerId, uint256 _amount) external;
 }
