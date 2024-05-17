@@ -102,6 +102,22 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         emit OfferCreated(_offer.sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
     }
 
+    /**
+     * @notice Mint NFTs
+     *
+     * Reserves range in Boson protocol, premints Boson rNFT, creates wrapper and wrap NFTs
+     *
+     * Emits an NFTsMinted event
+     *
+     * Reverts if:
+     * - Caller is not the seller's assistant
+     * - Not enough funds are sent to cover the seller deposit
+     * - Deposit is in ERC20 and the caller sends native currency
+     * - ERC20 token transfer fails
+     *
+     * @param _offerId - the offer ID
+     * @param _quantity - the number of NFTs to mint
+     */
     function mintNFTs(uint256 _offerId, uint256 _quantity) external payable {
         if (_quantity == 0) {
             revert InvalidQuantity(_quantity);
