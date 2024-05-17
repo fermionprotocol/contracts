@@ -16,4 +16,5 @@ interface IOfferEvents {
         FermionTypes.Offer offer,
         uint256 bosonOfferId
     );
+    event NFTsMinted(uint256 indexed bosonOfferId, uint256 startingNFTId, uint256 quantity);
 }

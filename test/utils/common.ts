@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import { deploySuite } from "../../scripts/deploy";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { Contract } from "ethers";
+import { BigNumberish, Contract } from "ethers";
 
 // We define a fixture to reuse the same setup in every test.
 // We use loadFixture to run this setup once, snapshot that state,
@@ -40,4 +40,8 @@ export async function deployMockTokens(tokenList: string[]) {
   }
 
   return tokens;
+}
+
+export function deriveTokenId(offerId: BigNumberish, exchangeId: BigNumberish) {
+  return (BigInt(offerId) << 128n) | BigInt(exchangeId);
 }

@@ -216,6 +216,13 @@ interface IBosonProtocol {
      * @param _to - the address to send the pre-minted vouchers to (contract address or contract owner)
      */
     function reserveRange(uint256 _offerId, uint256 _length, address _to) external;
+
+    /**
+     * @notice Gets the id that will be assigned to the next exchange.
+     *
+     * @return nextExchangeId - the next exchange id
+     */
+    function getNextExchangeId() external view returns (uint256 nextExchangeId);
 }
 
 interface IBosonVoucher {

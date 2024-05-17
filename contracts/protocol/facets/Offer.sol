@@ -11,12 +11,17 @@ import { Context } from "../libs/Context.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 /**
  * @title OfferFacet
  *
  * @notice Handles offer listing.
  */
 contract OfferFacet is Context, FermionErrors, IOfferEvents {
+    using SafeERC20 for IERC20;
+
     IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol) {
@@ -120,11 +125,16 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             // Transfer the deposit to the protocol.
             address exchangeToken = offer.exchangeToken;
             FundsLib.validateIncomingPayment(exchangeToken, totalDeposit);
-
             // Deposit to the boson protocol
+            if (exchangeToken != address(0)) {
+                IERC20(exchangeToken).forceApprove(address(BOSON_PROTOCOL), totalDeposit);
+            }
             uint256 bosonSellerId = ps.bosonSellerId;
             BOSON_PROTOCOL.depositFunds{ value: msg.value }(bosonSellerId, exchangeToken, totalDeposit);
         }
+
+        uint256 nextExchangeId = BOSON_PROTOCOL.getNextExchangeId();
+        uint256 startingNFTId = nextExchangeId | (_offerId << 128);
 
         // Reserve range in Boson
         BOSON_PROTOCOL.reserveRange(_offerId, _quantity, address(this)); // The recipient is this contract, so the NFTs can be wrapped later on
@@ -136,6 +146,9 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         // create wrapper if needed
 
         // wrap NFTs
+
+        // emit event
+        emit NFTsMinted(_offerId, startingNFTId, _quantity);
     }
 
     /**

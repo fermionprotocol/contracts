@@ -1,9 +1,9 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployFermionProtocolFixture, deployMockTokens } from "../utils/common";
-import { getBosonHandler } from "../utils/boson-protocol";
+import { deployFermionProtocolFixture, deployMockTokens, deriveTokenId } from "../utils/common";
+import { getBosonHandler, getBosonVoucher } from "../utils/boson-protocol";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract } from "ethers";
+import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, WalletRole } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
@@ -16,6 +16,7 @@ describe("Offer", function () {
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
   let wallets: HardhatEthersSigner[];
+  let defaultSigner: HardhatEthersSigner;
 
   async function setupOfferTest() {
     // Create three entities
@@ -28,6 +29,8 @@ describe("Offer", function () {
     await entityFacet.connect(wallets[3]).createEntity([EntityRole.Custodian], metadataURI); // "3"
 
     [mockToken] = await deployMockTokens(["ERC20"]);
+    mockToken = mockToken.connect(defaultSigner);
+    await mockToken.mint(defaultSigner.address, "1000000");
 
     await offerFacet.addSupportedToken(await mockToken.getAddress());
   }
@@ -38,6 +41,7 @@ describe("Offer", function () {
       facets: { EntityFacet: entityFacet, OfferFacet: offerFacet },
       fermionErrors,
       wallets,
+      defaultSigner,
     } = await loadFixture(deployFermionProtocolFixture));
 
     await loadFixture(setupOfferTest);
@@ -276,6 +280,64 @@ describe("Offer", function () {
       expect(offer.exchangeToken).to.equal(ZeroAddress);
       expect(offer.metadataURI).to.equal("");
       expect(offer.metadataHash).to.equal("");
+    });
+  });
+
+  context("mintNFTs", function () {
+    const bosonOfferId = "1";
+    const sellerDeposit = 100n;
+    beforeEach(async function () {
+      const fermionOffer = {
+        sellerId: "1",
+        sellerDeposit,
+        verifierId: "2",
+        verifierFee: 10,
+        custodianId: "3",
+        exchangeToken: await mockToken.getAddress(),
+        metadataURI: "https://example.com/offer-metadata.json",
+        metadataHash: ZeroHash,
+      };
+
+      await offerFacet.createOffer(fermionOffer);
+    });
+
+    it("Mint NFTs", async function () {
+      const bosonSellerId = "1";
+      const bosonOfferHandler = await getBosonHandler("IBosonOfferHandler");
+      const bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
+      const bosonAccountHandler = await getBosonHandler("IBosonAccountHandler");
+      const [defaultCollectionAddress] = await bosonAccountHandler.getSellersCollections(bosonSellerId);
+      const bosonVoucher = await getBosonVoucher(defaultCollectionAddress);
+
+      const quantity = 15n;
+      const totalSellerDeposit = sellerDeposit * quantity;
+      const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
+      const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
+
+      await mockToken.approve(fermionProtocolAddress, totalSellerDeposit);
+
+      const tx = offerFacet.mintNFTs(bosonOfferId, quantity);
+
+      // test events
+      // fermion
+      await expect(tx).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId, startingTokenId, quantity);
+
+      // boson
+      await expect(tx)
+        .to.emit(bosonOfferHandler, "RangeReserved")
+        .withArgs(
+          bosonOfferId,
+          bosonSellerId,
+          nextBosonExchangeId,
+          nextBosonExchangeId + quantity - 1n,
+          fermionProtocolAddress,
+          fermionProtocolAddress,
+        );
+
+      // boson voucher
+      await expect(tx)
+        .to.emit(bosonVoucher, "RangeReserved")
+        .withArgs(bosonOfferId, [startingTokenId, quantity, 0n, 0n, fermionProtocolAddress]);
     });
   });
 
