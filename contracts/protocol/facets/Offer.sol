@@ -31,16 +31,15 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * - Caller is not the seller's assistant
      * - Invalid verifier or custodian ID is provided
      *
-     * @param _sellerId Seller ID
      * @param _offer Offer to list
      */
-    function createOffer(uint256 _sellerId, FermionTypes.Offer calldata _offer) external {
+    function createOffer(FermionTypes.Offer calldata _offer) external {
         address msgSender = msgSender();
 
         // Caller must be the seller's assistant
         if (
             !EntityLib.hasWalletRole(
-                _sellerId,
+                _offer.sellerId,
                 msgSender,
                 FermionTypes.EntityRole.Seller,
                 FermionTypes.WalletRole.Assistant,
@@ -48,7 +47,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             )
         ) {
             revert WalletHasNoRole(
-                _sellerId,
+                _offer.sellerId,
                 msgSender,
                 FermionTypes.EntityRole.Seller,
                 FermionTypes.WalletRole.Assistant
@@ -106,7 +105,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         // Store fermion offer properties
         FermionStorage.protocolEntities().offer[bosonOfferId] = _offer;
 
-        emit OfferCreated(_sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
+        emit OfferCreated(_offer.sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
     }
 
     /**

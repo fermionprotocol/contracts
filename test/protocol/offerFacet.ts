@@ -62,11 +62,12 @@ describe("Offer", function () {
       exchangeToken = await mockToken.getAddress();
 
       fermionOffer = {
-        exchangeToken,
+        sellerId,
         sellerDeposit,
         verifierId,
         verifierFee,
         custodianId,
+        exchangeToken,
         metadataURI,
         metadataHash: id(metadataURI),
       };
@@ -74,17 +75,18 @@ describe("Offer", function () {
 
     it("Create fermion offer", async function () {
       // test event
-      await expect(offerFacet.createOffer(sellerId, fermionOffer))
+      await expect(offerFacet.createOffer(fermionOffer))
         .to.emit(offerFacet, "OfferCreated")
         .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), bosonOfferId);
 
       // verify state
       const offer = await offerFacet.getOffer(bosonOfferId);
-      expect(offer.exchangeToken).to.equal(exchangeToken);
+      expect(offer.sellerId).to.equal(sellerId);
       expect(offer.sellerDeposit).to.equal(sellerDeposit);
       expect(offer.verifierId).to.equal(verifierId);
       expect(offer.verifierFee).to.equal(verifierFee);
       expect(offer.custodianId).to.equal(custodianId);
+      expect(offer.exchangeToken).to.equal(exchangeToken);
       expect(offer.metadataURI).to.equal(metadataURI);
       expect(offer.metadataHash).to.equal(id(metadataURI));
     });
@@ -92,7 +94,7 @@ describe("Offer", function () {
     it("Boson Offer is created", async function () {
       const bosonOfferHandler = await getBosonHandler("IBosonOfferHandler");
 
-      await expect(offerFacet.createOffer(sellerId, fermionOffer)).to.emit(bosonOfferHandler, "OfferCreated");
+      await expect(offerFacet.createOffer(fermionOffer)).to.emit(bosonOfferHandler, "OfferCreated");
 
       const [exists, offer, offerDates, offerDurations, disputeResolutionTerms, offerFees] =
         await bosonOfferHandler.getOffer(1n);
@@ -134,7 +136,7 @@ describe("Offer", function () {
       const fermionOffer2 = { ...fermionOffer, verifierId: sellerId, custodianId: sellerId };
 
       // test event
-      await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+      await expect(offerFacet.createOffer(fermionOffer2))
         .to.emit(offerFacet, "OfferCreated")
         .withArgs(sellerId, sellerId, sellerId, Object.values(fermionOffer2), bosonOfferId);
 
@@ -156,11 +158,11 @@ describe("Offer", function () {
       );
 
       // test event
-      await expect(offerFacet.connect(entityAssistant).createOffer(sellerId, fermionOffer))
+      await expect(offerFacet.connect(entityAssistant).createOffer(fermionOffer))
         .to.emit(offerFacet, "OfferCreated")
         .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), bosonOfferId);
 
-      await expect(offerFacet.connect(sellerAssistant).createOffer(sellerId, fermionOffer))
+      await expect(offerFacet.connect(sellerAssistant).createOffer(fermionOffer))
         .to.emit(offerFacet, "OfferCreated")
         .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), "2");
     });
@@ -170,13 +172,13 @@ describe("Offer", function () {
         const wallet = wallets[4];
 
         // completely random wallet
-        await expect(offerFacet.connect(wallet).createOffer(sellerId, fermionOffer))
+        await expect(offerFacet.connect(wallet).createOffer(fermionOffer))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
 
         // an entity-wide Treasury or admin wallet (not Assistant)
         await entityFacet.addEntityWallets(sellerId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
-        await expect(offerFacet.connect(wallet).createOffer(sellerId, fermionOffer))
+        await expect(offerFacet.connect(wallet).createOffer(fermionOffer))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
 
@@ -188,13 +190,13 @@ describe("Offer", function () {
           [[EntityRole.Seller]],
           [[[WalletRole.Treasury, WalletRole.Admin]]],
         );
-        await expect(offerFacet.connect(wallet2).createOffer(sellerId, fermionOffer))
+        await expect(offerFacet.connect(wallet2).createOffer(fermionOffer))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
 
         // an Assistant of another role than Seller
         await entityFacet.addEntityWallets(sellerId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
-        await expect(offerFacet.connect(wallet2).createOffer(sellerId, fermionOffer))
+        await expect(offerFacet.connect(wallet2).createOffer(fermionOffer))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
       });
@@ -202,13 +204,13 @@ describe("Offer", function () {
       it("Provided verifier ID is incorrect", async function () {
         // existent id, but not a verifier
         const fermionOffer2 = { ...fermionOffer, verifierId: "3" };
-        await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+        await expect(offerFacet.createOffer(fermionOffer2))
           .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
           .withArgs("3", EntityRole.Verifier);
 
         // non existent id
         fermionOffer2.verifierId = "10";
-        await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+        await expect(offerFacet.createOffer(fermionOffer2))
           .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
           .withArgs("10", EntityRole.Verifier);
       });
@@ -216,13 +218,13 @@ describe("Offer", function () {
       it("Provided custodian ID is incorrect", async function () {
         // existent id, but not a custodian
         const fermionOffer2 = { ...fermionOffer, custodianId: "2" };
-        await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+        await expect(offerFacet.createOffer(fermionOffer2))
           .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
           .withArgs("2", EntityRole.Custodian);
 
         // non existent id
         fermionOffer2.custodianId = "10";
-        await expect(offerFacet.createOffer(sellerId, fermionOffer2))
+        await expect(offerFacet.createOffer(fermionOffer2))
           .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
           .withArgs("10", EntityRole.Custodian);
       });
@@ -234,40 +236,44 @@ describe("Offer", function () {
       const bosonOfferId = "1";
       const exchangeToken = await mockToken.getAddress();
       const sellerDeposit = 100;
+      const sellerId = "1";
       const verifierId = "2";
       const verifierFee = 10;
       const custodianId = "3";
       const metadataURI = "https://example.com/offer-metadata.json";
 
       const fermionOffer = {
-        exchangeToken,
+        sellerId,
         sellerDeposit,
         verifierId,
         verifierFee,
         custodianId,
+        exchangeToken,
         metadataURI,
         metadataHash: id(metadataURI),
       };
 
-      await offerFacet.createOffer("1", fermionOffer);
+      await offerFacet.createOffer(fermionOffer);
 
       const offer = await offerFacet.getOffer(bosonOfferId);
-      expect(offer.exchangeToken).to.equal(exchangeToken);
+      expect(offer.sellerId).to.equal(sellerId);
       expect(offer.sellerDeposit).to.equal(sellerDeposit);
       expect(offer.verifierId).to.equal(verifierId);
       expect(offer.verifierFee).to.equal(verifierFee);
       expect(offer.custodianId).to.equal(custodianId);
+      expect(offer.exchangeToken).to.equal(exchangeToken);
       expect(offer.metadataURI).to.equal(metadataURI);
       expect(offer.metadataHash).to.equal(id(metadataURI));
     });
 
     it("Get non-existent offer", async function () {
       const offer = await offerFacet.getOffer("2");
-      expect(offer.exchangeToken).to.equal(ZeroAddress);
+      expect(offer.sellerId).to.equal(0);
       expect(offer.sellerDeposit).to.equal(0);
       expect(offer.verifierId).to.equal(0);
       expect(offer.verifierFee).to.equal(0);
       expect(offer.custodianId).to.equal(0);
+      expect(offer.exchangeToken).to.equal(ZeroAddress);
       expect(offer.metadataURI).to.equal("");
       expect(offer.metadataHash).to.equal("");
     });
