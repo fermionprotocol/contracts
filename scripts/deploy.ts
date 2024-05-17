@@ -11,11 +11,11 @@ const version = "0.0.1";
 let deploymentData: any[] = [];
 
 export async function deploySuite(env: string = "", modules: string[] = []) {
-  const allModules = modules.length === 0 || network.name === "hardhat";
+  const allModules = modules.length === 0 || network.name === "hardhat" || network.name === "localhost";
 
   // if deploying with hardhat, first deploy the boson protocol
   let bosonProtocolAddress: string;
-  if (network.name === "hardhat") {
+  if (network.name === "hardhat" || network.name === "localhost") {
     ({ bosonProtocolAddress } = await initBosonProtocolFixture());
   } else {
     // Check if the deployer key is set
