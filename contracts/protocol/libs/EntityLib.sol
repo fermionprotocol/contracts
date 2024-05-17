@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import { BYTE_SIZE } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-
 import { FermionErrors } from "../domain/Errors.sol";
 
 /**
@@ -12,8 +12,6 @@ import { FermionErrors } from "../domain/Errors.sol";
  * @notice Entity methods used by multiple facets.
  */
 library EntityLib {
-    uint256 private constant BYTE_SIZE = 8;
-
     /**
      * @notice Tells if a wallet has a specific wallet role for entity id and its role.
      *

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { BOSON_DR_ID_OFFSET } from "../domain/Constants.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
 import { FermionErrors } from "../domain/Errors.sol";
@@ -140,7 +141,7 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
 
         // Create a dispute resolver
         IBosonProtocol.DisputeResolver memory disputeResolver = IBosonProtocol.DisputeResolver({
-            id: bosonSellerId + 2,
+            id: bosonSellerId + BOSON_DR_ID_OFFSET,
             escalationResponsePeriod: 1, // not used, but 0 is restricted by Boson
             assistant: address(this),
             admin: address(this),

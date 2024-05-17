@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { BOSON_DR_ID_OFFSET } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -97,7 +98,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             bosonOffer,
             bosonOfferDates,
             bosonOfferDurations,
-            bosonSellerId + 2, // DR id is sellerId + 2
+            bosonSellerId + BOSON_DR_ID_OFFSET,
             0, // no agent
             type(uint256).max // no fee limit
         );
@@ -112,7 +113,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @notice Add a supported token to the Boson dispute resolver. This is necessary for a succesful offer creation.
      *
      * Not restricted with onlyAdmin. The purpose of this method is to allow the seller to add supported tokens in boson if they
-     * are want to use them in their offers and not already added by the protocol.
+     * want to use them in their offers and not already added by the protocol.
      *
      * @param _tokenAddress Token address
      */
@@ -124,7 +125,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             feeAmount: 0
         });
 
-        uint256 bosonDisputeResolverId = FermionStorage.protocolStatus().bosonSellerId + 2;
+        uint256 bosonDisputeResolverId = FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET;
         IBosonProtocol(BOSON_PROTOCOL).addFeesToDisputeResolver(bosonDisputeResolverId, disputeResolverFees);
     }
 

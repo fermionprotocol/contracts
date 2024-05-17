@@ -145,13 +145,59 @@ describe("Offer", function () {
       expect(offer.custodianId).to.equal(sellerId);
     });
 
+    it("Assistant wallets can create the offer", async function () {
+      const entityAssistant = wallets[4]; // entity-wide Assistant
+      const sellerAssistant = wallets[5]; // Seller-specific Assistant
+
+      await entityFacet.addEntityWallets(
+        sellerId,
+        [entityAssistant, sellerAssistant],
+        [[], [EntityRole.Seller]],
+        [[[WalletRole.Assistant]], [[WalletRole.Assistant]]],
+      );
+
+      // test event
+      await expect(offerFacet.connect(entityAssistant).createOffer(sellerId, fermionOffer))
+        .to.emit(offerFacet, "OfferCreated")
+        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), bosonOfferId);
+
+      await expect(offerFacet.connect(sellerAssistant).createOffer(sellerId, fermionOffer))
+        .to.emit(offerFacet, "OfferCreated")
+        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), "2");
+    });
+
     context("Revert reasons", function () {
       it("Caller is not the seller's assistant", async function () {
         const wallet = wallets[4];
 
+        // completely random wallet
         await expect(offerFacet.connect(wallet).createOffer(sellerId, fermionOffer))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
+
+        // an entity-wide Treasury or admin wallet (not Assistant)
+        await entityFacet.addEntityWallets(sellerId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
+        await expect(offerFacet.connect(wallet).createOffer(sellerId, fermionOffer))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
+
+        // a Seller specific Treasury or Admin wallet
+        const wallet2 = wallets[5];
+        await entityFacet.addEntityWallets(
+          sellerId,
+          [wallet2],
+          [[EntityRole.Seller]],
+          [[[WalletRole.Treasury, WalletRole.Admin]]],
+        );
+        await expect(offerFacet.connect(wallet2).createOffer(sellerId, fermionOffer))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
+
+        // an Assistant of another role than Seller
+        await entityFacet.addEntityWallets(sellerId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
+        await expect(offerFacet.connect(wallet2).createOffer(sellerId, fermionOffer))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
       });
 
       it("Provided verifier ID is incorrect", async function () {
