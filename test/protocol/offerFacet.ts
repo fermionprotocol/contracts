@@ -5,7 +5,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, WalletRole } from "../utils/enums";
+import { EntityRole, TokenState, WalletRole } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
 
 const { id, MaxUint256, ZeroAddress } = ethers;
@@ -284,7 +284,7 @@ describe("Offer", function () {
     });
   });
 
-  context("mintNFTs", function () {
+  context("mintAndWrapNFTs", function () {
     const sellerId = "1";
     const bosonOfferId = 1n;
     const sellerDeposit = 100n;
@@ -309,7 +309,7 @@ describe("Offer", function () {
       await offerFacet.createOffer(fermionOffer);
     });
 
-    it("Mint NFTs", async function () {
+    it("Minting and wrapping", async function () {
       const bosonSellerId = "1";
       const bosonOfferHandler = await getBosonHandler("IBosonOfferHandler");
       const bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
@@ -320,14 +320,18 @@ describe("Offer", function () {
       const totalSellerDeposit = sellerDeposit * quantity;
       const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
       const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
+      const predictedWrapperAddress = await offerFacet.predictFermionWrapperAddress(startingTokenId);
 
       // ERC20 offer
       await mockToken.approve(fermionProtocolAddress, totalSellerDeposit);
-      const tx = await offerFacet.mintNFTs(bosonOfferId, quantity);
+      const tx = await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
 
       // test events
       // fermion
       await expect(tx).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId, startingTokenId, quantity);
+      await expect(tx)
+        .to.emit(offerFacet, "NFTsWrapped")
+        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity);
 
       // boson
       await expect(tx)
@@ -346,15 +350,30 @@ describe("Offer", function () {
         .to.emit(bosonVoucher, "RangeReserved")
         .withArgs(bosonOfferId, [startingTokenId, quantity, 0n, 0n, fermionProtocolAddress]);
 
+      // fermion wrapper
+      const fermionWrapper = await ethers.getContractAt("FermionWrapper", predictedWrapperAddress);
+      for (let i = 0; i < quantity; i++) {
+        const tokenId = startingTokenId + BigInt(i);
+
+        await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(0n, defaultSigner.address, tokenId);
+
+        const tokenState = await fermionWrapper.tokenState(tokenId);
+        expect(tokenState).to.equal(TokenState.Wrapped);
+      }
+
       // Native currency offer
       const bosonOfferId2 = bosonOfferId + 1n;
       const nextBosonExchangeId2 = nextBosonExchangeId + quantity;
       const startingTokenId2 = deriveTokenId(bosonOfferId2, nextBosonExchangeId2);
-      const tx2 = await offerFacet.mintNFTs(bosonOfferId2, quantity, { value: totalSellerDeposit });
+      const tx2 = await offerFacet.mintAndWrapNFTs(bosonOfferId2, quantity, { value: totalSellerDeposit });
+      const predictedWrapperAddress2 = await offerFacet.predictFermionWrapperAddress(startingTokenId2);
 
       // test events
       // fermion
       await expect(tx2).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId2, startingTokenId2, quantity);
+      await expect(tx2)
+        .to.emit(offerFacet, "NFTsWrapped")
+        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity);
 
       // boson
       await expect(tx2)
@@ -373,8 +392,18 @@ describe("Offer", function () {
         .to.emit(bosonVoucher, "RangeReserved")
         .withArgs(bosonOfferId2, [startingTokenId2, quantity, 0n, 0n, fermionProtocolAddress]);
 
-      // not checking the state, since the no fermion state is changed
-      // state change of other contracts is guaranteed by the events, the state itself is checked in the boson-protocol tests
+      const fermionWrapper2 = await ethers.getContractAt("FermionWrapper", predictedWrapperAddress2);
+      for (let i = 0; i < quantity; i++) {
+        const tokenId = startingTokenId2 + BigInt(i);
+
+        await expect(tx2).to.emit(fermionWrapper2, "Transfer").withArgs(0n, defaultSigner.address, tokenId);
+
+        const tokenState = await fermionWrapper2.tokenState(tokenId);
+        expect(tokenState).to.equal(TokenState.Wrapped);
+      }
+
+      // not checking the state of boson contracts (protocol, voucher contract)
+      // since the change is guaranteed by the events and the state itself is checked in the boson-protocol tests
     });
 
     it("Assistant wallets can mint NFTs", async function () {
@@ -393,13 +422,13 @@ describe("Offer", function () {
       await mockToken.connect(entityAssistant).approve(fermionProtocolAddress, totalSellerDeposit);
 
       // test event
-      await expect(offerFacet.connect(entityAssistant).mintNFTs(bosonOfferId, quantity)).to.emit(
+      await expect(offerFacet.connect(entityAssistant).mintAndWrapNFTs(bosonOfferId, quantity)).to.emit(
         offerFacet,
         "NFTsMinted",
       );
 
       await expect(
-        offerFacet.connect(sellerAssistant).mintNFTs(bosonOfferId + 1n, quantity, { value: totalSellerDeposit }),
+        offerFacet.connect(sellerAssistant).mintAndWrapNFTs(bosonOfferId + 1n, quantity, { value: totalSellerDeposit }),
       ).to.emit(offerFacet, "NFTsMinted");
     });
 
@@ -419,7 +448,7 @@ describe("Offer", function () {
       await offerFacet.createOffer(fermionOffer);
 
       // test event
-      await expect(offerFacet.mintNFTs(3n, quantity)).to.emit(offerFacet, "NFTsMinted");
+      await expect(offerFacet.mintAndWrapNFTs(3n, quantity)).to.emit(offerFacet, "NFTsMinted");
     });
 
     context("Revert reasons", function () {
@@ -427,13 +456,13 @@ describe("Offer", function () {
         const wallet = wallets[4];
 
         // completely random wallet
-        await expect(offerFacet.connect(wallet).mintNFTs(bosonOfferId, quantity))
+        await expect(offerFacet.connect(wallet).mintAndWrapNFTs(bosonOfferId, quantity))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
 
         // an entity-wide Treasury or admin wallet (not Assistant)
         await entityFacet.addEntityWallets(sellerId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
-        await expect(offerFacet.connect(wallet).mintNFTs(bosonOfferId, quantity))
+        await expect(offerFacet.connect(wallet).mintAndWrapNFTs(bosonOfferId, quantity))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
 
@@ -445,19 +474,19 @@ describe("Offer", function () {
           [[EntityRole.Seller]],
           [[[WalletRole.Treasury, WalletRole.Admin]]],
         );
-        await expect(offerFacet.connect(wallet2).mintNFTs(bosonOfferId, quantity))
+        await expect(offerFacet.connect(wallet2).mintAndWrapNFTs(bosonOfferId, quantity))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
 
         // an Assistant of another role than Seller
         await entityFacet.addEntityWallets(sellerId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
-        await expect(offerFacet.connect(wallet2).mintNFTs(bosonOfferId, quantity))
+        await expect(offerFacet.connect(wallet2).mintAndWrapNFTs(bosonOfferId, quantity))
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
       });
 
       it("Quantity is zero", async function () {
-        await expect(offerFacet.mintNFTs(bosonOfferId, 0n))
+        await expect(offerFacet.mintAndWrapNFTs(bosonOfferId, 0n))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidQuantity")
           .withArgs(0);
       });
@@ -467,14 +496,14 @@ describe("Offer", function () {
         const totalSellerDeposit = sellerDeposit * quantity;
         await mockToken.approve(fermionProtocolAddress, totalSellerDeposit - 1n);
 
-        await expect(offerFacet.mintNFTs(bosonOfferId, quantity))
+        await expect(offerFacet.mintAndWrapNFTs(bosonOfferId, quantity))
           .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
           .withArgs(fermionProtocolAddress, totalSellerDeposit - 1n, totalSellerDeposit);
 
         // ERC20 offer - contract sends insufficient funds
         await mockToken.approve(fermionProtocolAddress, totalSellerDeposit);
         await mockToken.setBurnAmount(1);
-        await expect(offerFacet.mintNFTs(bosonOfferId, quantity))
+        await expect(offerFacet.mintAndWrapNFTs(bosonOfferId, quantity))
           .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
           .withArgs(totalSellerDeposit, totalSellerDeposit - 1n);
         await mockToken.setBurnAmount(0);
@@ -483,23 +512,23 @@ describe("Offer", function () {
         const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
         await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
 
-        await expect(offerFacet.mintNFTs(bosonOfferId, quantity))
+        await expect(offerFacet.mintAndWrapNFTs(bosonOfferId, quantity))
           .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
           .withArgs(defaultSigner.address, 0n, totalSellerDeposit);
 
         // Native currency offer - insufficient funds
-        await expect(offerFacet.mintNFTs(bosonOfferId + 1n, quantity, { value: totalSellerDeposit - 1n }))
+        await expect(offerFacet.mintAndWrapNFTs(bosonOfferId + 1n, quantity, { value: totalSellerDeposit - 1n }))
           .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
           .withArgs(totalSellerDeposit, totalSellerDeposit - 1n);
 
         // Native currency offer - too much sent
-        await expect(offerFacet.mintNFTs(bosonOfferId + 1n, quantity, { value: totalSellerDeposit + 1n }))
+        await expect(offerFacet.mintAndWrapNFTs(bosonOfferId + 1n, quantity, { value: totalSellerDeposit + 1n }))
           .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
           .withArgs(totalSellerDeposit, totalSellerDeposit + 1n);
 
         // Send native currency to ERC20 offer
         await expect(
-          offerFacet.mintNFTs(bosonOfferId, quantity, { value: totalSellerDeposit }),
+          offerFacet.mintAndWrapNFTs(bosonOfferId, quantity, { value: totalSellerDeposit }),
         ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
       });
     });

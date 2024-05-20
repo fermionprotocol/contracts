@@ -8,7 +8,7 @@ import { BigNumberish, Contract } from "ethers";
 // and reset Hardhat Network to that snapshot in every test.
 // Use the same deployment script that is used in the deploy-suite task
 export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersSigner) {
-  const { diamondAddress, facets, bosonProtocolAddress } = await deploySuite();
+  const { diamondAddress, facets, bosonProtocolAddress, wrapperImplementationAddress } = await deploySuite();
 
   const fermionErrors = await ethers.getContractAt("FermionErrors", diamondAddress);
 
@@ -29,6 +29,7 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
     wallets,
     defaultSigner,
     bosonProtocolAddress,
+    wrapperImplementationAddress,
   };
 }
 

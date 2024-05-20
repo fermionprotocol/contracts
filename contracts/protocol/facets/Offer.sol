@@ -106,6 +106,75 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
     }
 
     /**
+     * @notice Mint and wrap NFTs
+     *
+     * Reserves range in Boson protocol, premints Boson rNFT, creates wrapper and wrap NFTs
+     *
+     * Emits an NFTsMinted and NFTsWrapped event
+     *
+     * Reverts if:
+     * - Caller is not the seller's assistant
+     * - Not enough funds are sent to cover the seller deposit
+     * - Deposit is in ERC20 and the caller sends native currency
+     * - ERC20 token transfer fails
+     *
+     * @param _offerId - the offer ID
+     * @param _quantity - the number of NFTs to mint
+     */
+    function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external payable {
+        (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
+        wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
+    }
+
+    /**
+     * @notice Add a supported token to the Boson dispute resolver. This is necessary for a succesful offer creation.
+     *
+     * Not restricted with onlyAdmin. The purpose of this method is to allow the seller to add supported tokens in boson if they
+     * want to use them in their offers and not already added by the protocol.
+     *
+     * @param _tokenAddress Token address
+     */
+    function addSupportedToken(address _tokenAddress) external {
+        IBosonProtocol.DisputeResolverFee[] memory disputeResolverFees = new IBosonProtocol.DisputeResolverFee[](1);
+        disputeResolverFees[0] = IBosonProtocol.DisputeResolverFee({
+            tokenAddress: _tokenAddress,
+            tokenName: "",
+            feeAmount: 0
+        });
+
+        uint256 bosonDisputeResolverId = FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET;
+        BOSON_PROTOCOL.addFeesToDisputeResolver(bosonDisputeResolverId, disputeResolverFees);
+    }
+
+    /**
+     * @notice Get an offer by ID
+     *
+     * @param _offerId Offer ID
+     *
+     * @return offer Offer details
+     */
+    function getOffer(uint256 _offerId) external view returns (FermionTypes.Offer memory offer) {
+        return FermionStorage.protocolEntities().offer[_offerId];
+    }
+
+    /**
+     * @notice Predict the address of the wrapper contract
+     *
+     * @dev This is primarily used for testing purposes. Might be removed in the future.
+     *
+     * @param _startingNFTId - the starting NFT ID
+     *
+     * @return address - the predicted address
+     */
+    function predictFermionWrapperAddress(uint256 _startingNFTId) external view returns (address) {
+        return
+            Clones.predictDeterministicAddress(
+                FermionStorage.protocolStatus().wrapperBeaconProxy,
+                bytes32(_startingNFTId)
+            );
+    }
+
+    /**
      * @notice Mint NFTs
      *
      * Reserves range in Boson protocol, premints Boson rNFT, creates wrapper and wrap NFTs
@@ -121,7 +190,10 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _offerId - the offer ID
      * @param _quantity - the number of NFTs to mint
      */
-    function mintNFTs(uint256 _offerId, uint256 _quantity) external payable {
+    function mintNFTs(
+        uint256 _offerId,
+        uint256 _quantity
+    ) internal returns (IBosonVoucher bosonVoucher, uint256 startingNFTId) {
         if (_quantity == 0) {
             revert InvalidQuantity(_quantity);
         }
@@ -154,70 +226,57 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         }
 
         uint256 nextExchangeId = BOSON_PROTOCOL.getNextExchangeId();
-        uint256 startingNFTId = nextExchangeId | (_offerId << 128);
+        startingNFTId = nextExchangeId | (_offerId << 128);
 
         // Reserve range in Boson
         BOSON_PROTOCOL.reserveRange(_offerId, _quantity, address(this)); // The recipient is this contract, so the NFTs can be wrapped later on
 
         // Premint NFTs on boson voucher
-        IBosonVoucher bosonVoucher = IBosonVoucher(ps.bosonNftCollection);
+        bosonVoucher = IBosonVoucher(ps.bosonNftCollection);
         bosonVoucher.preMint(_offerId, _quantity);
-
-        // create wrapper if needed
-
-        // opt1: minimal clone
-        address wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(startingNFTId)); // ToDo: investigate the salt options
-
-        // opt2: beacon proxy <= alternative approach. Keep for now, estimate gas after more functions are implemented
-        // deployment: ~80k more per deployment. But the next calls should be cheaper.
-        // address wrapperAddress = address(new BeaconProxy{salt: bytes32(startingNFTId)}(ps.wrapperBeacon, ""));
-
-        FermionStorage.protocolLookups().wrapperAddress[_offerId] = wrapperAddress;
-        FermionWrapper(wrapperAddress).initialize(ps.bosonNftCollection, msgSender);
-
-        bosonVoucher.setApprovalForAll(wrapperAddress, true);
-        // wrap NFTs
-        // ToDo: move loop into the wrapper
-        uint256[] memory nftIds = new uint256[](_quantity);
-        for (uint256 i = 0; i < _quantity; i++) {
-            nftIds[i] = startingNFTId + i;
-        }
-
-        FermionWrapper(wrapperAddress).wrapForAuction(nftIds, msgSender);
-        bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         // emit event
         emit NFTsMinted(_offerId, startingNFTId, _quantity);
     }
 
     /**
-     * @notice Add a supported token to the Boson dispute resolver. This is necessary for a succesful offer creation.
+     * @notice Wrap Boson rNFTs
      *
-     * Not restricted with onlyAdmin. The purpose of this method is to allow the seller to add supported tokens in boson if they
-     * want to use them in their offers and not already added by the protocol.
+     * Creates wrapper and wrap NFTs
      *
-     * @param _tokenAddress Token address
+     * Emits an NFTsWrapped event
+     *
+     * @param _offerId - the offer ID
+     * @param _bosonVoucher - the Boson rNFT voucher contract
+     * @param _startingNFTId - the starting NFT ID
+     * @param _quantity - the number of NFTs to wrap
+     * @param ps - the protocol status storage poonter
      */
-    function addSupportedToken(address _tokenAddress) external {
-        IBosonProtocol.DisputeResolverFee[] memory disputeResolverFees = new IBosonProtocol.DisputeResolverFee[](1);
-        disputeResolverFees[0] = IBosonProtocol.DisputeResolverFee({
-            tokenAddress: _tokenAddress,
-            tokenName: "",
-            feeAmount: 0
-        });
+    function wrapNFTS(
+        uint256 _offerId,
+        IBosonVoucher _bosonVoucher,
+        uint256 _startingNFTId,
+        uint256 _quantity,
+        FermionStorage.ProtocolStatus storage ps
+    ) internal {
+        address msgSender = msgSender();
 
-        uint256 bosonDisputeResolverId = FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET;
-        BOSON_PROTOCOL.addFeesToDisputeResolver(bosonDisputeResolverId, disputeResolverFees);
-    }
+        // create wrapper
+        // opt1: minimal clone
+        address wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(_startingNFTId)); // ToDo: investigate the salt options
 
-    /**
-     * @notice Get an offer by ID
-     *
-     * @param _offerId Offer ID
-     *
-     * @return offer Offer details
-     */
-    function getOffer(uint256 _offerId) external view returns (FermionTypes.Offer memory offer) {
-        return FermionStorage.protocolEntities().offer[_offerId];
+        // opt2: beacon proxy <= alternative approach. Keep for now, estimate gas after more functions are implemented
+        // deployment: ~80k more per deployment. But the next calls should be cheaper.
+        // address wrapperAddress = address(new BeaconProxy{salt: bytes32(_startingNFTId)}(ps.wrapperBeacon, ""));
+
+        FermionStorage.protocolLookups().wrapperAddress[_offerId] = wrapperAddress;
+        FermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender);
+
+        // wrap NFTs
+        _bosonVoucher.setApprovalForAll(wrapperAddress, true);
+        FermionWrapper(wrapperAddress).wrapForAuction(_startingNFTId, _quantity, msgSender);
+        _bosonVoucher.setApprovalForAll(wrapperAddress, false);
+
+        emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);
     }
 }

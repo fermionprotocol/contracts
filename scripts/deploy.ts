@@ -45,15 +45,8 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("wrapper")) {
     const constructorArgs = [
-      ethers.ZeroAddress,
-      ethers.ZeroAddress,
-      ethers.ZeroAddress,
-      ethers.ZeroAddress,
-      "0",
-      ethers.ZeroAddress,
-      ethers.ZeroHash,
-      bosonProtocolAddress, // dummy value
-    ]; // ToDo: get correct values
+      bosonProtocolAddress, // dummy value for _openSeaConduit:  [to be replaced]
+    ];
 
     const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
     const fermionWrapper = await FermionWrapper.deploy(...constructorArgs);
@@ -144,7 +137,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     facets["InitializationFacet"] = initializationFacet;
   }
 
-  return { diamondAddress, facets, bosonProtocolAddress };
+  return { diamondAddress, facets, bosonProtocolAddress, wrapperImplementationAddress };
 }
 
 export async function deployDiamond(bosonProtocolAddress: string, wrapperImplementationAddress: string) {

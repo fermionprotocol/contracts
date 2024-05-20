@@ -12,7 +12,7 @@ import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IDiamondLoupe } from "../../diamond/interfaces/IDiamondLoupe.sol";
 import { IDiamondCut } from "../../diamond/interfaces/IDiamondCut.sol";
 import { IERC173 } from "../../diamond/interfaces/IERC173.sol";
-import { IERC165 } from "../../diamond/interfaces/IERC165.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
@@ -111,6 +111,7 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * Reverts if:
      * - Is invoked directly on the deployed contract (not via proxy)
      * - Boson Protocol address is not set
+     * - Wrapper implementation is not set
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
@@ -120,7 +121,7 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         address _bosonProtocolAddress,
         address _wrapperImplementation
     ) internal {
-        if (_bosonProtocolAddress == address(0)) revert InvalidAddress();
+        if (_bosonProtocolAddress == address(0) || _wrapperImplementation == address(0)) revert InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
         uint256 bosonSellerId = bosonProtocol.getNextAccountId();
