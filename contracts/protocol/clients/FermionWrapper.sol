@@ -18,6 +18,8 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  *
  */
 contract FermionWrapper is Ownable, ERC721 {
+    error AlreadyInitialized();
+
     enum TokenState {
         Inexistent,
         Wrapped,
@@ -47,6 +49,10 @@ contract FermionWrapper is Ownable, ERC721 {
     }
 
     function initialize(address _voucherAddress, address _owner) external {
+        if (owner() != address(0)) {
+            revert AlreadyInitialized();
+        }
+
         fermionProtocol = msg.sender;
         voucherAddress = _voucherAddress;
         _transferOwnership(_owner);

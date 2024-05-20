@@ -139,3 +139,6 @@ export async function getStateModifyingFunctionsHashes(
 
   return stateModifyingFunctions.map((smf) => id(smf));
 }
+
+// "0x01ffc9a7"
+// "0x80ac58cd"

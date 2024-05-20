@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import { deploySuite } from "../../scripts/deploy";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { BigNumberish, Contract } from "ethers";
+import { BigNumberish, Contract, Interface, toBeHex } from "ethers";
 
 // We define a fixture to reuse the same setup in every test.
 // We use loadFixture to run this setup once, snapshot that state,
@@ -45,4 +45,20 @@ export async function deployMockTokens(tokenList: string[]) {
 
 export function deriveTokenId(offerId: BigNumberish, exchangeId: BigNumberish) {
   return (BigInt(offerId) << 128n) | BigInt(exchangeId);
+}
+
+export function getInterfaceID(contractInterface: Interface, inheritedInterfaces: string[] = []) {
+  let interfaceID = 0n;
+  const functions = contractInterface.fragments;
+  for (const fn of functions) {
+    if (fn.type === "function") {
+      interfaceID = interfaceID ^ BigInt(fn.selector);
+    }
+  }
+
+  for (const inheritedInterface of inheritedInterfaces) {
+    interfaceID = interfaceID ^ BigInt(inheritedInterface);
+  }
+
+  return toBeHex(interfaceID, 4);
 }
