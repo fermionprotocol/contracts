@@ -1,18 +1,19 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
+import { ethers } from "hardhat";
 import { EntityRole, WalletRole, enumIterator } from "../utils/enums";
-import { deployFermionProtocolFixture } from "../utils/common";
-import { BigNumberish, Contract } from "ethers";
+import { deployFermionProtocolFixture, deriveTokenId } from "../utils/common";
+import { BigNumberish, Contract, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("Entity", function () {
-  let entityFacet: Contract;
+  let entityFacet: Contract, offerFacet: Contract;
   let wallets: HardhatEthersSigner[], defaultSigner: HardhatEthersSigner;
   let fermionErrors: Contract;
 
   before(async function () {
     ({
-      facets: { EntityFacet: entityFacet },
+      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet },
       fermionErrors,
       wallets,
       defaultSigner,
@@ -840,6 +841,77 @@ describe("Entity", function () {
           await expect(entityFacet.connect(wallet).changeWallet(wallets[2].address))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(0);
+        });
+      });
+    });
+
+    context("transferWrapperContractOwnership", function () {
+      const entityId = "1";
+      const bosonOfferId = "1";
+      const sellerId = "1";
+      let wrapper: Contract;
+
+      beforeEach(async function () {
+        await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+
+        const fermionOffer = {
+          sellerId,
+          sellerDeposit: "0",
+          verifierId: sellerId,
+          verifierFee: "0",
+          custodianId: sellerId,
+          exchangeToken: ZeroAddress,
+          metadataURI: "https://example.com/offer-metadata.json",
+          metadataHash: "",
+        };
+
+        await offerFacet.addSupportedToken(ZeroAddress);
+        await offerFacet.createOffer(fermionOffer);
+        await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
+
+        const nextBosonExchangeId = "1";
+        const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
+        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(startingTokenId);
+        wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      });
+
+      it("Transfer ownership to another assistant", async function () {
+        const newAssistant = wallets[4].address;
+
+        await entityFacet.addEntityWallets(sellerId, [newAssistant], [[EntityRole.Seller]], [[[WalletRole.Assistant]]]);
+
+        // test event
+        await expect(entityFacet.transferWrapperContractOwnership(bosonOfferId, newAssistant))
+          .to.emit(wrapper, "OwnershipTransferred")
+          .withArgs(defaultSigner.address, newAssistant);
+
+        // verify state
+        expect(await wrapper.owner()).to.equal(newAssistant);
+      });
+
+      context("Revert reasons", function () {
+        it("An offer does not exist", async function () {
+          await expect(entityFacet.transferWrapperContractOwnership(0, ZeroAddress))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchOffer")
+            .withArgs(0);
+
+          await expect(entityFacet.transferWrapperContractOwnership(10, ZeroAddress))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchOffer")
+            .withArgs(10);
+        });
+
+        it("Caller is not the admin", async function () {
+          const signer2 = wallets[2];
+          await expect(entityFacet.connect(signer2).transferWrapperContractOwnership(bosonOfferId, ZeroAddress))
+            .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+            .withArgs(entityId, signer2.address);
+        });
+
+        it("New owner is not the assistant", async function () {
+          const newOwner = wallets[4].address;
+          await expect(entityFacet.transferWrapperContractOwnership(bosonOfferId, newOwner))
+            .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+            .withArgs(entityId, newOwner, EntityRole.Seller, WalletRole.Assistant);
         });
       });
     });

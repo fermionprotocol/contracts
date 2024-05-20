@@ -9,6 +9,8 @@ import { Context } from "../libs/Context.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
 
+import { FermionWrapper } from "../clients/FermionWrapper.sol";
+
 /**
  * @title EntityFacet
  *
@@ -26,7 +28,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      *
      * Reverts if:
      * - Entity exists already
-     * - No role is specified
      *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
@@ -227,7 +228,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      *
      * Reverts if:
      * - Entity does not exist
-     * - No role is specified
      * - Caller is not an admin for the entity role
      *
      * @param _roles - the roles the entity will have
@@ -266,6 +266,35 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         delete pl.entityId[adminWallet];
 
         emit EntityDeleted(_entityId, adminWallet);
+    }
+
+    /**
+     * @notice Updates the owner of the wrapper contract, associated with the offer id
+     *
+     * Reverts if:
+     * - Entity does not exist
+     * - Caller is not an admin for the entity role
+     *
+     * @param _offerId - the offer ID
+     * @param _newOwner - the new owner address
+     */
+    function transferWrapperContractOwnership(uint256 _offerId, address _newOwner) external {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        address wrapperAddress = pl.wrapperAddress[_offerId];
+        if (wrapperAddress == address(0)) revert NoSuchOffer(_offerId);
+
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        uint256 entityId = offer.sellerId;
+        validateEntityAdmin(entityId, pl);
+
+        EntityLib.validateWalletRole(
+            entityId,
+            _newOwner,
+            FermionTypes.EntityRole.Seller,
+            FermionTypes.WalletRole.Assistant
+        );
+
+        FermionWrapper(wrapperAddress).transferOwnership(_newOwner);
     }
 
     /**

@@ -88,6 +88,8 @@ contract FermionWrapper is Ownable, ERC721 {
      * Reverts if:
      * - Caller is not the Fermion Protocol
      *
+     * N.B. transferring ownership to 0 are allowed, since they can still be change via Fermion Protocol
+     *
      * @param _newOwner The address of the new owner
      */
     function transferOwnership(address _newOwner) public override {
