@@ -10,6 +10,7 @@ import { FundsLib } from "../libs/Funds.sol";
 import { Context } from "../libs/Context.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
+import { SeaportInterface } from "../interfaces/Seaport.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -124,6 +125,89 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
     function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external payable {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
         wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
+    }
+
+    /**
+     * @notice Unwraps NFT, but skips the auction and keeps the F-NFT with the seller
+     *
+     * Price is 0, so the caller must provide the verification fee in the exchange token
+     *
+     * N.B. currently, the F-NFT owner will be the assistant that wrapped it, not the caller of this function
+     * This behavior can be changed in the future
+     *
+     * @param _tokenId - the token ID
+     */
+    function unwrapNFTToSelf(uint256 _tokenId) external payable {
+        SeaportInterface.AdvancedOrder memory _emptyOrder;
+        unwrapNFT(_tokenId, _emptyOrder, true);
+    }
+
+    /**
+     * @notice Unwraps F-NFT, uses seaport to sell the NFT
+     *
+     * @param _tokenId - the token ID
+     * @param _buyerOrder - the Seaport buyer order
+     */
+    function unwrapNFT(uint256 _tokenId, SeaportInterface.AdvancedOrder calldata _buyerOrder) external {
+        unwrapNFT(_tokenId, _buyerOrder, false);
+    }
+
+    /**
+     * @notice Unwraps F-NFT, uses seaport to sell the NFT
+     *
+     * Emits VerificationInitiated event
+     *
+     * Reverts if:
+     * - Caller is not the seller's assistant
+     * - It is self sale and the caller does not provide the verification fee
+     * - It is a normal sale and the price is not high enough to cover the verification fee
+     *
+     * @param _tokenId - the token ID
+     * @param _buyerOrder - the Seaport buyer order (if not self sale)
+     * @param _selfSale - if true, the NFT is unwrapped to the seller
+     */
+    function unwrapNFT(uint256 _tokenId, SeaportInterface.AdvancedOrder memory _buyerOrder, bool _selfSale) internal {
+        uint256 offerId = _tokenId >> 128;
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[offerId];
+        address msgSender = msgSender();
+
+        // Check the caller is the the seller's assistant
+        EntityLib.validateWalletRole(
+            offer.sellerId,
+            msgSender,
+            FermionTypes.EntityRole.Seller,
+            FermionTypes.WalletRole.Assistant
+        );
+        address wrapperAddress = FermionStorage.protocolLookups().wrapperAddress[offerId];
+
+        IBosonProtocol.PriceDiscovery memory _priceDiscovery;
+        _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
+        _priceDiscovery.priceDiscoveryContract = wrapperAddress;
+        _priceDiscovery.conduit = wrapperAddress;
+        if (_selfSale) {
+            address exchangeToken = offer.exchangeToken;
+            uint256 verifierFee = offer.verifierFee;
+            FundsLib.validateIncomingPayment(exchangeToken, verifierFee);
+            IERC20(exchangeToken).safeTransferFrom(address(this), wrapperAddress, verifierFee);
+
+            _priceDiscovery.price = verifierFee;
+            _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+                FermionWrapper.unwrapToSelf,
+                (_tokenId, exchangeToken, verifierFee)
+            );
+        } else {
+            _priceDiscovery.price =
+                _buyerOrder.parameters.offer[0].startAmount -
+                _buyerOrder.parameters.consideration[1].startAmount;
+            if (_priceDiscovery.price < offer.verifierFee) {
+                revert PriceTooLow(_priceDiscovery.price, offer.verifierFee); // ToDo: it does not take BP fee into account
+            }
+            _priceDiscovery.priceDiscoveryData = abi.encodeCall(FermionWrapper.unwrap, (_tokenId, _buyerOrder));
+        }
+
+        BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
+
+        emit VerificationInitiated(offerId, offer.verifierId, _tokenId);
     }
 
     /**

@@ -10,6 +10,7 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  */
 interface IFermionWrapper is IERC721 {
     error AlreadyInitialized();
+    error TransferNotAllowed(address sender, TokenState state);
 
     /**
      * @notice Initializes the contract

@@ -29,6 +29,12 @@ interface IBosonProtocol {
         Disputed
     }
 
+    enum Side {
+        Ask,
+        Bid,
+        Wrapper // Side is not relevant from the protocol perspective
+    }
+
     struct Seller {
         uint256 id;
         address assistant;
@@ -137,6 +143,14 @@ interface IBosonProtocol {
     struct OfferFees {
         uint256 protocolFee;
         uint256 agentFee;
+    }
+
+    struct PriceDiscovery {
+        uint256 price;
+        Side side;
+        address priceDiscoveryContract;
+        address conduit;
+        bytes priceDiscoveryData;
     }
 
     /**
@@ -261,41 +275,34 @@ interface IBosonProtocol {
     function getNextExchangeId() external view returns (uint256 nextExchangeId);
 
     /**
-     * @notice Gets the details about a given exchange.
+     * @notice Commits to a price discovery offer (first step of an exchange).
      *
-     * @param _exchangeId - the id of the exchange to check
-     * @return exists - true if the exchange exists
-     * @return exchange - the exchange details. See {BosonTypes.Exchange}
-     * @return voucher - the voucher details. See {BosonTypes.Voucher}
-     */
-    function getExchange(
-        uint256 _exchangeId
-    ) external view returns (bool exists, Exchange memory exchange, Voucher memory voucher);
-
-    /**
-     * @notice Gets the details about a given offer.
+     * Emits a BuyerCommitted event if successful.
+     * Issues a voucher to the buyer address.
      *
-     * @param _offerId - the id of the offer to retrieve
-     * @return exists - the offer was found
-     * @return offer - the offer details. See {BosonTypes.Offer}
-     * @return offerDates - the offer dates details. See {BosonTypes.OfferDates}
-     * @return offerDurations - the offer durations details. See {BosonTypes.OfferDurations}
-     * @return disputeResolutionTerms - the details about the dispute resolution terms. See {BosonTypes.DisputeResolutionTerms}
-     * @return offerFees - the offer fees details. See {BosonTypes.OfferFees}
+     * Reverts if:
+     * - Offer price type is not price discovery. See BosonTypes.PriceType
+     * - Price discovery contract address is zero
+     * - Price discovery calldata is empty
+     * - Exchange exists already
+     * - Offer has been voided
+     * - Offer has expired
+     * - Offer is not yet available for commits
+     * - Buyer address is zero
+     * - Buyer account is inactive
+     * - Buyer is token-gated (conditional commit requirements not met or already used)
+     * - Any reason that PriceDiscoveryBase fulfilOrder reverts. See PriceDiscoveryBase.fulfilOrder
+     * - Any reason that ExchangeHandler onPremintedVoucherTransfer reverts. See ExchangeHandler.onPremintedVoucherTransfer
+     *
+     * @param _buyer - the buyer's address (caller can commit on behalf of a buyer)
+     * @param _tokenIdOrOfferId - the id of the offer to commit to or the id of the voucher (if pre-minted)
+     * @param _priceDiscovery - price discovery data (if applicable). See BosonTypes.PriceDiscovery
      */
-    function getOffer(
-        uint256 _offerId
-    )
-        external
-        view
-        returns (
-            bool exists,
-            Offer memory offer,
-            OfferDates memory offerDates,
-            OfferDurations memory offerDurations,
-            DisputeResolutionTerms memory disputeResolutionTerms,
-            OfferFees memory offerFees
-        );
+    function commitToPriceDiscoveryOffer(
+        address payable _buyer,
+        uint256 _tokenIdOrOfferId,
+        PriceDiscovery calldata _priceDiscovery
+    ) external payable;
 }
 
 interface IBosonVoucher {

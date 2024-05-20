@@ -35,6 +35,7 @@ interface FermionErrors {
     // Funds errors
     error InsufficientValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
+    error PriceTooLow(uint256 price, uint256 minimumPrice);
 
     // Meta transaction errors
     error NonceUsedAlready();
