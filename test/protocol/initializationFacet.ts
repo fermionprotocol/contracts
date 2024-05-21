@@ -64,6 +64,7 @@ describe("Entity", function () {
           const accountHandler = await getBosonHandler("IBosonAccountHandler");
           const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
             await accountHandler.getAddress(),
+            fermionProtocolAddress, // dummy value
           ]);
 
           await expect(
@@ -73,6 +74,18 @@ describe("Entity", function () {
 
         it("Boson protocol address is 0", async function () {
           const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            ZeroAddress,
+            fermionProtocolAddress, // dummy value
+          ]);
+
+          await expect(
+            makeDiamondCut(fermionProtocolAddress, [], initializationFacetImplementationAddress, initializeBosonSeller),
+          ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
+        });
+
+        it("Wrapper implementation address is 0", async function () {
+          const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            fermionProtocolAddress, // dummy value
             ZeroAddress,
           ]);
 
@@ -86,14 +99,14 @@ describe("Entity", function () {
             initializationFacetImplementationAddress,
           );
 
-          await expect(initializationFacetImplementation.initializeDiamond(ZeroAddress)).to.be.revertedWithCustomError(
-            fermionErrors,
-            "DirectInitializationNotAllowed",
-          );
+          await expect(
+            initializationFacetImplementation.initializeDiamond(ZeroAddress, ZeroAddress),
+          ).to.be.revertedWithCustomError(fermionErrors, "DirectInitializationNotAllowed");
         });
 
         it("initializeDiamond is not registered", async function () {
           const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            ZeroAddress,
             ZeroAddress,
           ]);
           const selector = initializationFacet.interface.getFunction("initializeDiamond").selector;

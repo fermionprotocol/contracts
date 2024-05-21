@@ -9,6 +9,14 @@ export enum EntityRole {
   Custodian,
 }
 
+export enum TokenState {
+  Inexistent,
+  Wrapped,
+  Unwrapped,
+  Fractionalised,
+  Burned,
+}
+
 export enum WalletRole {
   Admin,
   Assistant,

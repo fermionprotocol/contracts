@@ -37,11 +37,12 @@ contract FermionTypes {
     }
 
     struct Offer {
-        address exchangeToken;
+        uint256 sellerId;
         uint256 sellerDeposit;
         uint256 verifierId;
         uint256 verifierFee;
         uint256 custodianId;
+        address exchangeToken;
         string metadataURI;
         string metadataHash;
     }

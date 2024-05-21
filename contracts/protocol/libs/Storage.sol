@@ -19,6 +19,12 @@ library FermionStorage {
         bytes32 version;
         // Boson seller id
         uint256 bosonSellerId;
+        // Boson NFT collection address
+        address bosonNftCollection;
+        // Beacon for wrapper implementation
+        address wrapperBeacon;
+        // Beacon proxy, which uses wrapperBeacon
+        address wrapperBeaconProxy;
     }
 
     // Protocol entities storage
@@ -43,6 +49,8 @@ library FermionStorage {
         mapping(address => uint256) walletId;
         // entity id => entity admin => pending status
         mapping(uint256 => mapping(address => bool)) pendingEntityAdmin;
+        // offerId => wrapper address
+        mapping(uint256 => address) wrapperAddress;
     }
 
     // Storage related to Meta Transactions

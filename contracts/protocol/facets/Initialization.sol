@@ -12,7 +12,10 @@ import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IDiamondLoupe } from "../../diamond/interfaces/IDiamondLoupe.sol";
 import { IDiamondCut } from "../../diamond/interfaces/IDiamondCut.sol";
 import { IERC173 } from "../../diamond/interfaces/IERC173.sol";
-import { IERC165 } from "../../diamond/interfaces/IERC165.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+
+import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
+import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 
 /**
  * @title FermionProtocolInitializationHandler
@@ -85,9 +88,13 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
+     * @param _wrapperImplementation - address of the initial wrapper implementation
      */
-    function initializeDiamond(address _bosonProtocolAddress) external noDirectInitialization {
-        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress);
+    function initializeDiamond(
+        address _bosonProtocolAddress,
+        address _wrapperImplementation
+    ) external noDirectInitialization {
+        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress, _wrapperImplementation);
 
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;
@@ -104,12 +111,17 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * Reverts if:
      * - Is invoked directly on the deployed contract (not via proxy)
      * - Boson Protocol address is not set
+     * - Wrapper implementation is not set
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
+     * @param _wrapperImplementation - address of the initial wrapper implementation
      */
-    function initializeBosonSellerAndBuyerAndDR(address _bosonProtocolAddress) internal {
-        if (_bosonProtocolAddress == address(0)) revert InvalidAddress();
+    function initializeBosonSellerAndBuyerAndDR(
+        address _bosonProtocolAddress,
+        address _wrapperImplementation
+    ) internal {
+        if (_bosonProtocolAddress == address(0) || _wrapperImplementation == address(0)) revert InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
         uint256 bosonSellerId = bosonProtocol.getNextAccountId();
@@ -129,6 +141,12 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         IBosonProtocol.VoucherInitValues memory voucherInitValues;
 
         bosonProtocol.createSeller(seller, authToken, voucherInitValues);
+
+        (address bosonNftCollection, ) = bosonProtocol.getSellersCollections(bosonSellerId);
+
+        FermionStorage.ProtocolStatus storage ps = FermionStorage.protocolStatus();
+        ps.bosonSellerId = bosonSellerId;
+        ps.bosonNftCollection = bosonNftCollection;
 
         // Create a buyer
         IBosonProtocol.Buyer memory buyer = IBosonProtocol.Buyer({
@@ -156,7 +174,9 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         sellerAllowList[0] = bosonSellerId;
         bosonProtocol.createDisputeResolver(disputeResolver, disputeResolverFees, sellerAllowList);
 
-        FermionStorage.protocolStatus().bosonSellerId = bosonSellerId;
+        // Wrapper beacon
+        ps.wrapperBeacon = address(new UpgradeableBeacon(_wrapperImplementation, address(this)));
+        ps.wrapperBeaconProxy = address(new BeaconProxy(ps.wrapperBeacon, ""));
     }
 
     /**

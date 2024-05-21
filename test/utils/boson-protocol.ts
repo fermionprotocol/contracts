@@ -42,6 +42,8 @@ export async function initBosonProtocolFixture() {
   const bosonDiamond = await bosonDiamondFactory.deploy(await accessController.getAddress(), facetCuts, []);
   bosonProtocolAddress = await bosonDiamond.getAddress();
 
+  await accessController.grantRole(Role.PROTOCOL, bosonProtocolAddress);
+
   // Deploy the clients
   // Deploy Boson Price Discovery Client
   const bosonPriceDiscoveryFactory = await getContractFactory("BosonPriceDiscovery");
@@ -122,6 +124,19 @@ export async function getBosonHandler(handlerName: string) {
   );
 
   const facet = await ethers.getContractAt(facetABI, bosonProtocolAddress);
+
+  return facet;
+}
+
+export async function getBosonVoucher(address: string) {
+  const { abi: facetABI } = JSON.parse(
+    fs.readFileSync(
+      `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/abis/sepolia/test/interfaces/clients/IBosonVoucher.sol/IBosonVoucher.json`,
+      "utf8",
+    ),
+  );
+
+  const facet = await ethers.getContractAt(facetABI, address);
 
   return facet;
 }

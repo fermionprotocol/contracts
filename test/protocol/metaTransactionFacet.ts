@@ -19,7 +19,7 @@ describe("MetaTransactions", function () {
   let entityFacet: Contract, metaTransactionFacet: Contract;
   let wallets, defaultSigner;
   let fermionErrors: Contract;
-  let bosonProtocolAddress: string;
+  let bosonProtocolAddress: string, wrapperImplementationAddress: string;
 
   before(async function () {
     ({
@@ -28,6 +28,7 @@ describe("MetaTransactions", function () {
       wallets,
       defaultSigner,
       bosonProtocolAddress,
+      wrapperImplementationAddress,
     } = await loadFixture(deployFermionProtocolFixture));
   });
 
@@ -325,7 +326,10 @@ describe("MetaTransactions", function () {
             const metaTransactionFacetAddress = await diamondLoupe.facetAddress(functionFragment.selector);
 
             // Deploy a new diamond, from where the existing facet will be called
-            const { diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress);
+            const { diamondAddress, initializationFacet } = await deployDiamond(
+              bosonProtocolAddress,
+              wrapperImplementationAddress,
+            );
 
             // Prepare init call
             const initAddresses = [metaTransactionFacetAddress];

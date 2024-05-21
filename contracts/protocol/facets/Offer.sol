@@ -6,9 +6,16 @@ import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
+import { FundsLib } from "../libs/Funds.sol";
 import { Context } from "../libs/Context.sol";
-import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
+import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
+
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+
+import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
 /**
  * @title OfferFacet
@@ -16,10 +23,12 @@ import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
  * @notice Handles offer listing.
  */
 contract OfferFacet is Context, FermionErrors, IOfferEvents {
-    address private immutable BOSON_PROTOCOL;
+    using SafeERC20 for IERC20;
+
+    IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol) {
-        BOSON_PROTOCOL = _bosonProtocol;
+        BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }
 
     /**
@@ -31,29 +40,16 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * - Caller is not the seller's assistant
      * - Invalid verifier or custodian ID is provided
      *
-     * @param _sellerId Seller ID
      * @param _offer Offer to list
      */
-    function createOffer(uint256 _sellerId, FermionTypes.Offer calldata _offer) external {
-        address msgSender = msgSender();
-
+    function createOffer(FermionTypes.Offer calldata _offer) external {
         // Caller must be the seller's assistant
-        if (
-            !EntityLib.hasWalletRole(
-                _sellerId,
-                msgSender,
-                FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant,
-                false
-            )
-        ) {
-            revert WalletHasNoRole(
-                _sellerId,
-                msgSender,
-                FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant
-            );
-        }
+        EntityLib.validateWalletRole(
+            _offer.sellerId,
+            msgSender(),
+            FermionTypes.EntityRole.Seller,
+            FermionTypes.WalletRole.Assistant
+        );
 
         // Validate verifier and custodian IDs
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
@@ -92,9 +88,9 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         bosonOfferDurations.voucherValid = 1; // It could be 0, since in fermion offers, commit and redeem happen atomically, but Boson does not allow it
         bosonOfferDurations.resolutionPeriod = 7 days; // Not needed for fermion, but Boson requires it
 
-        uint256 bosonOfferId = IBosonProtocol(BOSON_PROTOCOL).getNextOfferId();
+        uint256 bosonOfferId = BOSON_PROTOCOL.getNextOfferId();
 
-        IBosonProtocol(BOSON_PROTOCOL).createOffer(
+        BOSON_PROTOCOL.createOffer(
             bosonOffer,
             bosonOfferDates,
             bosonOfferDurations,
@@ -106,7 +102,28 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         // Store fermion offer properties
         FermionStorage.protocolEntities().offer[bosonOfferId] = _offer;
 
-        emit OfferCreated(_sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
+        emit OfferCreated(_offer.sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
+    }
+
+    /**
+     * @notice Mint and wrap NFTs
+     *
+     * Reserves range in Boson protocol, premints Boson rNFT, creates wrapper and wrap NFTs
+     *
+     * Emits an NFTsMinted and NFTsWrapped event
+     *
+     * Reverts if:
+     * - Caller is not the seller's assistant
+     * - Not enough funds are sent to cover the seller deposit
+     * - Deposit is in ERC20 and the caller sends native currency
+     * - ERC20 token transfer fails
+     *
+     * @param _offerId - the offer ID
+     * @param _quantity - the number of NFTs to mint
+     */
+    function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external payable {
+        (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
+        wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
     }
 
     /**
@@ -126,7 +143,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         });
 
         uint256 bosonDisputeResolverId = FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET;
-        IBosonProtocol(BOSON_PROTOCOL).addFeesToDisputeResolver(bosonDisputeResolverId, disputeResolverFees);
+        BOSON_PROTOCOL.addFeesToDisputeResolver(bosonDisputeResolverId, disputeResolverFees);
     }
 
     /**
@@ -138,5 +155,128 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      */
     function getOffer(uint256 _offerId) external view returns (FermionTypes.Offer memory offer) {
         return FermionStorage.protocolEntities().offer[_offerId];
+    }
+
+    /**
+     * @notice Predict the address of the wrapper contract
+     *
+     * @dev This is primarily used for testing purposes. Might be removed in the future.
+     *
+     * @param _startingNFTId - the starting NFT ID
+     *
+     * @return address - the predicted address
+     */
+    function predictFermionWrapperAddress(uint256 _startingNFTId) external view returns (address) {
+        return
+            Clones.predictDeterministicAddress(
+                FermionStorage.protocolStatus().wrapperBeaconProxy,
+                bytes32(_startingNFTId)
+            );
+    }
+
+    /**
+     * @notice Mint NFTs
+     *
+     * Reserves range in Boson protocol, premints Boson rNFT, creates wrapper and wrap NFTs
+     *
+     * Emits an NFTsMinted event
+     *
+     * Reverts if:
+     * - Caller is not the seller's assistant
+     * - Not enough funds are sent to cover the seller deposit
+     * - Deposit is in ERC20 and the caller sends native currency
+     * - ERC20 token transfer fails
+     *
+     * @param _offerId - the offer ID
+     * @param _quantity - the number of NFTs to mint
+     */
+    function mintNFTs(
+        uint256 _offerId,
+        uint256 _quantity
+    ) internal returns (IBosonVoucher bosonVoucher, uint256 startingNFTId) {
+        if (_quantity == 0) {
+            revert InvalidQuantity(_quantity);
+        }
+        FermionStorage.ProtocolStatus storage ps = FermionStorage.protocolStatus();
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        address msgSender = msgSender();
+
+        // Check the caller is the the seller's assistant
+        EntityLib.validateWalletRole(
+            offer.sellerId,
+            msgSender,
+            FermionTypes.EntityRole.Seller,
+            FermionTypes.WalletRole.Assistant
+        );
+
+        // Validate that the seller deposit is provided
+        uint256 sellerDeposit = offer.sellerDeposit;
+        if (sellerDeposit > 0) {
+            uint256 totalDeposit = sellerDeposit * _quantity;
+
+            // Transfer the deposit to the protocol.
+            address exchangeToken = offer.exchangeToken;
+            FundsLib.validateIncomingPayment(exchangeToken, totalDeposit);
+            // Deposit to the boson protocol
+            if (exchangeToken != address(0)) {
+                IERC20(exchangeToken).forceApprove(address(BOSON_PROTOCOL), totalDeposit);
+            }
+            uint256 bosonSellerId = ps.bosonSellerId;
+            BOSON_PROTOCOL.depositFunds{ value: msg.value }(bosonSellerId, exchangeToken, totalDeposit);
+        }
+
+        uint256 nextExchangeId = BOSON_PROTOCOL.getNextExchangeId();
+        startingNFTId = nextExchangeId | (_offerId << 128);
+
+        // Reserve range in Boson
+        BOSON_PROTOCOL.reserveRange(_offerId, _quantity, address(this)); // The recipient is this contract, so the NFTs can be wrapped later on
+
+        // Premint NFTs on boson voucher
+        bosonVoucher = IBosonVoucher(ps.bosonNftCollection);
+        bosonVoucher.preMint(_offerId, _quantity);
+
+        // emit event
+        emit NFTsMinted(_offerId, startingNFTId, _quantity);
+    }
+
+    /**
+     * @notice Wrap Boson rNFTs
+     *
+     * Creates wrapper and wrap NFTs
+     *
+     * Emits an NFTsWrapped event
+     *
+     * @param _offerId - the offer ID
+     * @param _bosonVoucher - the Boson rNFT voucher contract
+     * @param _startingNFTId - the starting NFT ID
+     * @param _quantity - the number of NFTs to wrap
+     * @param ps - the protocol status storage pointer
+     */
+    function wrapNFTS(
+        uint256 _offerId,
+        IBosonVoucher _bosonVoucher,
+        uint256 _startingNFTId,
+        uint256 _quantity,
+        FermionStorage.ProtocolStatus storage ps
+    ) internal {
+        address msgSender = msgSender();
+
+        // create wrapper
+        // opt1: minimal clone
+        address wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(_startingNFTId)); // ToDo: investigate the salt options
+
+        // opt2: beacon proxy <= alternative approach. Keep for now, estimate gas after more functions are implemented
+        // deployment: ~80k more per deployment. But the next calls should be cheaper.
+        // address wrapperAddress = address(new BeaconProxy{salt: bytes32(_startingNFTId)}(ps.wrapperBeacon, ""));
+
+        FermionStorage.protocolLookups().wrapperAddress[_offerId] = wrapperAddress;
+        IFermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender);
+
+        // wrap NFTs
+        _bosonVoucher.setApprovalForAll(wrapperAddress, true);
+        IFermionWrapper(wrapperAddress).wrapForAuction(_startingNFTId, _quantity, msgSender);
+        _bosonVoucher.setApprovalForAll(wrapperAddress, false);
+
+        emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);
     }
 }

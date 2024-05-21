@@ -41,16 +41,37 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   console.log(`Deploying to network: ${network.name} (env: ${env}) with deployer: ${deployerAddress}`);
   console.log(`Boson Protocol address: ${bosonProtocolAddress}`);
 
+  // deploy wrapper implementation
+  let wrapperImplementationAddress: string;
+  if (allModules || modules.includes("wrapper")) {
+    const constructorArgs = [
+      bosonProtocolAddress, // dummy value for _openSeaConduit:  [to be replaced]
+    ];
+
+    const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
+    const fermionWrapper = await FermionWrapper.deploy(...constructorArgs);
+    await fermionWrapper.waitForDeployment();
+    wrapperImplementationAddress = await fermionWrapper.getAddress();
+
+    deploymentComplete("FermionWrapper", wrapperImplementationAddress, constructorArgs, true);
+  } else {
+    deploymentData = await getDeploymentData(env);
+    wrapperImplementationAddress = deploymentData.find((contract) => contract.name === "FermionWrapper")?.address;
+
+    if (!wrapperImplementationAddress) {
+      throw Error("Fermion wrapper implementation not found in contracts file");
+    }
+  }
+
   // deploy diamond
   let diamondAddress, initializationFacet;
   if (allModules || modules.includes("diamond")) {
-    ({ diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress));
+    ({ diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress, wrapperImplementationAddress));
     //  setEnvironmentData()
     await writeContracts(deploymentData, env, version);
   } else {
     // get the diamond address and initialization from contracts file
-    const contractsFile = await readContracts(env);
-    deploymentData = contractsFile.contracts;
+    deploymentData = await getDeploymentData(env);
 
     diamondAddress = deploymentData.find((contract) => contract.name === "FermionDiamond")?.address;
     const initializationFacetAddress = deploymentData.find(
@@ -74,9 +95,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     await writeContracts(deploymentData, env, version);
   } else if (modules.includes("initialize")) {
     // get the facets from from contracts file
-    const contractsFile = await readContracts(env);
-    deploymentData = contractsFile.contracts;
-    console.log(deploymentData);
+    deploymentData = await getDeploymentData(env);
 
     for (const facetName of facetNames) {
       const faceAddress = deploymentData.find((contract) => contract.name === facetName)?.address;
@@ -118,10 +137,10 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     facets["InitializationFacet"] = initializationFacet;
   }
 
-  return { diamondAddress, facets, bosonProtocolAddress };
+  return { diamondAddress, facets, bosonProtocolAddress, wrapperImplementationAddress };
 }
 
-export async function deployDiamond(bosonProtocolAddress: string) {
+export async function deployDiamond(bosonProtocolAddress: string, wrapperImplementationAddress: string) {
   const accounts = await ethers.getSigners();
   const contractOwner = accounts[0];
 
@@ -139,6 +158,7 @@ export async function deployDiamond(bosonProtocolAddress: string) {
   const initializationFacet = facets["InitializationFacet"];
   const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
     bosonProtocolAddress,
+    wrapperImplementationAddress,
   ]);
 
   // Setting arguments that will be used in the diamond constructor
@@ -199,4 +219,12 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
 function deploymentComplete(name: string, address: string, args: string[], save: boolean = false) {
   if (save) deploymentData.push({ name, address, args });
   console.log(`✅ ${name} deployed to: ${address}`);
+}
+
+async function getDeploymentData(env: string) {
+  if (deploymentData.length === 0) {
+    const contractsFile = await readContracts(env);
+    deploymentData = contractsFile.contracts;
+  }
+  return deploymentData;
 }

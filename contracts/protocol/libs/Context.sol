@@ -19,6 +19,26 @@ contract Context {
      * @return the message sender address
      */
     function msgSender() internal view returns (address) {
+        return ContextLib.msgSender();
+    }
+}
+
+/*
+ * @title Execution context
+ *
+ * @notice Provides the message sender
+ */
+library ContextLib {
+    uint256 private constant ADDRESS_LENGTH = 20;
+
+    /**
+     * @notice Returns the message sender address.
+     *
+     * @dev Could be msg.sender or the message sender address from storage (in case of meta transaction).
+     *
+     * @return the message sender address
+     */
+    function msgSender() internal view returns (address) {
         uint256 msgDataLength = msg.data.length;
         address protocolAddress = FermionStorage.metaTransaction().fermionAddress;
 

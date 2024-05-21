@@ -28,6 +28,14 @@ interface FermionErrors {
     );
     error ChangeNotAllowed();
 
+    // Offer errors
+    error InvalidQuantity(uint256 quantity);
+    error NoSuchOffer(uint256 offerId);
+
+    // Funds errors
+    error InsufficientValueReceived(uint256 expected, uint256 actual);
+    error NativeNotAllowed();
+
     // Meta transaction errors
     error NonceUsedAlready();
     error FunctionNotAllowlisted();
