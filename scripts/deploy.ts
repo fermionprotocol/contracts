@@ -6,6 +6,8 @@ import { getStateModifyingFunctionsHashes } from "./libraries/metaTransaction";
 import { writeContracts, readContracts } from "./libraries/utils";
 
 import { initBosonProtocolFixture } from "./../test/utils/boson-protocol";
+import { initSeaportFixture } from "./../test/utils/seaport";
+import { ZeroAddress, ZeroHash } from "ethers";
 
 const version = "0.0.1";
 let deploymentData: any[] = [];
@@ -14,9 +16,10 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   const allModules = modules.length === 0 || network.name === "hardhat" || network.name === "localhost";
 
   // if deploying with hardhat, first deploy the boson protocol
-  let bosonProtocolAddress: string;
+  let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, seaportAddress: string;
   if (network.name === "hardhat" || network.name === "localhost") {
-    ({ bosonProtocolAddress } = await initBosonProtocolFixture());
+    ({ bosonProtocolAddress, bosonPriceDiscoveryAddress } = await initBosonProtocolFixture(false));
+    ({ seaportAddress } = await initSeaportFixture());
   } else {
     // Check if the deployer key is set
     const NETWORK = network.name.toUpperCase();
@@ -36,17 +39,21 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     );
 
     bosonProtocolAddress = bosonContracts.find((contract) => contract.name === "ProtocolDiamond")?.address;
+    bosonPriceDiscoveryAddress = bosonContracts.find(
+      (contract) => contract.name === "BosonPriceDiscoveryClient",
+    )?.address;
+
+    // ToDo: seaport address from somewhere
   }
   const deployerAddress = (await ethers.getSigners())[0].address;
   console.log(`Deploying to network: ${network.name} (env: ${env}) with deployer: ${deployerAddress}`);
   console.log(`Boson Protocol address: ${bosonProtocolAddress}`);
+  console.log(`Seaport address: ${seaportAddress}`);
 
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("wrapper")) {
-    const constructorArgs = [
-      bosonProtocolAddress, // dummy value for _openSeaConduit:  [to be replaced]
-    ];
+    const constructorArgs = [ZeroAddress, ZeroHash, bosonPriceDiscoveryAddress, seaportAddress];
 
     const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
     const fermionWrapper = await FermionWrapper.deploy(...constructorArgs);

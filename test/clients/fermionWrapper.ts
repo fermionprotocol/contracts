@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { getInterfaceID } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract } from "ethers";
+import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 const { ZeroAddress } = ethers;
@@ -15,7 +15,7 @@ describe("FermionWrapper", function () {
 
   async function setupFermionWrapperTest() {
     const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
-    const fermionWrapper = await FermionWrapper.deploy(ZeroAddress);
+    const fermionWrapper = await FermionWrapper.deploy(ZeroAddress, ZeroHash, ZeroAddress, ZeroAddress); // For these tests, zero constructor arguments are okay
 
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionWrapper.getAddress());

@@ -35,7 +35,7 @@ const config: HardhatUserConfig = {
               yul: true,
             },
           },
-          evmVersion: "london",
+          evmVersion: "cancun",
         },
       },
       {
@@ -73,8 +73,8 @@ const config: HardhatUserConfig = {
 };
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, { config }) => {
-  const contracts_path = path.join(config.paths.root, "contracts", "**", "*.sol");
-  const contracts = await glob(contracts_path.replace(/\\/g, "/"), {
+  const contracts_path = path.join(config.paths.root, "contracts");
+  const contracts = await glob(path.join(contracts_path, "**", "*.sol").replace(/\\/g, "/"), {
     ignore: [
       path.join(contracts_path, "external", "**", "*.sol").replace(/\\/g, "/"), // Windows support
     ],

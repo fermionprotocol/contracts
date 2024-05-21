@@ -27,8 +27,14 @@ const protocol = {
   linkPath: `${resolve(__dirname, "..", "contracts/external/boson-protocol-contracts")}`,
 };
 
+const seaport = {
+  target: `${resolve(__dirname, "..", "node_modules", "seaport/contracts")}`,
+  linkPath: `${resolve(__dirname, "..", "contracts/external/seaport")}`,
+};
+
 async function main() {
   await createLink(protocol.linkPath, protocol.target);
+  await createLink(seaport.linkPath, seaport.target);
 }
 
 main()

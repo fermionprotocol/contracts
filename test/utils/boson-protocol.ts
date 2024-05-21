@@ -1,10 +1,6 @@
 import fs from "fs";
 import { ethers } from "hardhat";
-import hre from "hardhat";
-import { subtask } from "hardhat/config";
-import path from "path";
-import { glob } from "glob";
-import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
+import { resetCompilationFolder, setCompilationFolder } from "./common";
 
 import protocolConfig from "@bosonprotocol/boson-protocol-contracts/scripts/config/protocol-parameters.js";
 import Role from "@bosonprotocol/boson-protocol-contracts/scripts/domain/Role.js";
@@ -16,7 +12,7 @@ const { getContractFactory } = ethers;
 let bosonProtocolAddress: string;
 
 // Deploys WETH, Boson Protocol Diamond, Boson Price Discovery, Boson Voucher Implementation, Boson Voucher Beacon Client
-export async function initBosonProtocolFixture() {
+export async function initBosonProtocolFixture(resetAfter: boolean = true) {
   await setBosonContractsCompilationFolder();
 
   const [admin] = await ethers.getSigners();
@@ -104,9 +100,9 @@ export async function initBosonProtocolFixture() {
     functionCall,
   );
 
-  await resetCompilationFolder();
+  if (resetAfter) await resetCompilationFolder();
 
-  return { bosonProtocolAddress, weth };
+  return { bosonProtocolAddress, weth, bosonPriceDiscoveryAddress: await bosonPriceDiscovery.getAddress() };
 }
 
 // Load Boson handler ABI creates contract instant and attach it to the Boson protocol address
@@ -144,40 +140,14 @@ export async function getBosonVoucher(address: string) {
 // Set the Boson Protocol contracts compilation folder to the Boson Protocol contracts and compiles them.
 // Used to avoid artifacts clashes.
 async function setBosonContractsCompilationFolder() {
-  subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, { config }) => {
-    const bosonProtocolContractsBase = path.join(
-      config.paths.root,
-      "contracts",
-      "external",
-      "boson-protocol-contracts",
-    );
+  const contracts = [
+    ["access", "**", "*.sol"],
+    ["diamond", "**", "*.sol"],
+    ["protocol", "**", "*.sol"],
+    ["mock", "WETH9.sol"],
+  ];
 
-    const bosonProtocolContracts = await glob([
-      path.join(bosonProtocolContractsBase, "access", "**", "*.sol").replace(/\\/g, "/"), // Windows support
-      path.join(bosonProtocolContractsBase, "diamond", "**", "*.sol").replace(/\\/g, "/"), // Windows support
-      path.join(bosonProtocolContractsBase, "protocol", "**", "*.sol").replace(/\\/g, "/"), // Windows support
-      path.join(bosonProtocolContractsBase, "mock", "WETH9.sol").replace(/\\/g, "/"), // Windows support
-    ]);
-
-    return [...bosonProtocolContracts].map(path.normalize);
-  });
-
-  await recompileContracts();
-}
-
-// Reset the compilation folder to the Fermion Protocol contracts and compiles them.
-// Used to avoid artifacts clashes.
-async function resetCompilationFolder() {
-  subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, { config }) => {
-    const contracts_path = path.join(config.paths.root, "contracts", "**", "*.sol");
-    const contracts = await glob(contracts_path.replace(/\\/g, "/"), {
-      ignore: [path.join(contracts_path, "external", "**", "*.sol").replace(/\\/g, "/")],
-    });
-
-    return [...contracts].map(path.normalize);
-  });
-
-  await recompileContracts();
+  return setCompilationFolder("boson-protocol-contracts", contracts);
 }
 
 function getConfigHandlerInitArgs() {
@@ -193,19 +163,4 @@ function getConfigHandlerInitArgs() {
     protocolConfig.limits,
     protocolConfig.fees,
   ];
-}
-
-async function recompileContracts() {
-  await hre.run("clean");
-
-  // Right after compilation, Hardhat sometimes wrongly reports missing artifacts.
-  // Ignore this error, but throw any other error.
-  try {
-    await hre.run("compile");
-  } catch (e) {
-    if (e?.message.includes("HH700: Artifact for contract") && e?.message.includes("not found")) {
-      return;
-    }
-    throw e;
-  }
 }

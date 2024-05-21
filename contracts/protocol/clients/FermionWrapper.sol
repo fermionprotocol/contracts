@@ -57,7 +57,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
         ERC721("Fermion F-NFT", "FMION-NFT") // todo: add make correct names + symbol
         Ownable(msg.sender)
     {
-        OS_CONDUIT = _openSeaConduit;
+        OS_CONDUIT = _openSeaConduit == address(0) ? _seaport : _openSeaConduit;
         OS_CONDUIT_KEY = _openSeaConduitKey;
         BP_PRICE_DISCOVERY = _bosonPriceDiscovery;
         SEAPORT = _seaport;
