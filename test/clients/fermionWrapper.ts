@@ -113,4 +113,17 @@ describe("FermionWrapper", function () {
       });
     });
   });
+
+  context("wrap", function () {
+    it.skip("Only protocol can wrap", async function () {});
+
+    it.skip("Wrapped tokens cannot be transferred", async function () {});
+  });
+
+  context("unwrap/unwrapToSelf", function () {
+    // normal + unwrap to self
+    it.skip("Only protocol can unwrap", async function () {});
+
+    it.skip("Only wrapped tokens can be unwrap", async function () {});
+  });
 });

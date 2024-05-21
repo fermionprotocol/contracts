@@ -7,6 +7,8 @@ import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, TokenState, WalletRole } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
+import { Seaport } from "@opensea/seaport-js";
+import { ItemType } from "@opensea/seaport-js/lib/constants";
 
 const { id, MaxUint256, ZeroAddress } = ethers;
 
@@ -17,6 +19,7 @@ describe("Offer", function () {
   let fermionProtocolAddress: string;
   let wallets: HardhatEthersSigner[];
   let defaultSigner: HardhatEthersSigner;
+  let seaportAddress: string;
 
   async function setupOfferTest() {
     // Create three entities
@@ -43,6 +46,7 @@ describe("Offer", function () {
       fermionErrors,
       wallets,
       defaultSigner,
+      seaportAddress,
     } = await loadFixture(deployFermionProtocolFixture));
 
     await loadFixture(setupOfferTest);
@@ -531,6 +535,153 @@ describe("Offer", function () {
           offerFacet.mintAndWrapNFTs(bosonOfferId, quantity, { value: totalSellerDeposit }),
         ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
       });
+    });
+  });
+
+  context("unwrapping", function () {
+    // only ERC20 for start
+    const bosonOfferId = 1n;
+    const sellerDeposit = 100n;
+    const quantity = 15n;
+    const verifierFee = 10n;
+    beforeEach(async function () {
+      const fermionOffer = {
+        sellerId: "1",
+        sellerDeposit,
+        verifierId: "2",
+        verifierFee,
+        custodianId: "3",
+        exchangeToken: await mockToken.getAddress(),
+        metadataURI: "https://example.com/offer-metadata.json",
+        metadataHash: ZeroHash,
+      };
+
+      // erc20 offer
+      await offerFacet.createOffer(fermionOffer);
+
+      // mint and wrap
+      const totalSellerDeposit = sellerDeposit * quantity;
+      await mockToken.approve(fermionProtocolAddress, totalSellerDeposit);
+      await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+    });
+
+    context("unwrap (with OS auction)", function () {
+      it("Unwrapping", async function () {
+        // const buyerOrder = "";
+        const tokenId = deriveTokenId(bosonOfferId, 1n).toString();
+
+        const buyer = wallets[4];
+        const openSea = wallets[5];
+        const seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+
+        const exchangeToken = await mockToken.getAddress();
+        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
+        const fullPrice = ethers.parseEther("10");
+        const openSeaFee = (fullPrice * 2n) / 100n;
+
+        await mockToken.mint(buyer.address, fullPrice);
+
+        const offerer = buyer.address;
+        const { executeAllActions } = await seaport.createOrder(
+          {
+            offer: [
+              {
+                itemType: ItemType.ERC20,
+                token: exchangeToken,
+                amount: fullPrice.toString(),
+              },
+            ],
+            consideration: [
+              {
+                itemType: ItemType.ERC721,
+                token: wrapperAddress,
+                identifier: tokenId,
+              },
+              {
+                itemType: ItemType.ERC20,
+                token: exchangeToken,
+                amount: openSeaFee.toString(),
+                recipient: openSea.address,
+              },
+            ],
+          },
+          offerer,
+        );
+
+        const buyerOrder = await executeAllActions();
+
+        const tx = await offerFacet.unwrapNFT(tokenId, {
+          ...buyerOrder,
+          numerator: 1n,
+          denominator: 1n,
+          extraData: "0x",
+        });
+
+        await expect(tx).to.emit(offerFacet, "VerificationInitiated");
+        // events:
+        // fermion
+        // - VerificationInitiated
+        // Boson:
+        // - BuyerCommitted
+        // - VoucherRedeemed
+        // - FundsEncumbered
+        // BosonVoucher
+        // - transferred to the protocol
+        // - burned
+        // FermionWrapper
+        // - Transfer to buyer
+
+        // State:
+        // Boson:
+        // - exchange state
+        // - voucher state
+        // - funds increased for the whole price
+        // FermionWrapper:
+        // - token state changed to unverified
+        // - token transferred to the buyer
+      });
+
+      // revert reasons:
+      // price is lower than fee
+      // caller is not the seller
+    });
+
+    context("unwrapToSelf", function () {
+      it("Unwrapping", async function () {
+        // const buyerOrder = "";
+        const tokenId = deriveTokenId(bosonOfferId, 1n).toString();
+
+        await mockToken.approve(fermionProtocolAddress, verifierFee);
+        const tx = await offerFacet.unwrapNFTToSelf(tokenId);
+
+        await expect(tx).to.emit(offerFacet, "VerificationInitiated");
+
+        // events:
+        // fermion
+        // - VerificationInitiated
+        // Boson:
+        // - BuyerCommitted
+        // - VoucherRedeemed
+        // - FundsEncumbered
+        // BosonVoucher
+        // - transferred to the protocol
+        // - burned
+        // FermionWrapper
+        // - Transfer to buyer
+
+        // State:
+        // Boson:
+        // - exchange state
+        // - voucher state
+        // - funds increased for the whole price
+        // FermionWrapper:
+        // - token state changed to unverified
+        // - token transferred to the buyer
+      });
+
+      // revert reasons:
+      // verifier fee not paid
+      // caller is not the seller
     });
   });
 

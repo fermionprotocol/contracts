@@ -50,6 +50,7 @@
     "typescript-eslint": "^7.10.0"
   },
   "dependencies": {
+    "@opensea/seaport-js": "4.0.0",
     "@openzeppelin/contracts": "^5.0.2"
   }
 }

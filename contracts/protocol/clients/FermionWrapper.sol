@@ -141,8 +141,8 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
 
         tokenState[_tokenId] = TokenState.Unverified; // Moving to next state, also enabling the transfer and prevent reentrancy
 
-        // transfer Boson Voucher to Fermion protocol
-        IERC721(voucherAddress).safeTransferFrom(address(this), fermionProtocol, _tokenId);
+        // transfer Boson Voucher to Fermion protocol. Not using safeTransferFrom since we are sure Fermion Protocol can handle the voucher
+        IERC721(voucherAddress).transferFrom(address(this), fermionProtocol, _tokenId);
     }
 
     /**

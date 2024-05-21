@@ -144,7 +144,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     facets["InitializationFacet"] = initializationFacet;
   }
 
-  return { diamondAddress, facets, bosonProtocolAddress, wrapperImplementationAddress };
+  return { diamondAddress, facets, bosonProtocolAddress, wrapperImplementationAddress, seaportAddress };
 }
 
 export async function deployDiamond(bosonProtocolAddress: string, wrapperImplementationAddress: string) {

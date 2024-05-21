@@ -188,7 +188,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             address exchangeToken = offer.exchangeToken;
             uint256 verifierFee = offer.verifierFee;
             FundsLib.validateIncomingPayment(exchangeToken, verifierFee);
-            IERC20(exchangeToken).safeTransferFrom(address(this), wrapperAddress, verifierFee);
+            IERC20(exchangeToken).safeTransfer(wrapperAddress, verifierFee);
 
             _priceDiscovery.price = verifierFee;
             _priceDiscovery.priceDiscoveryData = abi.encodeCall(
@@ -206,6 +206,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         }
 
         BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
+        BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchnage id is in the lower 128 bits
 
         emit VerificationInitiated(offerId, offer.verifierId, _tokenId);
     }

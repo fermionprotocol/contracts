@@ -277,23 +277,6 @@ interface IBosonProtocol {
     /**
      * @notice Commits to a price discovery offer (first step of an exchange).
      *
-     * Emits a BuyerCommitted event if successful.
-     * Issues a voucher to the buyer address.
-     *
-     * Reverts if:
-     * - Offer price type is not price discovery. See BosonTypes.PriceType
-     * - Price discovery contract address is zero
-     * - Price discovery calldata is empty
-     * - Exchange exists already
-     * - Offer has been voided
-     * - Offer has expired
-     * - Offer is not yet available for commits
-     * - Buyer address is zero
-     * - Buyer account is inactive
-     * - Buyer is token-gated (conditional commit requirements not met or already used)
-     * - Any reason that PriceDiscoveryBase fulfilOrder reverts. See PriceDiscoveryBase.fulfilOrder
-     * - Any reason that ExchangeHandler onPremintedVoucherTransfer reverts. See ExchangeHandler.onPremintedVoucherTransfer
-     *
      * @param _buyer - the buyer's address (caller can commit on behalf of a buyer)
      * @param _tokenIdOrOfferId - the id of the offer to commit to or the id of the voucher (if pre-minted)
      * @param _priceDiscovery - price discovery data (if applicable). See BosonTypes.PriceDiscovery
@@ -303,6 +286,13 @@ interface IBosonProtocol {
         uint256 _tokenIdOrOfferId,
         PriceDiscovery calldata _priceDiscovery
     ) external payable;
+
+    /**
+     * @notice Redeems a voucher.
+     *
+     * @param _exchangeId - the id of the exchange
+     */
+    function redeemVoucher(uint256 _exchangeId) external;
 }
 
 interface IBosonVoucher {
