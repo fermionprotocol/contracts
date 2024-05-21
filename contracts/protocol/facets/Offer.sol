@@ -250,7 +250,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _bosonVoucher - the Boson rNFT voucher contract
      * @param _startingNFTId - the starting NFT ID
      * @param _quantity - the number of NFTs to wrap
-     * @param ps - the protocol status storage poonter
+     * @param ps - the protocol status storage pointer
      */
     function wrapNFTS(
         uint256 _offerId,
