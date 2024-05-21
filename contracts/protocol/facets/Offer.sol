@@ -192,7 +192,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
 
             _priceDiscovery.price = verifierFee;
             _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                FermionWrapper.unwrapToSelf,
+                IFermionWrapper.unwrapToSelf,
                 (_tokenId, exchangeToken, verifierFee)
             );
         } else {
@@ -202,7 +202,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             if (_priceDiscovery.price < offer.verifierFee) {
                 revert PriceTooLow(_priceDiscovery.price, offer.verifierFee); // ToDo: it does not take BP fee into account
             }
-            _priceDiscovery.priceDiscoveryData = abi.encodeCall(FermionWrapper.unwrap, (_tokenId, _buyerOrder));
+            _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
         }
 
         BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);

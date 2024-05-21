@@ -24,16 +24,6 @@ import { SeaportInterface } from "../interfaces/Seaport.sol";
 contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     using SafeERC20 for IERC20;
 
-    enum TokenState {
-        Inexistent,
-        Wrapped,
-        Unverified,
-        Verified,
-        CheckedIn,
-        Fractionalised,
-        CheckedOut
-    }
-
     mapping(uint256 => TokenState) public tokenState;
 
     // Contract addresses
@@ -303,7 +293,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
             _safeMint(_to, tokenId);
             tokenState[tokenId] = TokenState.Wrapped;
         }
-        _setApprovalForAll(address(this), OS_CONDUIT, true); // ToDo: investigate: maybe do it per tokenId?
+        _setApprovalForAll(address(this), OS_CONDUIT, true);
     }
 
     /**
