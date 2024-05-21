@@ -15,7 +15,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 
-import { FermionWrapper } from "../clients/FermionWrapper.sol";
+import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
 /**
  * @title OfferFacet
@@ -270,11 +270,11 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         // address wrapperAddress = address(new BeaconProxy{salt: bytes32(_startingNFTId)}(ps.wrapperBeacon, ""));
 
         FermionStorage.protocolLookups().wrapperAddress[_offerId] = wrapperAddress;
-        FermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender);
+        IFermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender);
 
         // wrap NFTs
         _bosonVoucher.setApprovalForAll(wrapperAddress, true);
-        FermionWrapper(wrapperAddress).wrapForAuction(_startingNFTId, _quantity, msgSender);
+        IFermionWrapper(wrapperAddress).wrapForAuction(_startingNFTId, _quantity, msgSender);
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);

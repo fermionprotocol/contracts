@@ -1,6 +1,7 @@
 import { HardhatUserConfig, subtask, task, vars } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
 import "hardhat-preprocessor";
+import "hardhat-contract-sizer";
 import path from "path";
 import { glob } from "glob";
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";

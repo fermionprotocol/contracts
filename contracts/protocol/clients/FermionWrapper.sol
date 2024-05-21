@@ -5,6 +5,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
 /**
  * @title FermionWrapper
@@ -17,9 +18,7 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  * Usage:
  *
  */
-contract FermionWrapper is Ownable, ERC721 {
-    error AlreadyInitialized();
-
+contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     enum TokenState {
         Inexistent,
         Wrapped,
@@ -48,6 +47,15 @@ contract FermionWrapper is Ownable, ERC721 {
         OS_CONDUIT = _openSeaConduit;
     }
 
+    /**
+     * @notice Initializes the contract
+     *
+     * Reverts if:
+     * - Contract is already initialized
+     *
+     * @param _voucherAddress The address of the Boson Voucher contract
+     * @param _owner The address of the owner
+     */
     function initialize(address _voucherAddress, address _owner) external {
         if (owner() != address(0)) {
             revert AlreadyInitialized();
@@ -64,8 +72,8 @@ contract FermionWrapper is Ownable, ERC721 {
      * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
      * to learn more about how these ids are created.
      */
-    function supportsInterface(bytes4 _interfaceId) public view virtual override(ERC721) returns (bool) {
-        return (_interfaceId == type(IERC721).interfaceId || _interfaceId == type(IERC165).interfaceId);
+    function supportsInterface(bytes4 _interfaceId) public view virtual override(ERC721, IERC165) returns (bool) {
+        return super.supportsInterface(_interfaceId) || _interfaceId == type(IFermionWrapper).interfaceId;
     }
 
     /**
