@@ -139,4 +139,3 @@ export async function getStateModifyingFunctionsHashes(
 
   return stateModifyingFunctions.map((smf) => id(smf));
 }
-
