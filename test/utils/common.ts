@@ -1,6 +1,7 @@
 import { ethers } from "hardhat";
 import { deploySuite } from "../../scripts/deploy";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
+import { Contract } from "ethers";
 
 // We define a fixture to reuse the same setup in every test.
 // We use loadFixture to run this setup once, snapshot that state,
@@ -29,4 +30,14 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
     defaultSigner,
     bosonProtocolAddress,
   };
+}
+
+export async function deployMockTokens(tokenList: string[]) {
+  const tokens: Contract[] = [];
+  for (const tokenType of tokenList) {
+    const Token = await ethers.getContractFactory(`Mock${tokenType}`);
+    tokens.push(await Token.deploy());
+  }
+
+  return tokens;
 }

@@ -14,13 +14,18 @@ interface FermionErrors {
     error AddressesAndCalldataLengthMismatch(uint256 addressesLength, uint256 calldataLength);
 
     // Entity errors
-    error InvalidEntityRoles();
     error EntityAlreadyExists();
-    error NoSuchEntity();
+    error NoSuchEntity(uint256 entityId);
     error NotAdmin(address admin, uint256 entityId, FermionTypes.EntityRole role);
     error NotEntityAdmin(uint256 entityId, address admin);
     error AlreadyAdmin(uint256 entityId, address admin);
     error EntityHasNoRole(uint256 entityId, FermionTypes.EntityRole role);
+    error WalletHasNoRole(
+        uint256 entityId,
+        address wallet,
+        FermionTypes.EntityRole entityRole,
+        FermionTypes.WalletRole walletRole
+    );
     error ChangeNotAllowed();
 
     // Meta transaction errors

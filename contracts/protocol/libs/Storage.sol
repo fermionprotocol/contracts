@@ -27,6 +27,8 @@ library FermionStorage {
         mapping(uint256 => FermionTypes.EntityData) entityData;
         // wallet id => entity id => wallet permissions (compact)
         mapping(uint256 => mapping(uint256 => uint256)) walletRole;
+        // offer id => fermion properties
+        mapping(uint256 => FermionTypes.Offer) offer;
     }
 
     // Protocol lookup storage
