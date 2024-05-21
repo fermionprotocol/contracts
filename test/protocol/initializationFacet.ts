@@ -5,6 +5,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
 import { makeDiamondCut } from "../../scripts/deploy";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 const { encodeBytes32String, ZeroAddress, ZeroHash } = ethers;
 
@@ -13,7 +14,7 @@ describe("Entity", function () {
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
   let initializationFacetImplementationAddress: string;
-  let wallets;
+  let wallets: HardhatEthersSigner[];
 
   before(async function () {
     ({
@@ -47,6 +48,15 @@ describe("Entity", function () {
 
         expect(existsBuyer).to.be.true;
         expect(buyer.wallet).to.equal(fermionProtocolAddress);
+
+        const [existDR, disputeResolver, , sellerAllowList] =
+          await accountHandler.getDisputeResolverByAddress(fermionProtocolAddress);
+        expect(existDR).to.be.true;
+        expect(disputeResolver.assistant).to.equal(fermionProtocolAddress);
+        expect(disputeResolver.admin).to.equal(fermionProtocolAddress);
+        expect(disputeResolver.treasury).to.equal(fermionProtocolAddress);
+        expect(disputeResolver.metadataUri).to.equal("");
+        expect(sellerAllowList).to.eql([seller.id]);
       });
 
       context("Revert reasons", function () {

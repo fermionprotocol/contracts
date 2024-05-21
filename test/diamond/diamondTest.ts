@@ -31,12 +31,12 @@ describe("DiamondTest", async function () {
     initializationFacet = await ethers.getContractAt("InitializationFacet", diamondAddress);
   });
 
-  it("should have 6 facets -- call to facetAddresses function", async () => {
+  it("should have 7 facets -- call to facetAddresses function", async () => {
     for (const address of await diamondLoupeFacet.facetAddresses()) {
       addresses.push(address);
     }
     console.log({ addresses });
-    assert.equal(addresses.length, 6); // default facets: [diamondCut, diamondLoupe, ownership, initialization], protocol: [entity, metaTransaction]
+    assert.equal(addresses.length, 7); // default facets: [diamondCut, diamondLoupe, ownership, initialization], protocol: [entity, metaTransaction, offer]
   });
 
   it("facets should have the right function selectors -- call to facetFunctionSelectors function", async () => {

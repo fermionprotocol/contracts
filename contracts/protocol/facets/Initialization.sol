@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { BOSON_DR_ID_OFFSET } from "../domain/Constants.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
 import { FermionErrors } from "../domain/Errors.sol";
@@ -86,7 +87,7 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * @param _bosonProtocolAddress - address of the Boson Protocol
      */
     function initializeDiamond(address _bosonProtocolAddress) external noDirectInitialization {
-        initializeBosonSellerAndBuyer(_bosonProtocolAddress);
+        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress);
 
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;
@@ -107,12 +108,13 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
      */
-    function initializeBosonSellerAndBuyer(address _bosonProtocolAddress) internal {
+    function initializeBosonSellerAndBuyerAndDR(address _bosonProtocolAddress) internal {
         if (_bosonProtocolAddress == address(0)) revert InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
         uint256 bosonSellerId = bosonProtocol.getNextAccountId();
 
+        // Create a seller
         IBosonProtocol.Seller memory seller = IBosonProtocol.Seller({
             id: bosonSellerId,
             assistant: address(this),
@@ -128,6 +130,7 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
 
         bosonProtocol.createSeller(seller, authToken, voucherInitValues);
 
+        // Create a buyer
         IBosonProtocol.Buyer memory buyer = IBosonProtocol.Buyer({
             id: bosonSellerId + 1,
             wallet: payable(address(this)),
@@ -135,6 +138,23 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         });
 
         bosonProtocol.createBuyer(buyer);
+
+        // Create a dispute resolver
+        IBosonProtocol.DisputeResolver memory disputeResolver = IBosonProtocol.DisputeResolver({
+            id: bosonSellerId + BOSON_DR_ID_OFFSET,
+            escalationResponsePeriod: 1, // not used, but 0 is restricted by Boson
+            assistant: address(this),
+            admin: address(this),
+            clerk: address(0),
+            treasury: payable(address(this)),
+            metadataUri: "",
+            active: true
+        });
+
+        IBosonProtocol.DisputeResolverFee[] memory disputeResolverFees;
+        uint256[] memory sellerAllowList = new uint256[](1);
+        sellerAllowList[0] = bosonSellerId;
+        bosonProtocol.createDisputeResolver(disputeResolver, disputeResolverFees, sellerAllowList);
 
         FermionStorage.protocolStatus().bosonSellerId = bosonSellerId;
     }
