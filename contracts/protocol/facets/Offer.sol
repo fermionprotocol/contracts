@@ -196,9 +196,14 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
                 (_tokenId, exchangeToken, verifierFee)
             );
         } else {
-            _priceDiscovery.price =
-                _buyerOrder.parameters.offer[0].startAmount -
-                _buyerOrder.parameters.consideration[1].startAmount;
+            if (_buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount) {
+                revert InvalidOrder();
+            }
+            unchecked {
+                _priceDiscovery.price =
+                    _buyerOrder.parameters.offer[0].startAmount -
+                    _buyerOrder.parameters.consideration[1].startAmount;
+            }
             if (_priceDiscovery.price < offer.verifierFee) {
                 revert PriceTooLow(_priceDiscovery.price, offer.verifierFee); // ToDo: it does not take BP fee into account
             }
@@ -206,7 +211,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         }
 
         BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
-        BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchnage id is in the lower 128 bits
+        BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
 
         emit VerificationInitiated(offerId, offer.verifierId, _tokenId);
     }
