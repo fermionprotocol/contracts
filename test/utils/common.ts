@@ -14,8 +14,14 @@ import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/ta
 // and reset Hardhat Network to that snapshot in every test.
 // Use the same deployment script that is used in the deploy-suite task
 export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersSigner) {
-  const { diamondAddress, facets, bosonProtocolAddress, wrapperImplementationAddress, seaportAddress } =
-    await deploySuite();
+  const {
+    diamondAddress,
+    facets,
+    bosonProtocolAddress,
+    wrapperImplementationAddress,
+    seaportAddress,
+    seaportContract,
+  } = await deploySuite();
 
   const fermionErrors = await ethers.getContractAt("FermionErrors", diamondAddress);
 
@@ -38,6 +44,7 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
     bosonProtocolAddress,
     wrapperImplementationAddress,
     seaportAddress,
+    seaportContract,
   };
 }
 

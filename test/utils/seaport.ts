@@ -18,7 +18,7 @@ export async function initSeaportFixture() {
 
   await resetCompilationFolder();
 
-  return { seaportAddress: await seaport.getAddress() };
+  return { seaportAddress: await seaport.getAddress(), seaportContract: seaport };
 }
 
 // Set the Seaport contracts compilation folder to the Boson Protocol contracts and compiles them.

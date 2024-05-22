@@ -212,7 +212,6 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
 
         BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
         BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
-
         emit VerificationInitiated(offerId, offer.verifierId, _tokenId);
     }
 

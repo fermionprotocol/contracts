@@ -105,7 +105,6 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     function unwrap(uint256 _tokenId, SeaportInterface.AdvancedOrder calldata _buyerOrder) external {
         unwrap(_tokenId);
 
-        // If the seller is the buyer, they skipped the auction. Price is 0, owner is already correct and the OS autcion can be skipped
         (uint256 price, address exchangeToken) = finalizeAuction(_tokenId, _buyerOrder);
 
         // Transfer token to protocol
@@ -154,17 +153,22 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     function finalizeAuction(
         uint256 _tokenId,
         SeaportInterface.AdvancedOrder calldata _buyerOrder
-    ) internal returns (uint256 price, address exchangeToken) {
+    ) internal returns (uint256 reducedPrice, address exchangeToken) {
         address wrappedVoucherOwner = ownerOf(_tokenId); // tokenId can be taken from buyer order
 
-        // transfer to itself to finalize the auction
-        _transfer(wrappedVoucherOwner, address(this), _tokenId);
-
         uint256 _price = _buyerOrder.parameters.offer[0].startAmount;
+        if (_price == 0) {
+            // Skip the call to seaport
+            // This is possible only if verifier fee is 0, and nothing has to be encumbered by the Boson Protocol
+            // Only transfer the wrapped NFT to the buyer. Signature is not verified, since no buyer's funds are moved
+            // In practice, OpensSea will not allow this, since they do not allow 0 price auctions
+            address buyer = _buyerOrder.parameters.offerer;
+            _safeTransfer(wrappedVoucherOwner, buyer, _tokenId);
+            return (0, address(0));
+        }
         uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount; // toDo: make check that this is the fee
-        uint256 reducedPrice = _price - _openSeaFee;
+        reducedPrice = _price - _openSeaFee;
 
-        price = reducedPrice;
         exchangeToken = _buyerOrder.parameters.offer[0].token;
 
         // prepare match advanced order. Can this be optimized with some simpler order?
@@ -247,6 +251,9 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
             orderIndex: 0,
             itemIndex: 1
         });
+
+        // transfer to itself to finalize the auction
+        _transfer(wrappedVoucherOwner, address(this), _tokenId);
 
         SeaportInterface(SEAPORT).matchAdvancedOrders(
             orders,

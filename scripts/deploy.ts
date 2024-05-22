@@ -7,7 +7,7 @@ import { writeContracts, readContracts } from "./libraries/utils";
 
 import { initBosonProtocolFixture } from "./../test/utils/boson-protocol";
 import { initSeaportFixture } from "./../test/utils/seaport";
-import { ZeroAddress, ZeroHash } from "ethers";
+import { Contract, ZeroAddress, ZeroHash } from "ethers";
 
 const version = "0.0.1";
 let deploymentData: any[] = [];
@@ -17,9 +17,10 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
 
   // if deploying with hardhat, first deploy the boson protocol
   let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, seaportAddress: string;
+  let seaportContract: Contract;
   if (network.name === "hardhat" || network.name === "localhost") {
     ({ bosonProtocolAddress, bosonPriceDiscoveryAddress } = await initBosonProtocolFixture(false));
-    ({ seaportAddress } = await initSeaportFixture());
+    ({ seaportAddress, seaportContract } = await initSeaportFixture());
   } else {
     // Check if the deployer key is set
     const NETWORK = network.name.toUpperCase();
@@ -144,7 +145,14 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     facets["InitializationFacet"] = initializationFacet;
   }
 
-  return { diamondAddress, facets, bosonProtocolAddress, wrapperImplementationAddress, seaportAddress };
+  return {
+    diamondAddress,
+    facets,
+    bosonProtocolAddress,
+    wrapperImplementationAddress,
+    seaportAddress,
+    seaportContract,
+  };
 }
 
 export async function deployDiamond(bosonProtocolAddress: string, wrapperImplementationAddress: string) {

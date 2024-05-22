@@ -23,6 +23,7 @@ describe("Offer", function () {
   let defaultSigner: HardhatEthersSigner;
   let seaportAddress: string;
   let bosonProtocolAddress: string;
+  let seaportContract: Contract;
 
   async function setupOfferTest() {
     // Create three entities
@@ -86,6 +87,7 @@ describe("Offer", function () {
       defaultSigner,
       seaportAddress,
       bosonProtocolAddress,
+      seaportContract,
     } = await loadFixture(deployFermionProtocolFixture));
 
     await loadFixture(setupOfferTest);
@@ -678,6 +680,128 @@ describe("Offer", function () {
         expect(newOpenSeaBalance).to.equal(openSeaBalance + openSeaFee);
       });
 
+      it("Zero verifier fee allows zero prices", async function () {
+        const bosonOfferId = "2";
+        // const exchangeId = quantity + 1n;
+        const exchangeId = await bosonExchangeHandler.getNextExchangeId();
+
+        const fermionOffer = {
+          sellerId: "1",
+          sellerDeposit: "0",
+          verifierId,
+          verifierFee: "0",
+          custodianId: "3",
+          exchangeToken: await mockToken.getAddress(),
+          metadataURI: "https://example.com/offer-metadata.json",
+          metadataHash: ZeroHash,
+        };
+        const fullPrice = "0";
+        const openSeaFee = "0";
+        const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
+        const fermionWrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+
+        // erc20 offer
+        await offerFacet.createOffer(fermionOffer);
+
+        const buyer = wallets[4];
+        const openSea = wallets[5]; // a mock OS address
+        openSeaAddress = openSea.address;
+        buyerAddress = buyer.address;
+        const seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+
+        // mint and wrap
+        await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
+
+        const offerer = buyerAddress;
+        const { executeAllActions } = await seaport.createOrder(
+          {
+            offer: [
+              {
+                itemType: ItemType.ERC20,
+                token: exchangeToken,
+                amount: fullPrice,
+              },
+            ],
+            consideration: [
+              {
+                itemType: ItemType.ERC721,
+                token: wrapperAddress,
+                identifier: tokenId,
+              },
+              {
+                itemType: ItemType.ERC20,
+                token: exchangeToken,
+                amount: openSeaFee,
+                recipient: openSeaAddress,
+              },
+            ],
+          },
+          offerer,
+        );
+
+        const buyerOrder = await executeAllActions();
+
+        const buyerAdvancedOrder = {
+          ...buyerOrder,
+          numerator: 1n,
+          denominator: 1n,
+          extraData: "0x",
+        };
+
+        const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+        const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
+
+        const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+
+        // events:
+        // fermion
+        await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+
+        // Boson:
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "BuyerCommitted")
+          .withArgs(bosonOfferId, bosonBuyerId, exchangeId, anyValue, anyValue, defaultCollectionAddress); // exchange and voucher details are not relevant
+
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "FundsEncumbered")
+          .withArgs(bosonSellerId, exchangeToken, "0", defaultCollectionAddress);
+
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "VoucherRedeemed")
+          .withArgs(bosonOfferId, exchangeId, fermionProtocolAddress);
+
+        // BosonVoucher
+        // - transferred to the protocol
+        await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(wrapperAddress, fermionProtocolAddress, tokenId);
+
+        // - burned
+        await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
+
+        // FermionWrapper
+        // - Transfer to buyer (1step seller->buyer)
+        await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(defaultSigner.address, buyerAddress, tokenId);
+
+        // State:
+        // Boson
+        const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
+        expect(exists).to.be.true;
+        expect(exchange.state).to.equal(3); // Redeemed
+        expect(voucher.committedDate).to.not.equal(0);
+        expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
+
+        const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+        expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance); // no change expected
+
+        // FermionWrapper:
+        expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
+        expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
+
+        // OpenSea balance should remain the same
+        const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
+        expect(newOpenSeaBalance).to.equal(openSeaBalance);
+      });
+
       context("Revert reasons", function () {
         it("Caller is not the seller's assistant", async function () {
           await verifySellerAssistantRole("unwrapNFT", [tokenId, buyerAdvancedOrder]);
@@ -698,6 +822,26 @@ describe("Offer", function () {
             fermionErrors,
             "InvalidOrder",
           );
+        });
+      });
+
+      context("Seaport tests", function () {
+        // Not testing the protocol, just the interaction with Seaport
+        it("Seaport should not allow invalid signature", async function () {
+          await expect(
+            offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: "0x" }),
+          ).to.be.revertedWithCustomError(seaportContract, "InvalidSignature");
+
+          const invalidSignature = buyerAdvancedOrder.signature.replace("1", "2");
+          await expect(
+            offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: invalidSignature }),
+          ).to.be.revertedWithCustomError(seaportContract, "InvalidSigner");
+        });
+
+        it("Works with pre-validated orders", async function () {
+          const buyer = wallets[4];
+          await seaportContract.connect(buyer).validate([buyerAdvancedOrder]);
+          await expect(offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: "0x" })).to.not.be.reverted;
         });
       });
     });
