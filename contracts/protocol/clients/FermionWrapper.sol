@@ -8,7 +8,9 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
-import { SeaportInterface } from "../interfaces/Seaport.sol";
+
+import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 /**
  * @title FermionWrapper
@@ -102,7 +104,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      * @param _tokenId The token id.
      * @param _buyerOrder The Seaport buyer order.
      */
-    function unwrap(uint256 _tokenId, SeaportInterface.AdvancedOrder calldata _buyerOrder) external {
+    function unwrap(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
         unwrap(_tokenId);
 
         (uint256 price, address exchangeToken) = finalizeAuction(_tokenId, _buyerOrder);
@@ -152,7 +154,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      */
     function finalizeAuction(
         uint256 _tokenId,
-        SeaportInterface.AdvancedOrder calldata _buyerOrder
+        SeaportTypes.AdvancedOrder calldata _buyerOrder
     ) internal returns (uint256 reducedPrice, address exchangeToken) {
         address wrappedVoucherOwner = ownerOf(_tokenId); // tokenId can be taken from buyer order
 
@@ -174,17 +176,17 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
         // prepare match advanced order. Can this be optimized with some simpler order?
         // caller must supply buyers signed order (_buyerOrder)
         // ToDo: verify that buyerOrder matches the expected format
-        SeaportInterface.OfferItem[] memory offer = new SeaportInterface.OfferItem[](1);
-        offer[0] = SeaportInterface.OfferItem({
-            itemType: SeaportInterface.ItemType.ERC721,
+        SeaportTypes.OfferItem[] memory offer = new SeaportTypes.OfferItem[](1);
+        offer[0] = SeaportTypes.OfferItem({
+            itemType: SeaportTypes.ItemType.ERC721,
             token: address(this),
             identifierOrCriteria: _tokenId,
             startAmount: 1,
             endAmount: 1
         });
 
-        SeaportInterface.ConsiderationItem[] memory consideration = new SeaportInterface.ConsiderationItem[](2);
-        consideration[0] = SeaportInterface.ConsiderationItem({
+        SeaportTypes.ConsiderationItem[] memory consideration = new SeaportTypes.ConsiderationItem[](2);
+        consideration[0] = SeaportTypes.ConsiderationItem({
             itemType: _buyerOrder.parameters.offer[0].itemType,
             token: exchangeToken,
             identifierOrCriteria: 0,
@@ -193,13 +195,13 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
             recipient: payable(address(this))
         });
 
-        SeaportInterface.AdvancedOrder memory wrapperOrder = SeaportInterface.AdvancedOrder({
-            parameters: SeaportInterface.OrderParameters({
+        SeaportTypes.AdvancedOrder memory wrapperOrder = SeaportTypes.AdvancedOrder({
+            parameters: SeaportTypes.OrderParameters({
                 offerer: address(this),
                 zone: address(0), // ToDo: is 0 ok, or do we need _buyerOrder.parameters.zone, or sth buyer can't influence
                 offer: offer,
                 consideration: consideration,
-                orderType: SeaportInterface.OrderType.FULL_OPEN,
+                orderType: SeaportTypes.OrderType.FULL_OPEN,
                 startTime: _buyerOrder.parameters.startTime,
                 endTime: _buyerOrder.parameters.endTime,
                 zoneHash: bytes32(0), // ToDo: is 0 ok, or do we need, or do we need _buyerOrder.parameters.zoneHash, or sth buyer can't influence
@@ -213,51 +215,42 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
             extraData: ""
         });
 
-        SeaportInterface.AdvancedOrder[] memory orders = new SeaportInterface.AdvancedOrder[](2);
+        SeaportTypes.AdvancedOrder[] memory orders = new SeaportTypes.AdvancedOrder[](2);
         orders[0] = _buyerOrder;
         orders[1] = wrapperOrder;
 
-        SeaportInterface.Fulfillment[] memory fulfillments = new SeaportInterface.Fulfillment[](3);
+        SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](3);
 
         // NFT from buyer, to NFT from seller
-        fulfillments[0] = SeaportInterface.Fulfillment({
-            offerComponents: new SeaportInterface.FulfillmentComponent[](1),
-            considerationComponents: new SeaportInterface.FulfillmentComponent[](1)
+        fulfillments[0] = SeaportTypes.Fulfillment({
+            offerComponents: new SeaportTypes.FulfillmentComponent[](1),
+            considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
         });
-        fulfillments[0].offerComponents[0] = SeaportInterface.FulfillmentComponent({ orderIndex: 1, itemIndex: 0 });
-        fulfillments[0].considerationComponents[0] = SeaportInterface.FulfillmentComponent({
-            orderIndex: 0,
-            itemIndex: 0
-        });
+        fulfillments[0].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 1, itemIndex: 0 });
+        fulfillments[0].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
 
         // Payment from buyer to seller
-        fulfillments[1] = SeaportInterface.Fulfillment({
-            offerComponents: new SeaportInterface.FulfillmentComponent[](1),
-            considerationComponents: new SeaportInterface.FulfillmentComponent[](1)
+        fulfillments[1] = SeaportTypes.Fulfillment({
+            offerComponents: new SeaportTypes.FulfillmentComponent[](1),
+            considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
         });
-        fulfillments[1].offerComponents[0] = SeaportInterface.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
-        fulfillments[1].considerationComponents[0] = SeaportInterface.FulfillmentComponent({
-            orderIndex: 1,
-            itemIndex: 0
-        });
+        fulfillments[1].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
+        fulfillments[1].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 1, itemIndex: 0 });
 
         // Payment from buyer to OpenSea
-        fulfillments[2] = SeaportInterface.Fulfillment({
-            offerComponents: new SeaportInterface.FulfillmentComponent[](1),
-            considerationComponents: new SeaportInterface.FulfillmentComponent[](1)
+        fulfillments[2] = SeaportTypes.Fulfillment({
+            offerComponents: new SeaportTypes.FulfillmentComponent[](1),
+            considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
         });
-        fulfillments[2].offerComponents[0] = SeaportInterface.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
-        fulfillments[2].considerationComponents[0] = SeaportInterface.FulfillmentComponent({
-            orderIndex: 0,
-            itemIndex: 1
-        });
+        fulfillments[2].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
+        fulfillments[2].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 1 });
 
         // transfer to itself to finalize the auction
         _transfer(wrappedVoucherOwner, address(this), _tokenId);
 
         SeaportInterface(SEAPORT).matchAdvancedOrders(
             orders,
-            new SeaportInterface.CriteriaResolver[](0),
+            new SeaportTypes.CriteriaResolver[](0),
             fulfillments,
             address(this)
         );

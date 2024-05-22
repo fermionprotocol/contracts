@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { SeaportInterface } from "./Seaport.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 /**
  * @title FermionWrapper interface
@@ -51,7 +51,7 @@ interface IFermionWrapper is IERC721 {
      * @param _tokenId The token id.
      * @param _buyerOrder The Seaport buyer order.
      */
-    function unwrap(uint256 _tokenId, SeaportInterface.AdvancedOrder calldata _buyerOrder) external;
+    function unwrap(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external;
 
     /**
      * @notice Unwraps the voucher, but skip the OS auction and leave the F-NFT with the seller

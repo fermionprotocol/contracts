@@ -10,11 +10,11 @@ import { FundsLib } from "../libs/Funds.sol";
 import { Context } from "../libs/Context.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
-import { SeaportInterface } from "../interfaces/Seaport.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
@@ -138,7 +138,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _tokenId - the token ID
      */
     function unwrapNFTToSelf(uint256 _tokenId) external payable {
-        SeaportInterface.AdvancedOrder memory _emptyOrder;
+        SeaportTypes.AdvancedOrder memory _emptyOrder;
         unwrapNFT(_tokenId, _emptyOrder, true);
     }
 
@@ -148,7 +148,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _tokenId - the token ID
      * @param _buyerOrder - the Seaport buyer order
      */
-    function unwrapNFT(uint256 _tokenId, SeaportInterface.AdvancedOrder calldata _buyerOrder) external {
+    function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
         unwrapNFT(_tokenId, _buyerOrder, false);
     }
 
@@ -166,7 +166,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _buyerOrder - the Seaport buyer order (if not self sale)
      * @param _selfSale - if true, the NFT is unwrapped to the seller
      */
-    function unwrapNFT(uint256 _tokenId, SeaportInterface.AdvancedOrder memory _buyerOrder, bool _selfSale) internal {
+    function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder memory _buyerOrder, bool _selfSale) internal {
         uint256 offerId = _tokenId >> 128;
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[offerId];
         address msgSender = msgSender();
