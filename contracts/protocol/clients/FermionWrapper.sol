@@ -136,7 +136,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
         address msgSender = _msgSender();
 
         if (tokenState[_tokenId] != TokenState.Wrapped || msgSender != BP_PRICE_DISCOVERY) {
-            revert TransferNotAllowed(msgSender, tokenState[_tokenId]);
+            revert TransferNotAllowed(_tokenId, msgSender, tokenState[_tokenId]);
         }
 
         tokenState[_tokenId] = TokenState.Unverified; // Moving to next state, also enabling the transfer and prevent reentrancy
@@ -285,7 +285,6 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
             uint256 tokenId = _firstTokenId + i;
 
             // Transfer vouchers to this contract
-            // Instead of msg.sender it could be voucherAddress, if vouchers were preminted to contract itself
             // Not using safeTransferFrom since this contract is the recipient and we are sure it can handle the vouchers
             IERC721(voucherAddress).transferFrom(msg.sender, address(this), tokenId);
 
@@ -306,7 +305,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal override returns (address) {
         if (tokenState[_tokenId] == TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
-            revert TransferNotAllowed(_msgSender(), TokenState.Wrapped);
+            revert TransferNotAllowed(_tokenId, _msgSender(), TokenState.Wrapped);
         }
         return super._update(_to, _tokenId, _auth);
     }

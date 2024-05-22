@@ -21,7 +21,7 @@ interface IFermionWrapper is IERC721 {
     }
 
     error AlreadyInitialized();
-    error TransferNotAllowed(address sender, TokenState state);
+    error TransferNotAllowed(uint256 tokenId, address sender, TokenState state);
 
     /**
      * @notice Initializes the contract
