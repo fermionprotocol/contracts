@@ -17,12 +17,19 @@ export enum TokenState {
   CheckedIn,
   Fractionalised,
   CheckedOut,
+  Burned,
 }
 
 export enum WalletRole {
   Admin,
   Assistant,
   Treasury,
+}
+
+export enum VerificationStatus {
+  Pending,
+  Verified,
+  Rejected,
 }
 
 export function enumIterator(enumObject: any) {

@@ -32,6 +32,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
 
     constructor(address _bosonProtocol) {
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
+        BOSON_TOKEN = IBosonProtocol(_bosonProtocol).getTokenAddress();
     }
 
     /**

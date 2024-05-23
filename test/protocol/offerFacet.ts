@@ -12,7 +12,7 @@ import { ItemType } from "@opensea/seaport-js/lib/constants";
 import { AdvancedOrder } from "@opensea/seaport-js/lib/types";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 
-const { id, MaxUint256, ZeroAddress } = ethers;
+const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
 
 describe("Offer", function () {
   let offerFacet: Contract, entityFacet: Contract;
@@ -531,7 +531,7 @@ describe("Offer", function () {
     const bosonBuyerId = "2"; // Fermion's buyer id inside Boson
     const exchangeId = 1n;
     const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
-    const fullPrice = ethers.parseEther("10");
+    const fullPrice = parseEther("10");
     const openSeaFee = (fullPrice * 2n) / 100n;
     let openSeaAddress: string, buyerAddress: string;
     let bosonProtocolBalance: bigint, openSeaBalance: bigint;

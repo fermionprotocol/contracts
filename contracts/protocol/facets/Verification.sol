@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BOSON_DR_ID_OFFSET } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/Funds.sol";
 import { Context } from "../libs/Context.sol";
-import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
+import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
-
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
 /**
@@ -21,7 +16,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
  *
  * @notice Handles RWA verification.
  */
-contract Verification is Context, FermionErrors, IVerificationEvents {
+contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol) {

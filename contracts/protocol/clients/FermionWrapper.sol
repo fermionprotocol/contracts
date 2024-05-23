@@ -332,7 +332,9 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      * @param _auth The address that is allowed to transfer the token.
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal override returns (address) {
-        checkStateAndCaller(_tokenId, TokenState.Wrapped, OS_CONDUIT);
+        if (tokenState[_tokenId] == TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
+            revert TransferNotAllowed(_tokenId, _msgSender(), TokenState.Wrapped);
+        }
         return super._update(_to, _tokenId, _auth);
     }
 

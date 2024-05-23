@@ -22,6 +22,12 @@ export async function initBosonProtocolFixture(resetAfter: boolean = true) {
   const weth = await wethFactory.deploy();
   await weth.waitForDeployment();
 
+  // Deploy mock boson token
+  const bosonTokenFactory = await getContractFactory("Foreign20");
+  const bosonToken = await bosonTokenFactory.deploy();
+  await bosonToken.waitForDeployment();
+  const bosonTokenAddress = await bosonToken.getAddress();
+
   // Deploy the access controller
   const accessControllerFactory = await getContractFactory("AccessController");
   const accessController = await accessControllerFactory.deploy(admin.address);
@@ -45,6 +51,7 @@ export async function initBosonProtocolFixture(resetAfter: boolean = true) {
   const bosonPriceDiscoveryFactory = await getContractFactory("BosonPriceDiscovery");
   const bosonPriceDiscovery = await bosonPriceDiscoveryFactory.deploy(await weth.getAddress(), bosonProtocolAddress);
   await bosonPriceDiscovery.waitForDeployment();
+  const bosonPriceDiscoveryAddress = await bosonPriceDiscovery.getAddress();
 
   // Deploy Boson Voucher Implementation
   const BosonVoucher = await getContractFactory("BosonVoucher");
@@ -74,8 +81,9 @@ export async function initBosonProtocolFixture(resetAfter: boolean = true) {
 
   // Prepare init call
   const configHandlerInit = getConfigHandlerInitArgs();
-  configHandlerInit[0].priceDiscovery = await bosonPriceDiscovery.getAddress();
+  configHandlerInit[0].priceDiscovery = bosonPriceDiscoveryAddress;
   configHandlerInit[0].voucherBeacon = await clientBeacon.getAddress();
+  configHandlerInit[0].token = bosonTokenAddress;
   const init = {
     ConfigHandlerFacet: configHandlerInit,
   };
@@ -102,7 +110,7 @@ export async function initBosonProtocolFixture(resetAfter: boolean = true) {
 
   if (resetAfter) await resetCompilationFolder();
 
-  return { bosonProtocolAddress, weth, bosonPriceDiscoveryAddress: await bosonPriceDiscovery.getAddress() };
+  return { bosonProtocolAddress, weth, bosonPriceDiscoveryAddress, bosonTokenAddress };
 }
 
 // Load Boson handler ABI creates contract instant and attach it to the Boson protocol address
@@ -145,6 +153,7 @@ async function setBosonContractsCompilationFolder() {
     ["diamond", "**", "*.sol"],
     ["protocol", "**", "*.sol"],
     ["mock", "WETH9.sol"],
+    ["mock", "Foreign20.sol"],
   ];
 
   return setCompilationFolder("boson-protocol-contracts", contracts);

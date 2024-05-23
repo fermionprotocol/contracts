@@ -323,6 +323,13 @@ interface IBosonProtocol {
      * @return the flat fee taken for exchanges in $BOSON
      */
     function getProtocolFeeFlatBoson() external view returns (uint256);
+
+    /**
+     * @notice Gets the Boson Token (ERC-20 contract) address.
+     *
+     * @return the Boson Token (ERC-20 contract) address
+     */
+    function getTokenAddress() external view returns (address payable);
 }
 
 interface IBosonVoucher {
