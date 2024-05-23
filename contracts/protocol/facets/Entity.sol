@@ -38,14 +38,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         uint256 entityId = pl.entityId[msgSender];
         if (entityId != 0) revert EntityAlreadyExists();
 
-        entityId = ++pl.entityCounter;
-        pl.entityId[msgSender] = entityId;
-        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
-        FermionTypes.EntityData storage newEntity = pe.entityData[entityId];
-
-        storeEntity(entityId, msgSender, newEntity, _roles, _metadata);
-        storeCompactWalletRole(entityId, msgSender, 0xff << (31 * BYTE_SIZE), true, pl, pe); // compact role for all current and potential future roles
-        emitAdminWalletAddedOrRemoved(entityId, msgSender, true);
+        EntityLib.createEntity(msgSender, _roles, _metadata, pl);
     }
 
     /**
@@ -143,7 +136,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
                 _walletRoles[i]
             );
 
-            storeCompactWalletRole(entityId, wallet, compactWalletRole, _add, pl, pe);
+            EntityLib.storeCompactWalletRole(entityId, wallet, compactWalletRole, _add, pl, pe);
             if (_add) {
                 emit EntityWalletAdded(entityId, wallet, _entityRoles[i], _walletRoles[i]);
             } else {
@@ -176,7 +169,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         // set the pending admin
         pl.pendingEntityAdmin[_entityId][_wallet] = _status;
 
-        storeCompactWalletRole(
+        EntityLib.storeCompactWalletRole(
             _entityId,
             _wallet,
             0xff << (31 * BYTE_SIZE),
@@ -184,7 +177,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
             pl,
             FermionStorage.protocolEntities()
         ); // compact role for all current and potential future roles
-        emitAdminWalletAddedOrRemoved(_entityId, _wallet, _status);
+        EntityLib.emitAdminWalletAddedOrRemoved(_entityId, _wallet, _status);
     }
 
     /**
@@ -243,7 +236,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         validateEntityAdmin(_entityId, FermionStorage.protocolLookups());
         FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
 
-        storeEntity(_entityId, address(0), entityData, _roles, _metadata);
+        EntityLib.storeEntity(_entityId, address(0), entityData, _roles, _metadata);
     }
 
     /**
@@ -371,34 +364,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     }
 
     /**
-     * @notice Write entity data in the storage.
-     *
-     * Emits an EntityStored event if successful.
-     *
-     * @param _entityId - the entity ID
-     * @param _admin - the address of the entity
-     * @param _entityData - storage pointer to data location
-     * @param _roles - the roles the entity will have
-     * @param _metadata - the metadata URI for the entity
-     */
-    function storeEntity(
-        uint256 _entityId,
-        address _admin,
-        FermionTypes.EntityData storage _entityData,
-        FermionTypes.EntityRole[] calldata _roles,
-        string calldata _metadata
-    ) internal {
-        if (_admin != address(0)) {
-            _entityData.admin = _admin;
-        }
-        _entityData.roles = rolesToCompactRole(_roles);
-        _entityData.metadataURI = _metadata;
-
-        // Notify watchers of state change
-        emit EntityStored(_entityId, msgSender(), _roles, _metadata);
-    }
-
-    /**
      * @notice Gets the entity data from the storage.
      *
      * Reverts if:
@@ -431,23 +396,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         EntityLib.validateEntityId(_entityId, pl);
 
         entityData = FermionStorage.protocolEntities().entityData[_entityId];
-    }
-
-    /**
-     * @notice Converts array of Roles to compact roles.
-     *
-     * Calculates the compact role as the sum of individual roles.
-     * Use "or" to get the correct value even if the same role is specified more than once.
-     *
-     * @param _roles - the array of roles
-     * @return compactRole - the compact representation of roles
-     */
-    function rolesToCompactRole(FermionTypes.EntityRole[] calldata _roles) internal pure returns (uint256 compactRole) {
-        for (uint256 i = 0; i < _roles.length; i++) {
-            // Get enum value as power of 2
-            uint256 role = 1 << uint256(_roles[i]);
-            compactRole |= role;
-        }
     }
 
     /**
@@ -557,56 +505,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
                 uint256 role = compactWalletRolePerEntityRole << (uint256(entityRole) * BYTE_SIZE); // put in the right byte.
                 compactWalletRole |= role;
             }
-        }
-    }
-
-    /**
-     * @notice Stores compact wallet role for the entity and wallet.
-     *
-     * @param _entityId - the entity ID
-     * @param _wallet - the wallet address
-     * @param _compactWalletRole - the compact wallet role
-     * @param _add - if true, the wallet is added, if false, it is removed
-     * @param pl - the protocol lookups storage
-     * @param pe - the protocol entities storage
-     */
-    function storeCompactWalletRole(
-        uint256 _entityId,
-        address _wallet,
-        uint256 _compactWalletRole,
-        bool _add,
-        FermionStorage.ProtocolLookups storage pl,
-        FermionStorage.ProtocolEntities storage pe
-    ) internal {
-        uint256 walletId = pl.walletId[_wallet];
-
-        if (walletId == 0) {
-            walletId = ++pl.walletsCounter;
-            pl.walletId[_wallet] = walletId;
-        }
-
-        if (_add) {
-            pe.walletRole[walletId][_entityId] |= _compactWalletRole;
-        } else {
-            pe.walletRole[walletId][_entityId] &= ~_compactWalletRole;
-        }
-    }
-
-    /**
-     * @notice Creates event arguments and emits EntityWalletAdded, when entity-wide admin is added or removed.
-     *
-     * @param _entityId - the entity ID
-     * @param _wallet - the admin wallet address
-     * @param _added - if true, the wallet is added, if false, it is removed
-     */
-    function emitAdminWalletAddedOrRemoved(uint256 _entityId, address _wallet, bool _added) internal {
-        FermionTypes.WalletRole[][] memory adminWallet = new FermionTypes.WalletRole[][](1);
-        adminWallet[0] = new FermionTypes.WalletRole[](1);
-        adminWallet[0][0] = FermionTypes.WalletRole.Admin;
-        if (_added) {
-            emit EntityWalletAdded(_entityId, _wallet, new FermionTypes.EntityRole[](0), adminWallet);
-        } else {
-            emit EntityWalletRemoved(_entityId, _wallet, new FermionTypes.EntityRole[](0), adminWallet);
         }
     }
 

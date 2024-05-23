@@ -10,6 +10,7 @@ import { FundsLib } from "../libs/Funds.sol";
 import { Context } from "../libs/Context.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
+import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -178,7 +179,9 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             FermionTypes.EntityRole.Seller,
             FermionTypes.WalletRole.Assistant
         );
-        address wrapperAddress = FermionStorage.protocolLookups().wrapperAddress[offerId];
+
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        address wrapperAddress = pl.wrapperAddress[offerId];
 
         IBosonProtocol.PriceDiscovery memory _priceDiscovery;
         _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
@@ -210,9 +213,11 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
         }
 
+        pl.offerPrice[offerId] = _priceDiscovery.price; // ToDO: BP fee is not included in the price
+
         BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
         BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
-        emit VerificationInitiated(offerId, offer.verifierId, _tokenId);
+        emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId);
     }
 
     /**

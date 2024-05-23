@@ -293,6 +293,22 @@ interface IBosonProtocol {
      * @param _exchangeId - the id of the exchange
      */
     function redeemVoucher(uint256 _exchangeId) external;
+
+    /**
+     * @notice Completes an exchange.
+     *
+     * @param _exchangeId - the id of the exchange to complete
+     */
+    function completeExchange(uint256 _exchangeId) external;
+
+    /**
+     * @notice Withdraws the specified funds. Can be called for seller, buyer or agent.
+     *
+     * @param _entityId - id of entity for which funds should be withdrawn
+     * @param _tokenList - list of contract addresses of tokens that are being withdrawn
+     * @param _tokenAmounts - list of amounts to be withdrawn, corresponding to tokens in tokenList
+     */
+    function withdrawFunds(uint256 _entityId, address[] calldata _tokenList, uint256[] calldata _tokenAmounts) external;
 }
 
 interface IBosonVoucher {

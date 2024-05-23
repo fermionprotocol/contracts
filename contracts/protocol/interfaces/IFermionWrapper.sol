@@ -17,7 +17,8 @@ interface IFermionWrapper is IERC721 {
         Verified,
         CheckedIn,
         Fractionalised,
-        CheckedOut
+        CheckedOut,
+        Burned
     }
 
     error AlreadyInitialized();
@@ -59,4 +60,15 @@ interface IFermionWrapper is IERC721 {
      * @param _tokenId The token id.
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external;
+
+    /**
+     * @notice Burns the token and returns the voucher owner
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     * - Token is not in the Unverified state
+     *
+     * @param _tokenId The token id.
+     */
+    function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner);
 }

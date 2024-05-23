@@ -129,6 +129,28 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     }
 
     /**
+     * @notice Burns the token and returns the voucher owner
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     * - Token is not in the Unverified state
+     *
+     * @param _tokenId The token id.
+     */
+    function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner) {
+        address msgSender = _msgSender();
+
+        if (tokenState[_tokenId] != TokenState.Unverified || msgSender != fermionProtocol) {
+            revert TransferNotAllowed(_tokenId, msgSender, tokenState[_tokenId]);
+        }
+
+        wrappedVoucherOwner = ownerOf(_tokenId);
+
+        tokenState[_tokenId] = TokenState.Burned;
+        _burn(_tokenId);
+    }
+
+    /**
      * @notice Puts the F-NFT from wrapped to unverified state and transfers Boson rNFT to fermion protocol
      *
      * @param _tokenId The token id.
