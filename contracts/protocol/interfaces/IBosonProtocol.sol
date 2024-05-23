@@ -309,6 +309,20 @@ interface IBosonProtocol {
      * @param _tokenAmounts - list of amounts to be withdrawn, corresponding to tokens in tokenList
      */
     function withdrawFunds(uint256 _entityId, address[] calldata _tokenList, uint256[] calldata _tokenAmounts) external;
+
+    /**
+     * @notice Gets the protocol fee percentage.
+     *
+     * @return the protocol fee percentage
+     */
+    function getProtocolFeePercentage() external view returns (uint256);
+
+    /**
+     * @notice Gets the flat protocol fee for exchanges in $BOSON.
+     *
+     * @return the flat fee taken for exchanges in $BOSON
+     */
+    function getProtocolFeeFlatBoson() external view returns (uint256);
 }
 
 interface IBosonVoucher {
