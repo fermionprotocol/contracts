@@ -71,4 +71,15 @@ interface IFermionWrapper is IERC721 {
      * @param _tokenId The token id.
      */
     function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner);
+
+    /**
+     * @notice Pushes the F-NFT from unverified to verified
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     * - Token is not in the Unverified state
+     *
+     * @param _tokenId The token id.
+     */
+    function verify(uint256 _tokenId) external;
 }

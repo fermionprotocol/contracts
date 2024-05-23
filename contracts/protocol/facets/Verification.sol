@@ -80,9 +80,9 @@ contract Verification is Context, FermionErrors, IVerificationEvents {
         if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
             // transfer the remainder to the seller
             FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
+            IFermionWrapper(pl.wrapperAddress[offerId]).verify(_tokenId);
         } else {
-            address wrapperAddress = pl.wrapperAddress[offerId];
-            address buyerAddress = IFermionWrapper(wrapperAddress).burn(_tokenId);
+            address buyerAddress = IFermionWrapper(pl.wrapperAddress[offerId]).burn(_tokenId);
 
             uint256 buyerId = pl.walletId[buyerAddress];
 

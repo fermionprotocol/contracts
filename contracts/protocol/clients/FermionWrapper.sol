@@ -138,11 +138,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      * @param _tokenId The token id.
      */
     function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner) {
-        address msgSender = _msgSender();
-
-        if (tokenState[_tokenId] != TokenState.Unverified || msgSender != fermionProtocol) {
-            revert TransferNotAllowed(_tokenId, msgSender, tokenState[_tokenId]);
-        }
+        checkStateAndCaller(_tokenId, TokenState.Unverified, fermionProtocol);
 
         wrappedVoucherOwner = ownerOf(_tokenId);
 
@@ -151,16 +147,26 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     }
 
     /**
+     * @notice Pushes the F-NFT from unverified to verified
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     * - Token is not in the Unverified state
+     *
+     * @param _tokenId The token id.
+     */
+    function verify(uint256 _tokenId) external {
+        checkStateAndCaller(_tokenId, TokenState.Unverified, fermionProtocol);
+        tokenState[_tokenId] = TokenState.Verified;
+    }
+
+    /**
      * @notice Puts the F-NFT from wrapped to unverified state and transfers Boson rNFT to fermion protocol
      *
      * @param _tokenId The token id.
      */
     function unwrap(uint256 _tokenId) internal {
-        address msgSender = _msgSender();
-
-        if (tokenState[_tokenId] != TokenState.Wrapped || msgSender != BP_PRICE_DISCOVERY) {
-            revert TransferNotAllowed(_tokenId, msgSender, tokenState[_tokenId]);
-        }
+        checkStateAndCaller(_tokenId, TokenState.Wrapped, BP_PRICE_DISCOVERY);
 
         tokenState[_tokenId] = TokenState.Unverified; // Moving to next state, also enabling the transfer and prevent reentrancy
 
@@ -326,9 +332,24 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      * @param _auth The address that is allowed to transfer the token.
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal override returns (address) {
-        if (tokenState[_tokenId] == TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
-            revert TransferNotAllowed(_tokenId, _msgSender(), TokenState.Wrapped);
-        }
+        checkStateAndCaller(_tokenId, TokenState.Wrapped, OS_CONDUIT);
         return super._update(_to, _tokenId, _auth);
+    }
+
+    /**
+     * @notice Checks it the token is in the expected state and the caller is the expected address
+     *
+     * Reverts if:
+     * - Token is not in the expected state
+     * - Caller is not the expected address
+     *
+     * @param _tokenId The token id
+     * @param _expectedState The expected state
+     * @param _expectedCaller The expected caller
+     */
+    function checkStateAndCaller(uint256 _tokenId, TokenState _expectedState, address _expectedCaller) internal view {
+        if (tokenState[_tokenId] != _expectedState || _msgSender() != _expectedCaller) {
+            revert TransferNotAllowed(_tokenId, _msgSender(), tokenState[_tokenId]);
+        }
     }
 }
