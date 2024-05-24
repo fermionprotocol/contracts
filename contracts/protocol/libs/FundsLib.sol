@@ -6,6 +6,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { ContextLib } from "../libs/Context.sol";
+import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
 
 /**
  * @title FundsLib
@@ -96,5 +97,7 @@ library FundsLib {
 
         // update the available funds
         availableFunds[_tokenAddress] += _amount;
+
+        emit IFundsEvents.AvailableFundsIncreased(_entityId, _tokenAddress, _amount);
     }
 }

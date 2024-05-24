@@ -5,7 +5,7 @@ import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/Funds.sol";
+import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
@@ -47,7 +47,7 @@ contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
             FermionTypes.WalletRole.Assistant
         );
 
-        BOSON_PROTOCOL.completeExchange(_tokenId);
+        BOSON_PROTOCOL.completeExchange(_tokenId & type(uint128).max);
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address exchangeToken = offer.exchangeToken;
@@ -68,7 +68,7 @@ contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
 
         // fermion fee
         uint256 fermionFee = 0; //ToDo
-        FundsLib.increaseAvailableFunds(0, exchangeToken, verifierFee); // Protocol fees are stored in entity 0
+        FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFee); // Protocol fees are stored in entity 0
 
         uint256 remainder = totalAmount - verifierFee - fermionFee;
 
@@ -84,7 +84,7 @@ contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
             if (buyerId == 0) {
                 FermionTypes.EntityRole[] memory _roles = new FermionTypes.EntityRole[](1);
                 _roles[0] = FermionTypes.EntityRole.Buyer;
-                EntityLib.createEntity(buyerAddress, _roles, "", pl);
+                buyerId = EntityLib.createEntity(buyerAddress, _roles, "", pl);
             }
 
             // transfer the remainder to the buyer
@@ -93,6 +93,4 @@ contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
 
         emit VerdictSubmitted(_tokenId, verifierId, _verificationStatus);
     }
-
-    function verified(uint256 _tokenId) internal {}
 }

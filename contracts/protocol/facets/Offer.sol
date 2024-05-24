@@ -6,7 +6,7 @@ import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/Funds.sol";
+import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";

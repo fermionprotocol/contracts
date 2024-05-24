@@ -29,8 +29,8 @@ library EntityLib {
         FermionTypes.EntityRole[] memory _roles,
         string memory _metadata,
         FermionStorage.ProtocolLookups storage pl
-    ) internal {
-        uint256 entityId = ++pl.entityCounter;
+    ) internal returns (uint256 entityId) {
+        entityId = ++pl.entityCounter;
         pl.entityId[_admin] = entityId;
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
         FermionTypes.EntityData storage newEntity = pe.entityData[entityId];
@@ -65,7 +65,7 @@ library EntityLib {
         _entityData.metadataURI = _metadata;
 
         // Notify watchers of state change
-        emit IEntityEvents.EntityStored(_entityId, ContextLib.msgSender(), _roles, _metadata);
+        emit IEntityEvents.EntityStored(_entityId, _admin, _roles, _metadata);
     }
 
     /**

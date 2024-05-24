@@ -27,7 +27,6 @@ export enum WalletRole {
 }
 
 export enum VerificationStatus {
-  Pending,
   Verified,
   Rejected,
 }

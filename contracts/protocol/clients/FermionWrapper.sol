@@ -142,8 +142,8 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
 
         wrappedVoucherOwner = ownerOf(_tokenId);
 
-        tokenState[_tokenId] = TokenState.Burned;
         _burn(_tokenId);
+        changeTokenState(_tokenId, TokenState.Burned);
     }
 
     /**
@@ -157,7 +157,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      */
     function verify(uint256 _tokenId) external {
         checkStateAndCaller(_tokenId, TokenState.Unverified, fermionProtocol);
-        tokenState[_tokenId] = TokenState.Verified;
+        changeTokenState(_tokenId, TokenState.Verified);
     }
 
     /**
@@ -168,7 +168,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     function unwrap(uint256 _tokenId) internal {
         checkStateAndCaller(_tokenId, TokenState.Wrapped, BP_PRICE_DISCOVERY);
 
-        tokenState[_tokenId] = TokenState.Unverified; // Moving to next state, also enabling the transfer and prevent reentrancy
+        changeTokenState(_tokenId, TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
 
         // transfer Boson Voucher to Fermion protocol. Not using safeTransferFrom since we are sure Fermion Protocol can handle the voucher
         IERC721(voucherAddress).transferFrom(address(this), fermionProtocol, _tokenId);
@@ -318,7 +318,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
 
             // Mint to the specified address
             _safeMint(_to, tokenId);
-            tokenState[tokenId] = TokenState.Wrapped;
+            changeTokenState(tokenId, TokenState.Wrapped);
         }
         _setApprovalForAll(address(this), OS_CONDUIT, true);
     }
@@ -333,7 +333,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal override returns (address) {
         if (tokenState[_tokenId] == TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
-            revert TransferNotAllowed(_tokenId, _msgSender(), TokenState.Wrapped);
+            revert InvalidStateOrCaller(_tokenId, _msgSender(), TokenState.Wrapped);
         }
         return super._update(_to, _tokenId, _auth);
     }
@@ -351,7 +351,20 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      */
     function checkStateAndCaller(uint256 _tokenId, TokenState _expectedState, address _expectedCaller) internal view {
         if (tokenState[_tokenId] != _expectedState || _msgSender() != _expectedCaller) {
-            revert TransferNotAllowed(_tokenId, _msgSender(), tokenState[_tokenId]);
+            revert InvalidStateOrCaller(_tokenId, _msgSender(), tokenState[_tokenId]);
         }
+    }
+
+    /**
+     * @notice Changes the state of a token
+     *
+     * Emits an TokenStateChange event
+     *
+     * @param _tokenId The token id
+     * @param _state The new state
+     */
+    function changeTokenState(uint256 _tokenId, TokenState _state) internal {
+        tokenState[_tokenId] = _state;
+        emit TokenStateChange(_tokenId, _state);
     }
 }

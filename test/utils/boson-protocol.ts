@@ -173,3 +173,7 @@ function getConfigHandlerInitArgs() {
     protocolConfig.fees,
   ];
 }
+
+export function getBosonProtocolFees() {
+  return protocolConfig.fees;
+}

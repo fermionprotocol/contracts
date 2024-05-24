@@ -23,7 +23,6 @@ contract FermionTypes {
     }
 
     enum VerificationStatus {
-        Pending,
         Verified,
         Rejected
     }
