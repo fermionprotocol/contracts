@@ -26,9 +26,9 @@ describe("Verification", function () {
   const verifierId = "2";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
-  const exchange = { tokenId: "", verifierId: "", sellerPayout: 0n, offerId: "", exchangeId: "" };
-  const exchangeSelfSale = { tokenId: "", verifierId: "", sellerPayout: 0n, offerId: "", exchangeId: "" };
-  const exchangeSelfVerification = { tokenId: "", verifierId: "", sellerPayout: 0n, offerId: "", exchangeId: "" };
+  const exchange = { tokenId: "", verifierId: "", payout: 0n, offerId: "", exchangeId: "" };
+  const exchangeSelfSale = { tokenId: "", verifierId: "", payout: 0n, offerId: "", exchangeId: "" };
+  const exchangeSelfVerification = { tokenId: "", verifierId: "", payout: 0n, offerId: "", exchangeId: "" };
 
   async function setupVerificationTest() {
     // Create three entities
@@ -460,6 +460,22 @@ describe("Verification", function () {
         await expect(wrapper.ownerOf(exchangeSelfVerification.tokenId))
           .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
           .withArgs(exchangeSelfVerification.tokenId);
+      });
+
+      it("If buyer exists, it's not created anew and funds are added", async function () {
+        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Rejected))
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(exchange.payout);
+
+        await expect(
+          verificationFacet.submitVerdict(exchangeSelfVerification.tokenId, VerificationStatus.Rejected),
+        ).to.not.emit(entityFacet, "EntityStored");
+
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchange.payout + exchangeSelfVerification.payout,
+        );
       });
     });
 

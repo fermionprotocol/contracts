@@ -254,7 +254,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
                 minimalPrice = (HUNDRED_PERCENT * _verifierFee) / (HUNDRED_PERCENT - bosonProtocolFeePercentage);
                 if (_price == 0) _price = minimalPrice; // self sale
             }
-            if (_price > 0) bosonProtocolFee = (_price * bosonProtocolFeePercentage) / HUNDRED_PERCENT;
+            bosonProtocolFee = (_price * bosonProtocolFeePercentage) / HUNDRED_PERCENT; // price is guaranteed to be > 0, so this must always be calculated
         }
     }
 
