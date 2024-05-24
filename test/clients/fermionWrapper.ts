@@ -164,7 +164,7 @@ describe("FermionWrapper", function () {
         for (let i = 0; i < quantity; i++) {
           const tokenId = startTokenId + i;
           await expect(fermionWrapperProxy.connect(seller).transferFrom(seller.address, newOwner.address, tokenId))
-            .to.be.revertedWithCustomError(fermionWrapperProxy, "TransferNotAllowed")
+            .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
             .withArgs(tokenId, seller.address, TokenState.Wrapped);
         }
       });
@@ -203,18 +203,18 @@ describe("FermionWrapper", function () {
       it("Unauthorized call", async function () {
         // Fermion protocol
         await expect(fermionWrapperProxy.unwrapToSelf(startTokenId, ZeroAddress, 0))
-          .to.be.revertedWithCustomError(fermionWrapperProxy, "TransferNotAllowed")
+          .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
           .withArgs(startTokenId, fermionProtocolSigner.address, TokenState.Wrapped);
 
         // Seller
         await expect(fermionWrapperProxy.connect(seller).unwrapToSelf(startTokenId, ZeroAddress, 0))
-          .to.be.revertedWithCustomError(fermionWrapperProxy, "TransferNotAllowed")
+          .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
           .withArgs(startTokenId, seller.address, TokenState.Wrapped);
 
         // Random wallet
         const randomWallet = wallets[4];
         await expect(fermionWrapperProxy.connect(randomWallet).unwrapToSelf(startTokenId, ZeroAddress, 0))
-          .to.be.revertedWithCustomError(fermionWrapperProxy, "TransferNotAllowed")
+          .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
           .withArgs(startTokenId, randomWallet.address, TokenState.Wrapped);
       });
 
@@ -222,7 +222,7 @@ describe("FermionWrapper", function () {
         await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
 
         await expect(fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0))
-          .to.be.revertedWithCustomError(fermionWrapperProxy, "TransferNotAllowed")
+          .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
           .withArgs(startTokenId, mockBosonPriceDiscovery.address, TokenState.Unverified);
       });
     });

@@ -58,7 +58,9 @@ library EntityLib {
         FermionTypes.EntityRole[] memory _roles,
         string memory _metadata
     ) internal {
-        if (_admin != address(0)) {
+        if (_admin == address(0)) {
+            _admin = _entityData.admin; // covers updateEntity case
+        } else {
             _entityData.admin = _admin;
         }
         _entityData.roles = rolesToCompactRole(_roles);

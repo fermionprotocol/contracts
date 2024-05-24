@@ -177,7 +177,6 @@ describe("Verification", function () {
   }
 
   before(async function () {
-    this.timeout(100000);
     ({
       diamondAddress: fermionProtocolAddress,
       facets: {
