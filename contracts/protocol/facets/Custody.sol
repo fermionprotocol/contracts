@@ -136,6 +136,9 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      * - Caller is not the seller's assistant
      * - The checkout request has not been made
      * - The submitted tax amount is zero
+     *
+     * @param _tokenId - the token ID
+     * @param _taxAmount - the tax amount
      */
     function submitTaxAmount(uint256 _tokenId, uint256 _taxAmount) external {
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
@@ -213,6 +216,15 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequestCleared;
 
         emit CheckOutRequestCleared(offer.custodianId, _tokenId);
+    }
+
+    /**
+     * @notice Gets tax amount
+     *
+     * @param _tokenId - the token ID
+     */
+    function getTaxAmount(uint256 _tokenId) external view returns (uint256) {
+        return FermionStorage.protocolLookups().checkoutRequest[_tokenId].taxAmount;
     }
 
     /**

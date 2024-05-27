@@ -182,6 +182,41 @@ describe("Custody", function () {
     return { buyerAdvancedOrder, tokenId, encumberedAmount };
   }
 
+  // Used to test methods that can be called by the Seller's Assistant only
+  async function verifySellerAssistantRole(method: string, args: any[]) {
+    const wallet = wallets[9];
+    const sellerId = "1";
+
+    // completely random wallet
+    await expect(custodyFacet.connect(wallet)[method](...args))
+      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+      .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
+
+    // an entity-wide Treasury or admin wallet (not Assistant)
+    await entityFacet.addEntityWallets(sellerId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
+    await expect(custodyFacet.connect(wallet)[method](...args))
+      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+      .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
+
+    // a Seller specific Treasury or Admin wallet
+    const wallet2 = wallets[10];
+    await entityFacet.addEntityWallets(
+      sellerId,
+      [wallet2],
+      [[EntityRole.Seller]],
+      [[[WalletRole.Treasury, WalletRole.Admin]]],
+    );
+    await expect(custodyFacet.connect(wallet2)[method](...args))
+      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+      .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
+
+    // an Assistant of another role than Seller
+    await entityFacet.addEntityWallets(sellerId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
+    await expect(custodyFacet.connect(wallet2)[method](...args))
+      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+      .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
+  }
+
   before(async function () {
     ({
       diamondAddress: fermionProtocolAddress,
@@ -358,8 +393,6 @@ describe("Custody", function () {
   });
 
   context("requestCheckOut", function () {
-    before(async function () {});
-
     it("F-NFT Owner can request checkout", async function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
 
@@ -484,13 +517,139 @@ describe("Custody", function () {
         });
 
         it("Cannot request check-out if not checked in", async function () {
+          // Verified but not checked in
+          await expect(custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.None);
+        });
+      });
+    });
+  });
+
+  context("submitTaxAmount", function () {
+    const taxAmount = parseEther("0.2");
+
+    it("Seller can add tax amount", async function () {
+      await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+      const tx = await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
+
+      // Events
+      // Fermion
+      await expect(tx).to.emit(custodyFacet, "TaxAmountSubmitted").withArgs(exchange.tokenId, sellerId, taxAmount);
+
+      // Wrapper
+      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+
+      // State
+      // Fermion
+      expect(await custodyFacet.getTaxAmount(exchange.tokenId)).to.equal(taxAmount);
+
+      // Wrapper
+      expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+    });
+
+    it("Self custody", async function () {
+      await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+      await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
+
+      const tx = await custodyFacet.submitTaxAmount(exchangeSelfCustody.tokenId, taxAmount);
+
+      // Events
+      // Fermion
+      await expect(tx)
+        .to.emit(custodyFacet, "TaxAmountSubmitted")
+        .withArgs(exchangeSelfCustody.tokenId, sellerId, taxAmount);
+
+      // Wrapper
+      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
+      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+
+      // State
+      // Fermion
+      expect(await custodyFacet.getTaxAmount(exchangeSelfCustody.tokenId)).to.equal(taxAmount);
+
+      // Wrapper
+      expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapper.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
+    });
+
+    it("Tax amount can be updated", async function () {
+      await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+      await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
+
+      const newTaxAmount = parseEther("0.3");
+      await expect(custodyFacet.submitTaxAmount(exchange.tokenId, newTaxAmount))
+        .to.emit(custodyFacet, "TaxAmountSubmitted")
+        .withArgs(exchange.tokenId, sellerId, newTaxAmount);
+
+      expect(await custodyFacet.getTaxAmount(exchange.tokenId)).to.equal(newTaxAmount);
+    });
+
+    context("Revert reasons", function () {
+      it("Caller is not the seller's assistant", async function () {
+        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+        await verifySellerAssistantRole("submitTaxAmount", [exchange.tokenId, taxAmount]);
+      });
+
+      it("Tax amount is 0", async function () {
+        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+        const taxAmount = "0";
+        await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount)).to.be.revertedWithCustomError(
+          fermionErrors,
+          "InvalidTaxAmount",
+        );
+      });
+
+      context("Invalid state", function () {
+        const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
+
+        it("Cannot submit tax amount before it's unwrapped", async function () {
+          await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
+        });
+
+        it("Cannot submit tax amount if not verified or rejected", async function () {
           await offerFacet.unwrapNFTToSelf(tokenId);
-          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Verified);
 
           // Unwrapped but not verified
-          await expect(custodyFacet.requestCheckOut(tokenId))
+          await expect(custodyFacet.submitTaxAmount(tokenId, taxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
-            .withArgs(tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.None);
+            .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
+
+          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+
+          // Unwrapped and rejected
+          await expect(custodyFacet.submitTaxAmount(tokenId, taxAmount))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
+        });
+
+        it("Cannot submit tax amount if not checked in", async function () {
+          // Verified but not checked in
+          await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
+        });
+
+        it("Cannot submit tax amount if checkout not requested", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+
+          // Checked in but checkout not requested
+          await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedIn);
         });
       });
     });
