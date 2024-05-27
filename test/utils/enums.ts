@@ -30,6 +30,14 @@ export enum VerificationStatus {
   Rejected,
 }
 
+export enum CheckoutRequestStatus {
+  None,
+  CheckedIn,
+  CheckOutRequested,
+  CheckOutRequestCleared,
+  CheckedOut,
+}
+
 export function enumIterator(enumObject: any) {
   return Object.keys(enumObject).filter((key) => !isNaN(Number(key)));
 }

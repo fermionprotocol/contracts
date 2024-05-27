@@ -28,6 +28,13 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      * @param _tokenId - the token ID
      */
     function checkIn(uint256 _tokenId) external {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
+            _tokenId,
+            FermionTypes.CheckoutRequestStatus.None,
+            pl
+        );
+
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 custodianId = offer.custodianId;
 
@@ -39,10 +46,12 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
             FermionTypes.WalletRole.Assistant
         );
 
-        IFermionWrapper(FermionStorage.protocolLookups().wrapperAddress[offerId]).pushToNextTokenState(
+        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(
             _tokenId,
             IFermionWrapper.TokenState.CheckedIn
         );
+
+        checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
         emit CheckedIn(custodianId, _tokenId);
     }
@@ -63,7 +72,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
-            FermionTypes.CheckoutRequestStatus.Cleared,
+            FermionTypes.CheckoutRequestStatus.CheckOutRequestCleared,
             pl
         );
 
@@ -95,11 +104,11 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * @param _tokenId - the token ID
      */
-    function requestCheckout(uint256 _tokenId) external {
+    function requestCheckOut(uint256 _tokenId) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
-            FermionTypes.CheckoutRequestStatus.None,
+            FermionTypes.CheckoutRequestStatus.CheckedIn,
             pl
         );
 
@@ -110,7 +119,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
             revert NotTokenOwner(_tokenId, owner, msgSender);
         }
 
-        checkoutRequest.status = FermionTypes.CheckoutRequestStatus.Requested;
+        checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequested;
 
         emit CheckoutRequested(offer.custodianId, _tokenId, offer.sellerId, msgSender);
     }
@@ -131,7 +140,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
     function submitTaxAmount(uint256 _tokenId, uint256 _taxAmount) external {
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
-            FermionTypes.CheckoutRequestStatus.Requested,
+            FermionTypes.CheckoutRequestStatus.CheckOutRequested,
             FermionStorage.protocolLookups()
         );
 
@@ -174,7 +183,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
-            FermionTypes.CheckoutRequestStatus.Requested,
+            FermionTypes.CheckoutRequestStatus.CheckOutRequested,
             pl
         );
 
@@ -201,7 +210,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
             FundsLib.validateIncomingPayment(offer.exchangeToken, taxAmount);
         }
 
-        checkoutRequest.status = FermionTypes.CheckoutRequestStatus.Cleared;
+        checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequestCleared;
 
         emit CheckOutRequestCleared(offer.custodianId, _tokenId);
     }

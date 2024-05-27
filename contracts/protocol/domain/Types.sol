@@ -29,8 +29,9 @@ contract FermionTypes {
 
     enum CheckoutRequestStatus {
         None,
-        Requested,
-        Cleared,
+        CheckedIn,
+        CheckOutRequested,
+        CheckOutRequestCleared,
         CheckedOut
     }
 

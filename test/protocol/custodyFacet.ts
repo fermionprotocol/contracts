@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroAddress, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, TokenState, VerificationStatus, WalletRole } from "../utils/enums";
+import { EntityRole, CheckoutRequestStatus, TokenState, VerificationStatus, WalletRole } from "../utils/enums";
 import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
@@ -205,8 +205,6 @@ describe("Custody", function () {
   });
 
   context("checkIn", function () {
-    before(async function () {});
-
     it("Custodian can check item in", async function () {
       const tx = await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
 
@@ -240,7 +238,6 @@ describe("Custody", function () {
       await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.CheckedIn);
 
       // State
-      // Fermion
       // Wrapper
       expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.CheckedIn);
       expect(await wrapper.ownerOf(exchangeSelfSale.tokenId)).to.equal(defaultSigner.address);
@@ -322,8 +319,8 @@ describe("Custody", function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
 
           await expect(custodyFacet.connect(custodian).checkIn(exchange.tokenId))
-            .to.be.revertedWithCustomError(wrapper, "InvalidStateOrCaller")
-            .withArgs(exchange.tokenId, fermionProtocolAddress, TokenState.CheckedIn);
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.None, CheckoutRequestStatus.CheckedIn);
         });
 
         it("Cannot check-in before it's unwrapped", async function () {
@@ -346,6 +343,154 @@ describe("Custody", function () {
           await expect(custodyFacet.checkIn(tokenId))
             .to.be.revertedWithCustomError(wrapper, "InvalidStateOrCaller")
             .withArgs(tokenId, fermionProtocolAddress, TokenState.Burned);
+        });
+
+        it("Cannot check-in if checkout already requested", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+          await expect(custodyFacet.connect(custodian).checkIn(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.None, CheckoutRequestStatus.CheckOutRequested);
+        });
+      });
+    });
+  });
+
+  context("requestCheckOut", function () {
+    before(async function () {});
+
+    it("F-NFT Owner can request checkout", async function () {
+      await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+
+      const tx = await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+      // Events
+      // Fermion
+      await expect(tx)
+        .to.emit(custodyFacet, "CheckoutRequested")
+        .withArgs(exchange.custodianId, exchange.tokenId, sellerId, buyer.address);
+
+      // Wrapper
+      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+
+      // State
+      // Wrapper
+      expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+    });
+
+    it("Self sale", async function () {
+      await custodyFacet.connect(custodian).checkIn(exchangeSelfSale.tokenId);
+
+      const tx = await custodyFacet.requestCheckOut(exchangeSelfSale.tokenId);
+
+      // Events
+      // Fermion
+      await expect(tx)
+        .to.emit(custodyFacet, "CheckoutRequested")
+        .withArgs(exchangeSelfSale.custodianId, exchangeSelfSale.tokenId, sellerId, defaultSigner.address);
+
+      // Wrapper
+      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
+      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+
+      // State
+      // Wrapper
+      expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapper.ownerOf(exchangeSelfSale.tokenId)).to.equal(defaultSigner.address);
+    });
+
+    it("Self custody", async function () {
+      await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+
+      const tx = await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
+
+      // Events
+      // Fermion
+      await expect(tx)
+        .to.emit(custodyFacet, "CheckoutRequested")
+        .withArgs(sellerId, exchangeSelfCustody.tokenId, sellerId, buyer.address);
+
+      // Wrapper
+      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
+      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+
+      // State
+      // Wrapper
+      expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapper.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
+    });
+
+    context("Revert reasons", function () {
+      it("Caller is not the buyer", async function () {
+        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+
+        const wallet = wallets[9];
+
+        // completely random wallet
+        await expect(custodyFacet.connect(wallet).requestCheckOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+          .withArgs(exchange.tokenId, buyer.address, wallet.address);
+
+        // seller
+        await expect(custodyFacet.requestCheckOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+          .withArgs(exchange.tokenId, buyer.address, defaultSigner.address);
+
+        // custodian
+        await expect(custodyFacet.connect(custodian).requestCheckOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+          .withArgs(exchange.tokenId, buyer.address, custodian.address);
+      });
+
+      context("Invalid state", function () {
+        const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
+
+        it("Cannot request check-out twice", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+          await expect(custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.CheckOutRequested);
+        });
+
+        it("Cannot request check-out before it's unwrapped", async function () {
+          await expect(custodyFacet.requestCheckOut(tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.None);
+        });
+
+        it("Cannot request check-out if not verified or rejected", async function () {
+          await offerFacet.unwrapNFTToSelf(tokenId);
+
+          // Unwrapped but not verified
+          await expect(custodyFacet.requestCheckOut(tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.None);
+
+          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+
+          // Unwrapped and rejected
+          await expect(custodyFacet.requestCheckOut(tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.None);
+        });
+
+        it("Cannot request check-out if not checked in", async function () {
+          await offerFacet.unwrapNFTToSelf(tokenId);
+          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Verified);
+
+          // Unwrapped but not verified
+          await expect(custodyFacet.requestCheckOut(tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.None);
         });
       });
     });
