@@ -1,5 +1,10 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployFermionProtocolFixture, deployMockTokens, deriveTokenId } from "../utils/common";
+import {
+  deployFermionProtocolFixture,
+  deployMockTokens,
+  deriveTokenId,
+  verifySellerAssistantRoleClosure,
+} from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroAddress, ZeroHash } from "ethers";
@@ -31,9 +36,10 @@ describe("Custody", function () {
   const custodianId = "3";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
-  const exchange = { tokenId: "", custodianId: "", payout: 0n, offerId: "", exchangeId: "" };
-  const exchangeSelfSale = { tokenId: "", custodianId: "", payout: 0n, offerId: "", exchangeId: "" };
-  const exchangeSelfCustody = { tokenId: "", custodianId: "", payout: 0n, offerId: "", exchangeId: "" };
+  const exchange = { tokenId: "", custodianId: "" };
+  const exchangeSelfSale = { tokenId: "", custodianId: "" };
+  const exchangeSelfCustody = { tokenId: "", custodianId: "" };
+  let verifySellerAssistantRole: any;
 
   async function setupCustodyTest() {
     // Create three entities
@@ -86,18 +92,11 @@ describe("Custody", function () {
     // Unwrap some NFTs - normal sale and sale with self-custody
     buyer = wallets[4];
 
-    const { buyerAdvancedOrder, tokenId, encumberedAmount } = await createBuyerAdvancedOrder(
-      buyer,
-      offerId,
-      exchangeId,
-    );
+    const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
     await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
 
-    const {
-      buyerAdvancedOrder: buyerAdvancedOrderSelfCustody,
-      tokenId: tokenIdSelfCustody,
-      encumberedAmount: encumberedAmountSelfCustody,
-    } = await createBuyerAdvancedOrder(buyer, offerIdSelfCustody, exchangeIdSelfCustody);
+    const { buyerAdvancedOrder: buyerAdvancedOrderSelfCustody, tokenId: tokenIdSelfCustody } =
+      await createBuyerAdvancedOrder(buyer, offerIdSelfCustody, exchangeIdSelfCustody);
     await offerFacet.unwrapNFT(tokenIdSelfCustody, buyerAdvancedOrderSelfCustody);
 
     // unwrap to self
@@ -107,29 +106,16 @@ describe("Custody", function () {
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
     await offerFacet.unwrapNFTToSelf(tokenIdSelf);
 
-    exchange.offerId = offerId;
-    exchange.exchangeId = exchangeId;
     exchange.tokenId = tokenId;
     exchange.custodianId = custodianId;
-    exchange.payout =
-      encumberedAmount - (encumberedAmount * BigInt(bosonProtocolFeePercentage)) / 10000n - verifierFee + sellerDeposit;
 
     // Self sale
     exchangeSelfSale.tokenId = tokenIdSelf;
     exchangeSelfSale.custodianId = custodianId;
-    exchangeSelfSale.offerId = offerIdSelfSale;
-    exchangeSelfSale.exchangeId = exchangeIdSelf;
-    exchangeSelfSale.payout = 0n;
 
     // Self verification
     exchangeSelfCustody.tokenId = tokenIdSelfCustody;
     exchangeSelfCustody.custodianId = sellerId;
-    exchangeSelfCustody.offerId = offerIdSelfCustody;
-    exchangeSelfCustody.exchangeId = exchangeIdSelfCustody;
-    exchangeSelfCustody.payout =
-      encumberedAmountSelfCustody -
-      (encumberedAmountSelfCustody * BigInt(bosonProtocolFeePercentage)) / 10000n +
-      sellerDeposit;
 
     // Submit verdicts
     await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
@@ -191,45 +177,10 @@ describe("Custody", function () {
       extraData: "0x",
     };
 
-    const encumberedAmount = fullPrice - openSeaFee;
-
-    return { buyerAdvancedOrder, tokenId, encumberedAmount };
+    return { buyerAdvancedOrder, tokenId };
   }
 
   // Used to test methods that can be called by the Seller's Assistant only
-  async function verifySellerAssistantRole(method: string, args: any[]) {
-    const wallet = wallets[9];
-    const sellerId = "1";
-
-    // completely random wallet
-    await expect(custodyFacet.connect(wallet)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
-
-    // an entity-wide Treasury or admin wallet (not Assistant)
-    await entityFacet.addEntityWallets(sellerId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
-    await expect(custodyFacet.connect(wallet)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
-
-    // a Seller specific Treasury or Admin wallet
-    const wallet2 = wallets[10];
-    await entityFacet.addEntityWallets(
-      sellerId,
-      [wallet2],
-      [[EntityRole.Seller]],
-      [[[WalletRole.Treasury, WalletRole.Admin]]],
-    );
-    await expect(custodyFacet.connect(wallet2)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
-
-    // an Assistant of another role than Seller
-    await entityFacet.addEntityWallets(sellerId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
-    await expect(custodyFacet.connect(wallet2)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
-  }
 
   before(async function () {
     ({
@@ -248,6 +199,8 @@ describe("Custody", function () {
     } = await loadFixture(deployFermionProtocolFixture));
 
     await loadFixture(setupCustodyTest);
+
+    verifySellerAssistantRole = verifySellerAssistantRoleClosure(custodyFacet, wallets, entityFacet, fermionErrors);
   });
 
   afterEach(async function () {
