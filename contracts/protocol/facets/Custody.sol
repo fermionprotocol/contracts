@@ -90,7 +90,10 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
 
-        IFermionWrapper(pl.wrapperAddress[offerId]).burn(_tokenId);
+        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(
+            _tokenId,
+            IFermionWrapper.TokenState.CheckedOut
+        );
     }
 
     /**

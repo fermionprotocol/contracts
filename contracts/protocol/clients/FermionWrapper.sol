@@ -160,6 +160,9 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     function pushToNextTokenState(uint256 _tokenId, TokenState _newState) external {
         checkStateAndCaller(_tokenId, TokenState(uint8(_newState) - 1), fermionProtocol);
         changeTokenState(_tokenId, _newState);
+        if (_newState == TokenState.CheckedOut) {
+            _burn(_tokenId);
+        }
     }
 
     /**

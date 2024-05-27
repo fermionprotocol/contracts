@@ -403,6 +403,17 @@ describe("Custody", function () {
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
             .withArgs(exchange.tokenId, CheckoutRequestStatus.None, CheckoutRequestStatus.CheckOutRequestCleared);
         });
+
+        it("Cannot check-in if already checked-out", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
+
+          await expect(custodyFacet.connect(custodian).checkIn(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.None, CheckoutRequestStatus.CheckedOut);
+        });
       });
     });
   });
@@ -547,6 +558,17 @@ describe("Custody", function () {
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
             .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.CheckOutRequestCleared);
         });
+
+        it("Cannot request check-out if checkout already checked-out", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
+
+          await expect(custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.CheckedOut);
+        });
       });
     });
   });
@@ -689,6 +711,17 @@ describe("Custody", function () {
               CheckoutRequestStatus.CheckOutRequested,
               CheckoutRequestStatus.CheckOutRequestCleared,
             );
+        });
+
+        it("Cannot submit tax amount if already checked-out", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
+
+          await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedOut);
         });
       });
     });
@@ -885,6 +918,18 @@ describe("Custody", function () {
               .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedIn);
           });
 
+          it("Cannot clear checkout request if already checked-out", async function () {
+            await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+            await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+            await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
+
+            // Already checked out
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+              .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedOut);
+          });
+
           it("Buyer cannot clear checkout request if no tax information provided", async function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
@@ -1024,6 +1069,191 @@ describe("Custody", function () {
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedIn);
           });
+
+          it("Cannot clear checkout request if already checked-out", async function () {
+            await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+            await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+            await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
+
+            // Checked in but checkout not requested
+            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+              .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedOut);
+          });
+        });
+      });
+    });
+  });
+
+  context("checkOut", function () {
+    it("Custodian can check item out", async function () {
+      await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+      await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+
+      const tx = await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
+
+      // Events
+      // Fermion
+      await expect(tx).to.emit(custodyFacet, "CheckedOut").withArgs(exchange.custodianId, exchange.tokenId);
+
+      // Wrapper
+      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.CheckedOut);
+      await expect(tx).to.emit(wrapper, "Transfer").withArgs(buyer.address, ZeroAddress, exchange.tokenId);
+
+      // State
+      // Wrapper
+      expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedOut);
+      await expect(wrapper.ownerOf(exchange.tokenId))
+        .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+        .withArgs(exchange.tokenId);
+    });
+
+    it("Self custody", async function () {
+      await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+      await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
+      await custodyFacet.clearCheckoutRequest(exchangeSelfCustody.tokenId);
+
+      const tx = await custodyFacet.checkOut(exchangeSelfCustody.tokenId);
+
+      // Events
+      // Fermion
+      await expect(tx).to.emit(custodyFacet, "CheckedOut").withArgs(sellerId, exchangeSelfCustody.tokenId);
+
+      // Wrapper
+      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
+      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      await expect(tx)
+        .to.emit(wrapper, "TokenStateChange")
+        .withArgs(exchangeSelfCustody.tokenId, TokenState.CheckedOut);
+      await expect(tx).to.emit(wrapper, "Transfer").withArgs(buyer.address, ZeroAddress, exchangeSelfCustody.tokenId);
+
+      // State
+      // Wrapper
+      expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedOut);
+      await expect(wrapper.ownerOf(exchangeSelfCustody.tokenId))
+        .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+        .withArgs(exchangeSelfCustody.tokenId);
+    });
+
+    context("Revert reasons", function () {
+      it("Caller is not the custodian's assistant", async function () {
+        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+        await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+
+        const wallet = wallets[9];
+
+        // completely random wallet
+        await expect(custodyFacet.connect(wallet).checkOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(custodianId, wallet.address, EntityRole.Custodian, WalletRole.Assistant);
+
+        // seller
+        await expect(custodyFacet.checkOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(custodianId, defaultSigner.address, EntityRole.Custodian, WalletRole.Assistant);
+
+        // an entity-wide Treasury or admin wallet (not Assistant)
+        await entityFacet
+          .connect(custodian)
+          .addEntityWallets(custodianId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
+        await expect(custodyFacet.connect(wallet).checkOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(custodianId, wallet.address, EntityRole.Custodian, WalletRole.Assistant);
+
+        // a Custodian specific Treasury or Admin wallet
+        const wallet2 = wallets[10];
+        await entityFacet
+          .connect(custodian)
+          .addEntityWallets(
+            custodianId,
+            [wallet2],
+            [[EntityRole.Custodian]],
+            [[[WalletRole.Treasury, WalletRole.Admin]]],
+          );
+        await expect(custodyFacet.connect(wallet2).checkOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(custodianId, wallet2.address, EntityRole.Custodian, WalletRole.Assistant);
+
+        // an Assistant of another role than Custodian
+        await entityFacet.connect(custodian).updateEntity(custodianId, [EntityRole.Verifier, EntityRole.Custodian], "");
+        await entityFacet
+          .connect(custodian)
+          .addEntityWallets(custodianId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
+        await expect(custodyFacet.connect(wallet2).checkOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(custodianId, wallet2.address, EntityRole.Custodian, WalletRole.Assistant);
+      });
+
+      context("Invalid state", function () {
+        const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
+
+        it("Cannot check item out twice", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+
+          await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
+
+          await expect(custodyFacet.connect(custodian).checkOut(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.CheckedOut);
+        });
+
+        it("Cannot check item out before it's unwrapped", async function () {
+          await expect(custodyFacet.checkOut(tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
+        });
+
+        it("Cannot check item out if not verified or rejected", async function () {
+          await offerFacet.unwrapNFTToSelf(tokenId);
+
+          // Unwrapped but not verified
+          await expect(custodyFacet.checkOut(tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
+
+          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+
+          // Unwrapped and rejected
+          await expect(custodyFacet.checkOut(tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
+        });
+
+        it("Cannot check item out if not checked in", async function () {
+          // Verified but not checked in
+          await expect(custodyFacet.connect(custodian).checkOut(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
+        });
+
+        it("Cannot check item out if checkout not requested", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+
+          // Checked in but checkout not requested
+          await expect(custodyFacet.connect(custodian).checkOut(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.CheckedIn);
+        });
+
+        it("Cannot check item out if checkout request not cleared", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+          // Checkout request but not cleared
+          await expect(custodyFacet.connect(custodian).checkOut(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+            .withArgs(
+              exchange.tokenId,
+              CheckoutRequestStatus.CheckOutRequestCleared,
+              CheckoutRequestStatus.CheckOutRequested,
+            );
         });
       });
     });
