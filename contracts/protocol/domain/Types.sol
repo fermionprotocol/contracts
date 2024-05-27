@@ -27,6 +27,13 @@ contract FermionTypes {
         Rejected
     }
 
+    enum CheckoutRequestStatus {
+        None,
+        Requested,
+        Cleared,
+        CheckedOut
+    }
+
     struct EntityData {
         address admin;
         uint256 roles;
@@ -50,5 +57,10 @@ contract FermionTypes {
         address exchangeToken;
         string metadataURI;
         string metadataHash;
+    }
+
+    struct CheckoutRequest {
+        CheckoutRequestStatus status;
+        uint256 taxAmount;
     }
 }

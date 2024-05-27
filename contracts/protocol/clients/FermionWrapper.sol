@@ -151,13 +151,15 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      *
      * Reverts if:
      * - Caller is not the Fermion Protocol
-     * - Token is not in the Unverified state
+     * - The new token state is not consecutive to the current state
+     *
+     * N.B. Not checking if the new state is valid, since the caller is the Fermion Protocol, which is trusted
      *
      * @param _tokenId The token id.
      */
-    function verify(uint256 _tokenId) external {
-        checkStateAndCaller(_tokenId, TokenState.Unverified, fermionProtocol);
-        changeTokenState(_tokenId, TokenState.Verified);
+    function pushToNextTokenState(uint256 _tokenId, TokenState _newState) external {
+        checkStateAndCaller(_tokenId, TokenState(uint8(_newState) - 1), fermionProtocol);
+        changeTokenState(_tokenId, _newState);
     }
 
     /**

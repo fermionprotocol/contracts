@@ -15,7 +15,6 @@ export enum TokenState {
   Unverified,
   Verified,
   CheckedIn,
-  Fractionalised,
   CheckedOut,
   Burned,
 }

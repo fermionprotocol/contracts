@@ -6,7 +6,7 @@ import { FermionTypes } from "../../domain/Types.sol";
 /**
  * @title IVerificationEvents
  *
- * @notice Defines events related to offer management within the protocol.
+ * @notice Defines events related to verification within the protocol.
  */
 interface IVerificationEvents {
     event VerificationInitiated(uint256 indexed bosonOfferId, uint256 indexed verifierId, uint256 nftId);

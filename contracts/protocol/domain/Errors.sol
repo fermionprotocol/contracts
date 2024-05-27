@@ -33,6 +33,15 @@ interface FermionErrors {
     error NoSuchOffer(uint256 offerId);
     error InvalidOrder();
 
+    // Custody errors
+    error NotTokenOwner(uint256 tokenId, address owner, address caller);
+    error InvalidTaxAmount();
+    error InvalidCheckoutRequestStatus(
+        uint256 tokenId,
+        FermionTypes.CheckoutRequestStatus expectedStatus,
+        FermionTypes.CheckoutRequestStatus actualStatus
+    );
+
     // Funds errors
     error InsufficientValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
