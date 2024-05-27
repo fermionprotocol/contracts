@@ -12,9 +12,11 @@ export enum EntityRole {
 export enum TokenState {
   Inexistent,
   Wrapped,
-  Unwrapped,
+  Unverified,
+  Verified,
+  CheckedIn,
   Fractionalised,
-  Burned,
+  CheckedOut,
 }
 
 export enum WalletRole {

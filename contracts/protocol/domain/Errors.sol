@@ -31,10 +31,12 @@ interface FermionErrors {
     // Offer errors
     error InvalidQuantity(uint256 quantity);
     error NoSuchOffer(uint256 offerId);
+    error InvalidOrder();
 
     // Funds errors
     error InsufficientValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
+    error PriceTooLow(uint256 price, uint256 minimumPrice);
 
     // Meta transaction errors
     error NonceUsedAlready();
