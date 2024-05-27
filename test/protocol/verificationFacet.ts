@@ -218,7 +218,7 @@ describe("Verification", function () {
         // Fermion
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchange.tokenId, exchange.verifierId, VerificationStatus.Verified);
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(exchange.verifierId, exchangeToken, verifierFee);
@@ -259,7 +259,7 @@ describe("Verification", function () {
         // Fermion
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchangeSelfSale.tokenId, exchangeSelfSale.verifierId, VerificationStatus.Verified);
+          .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Verified);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
@@ -295,7 +295,7 @@ describe("Verification", function () {
         // Fermion
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchangeSelfVerification.tokenId, sellerId, VerificationStatus.Verified);
+          .withArgs(sellerId, exchangeSelfVerification.tokenId, VerificationStatus.Verified);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(sellerId, exchangeToken, exchangeSelfVerification.payout);
@@ -342,7 +342,7 @@ describe("Verification", function () {
         // Fermion
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchange.tokenId, exchange.verifierId, VerificationStatus.Rejected);
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(exchange.verifierId, exchangeToken, verifierFee);
@@ -386,7 +386,7 @@ describe("Verification", function () {
         // Fermion
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchangeSelfSale.tokenId, exchangeSelfSale.verifierId, VerificationStatus.Rejected);
+          .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Rejected);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
@@ -424,7 +424,7 @@ describe("Verification", function () {
         // Fermion
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchangeSelfVerification.tokenId, sellerId, VerificationStatus.Rejected);
+          .withArgs(sellerId, exchangeSelfVerification.tokenId, VerificationStatus.Rejected);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(buyerId, exchangeToken, exchangeSelfVerification.payout);

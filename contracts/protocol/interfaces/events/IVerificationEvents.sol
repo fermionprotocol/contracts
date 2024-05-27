@@ -9,11 +9,11 @@ import { FermionTypes } from "../../domain/Types.sol";
  * @notice Defines events related to offer management within the protocol.
  */
 interface IVerificationEvents {
-    event VerificationInitiated(uint256 indexed bosonOfferId, uint256 indexed verifierId, uint256 NFTId);
+    event VerificationInitiated(uint256 indexed bosonOfferId, uint256 indexed verifierId, uint256 nftId);
 
     event VerdictSubmitted(
-        uint256 indexed NFTId,
         uint256 indexed verifierId,
+        uint256 indexed nftId,
         FermionTypes.VerificationStatus verificationStatus
     );
 }

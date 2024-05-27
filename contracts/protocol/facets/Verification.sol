@@ -91,6 +91,6 @@ contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
             FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder);
         }
 
-        emit VerdictSubmitted(_tokenId, verifierId, _verificationStatus);
+        emit VerdictSubmitted(verifierId, _tokenId, _verificationStatus);
     }
 }
