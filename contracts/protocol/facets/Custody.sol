@@ -164,12 +164,12 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
     }
 
     /**
-     * @notice Finalize a checkout
+     * @notice Clear the checkout request
      *
      * If there are not outstanding taxes to be paid, the seller calls this function to finalize the checkout.
      * If there are taxes to be paid, the buyer calls this function to finalize the checkout.
      *
-     * Emits an CheckedOut event
+     * Emits an CheckOutRequestCleared event
      *
      * Reverts if:
      * - If no taxes are to be paid and:
@@ -182,7 +182,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * @param _tokenId - the token ID
      */
-    function finalizeCheckout(uint256 _tokenId) external payable {
+    function clearCheckoutRequest(uint256 _tokenId) external payable {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
@@ -210,7 +210,9 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
                 revert NotTokenOwner(_tokenId, owner, msgSender);
             }
 
-            FundsLib.validateIncomingPayment(offer.exchangeToken, taxAmount);
+            address exchangeToken = offer.exchangeToken;
+            FundsLib.validateIncomingPayment(exchangeToken, taxAmount);
+            FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, taxAmount);
         }
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequestCleared;

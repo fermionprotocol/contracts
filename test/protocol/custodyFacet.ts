@@ -12,7 +12,11 @@ import { getBosonProtocolFees } from "../utils/boson-protocol";
 const { parseEther } = ethers;
 
 describe("Custody", function () {
-  let offerFacet: Contract, entityFacet: Contract, verificationFacet: Contract, custodyFacet: Contract;
+  let offerFacet: Contract,
+    entityFacet: Contract,
+    verificationFacet: Contract,
+    custodyFacet: Contract,
+    fundsFacet: Contract;
   let mockToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -225,6 +229,7 @@ describe("Custody", function () {
         OfferFacet: offerFacet,
         VerificationFacet: verificationFacet,
         CustodyFacet: custodyFacet,
+        FundsFacet: fundsFacet,
       },
       fermionErrors,
       wallets,
@@ -650,6 +655,211 @@ describe("Custody", function () {
           await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
             .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedIn);
+        });
+      });
+    });
+  });
+
+  context("clearCheckoutRequest", function () {
+    context("With tax amount [buyer clears]", function () {
+      const taxAmount = parseEther("0.2");
+
+      it("Buyer clears checkout request", async function () {
+        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+        await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
+
+        const exchangeToken = await mockToken.getAddress();
+        const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, exchangeToken);
+        const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+
+        await mockToken.mint(buyer.address, taxAmount);
+        await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
+        const tx = await custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId);
+
+        // Events
+        // Fermion
+        await expect(tx).to.emit(custodyFacet, "CheckOutRequestCleared").withArgs(custodianId, exchange.tokenId);
+        await expect(tx).to.emit(custodyFacet, "AvailableFundsIncreased").withArgs(sellerId, exchangeToken, taxAmount);
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+        const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+        await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+
+        // State
+        // Fermion
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(sellerAvailableFunds + taxAmount);
+        expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance + taxAmount);
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedIn);
+        expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+      });
+
+      it("Self custody", async function () {
+        await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
+        await custodyFacet.submitTaxAmount(exchangeSelfCustody.tokenId, taxAmount);
+
+        const exchangeToken = await mockToken.getAddress();
+        const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, exchangeToken);
+        const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+
+        await mockToken.mint(buyer.address, taxAmount);
+        await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
+        const tx = await custodyFacet.connect(buyer).clearCheckoutRequest(exchangeSelfCustody.tokenId);
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(custodyFacet, "CheckOutRequestCleared")
+          .withArgs(sellerId, exchangeSelfCustody.tokenId);
+        await expect(tx).to.emit(custodyFacet, "AvailableFundsIncreased").withArgs(sellerId, exchangeToken, taxAmount);
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
+        const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+        await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+
+        // State
+        // Fermion
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(sellerAvailableFunds + taxAmount);
+        expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance + taxAmount);
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
+        expect(await wrapper.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
+      });
+
+      context("Revert reasons", function () {
+        it("Caller is not the buyer", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+          await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
+
+          const wallet = wallets[9];
+
+          // completely random wallet
+          await expect(custodyFacet.connect(wallet).clearCheckoutRequest(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+            .withArgs(exchange.tokenId, buyer.address, wallet.address);
+
+          // seller
+          await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+            .withArgs(exchange.tokenId, buyer.address, defaultSigner.address);
+
+          // custodian
+          await expect(custodyFacet.connect(custodian).clearCheckoutRequest(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+            .withArgs(exchange.tokenId, buyer.address, custodian.address);
+        });
+
+        it("Funds related errors", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+          await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
+
+          await mockToken.mint(buyer.address, taxAmount);
+
+          // ERC20 offer - insufficient allowance
+          await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount - 1n);
+
+          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+            .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+            .withArgs(fermionProtocolAddress, taxAmount - 1n, taxAmount);
+
+          // ERC20 offer - contract sends insufficient funds
+          await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
+          await mockToken.setBurnAmount(1);
+          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
+            .withArgs(taxAmount, taxAmount - 1n);
+          await mockToken.setBurnAmount(0);
+
+          // ERC20 offer - insufficient balance
+          const buyerBalance = await mockToken.balanceOf(buyer.address);
+          await mockToken.connect(buyer).transfer(wallets[9].address, buyerBalance); // transfer all the tokens to another wallet
+
+          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+            .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+            .withArgs(buyer.address, 0n, taxAmount);
+
+          // Send native currency to ERC20 offer
+          await expect(
+            custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, { value: taxAmount }),
+          ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+        });
+
+        context("Invalid state", function () {
+          const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
+
+          it("Cannot clear checkout request twice", async function () {
+            await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+            await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
+
+            await mockToken.mint(buyer.address, taxAmount);
+            await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
+            await custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId);
+
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+              .withArgs(
+                exchange.tokenId,
+                CheckoutRequestStatus.CheckOutRequested,
+                CheckoutRequestStatus.CheckOutRequestCleared,
+              );
+          });
+
+          it("Cannot clear checkout request before it's unwrapped", async function () {
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+              .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
+          });
+
+          it("Cannot clear checkout request if not verified or rejected", async function () {
+            await offerFacet.unwrapNFTToSelf(tokenId);
+
+            // Unwrapped but not verified
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+              .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
+
+            await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+
+            // Unwrapped and rejected
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+              .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
+          });
+
+          it("Cannot clear checkout request if not checked in", async function () {
+            // Verified but not checked in
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+              .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
+          });
+
+          it("Cannot clear checkout request if checkout not requested", async function () {
+            await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+
+            // Checked in but checkout not requested
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
+              .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedIn);
+          });
+
+          it("Buyer cannot clear checkout request if no tax information provided", async function () {
+            await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+            // Checked in but checkout not requested
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+              .withArgs(sellerId, buyer.address, EntityRole.Seller, WalletRole.Assistant);
+          });
         });
       });
     });
