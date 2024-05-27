@@ -59,7 +59,7 @@ describe("Verification", function () {
       metadataHash: ZeroHash,
     };
 
-    // Make three offers one for normal sale, one of self sale
+    // Make three offers one for normal sale, one of self sale and one for self verification
     await mockToken.approve(fermionProtocolAddress, 3n * sellerDeposit);
     const offerId = "1"; // buyer != seller, verifier != seller
     const offerIdSelfSale = "2"; // buyer = seller, verifier != seller
@@ -528,7 +528,6 @@ describe("Verification", function () {
       it("Cannot verify twice", async function () {
         await verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified);
 
-        // completely random wallet
         await expect(
           verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified),
         ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
@@ -537,7 +536,6 @@ describe("Verification", function () {
       it("Cannot verify before it's unwrapped", async function () {
         const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
 
-        // completely random wallet
         await expect(
           verificationFacet.submitVerdict(tokenId, VerificationStatus.Verified),
         ).to.be.revertedWithCustomError(bosonExchangeHandler, "NoSuchExchange");
