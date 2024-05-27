@@ -34,7 +34,7 @@ interface FermionErrors {
     error InvalidOrder();
 
     // Custody errors
-    error NotTokenOwner(uint256 tokenId, address owner, address caller);
+    error NotTokenBuyer(uint256 tokenId, address owner, address caller);
     error InvalidTaxAmount();
     error InvalidCheckoutRequestStatus(
         uint256 tokenId,

@@ -116,13 +116,12 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
         );
 
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-        address owner = IFermionWrapper(pl.wrapperAddress[offerId]).ownerOf(_tokenId);
+
         address msgSender = msgSender();
-        if (owner != msgSender) {
-            revert NotTokenOwner(_tokenId, owner, msgSender);
-        }
+        IFermionWrapper(pl.wrapperAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequested;
+        checkoutRequest.buyer = msgSender;
 
         emit CheckoutRequested(offer.custodianId, _tokenId, offer.sellerId, msgSender);
     }
@@ -193,8 +192,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
             pl
         );
 
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-        IFermionWrapper wrapper = IFermionWrapper(pl.wrapperAddress[offerId]);
+        (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         uint256 taxAmount = checkoutRequest.taxAmount;
         if (taxAmount == 0) {
@@ -207,10 +205,10 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
             );
         } else {
             // Buyer is finalizing the checkout
-            address owner = wrapper.ownerOf(_tokenId);
+            address buyer = checkoutRequest.buyer;
             address msgSender = msgSender();
-            if (owner != msgSender) {
-                revert NotTokenOwner(_tokenId, owner, msgSender);
+            if (buyer != msgSender) {
+                revert NotTokenBuyer(_tokenId, buyer, msgSender);
             }
 
             address exchangeToken = offer.exchangeToken;

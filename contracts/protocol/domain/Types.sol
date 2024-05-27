@@ -62,6 +62,7 @@ contract FermionTypes {
 
     struct CheckoutRequest {
         CheckoutRequestStatus status;
+        address buyer;
         uint256 taxAmount;
     }
 }

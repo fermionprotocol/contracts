@@ -25,6 +25,7 @@ describe("Custody", function () {
   let custodian: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
   let seaportAddress: string;
+  let wrapper: Contract, wrapperSelfSale: Contract, wrapperSelfCustody: Contract;
   const sellerId = "1";
   const verifierId = "2";
   const custodianId = "3";
@@ -134,6 +135,15 @@ describe("Custody", function () {
     await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
     await verificationFacet.connect(verifier).submitVerdict(tokenIdSelf, VerificationStatus.Verified);
     await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified);
+
+    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+    wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+
+    const wrapperAddressSelfSale = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
+    wrapperSelfSale = await ethers.getContractAt("FermionWrapper", wrapperAddressSelfSale);
+
+    const wrapperAddressSelfCustody = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
+    wrapperSelfCustody = await ethers.getContractAt("FermionWrapper", wrapperAddressSelfCustody);
   }
 
   async function createBuyerAdvancedOrder(buyer: HardhatEthersSigner, offerId: string, exchangeId: string) {
@@ -253,8 +263,6 @@ describe("Custody", function () {
       await expect(tx).to.emit(custodyFacet, "CheckedIn").withArgs(exchange.custodianId, exchange.tokenId);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
       await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.CheckedIn);
 
       // State
@@ -273,14 +281,14 @@ describe("Custody", function () {
         .withArgs(exchangeSelfSale.custodianId, exchangeSelfSale.tokenId);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
-      await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.CheckedIn);
+      await expect(tx)
+        .to.emit(wrapperSelfSale, "TokenStateChange")
+        .withArgs(exchangeSelfSale.tokenId, TokenState.CheckedIn);
 
       // State
       // Wrapper
-      expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.CheckedIn);
-      expect(await wrapper.ownerOf(exchangeSelfSale.tokenId)).to.equal(defaultSigner.address);
+      expect(await wrapperSelfSale.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapperSelfSale.ownerOf(exchangeSelfSale.tokenId)).to.equal(defaultSigner.address);
     });
 
     it("Self custody", async function () {
@@ -291,14 +299,14 @@ describe("Custody", function () {
       await expect(tx).to.emit(custodyFacet, "CheckedIn").withArgs(sellerId, exchangeSelfCustody.tokenId);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
-      await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfCustody.tokenId, TokenState.CheckedIn);
+      await expect(tx)
+        .to.emit(wrapperSelfCustody, "TokenStateChange")
+        .withArgs(exchangeSelfCustody.tokenId, TokenState.CheckedIn);
 
       // State
       // Wrapper
-      expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
-      expect(await wrapper.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
+      expect(await wrapperSelfCustody.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
     });
 
     context("Revert reasons", function () {
@@ -350,11 +358,6 @@ describe("Custody", function () {
       context("Invalid state", function () {
         const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
 
-        let wrapper: Contract;
-        before(async function () {
-          wrapper = await ethers.getContractAt("FermionWrapper", ZeroAddress);
-        });
-
         it("Cannot check-in twice", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
 
@@ -387,6 +390,7 @@ describe("Custody", function () {
 
         it("Cannot check-in if checkout already requested", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
           await expect(custodyFacet.connect(custodian).checkIn(exchange.tokenId))
@@ -396,6 +400,7 @@ describe("Custody", function () {
 
         it("Cannot check-in if checkout request already cleared", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.clearCheckoutRequest(exchange.tokenId);
 
@@ -406,6 +411,7 @@ describe("Custody", function () {
 
         it("Cannot check-in if already checked-out", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.clearCheckoutRequest(exchange.tokenId);
           await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
@@ -421,6 +427,7 @@ describe("Custody", function () {
   context("requestCheckOut", function () {
     it("F-NFT Owner can request checkout", async function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
 
       const tx = await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
@@ -431,18 +438,18 @@ describe("Custody", function () {
         .withArgs(exchange.custodianId, exchange.tokenId, sellerId, buyer.address);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
       await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+      await expect(tx).to.emit(wrapper, "Transfer").withArgs(buyer.address, fermionProtocolAddress, exchange.tokenId);
 
       // State
       // Wrapper
       expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedIn);
-      expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+      expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(fermionProtocolAddress);
     });
 
     it("Self sale", async function () {
       await custodyFacet.connect(custodian).checkIn(exchangeSelfSale.tokenId);
+      await wrapperSelfSale.connect(defaultSigner).approve(fermionProtocolAddress, exchangeSelfSale.tokenId);
 
       const tx = await custodyFacet.requestCheckOut(exchangeSelfSale.tokenId);
 
@@ -453,18 +460,20 @@ describe("Custody", function () {
         .withArgs(exchangeSelfSale.custodianId, exchangeSelfSale.tokenId, sellerId, defaultSigner.address);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
-      await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+      await expect(tx).to.not.emit(wrapperSelfSale, "TokenStateChange");
+      await expect(tx)
+        .to.emit(wrapperSelfSale, "Transfer")
+        .withArgs(defaultSigner.address, fermionProtocolAddress, exchangeSelfSale.tokenId);
 
       // State
       // Wrapper
-      expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.CheckedIn);
-      expect(await wrapper.ownerOf(exchangeSelfSale.tokenId)).to.equal(defaultSigner.address);
+      expect(await wrapperSelfSale.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapperSelfSale.ownerOf(exchangeSelfSale.tokenId)).to.equal(fermionProtocolAddress);
     });
 
     it("Self custody", async function () {
       await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+      await wrapperSelfCustody.connect(buyer).approve(fermionProtocolAddress, exchangeSelfCustody.tokenId);
 
       const tx = await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
 
@@ -475,14 +484,15 @@ describe("Custody", function () {
         .withArgs(sellerId, exchangeSelfCustody.tokenId, sellerId, buyer.address);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
-      await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+      await expect(tx).to.not.emit(wrapperSelfCustody, "TokenStateChange");
+      await expect(tx)
+        .to.emit(wrapperSelfCustody, "Transfer")
+        .withArgs(buyer.address, fermionProtocolAddress, exchangeSelfCustody.tokenId);
 
       // State
       // Wrapper
-      expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
-      expect(await wrapper.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
+      expect(await wrapperSelfCustody.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId)).to.equal(fermionProtocolAddress);
     });
 
     context("Revert reasons", function () {
@@ -493,18 +503,18 @@ describe("Custody", function () {
 
         // completely random wallet
         await expect(custodyFacet.connect(wallet).requestCheckOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
-          .withArgs(exchange.tokenId, buyer.address, wallet.address);
+          .to.be.revertedWithCustomError(wrapper, "ERC721InsufficientApproval")
+          .withArgs(fermionProtocolAddress, exchange.tokenId);
 
         // seller
         await expect(custodyFacet.requestCheckOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
-          .withArgs(exchange.tokenId, buyer.address, defaultSigner.address);
+          .to.be.revertedWithCustomError(wrapper, "ERC721InsufficientApproval")
+          .withArgs(fermionProtocolAddress, exchange.tokenId);
 
         // custodian
         await expect(custodyFacet.connect(custodian).requestCheckOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
-          .withArgs(exchange.tokenId, buyer.address, custodian.address);
+          .to.be.revertedWithCustomError(wrapper, "ERC721InsufficientApproval")
+          .withArgs(fermionProtocolAddress, exchange.tokenId);
       });
 
       context("Invalid state", function () {
@@ -512,6 +522,7 @@ describe("Custody", function () {
 
         it("Cannot request check-out twice", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
 
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
@@ -551,6 +562,7 @@ describe("Custody", function () {
 
         it("Cannot request check-out if checkout request already cleared", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.clearCheckoutRequest(exchange.tokenId);
 
@@ -561,6 +573,7 @@ describe("Custody", function () {
 
         it("Cannot request check-out if checkout already checked-out", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.clearCheckoutRequest(exchange.tokenId);
           await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
@@ -578,6 +591,7 @@ describe("Custody", function () {
 
     it("Seller can add tax amount", async function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
       const tx = await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
@@ -587,8 +601,6 @@ describe("Custody", function () {
       await expect(tx).to.emit(custodyFacet, "TaxAmountSubmitted").withArgs(exchange.tokenId, sellerId, taxAmount);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
       await expect(tx).to.not.emit(wrapper, "TokenStateChange");
 
       // State
@@ -597,11 +609,12 @@ describe("Custody", function () {
 
       // Wrapper
       expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedIn);
-      expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+      expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(fermionProtocolAddress);
     });
 
     it("Self custody", async function () {
       await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+      await wrapperSelfCustody.connect(buyer).approve(fermionProtocolAddress, exchangeSelfCustody.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
 
       const tx = await custodyFacet.submitTaxAmount(exchangeSelfCustody.tokenId, taxAmount);
@@ -613,21 +626,20 @@ describe("Custody", function () {
         .withArgs(exchangeSelfCustody.tokenId, sellerId, taxAmount);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
-      await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+      await expect(tx).to.not.emit(wrapperSelfCustody, "TokenStateChange");
 
       // State
       // Fermion
       expect(await custodyFacet.getTaxAmount(exchangeSelfCustody.tokenId)).to.equal(taxAmount);
 
       // Wrapper
-      expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
-      expect(await wrapper.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
+      expect(await wrapperSelfCustody.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
+      expect(await wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId)).to.equal(fermionProtocolAddress);
     });
 
     it("Tax amount can be updated", async function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
       await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
 
@@ -642,6 +654,7 @@ describe("Custody", function () {
     context("Revert reasons", function () {
       it("Caller is not the seller's assistant", async function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
         await verifySellerAssistantRole("submitTaxAmount", [exchange.tokenId, taxAmount]);
@@ -649,6 +662,7 @@ describe("Custody", function () {
 
       it("Tax amount is 0", async function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
         const taxAmount = "0";
@@ -701,6 +715,7 @@ describe("Custody", function () {
 
         it("Cannot submit tax amount if checkout request already cleared", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.clearCheckoutRequest(exchange.tokenId);
 
@@ -715,6 +730,7 @@ describe("Custody", function () {
 
         it("Cannot submit tax amount if already checked-out", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.clearCheckoutRequest(exchange.tokenId);
           await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
@@ -733,6 +749,7 @@ describe("Custody", function () {
 
       it("Buyer clears checkout request", async function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
         await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
 
@@ -750,8 +767,6 @@ describe("Custody", function () {
         await expect(tx).to.emit(custodyFacet, "AvailableFundsIncreased").withArgs(sellerId, exchangeToken, taxAmount);
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
-        const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
         await expect(tx).to.not.emit(wrapper, "TokenStateChange");
 
         // State
@@ -761,11 +776,12 @@ describe("Custody", function () {
 
         // Wrapper
         expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedIn);
-        expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+        expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(fermionProtocolAddress);
       });
 
       it("Self custody", async function () {
         await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+        await wrapperSelfCustody.connect(buyer).approve(fermionProtocolAddress, exchangeSelfCustody.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
         await custodyFacet.submitTaxAmount(exchangeSelfCustody.tokenId, taxAmount);
 
@@ -785,9 +801,7 @@ describe("Custody", function () {
         await expect(tx).to.emit(custodyFacet, "AvailableFundsIncreased").withArgs(sellerId, exchangeToken, taxAmount);
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
-        const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
-        await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+        await expect(tx).to.not.emit(wrapperSelfCustody, "TokenStateChange");
 
         // State
         // Fermion
@@ -795,13 +809,14 @@ describe("Custody", function () {
         expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance + taxAmount);
 
         // Wrapper
-        expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
-        expect(await wrapper.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
+        expect(await wrapperSelfCustody.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
+        expect(await wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId)).to.equal(fermionProtocolAddress);
       });
 
       context("Revert reasons", function () {
         it("Caller is not the buyer", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
 
@@ -809,22 +824,23 @@ describe("Custody", function () {
 
           // completely random wallet
           await expect(custodyFacet.connect(wallet).clearCheckoutRequest(exchange.tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+            .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
             .withArgs(exchange.tokenId, buyer.address, wallet.address);
 
           // seller
           await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+            .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
             .withArgs(exchange.tokenId, buyer.address, defaultSigner.address);
 
           // custodian
           await expect(custodyFacet.connect(custodian).clearCheckoutRequest(exchange.tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "NotTokenOwner")
+            .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
             .withArgs(exchange.tokenId, buyer.address, custodian.address);
         });
 
         it("Funds related errors", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
 
@@ -864,6 +880,7 @@ describe("Custody", function () {
 
           it("Cannot clear checkout request twice", async function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
             await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
 
@@ -920,6 +937,7 @@ describe("Custody", function () {
 
           it("Cannot clear checkout request if already checked-out", async function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
             await custodyFacet.clearCheckoutRequest(exchange.tokenId);
             await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
@@ -932,6 +950,7 @@ describe("Custody", function () {
 
           it("Buyer cannot clear checkout request if no tax information provided", async function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
             // Checked in but checkout not requested
@@ -946,6 +965,7 @@ describe("Custody", function () {
     context("Without tax amount [seller clears]", function () {
       it("Seller clears checkout request", async function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
         const exchangeToken = await mockToken.getAddress();
@@ -960,8 +980,6 @@ describe("Custody", function () {
         await expect(tx).to.not.emit(custodyFacet, "AvailableFundsIncreased");
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
-        const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
         await expect(tx).to.not.emit(wrapper, "TokenStateChange");
 
         // State
@@ -971,11 +989,12 @@ describe("Custody", function () {
 
         // Wrapper
         expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedIn);
-        expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+        expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(fermionProtocolAddress);
       });
 
       it("Self custody", async function () {
         await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+        await wrapperSelfCustody.connect(buyer).approve(fermionProtocolAddress, exchangeSelfCustody.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
 
         const exchangeToken = await mockToken.getAddress();
@@ -992,9 +1011,7 @@ describe("Custody", function () {
         await expect(tx).to.not.emit(custodyFacet, "AvailableFundsIncreased");
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
-        const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
-        await expect(tx).to.not.emit(wrapper, "TokenStateChange");
+        await expect(tx).to.not.emit(wrapperSelfCustody, "TokenStateChange");
 
         // State
         // Fermion
@@ -1002,13 +1019,14 @@ describe("Custody", function () {
         expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance);
 
         // Wrapper
-        expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
-        expect(await wrapper.ownerOf(exchangeSelfCustody.tokenId)).to.equal(buyer.address);
+        expect(await wrapperSelfCustody.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedIn);
+        expect(await wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId)).to.equal(fermionProtocolAddress);
       });
 
       context("Revert reasons", function () {
         it("Caller is not the seller's assistant", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
           await verifySellerAssistantRole("clearCheckoutRequest", [exchange.tokenId]);
@@ -1019,6 +1037,7 @@ describe("Custody", function () {
 
           it("Cannot clear checkout request twice", async function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
             await custodyFacet.clearCheckoutRequest(exchange.tokenId);
@@ -1072,6 +1091,7 @@ describe("Custody", function () {
 
           it("Cannot clear checkout request if already checked-out", async function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+            await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
             await custodyFacet.clearCheckoutRequest(exchange.tokenId);
             await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
@@ -1089,6 +1109,7 @@ describe("Custody", function () {
   context("checkOut", function () {
     it("Custodian can check item out", async function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
       await custodyFacet.clearCheckoutRequest(exchange.tokenId);
 
@@ -1099,10 +1120,8 @@ describe("Custody", function () {
       await expect(tx).to.emit(custodyFacet, "CheckedOut").withArgs(exchange.custodianId, exchange.tokenId);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
       await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.CheckedOut);
-      await expect(tx).to.emit(wrapper, "Transfer").withArgs(buyer.address, ZeroAddress, exchange.tokenId);
+      await expect(tx).to.emit(wrapper, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, exchange.tokenId);
 
       // State
       // Wrapper
@@ -1114,6 +1133,7 @@ describe("Custody", function () {
 
     it("Self custody", async function () {
       await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
+      await wrapperSelfCustody.connect(buyer).approve(fermionProtocolAddress, exchangeSelfCustody.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
       await custodyFacet.clearCheckoutRequest(exchangeSelfCustody.tokenId);
 
@@ -1124,24 +1144,25 @@ describe("Custody", function () {
       await expect(tx).to.emit(custodyFacet, "CheckedOut").withArgs(sellerId, exchangeSelfCustody.tokenId);
 
       // Wrapper
-      const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
-      const wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
       await expect(tx)
-        .to.emit(wrapper, "TokenStateChange")
+        .to.emit(wrapperSelfCustody, "TokenStateChange")
         .withArgs(exchangeSelfCustody.tokenId, TokenState.CheckedOut);
-      await expect(tx).to.emit(wrapper, "Transfer").withArgs(buyer.address, ZeroAddress, exchangeSelfCustody.tokenId);
+      await expect(tx)
+        .to.emit(wrapperSelfCustody, "Transfer")
+        .withArgs(fermionProtocolAddress, ZeroAddress, exchangeSelfCustody.tokenId);
 
       // State
       // Wrapper
-      expect(await wrapper.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedOut);
-      await expect(wrapper.ownerOf(exchangeSelfCustody.tokenId))
-        .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+      expect(await wrapperSelfCustody.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedOut);
+      await expect(wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId))
+        .to.be.revertedWithCustomError(wrapperSelfCustody, "ERC721NonexistentToken")
         .withArgs(exchangeSelfCustody.tokenId);
     });
 
     context("Revert reasons", function () {
       it("Caller is not the custodian's assistant", async function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
         await custodyFacet.clearCheckoutRequest(exchange.tokenId);
 
@@ -1194,6 +1215,7 @@ describe("Custody", function () {
 
         it("Cannot check item out twice", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
           await custodyFacet.clearCheckoutRequest(exchange.tokenId);
 
@@ -1244,6 +1266,8 @@ describe("Custody", function () {
 
         it("Cannot check item out if checkout request not cleared", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
+
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
           // Checkout request but not cleared
