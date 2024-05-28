@@ -122,7 +122,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _offerId - the offer ID
      * @param _quantity - the number of NFTs to mint
      */
-    function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external payable {
+    function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
         wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
     }
@@ -193,8 +193,10 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         if (_selfSale) {
             uint256 minimalPrice;
             (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(exchangeToken, offer.verifierFee, 0);
-            FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-            IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
+            if (minimalPrice > 0) {
+                FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
+                IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
+            }
 
             _priceDiscovery.price = minimalPrice;
             _priceDiscovery.priceDiscoveryData = abi.encodeCall(
@@ -269,11 +271,14 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             }
 
             // Deposit to the boson protocol
+            uint256 msgValue;
             if (_exchangeToken != address(0)) {
                 IERC20(_exchangeToken).forceApprove(address(BOSON_PROTOCOL), _sellerDeposit);
+            } else {
+                msgValue = _sellerDeposit;
             }
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
-            BOSON_PROTOCOL.depositFunds{ value: msg.value }(bosonSellerId, _exchangeToken, _sellerDeposit);
+            BOSON_PROTOCOL.depositFunds{ value: msgValue }(bosonSellerId, _exchangeToken, _sellerDeposit);
         }
     }
 
