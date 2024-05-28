@@ -94,7 +94,14 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   }
 
   // deploy facets
-  const facetNames = ["EntityFacet", "MetaTransactionFacet", "OfferFacet", "VerificationFacet", "FundsFacet"];
+  const facetNames = [
+    "EntityFacet",
+    "MetaTransactionFacet",
+    "OfferFacet",
+    "VerificationFacet",
+    "CustodyFacet",
+    "FundsFacet",
+  ];
   let facets = {};
 
   if (allModules || modules.includes("facets")) {

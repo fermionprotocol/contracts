@@ -16,7 +16,6 @@ interface IFermionWrapper is IERC721 {
         Unverified,
         Verified,
         CheckedIn,
-        Fractionalised,
         CheckedOut,
         Burned
     }
@@ -79,9 +78,11 @@ interface IFermionWrapper is IERC721 {
      *
      * Reverts if:
      * - Caller is not the Fermion Protocol
-     * - Token is not in the Unverified state
+     * - The new token state is not consecutive to the current state
+     *
+     * N.B. Not checking if the new state is valid, since the caller is the Fermion Protocol, which is trusted
      *
      * @param _tokenId The token id.
      */
-    function verify(uint256 _tokenId) external;
+    function pushToNextTokenState(uint256 _tokenId, TokenState _newState) external;
 }

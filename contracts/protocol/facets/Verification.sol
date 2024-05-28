@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -16,7 +15,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
+contract VerificationFacet is Context, IVerificationEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol) {
@@ -35,8 +34,7 @@ contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
      * @param _verificationStatus - the verification status
      */
     function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
-        uint256 offerId = _tokenId >> 128;
-        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[offerId];
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 verifierId = offer.verifierId;
 
         // Check the caller is the the verifier's assistant
@@ -75,7 +73,10 @@ contract VerificationFacet is Context, FermionErrors, IVerificationEvents {
         if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
             // transfer the remainder to the seller
             FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
-            IFermionWrapper(pl.wrapperAddress[offerId]).verify(_tokenId);
+            IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(
+                _tokenId,
+                IFermionWrapper.TokenState.Verified
+            );
         } else {
             address buyerAddress = IFermionWrapper(pl.wrapperAddress[offerId]).burn(_tokenId);
 
