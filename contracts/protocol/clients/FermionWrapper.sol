@@ -129,18 +129,46 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     }
 
     /**
+     * @notice Burns the token and returns the voucher owner
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     * - Token is not in the Unverified state
+     *
+     * @param _tokenId The token id.
+     */
+    function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner) {
+        checkStateAndCaller(_tokenId, TokenState.Unverified, fermionProtocol);
+
+        wrappedVoucherOwner = ownerOf(_tokenId);
+
+        _burn(_tokenId);
+        changeTokenState(_tokenId, TokenState.Burned);
+    }
+
+    /**
+     * @notice Pushes the F-NFT from unverified to verified
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     * - Token is not in the Unverified state
+     *
+     * @param _tokenId The token id.
+     */
+    function verify(uint256 _tokenId) external {
+        checkStateAndCaller(_tokenId, TokenState.Unverified, fermionProtocol);
+        changeTokenState(_tokenId, TokenState.Verified);
+    }
+
+    /**
      * @notice Puts the F-NFT from wrapped to unverified state and transfers Boson rNFT to fermion protocol
      *
      * @param _tokenId The token id.
      */
     function unwrap(uint256 _tokenId) internal {
-        address msgSender = _msgSender();
+        checkStateAndCaller(_tokenId, TokenState.Wrapped, BP_PRICE_DISCOVERY);
 
-        if (tokenState[_tokenId] != TokenState.Wrapped || msgSender != BP_PRICE_DISCOVERY) {
-            revert TransferNotAllowed(_tokenId, msgSender, tokenState[_tokenId]);
-        }
-
-        tokenState[_tokenId] = TokenState.Unverified; // Moving to next state, also enabling the transfer and prevent reentrancy
+        changeTokenState(_tokenId, TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
 
         // transfer Boson Voucher to Fermion protocol. Not using safeTransferFrom since we are sure Fermion Protocol can handle the voucher
         IERC721(voucherAddress).transferFrom(address(this), fermionProtocol, _tokenId);
@@ -290,7 +318,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
 
             // Mint to the specified address
             _safeMint(_to, tokenId);
-            tokenState[tokenId] = TokenState.Wrapped;
+            changeTokenState(tokenId, TokenState.Wrapped);
         }
         _setApprovalForAll(address(this), OS_CONDUIT, true);
     }
@@ -305,8 +333,38 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal override returns (address) {
         if (tokenState[_tokenId] == TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
-            revert TransferNotAllowed(_tokenId, _msgSender(), TokenState.Wrapped);
+            revert InvalidStateOrCaller(_tokenId, _msgSender(), TokenState.Wrapped);
         }
         return super._update(_to, _tokenId, _auth);
+    }
+
+    /**
+     * @notice Checks it the token is in the expected state and the caller is the expected address
+     *
+     * Reverts if:
+     * - Token is not in the expected state
+     * - Caller is not the expected address
+     *
+     * @param _tokenId The token id
+     * @param _expectedState The expected state
+     * @param _expectedCaller The expected caller
+     */
+    function checkStateAndCaller(uint256 _tokenId, TokenState _expectedState, address _expectedCaller) internal view {
+        if (tokenState[_tokenId] != _expectedState || _msgSender() != _expectedCaller) {
+            revert InvalidStateOrCaller(_tokenId, _msgSender(), tokenState[_tokenId]);
+        }
+    }
+
+    /**
+     * @notice Changes the state of a token
+     *
+     * Emits an TokenStateChange event
+     *
+     * @param _tokenId The token id
+     * @param _state The new state
+     */
+    function changeTokenState(uint256 _tokenId, TokenState _state) internal {
+        tokenState[_tokenId] = _state;
+        emit TokenStateChange(_tokenId, _state);
     }
 }

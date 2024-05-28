@@ -16,10 +16,10 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   const allModules = modules.length === 0 || network.name === "hardhat" || network.name === "localhost";
 
   // if deploying with hardhat, first deploy the boson protocol
-  let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, seaportAddress: string;
-  let seaportContract: Contract;
+  let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, bosonTokenAddress: string;
+  let seaportAddress: string, seaportContract: Contract;
   if (network.name === "hardhat" || network.name === "localhost") {
-    ({ bosonProtocolAddress, bosonPriceDiscoveryAddress } = await initBosonProtocolFixture(false));
+    ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress } = await initBosonProtocolFixture(false));
     ({ seaportAddress, seaportContract } = await initSeaportFixture());
   } else {
     // Check if the deployer key is set
@@ -94,11 +94,15 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   }
 
   // deploy facets
-  const facetNames = ["EntityFacet", "MetaTransactionFacet", "OfferFacet"];
+  const facetNames = ["EntityFacet", "MetaTransactionFacet", "OfferFacet", "VerificationFacet", "FundsFacet"];
   let facets = {};
 
   if (allModules || modules.includes("facets")) {
-    const constructorArgs = { MetaTransactionFacet: [diamondAddress], OfferFacet: [bosonProtocolAddress] };
+    const constructorArgs = {
+      MetaTransactionFacet: [diamondAddress],
+      OfferFacet: [bosonProtocolAddress],
+      VerificationFacet: [bosonProtocolAddress],
+    };
     facets = await deployFacets(facetNames, constructorArgs, true);
     await writeContracts(deploymentData, env, version);
   } else if (modules.includes("initialize")) {
@@ -152,6 +156,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     wrapperImplementationAddress,
     seaportAddress,
     seaportContract,
+    bosonTokenAddress,
   };
 }
 

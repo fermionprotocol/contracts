@@ -4,7 +4,9 @@ pragma solidity 0.8.24;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FermionErrors } from "../domain/Errors.sol";
+import { FermionStorage } from "../libs/Storage.sol";
 import { ContextLib } from "../libs/Context.sol";
+import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
 
 /**
  * @title FundsLib
@@ -70,5 +72,32 @@ library FundsLib {
         // make sure that expected amount of tokens was transferred
         uint256 receivedAmount = protocolTokenBalanceAfter - protocolTokenBalanceBefore;
         if (receivedAmount != _amount) revert FermionErrors.InsufficientValueReceived(_amount, receivedAmount);
+    }
+
+    /**
+     * @notice Increases the amount, available to withdraw.
+     *
+     * @param _entityId - id of entity for which funds should be increased, or 0 for protocol
+     * @param _tokenAddress - funds contract address or zero address for native currency
+     * @param _amount - amount to be credited
+     */
+    function increaseAvailableFunds(uint256 _entityId, address _tokenAddress, uint256 _amount) internal {
+        if (_amount == 0) return;
+
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+
+        // if the current amount of token is 0, the token address must be added to the token list
+        mapping(address => uint256) storage availableFunds = pl.availableFunds[_entityId];
+        if (availableFunds[_tokenAddress] == 0) {
+            address[] storage tokenList = pl.tokenList[_entityId];
+            tokenList.push(_tokenAddress);
+            //Set index mapping. Should be index in tokenList array + 1
+            pl.tokenIndexByAccount[_entityId][_tokenAddress] = tokenList.length;
+        }
+
+        // update the available funds
+        availableFunds[_tokenAddress] += _amount;
+
+        emit IFundsEvents.AvailableFundsIncreased(_entityId, _tokenAddress, _amount);
     }
 }

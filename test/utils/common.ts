@@ -21,6 +21,7 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
     wrapperImplementationAddress,
     seaportAddress,
     seaportContract,
+    bosonTokenAddress,
   } = await deploySuite();
 
   const fermionErrors = await ethers.getContractAt("FermionErrors", diamondAddress);
@@ -45,6 +46,7 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
     wrapperImplementationAddress,
     seaportAddress,
     seaportContract,
+    bosonTokenAddress,
   };
 }
 

@@ -18,5 +18,4 @@ interface IOfferEvents {
     );
     event NFTsMinted(uint256 indexed bosonOfferId, uint256 startingNFTId, uint256 quantity);
     event NFTsWrapped(uint256 indexed bosonOfferId, address wrapperAddress, uint256 startingNFTId, uint256 quantity);
-    event VerificationInitiated(uint256 indexed bosonOfferId, uint256 indexed verifierId, uint256 NFTId);
 }

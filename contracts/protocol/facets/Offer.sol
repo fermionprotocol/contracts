@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BOSON_DR_ID_OFFSET } from "../domain/Constants.sol";
+import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/Funds.sol";
+import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
+import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -27,9 +28,11 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
     using SafeERC20 for IERC20;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
+    address private immutable BOSON_TOKEN;
 
     constructor(address _bosonProtocol) {
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
+        BOSON_TOKEN = IBosonProtocol(_bosonProtocol).getTokenAddress();
     }
 
     /**
@@ -178,22 +181,26 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             FermionTypes.EntityRole.Seller,
             FermionTypes.WalletRole.Assistant
         );
-        address wrapperAddress = FermionStorage.protocolLookups().wrapperAddress[offerId];
+
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        address wrapperAddress = pl.wrapperAddress[offerId];
 
         IBosonProtocol.PriceDiscovery memory _priceDiscovery;
         _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
         _priceDiscovery.priceDiscoveryContract = wrapperAddress;
         _priceDiscovery.conduit = wrapperAddress;
+        uint256 bosonProtocolFee;
         if (_selfSale) {
             address exchangeToken = offer.exchangeToken;
-            uint256 verifierFee = offer.verifierFee;
-            FundsLib.validateIncomingPayment(exchangeToken, verifierFee);
-            IERC20(exchangeToken).safeTransfer(wrapperAddress, verifierFee);
+            uint256 minimalPrice;
+            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(exchangeToken, offer.verifierFee, 0);
+            FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
+            IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
 
-            _priceDiscovery.price = verifierFee;
+            _priceDiscovery.price = minimalPrice;
             _priceDiscovery.priceDiscoveryData = abi.encodeCall(
                 IFermionWrapper.unwrapToSelf,
-                (_tokenId, exchangeToken, verifierFee)
+                (_tokenId, exchangeToken, minimalPrice)
             );
         } else {
             if (_buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount) {
@@ -204,15 +211,51 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
                     _buyerOrder.parameters.offer[0].startAmount -
                     _buyerOrder.parameters.consideration[1].startAmount;
             }
-            if (_priceDiscovery.price < offer.verifierFee) {
-                revert PriceTooLow(_priceDiscovery.price, offer.verifierFee); // ToDo: it does not take BP fee into account
+
+            uint256 minimalPrice;
+            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                offer.exchangeToken,
+                offer.verifierFee,
+                _priceDiscovery.price
+            );
+            if (_priceDiscovery.price < minimalPrice) {
+                revert PriceTooLow(_priceDiscovery.price, minimalPrice);
             }
             _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
         }
 
+        pl.offerPrice[offerId] = _priceDiscovery.price - bosonProtocolFee;
+
         BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
         BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
-        emit VerificationInitiated(offerId, offer.verifierId, _tokenId);
+        emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId);
+    }
+
+    /**
+     * @notice calculate the minimal price in order to cover the verifier fee and the Boson protocol fee
+     *
+     * @param _exchangeToken - the token used for the exchange
+     * @param _verifierFee - the verifier fee
+     * @param _price - the price (if not selfSale)
+     * @return minimalPrice - the minimal price
+     */
+    function getMinimalPriceAndBosonProtocolFee(
+        address _exchangeToken,
+        uint256 _verifierFee,
+        uint256 _price
+    ) internal view returns (uint256 minimalPrice, uint256 bosonProtocolFee) {
+        if (_exchangeToken == BOSON_TOKEN) {
+            bosonProtocolFee = BOSON_PROTOCOL.getProtocolFeeFlatBoson();
+            minimalPrice = _verifierFee + bosonProtocolFee;
+        } else {
+            if (_verifierFee == 0 && _price == 0) return (0, 0); // to avoid the contract call
+            uint256 bosonProtocolFeePercentage = BOSON_PROTOCOL.getProtocolFeePercentage();
+            if (_verifierFee > 0) {
+                minimalPrice = (HUNDRED_PERCENT * _verifierFee) / (HUNDRED_PERCENT - bosonProtocolFeePercentage);
+                if (_price == 0) _price = minimalPrice; // self sale
+            }
+            bosonProtocolFee = (_price * bosonProtocolFeePercentage) / HUNDRED_PERCENT; // price is guaranteed to be > 0, so this must always be calculated
+        }
     }
 
     /**

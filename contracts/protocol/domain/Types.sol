@@ -22,6 +22,11 @@ contract FermionTypes {
         Treasury
     }
 
+    enum VerificationStatus {
+        Verified,
+        Rejected
+    }
+
     struct EntityData {
         address admin;
         uint256 roles;

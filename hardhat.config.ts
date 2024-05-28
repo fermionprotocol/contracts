@@ -70,6 +70,9 @@ const config: HardhatUserConfig = {
       },
     }),
   },
+  mocha: {
+    timeout: 100000,
+  },
 };
 
 subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS, async (_, { config }) => {

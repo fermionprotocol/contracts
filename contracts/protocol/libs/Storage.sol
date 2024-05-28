@@ -51,6 +51,14 @@ library FermionStorage {
         mapping(uint256 => mapping(address => bool)) pendingEntityAdmin;
         // offerId => wrapper address
         mapping(uint256 => address) wrapperAddress;
+        // offerId => offerPrice
+        mapping(uint256 => uint256) offerPrice;
+        // entity id => token address => amount
+        mapping(uint256 => mapping(address => uint256)) availableFunds;
+        // entity id => all tokens with balance > 0
+        mapping(uint256 => address[]) tokenList;
+        // account id => token address => index on token addresses list
+        mapping(uint256 => mapping(address => uint256)) tokenIndexByAccount;
     }
 
     // Storage related to Meta Transactions
