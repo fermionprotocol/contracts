@@ -283,7 +283,9 @@ describe("Funds", function () {
 
       // Withdraw funds
       const withdrawAmount = amountNative / 2n;
-      const tx = await fundsFacet.withdrawFunds(sellerId, defaultSigner.address, [ZeroAddress], [withdrawAmount]);
+      const tx = await fundsFacet.withdrawFunds(sellerId, defaultSigner.address, [ZeroAddress], [withdrawAmount], {
+        gasPrice: 0,
+      });
 
       // Events
       await expect(tx)
@@ -302,7 +304,7 @@ describe("Funds", function () {
       const adminBalanceMockToken1 = await mockToken1.balanceOf(defaultSigner.address);
 
       // Withdraw funds
-      const tx = await fundsFacet.withdrawFunds(sellerId, defaultSigner.address, [], []);
+      const tx = await fundsFacet.withdrawFunds(sellerId, defaultSigner.address, [], [], { gasPrice: 0 });
 
       // Events
       await expect(tx)
@@ -387,7 +389,7 @@ describe("Funds", function () {
         buyer,
         offerId,
         exchangeId,
-      ); // ToDo: use commone closuer
+      ); // ToDo: use common closure once custody facet PR is merged
       await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
 
       // Submit verdicts
@@ -543,6 +545,81 @@ describe("Funds", function () {
           .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
           .withArgs(contractWalletWithReceiveAddress, amountNative, id("NotAcceptingMoney()").slice(0, 10));
       });
+    });
+  });
+
+  context("getTokenList", async function () {
+    it("Returns list of tokens", async function () {
+      const amount = parseEther("1");
+      await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+      await mockToken2.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+      await mockToken3.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+
+      await fundsFacet.depositFunds(sellerId, mockToken1Address, amount);
+      await fundsFacet.depositFunds(sellerId, ZeroAddress, amount, { value: amount });
+      await fundsFacet.depositFunds(sellerId, mockToken2Address, amount);
+      await fundsFacet.depositFunds(sellerId, mockToken3Address, amount);
+
+      // Read on chain state
+      const returnedTokenList = await fundsFacet.getTokenList(sellerId);
+      const expectedAvailableFunds = [
+        await mockToken1.getAddress(),
+        ZeroAddress,
+        await mockToken2.getAddress(),
+        await mockToken3.getAddress(),
+      ];
+      expect(returnedTokenList).to.eql(expectedAvailableFunds);
+    });
+  });
+
+  context("getTokenListPaginated", async function () {
+    let mockTokens: Contract[];
+    beforeEach(async function () {
+      const amount = parseEther("1");
+      mockTokens = [mockToken1, mockToken2, mockToken3, ...(await deployMockTokens(["ERC20", "ERC20"]))];
+
+      // top up assistants account
+      for (const mockToken of mockTokens) {
+        await mockToken.mint(defaultSigner.address, amount);
+        await mockToken.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+        await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), amount);
+      }
+
+      // Deposit token - seller
+      await fundsFacet.depositFunds(sellerId, ZeroAddress, amount, { value: amount });
+    });
+
+    it("Returns list of tokens", async function () {
+      const limit = 3;
+      const offset = 1;
+
+      // Read on chain state
+      const returnedTokenList = await fundsFacet.getTokenListPaginated(sellerId, limit, offset);
+      const expectedAvailableFunds = await Promise.all(
+        mockTokens.slice(offset, offset + limit).map((token) => token.getAddress()),
+      );
+      expect(returnedTokenList).to.eql(expectedAvailableFunds);
+    });
+
+    it("Offset is more than number of tokens", async function () {
+      const limit = 2;
+      const offset = 8;
+      // Read on chain state
+      const returnedTokenList = await fundsFacet.getTokenListPaginated(sellerId, limit, offset);
+      const expectedAvailableFunds: string[] = [];
+      expect(returnedTokenList).to.eql(expectedAvailableFunds);
+    });
+
+    it("Limit + offset is more than number of tokens", async function () {
+      const limit = 7;
+      const offset = 2;
+      // Read on chain state
+      const returnedTokenList = await fundsFacet.getTokenListPaginated(sellerId, limit, offset);
+      const expectedAvailableFunds = [
+        ...(await Promise.all(mockTokens.slice(offset).map((token) => token.getAddress()))),
+        ZeroAddress,
+      ];
+      expect(returnedTokenList).to.eql(expectedAvailableFunds);
     });
   });
 });
