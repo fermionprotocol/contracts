@@ -234,7 +234,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
         validateEntityAdmin(_entityId, FermionStorage.protocolLookups());
-        FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
+        FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
 
         EntityLib.storeEntity(_entityId, address(0), entityData, _roles, _metadata);
     }
@@ -305,7 +305,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         address _adminWallet
     ) external view returns (uint256 entityId, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
         FermionTypes.EntityData storage entityData;
-        (entityId, entityData) = fetchEntityData(_adminWallet);
+        (entityId, entityData) = EntityLib.fetchEntityData(_adminWallet);
 
         roles = compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
@@ -325,8 +325,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     function getEntity(
         uint256 _entityId
     ) external view returns (address adminWallet, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
-        EntityLib.validateEntityId(_entityId, FermionStorage.protocolLookups());
-        FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
+        FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
         adminWallet = entityData.admin;
         roles = compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
@@ -361,41 +360,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         uint256 compactEntityRoles = FermionStorage.protocolEntities().entityData[_entityId].roles;
 
         return EntityLib.checkEntityRole(compactEntityRoles, _entityRole);
-    }
-
-    /**
-     * @notice Gets the entity data from the storage.
-     *
-     * Reverts if:
-     * - Entity does not exist
-     *
-     * @param _adminWallet - the address of the entity's admin
-     * @return entityId - the entity ID
-     * @return entityData -  storage pointer to data location
-     */
-    function fetchEntityData(
-        address _adminWallet
-    ) internal view returns (uint256 entityId, FermionTypes.EntityData storage entityData) {
-        entityId = FermionStorage.protocolLookups().entityId[_adminWallet];
-        if (entityId == 0) revert NoSuchEntity(0);
-
-        entityData = FermionStorage.protocolEntities().entityData[entityId];
-    }
-
-    /**
-     * @notice Gets the entity data from the storage.
-     *
-     * Reverts if:
-     * - Entity does not exist
-     *
-     * @param _entityId - the entity ID
-     * @return entityData -  storage pointer to data location
-     */
-    function fetchEntityData(uint256 _entityId) internal view returns (FermionTypes.EntityData storage entityData) {
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        EntityLib.validateEntityId(_entityId, pl);
-
-        entityData = FermionStorage.protocolEntities().entityData[_entityId];
     }
 
     /**
@@ -547,7 +511,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         delete pl.pendingEntityAdmin[_entityId][_wallet];
         pl.entityId[_wallet] = _entityId;
 
-        FermionTypes.EntityData storage entityData = fetchEntityData(_entityId);
+        FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
         delete pl.entityId[entityData.admin];
 
         entityData.admin = _wallet;

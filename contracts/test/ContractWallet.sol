@@ -32,3 +32,23 @@ contract ContractWallet is IERC1271 {
         revert UnknownValidity();
     }
 }
+
+contract ContractWalletWithReceive is ContractWallet {
+    error NotAcceptingMoney();
+
+    event FundsReceived(address indexed sender, uint256 value);
+
+    bool private acceptingMoney = true;
+
+    function setAcceptingMoney(bool _acceptingMoney) external {
+        acceptingMoney = _acceptingMoney;
+    }
+
+    receive() external payable {
+        if (!acceptingMoney) {
+            revert NotAcceptingMoney();
+        }
+
+        emit FundsReceived(msg.sender, msg.value);
+    }
+}

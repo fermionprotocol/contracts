@@ -470,7 +470,7 @@ describe("Offer", function () {
         await mockToken.approve(fermionProtocolAddress, totalSellerDeposit);
         await mockToken.setBurnAmount(1);
         await expect(offerFacet.mintAndWrapNFTs(bosonOfferId, quantity))
-          .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
+          .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
           .withArgs(totalSellerDeposit, totalSellerDeposit - 1n);
         await mockToken.setBurnAmount(0);
 
@@ -484,12 +484,12 @@ describe("Offer", function () {
 
         // Native currency offer - insufficient funds
         await expect(offerFacet.mintAndWrapNFTs(bosonOfferId + 1n, quantity, { value: totalSellerDeposit - 1n }))
-          .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
+          .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
           .withArgs(totalSellerDeposit, totalSellerDeposit - 1n);
 
         // Native currency offer - too much sent
         await expect(offerFacet.mintAndWrapNFTs(bosonOfferId + 1n, quantity, { value: totalSellerDeposit + 1n }))
-          .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
+          .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
           .withArgs(totalSellerDeposit, totalSellerDeposit + 1n);
 
         // Send native currency to ERC20 offer
@@ -1027,7 +1027,7 @@ describe("Offer", function () {
           await mockToken.approve(fermionProtocolAddress, minimalPrice);
           await mockToken.setBurnAmount(1);
           await expect(offerFacet.unwrapNFTToSelf(tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
+            .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
             .withArgs(minimalPrice, minimalPrice - 1n);
           await mockToken.setBurnAmount(0);
 

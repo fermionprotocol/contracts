@@ -17,6 +17,10 @@ task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and init
 
 const config: HardhatUserConfig = {
   networks: {
+    hardhat: {
+      gasPrice: 0,
+      initialBaseFeePerGas: 0,
+    },
     amoy: {
       url: vars.get("RPC_PROVIDER_AMOY", "https://rpc-amoy.polygon.technology"),
       accounts: [vars.get("DEPLOYER_KEY_AMOY", DEFAULT_DEPLOYER_KEY)],
