@@ -90,30 +90,8 @@ contract FundsFacet is Context, FermionErrors {
             )
         ) revert NotEntityAssistant(_entityId, msgSender);
 
-        withdrawFundsInternal(_treasury, _entityId, _tokenList, _tokenAmounts);
+        withdrawFundsInternal(_entityId, _treasury, _tokenList, _tokenAmounts);
     }
-
-    // /**
-    //  * @notice Withdraws the protocol fees.
-    //  *
-    //  * @dev Can only be called by the FEE_COLLECTOR role.
-    //  *
-    //  * Emits FundsWithdrawn event if successful.
-    //  *
-    //  * Reverts if:
-    //  * - Caller does not have the FEE_COLLECTOR role
-    //  * - Token list length does not match amount list length
-    //  * - Caller tries to withdraw more that they have in available funds
-    //  * - There is nothing to withdraw
-    //  * - Transfer of funds is not successful
-    //  *
-    //  * @param _tokenList - list of contract addresses of tokens that are being withdrawn
-    //  * @param _tokenAmounts - list of amounts to be withdrawn, corresponding to tokens in tokenList
-    //  */
-    // function withdrawProtocolFees(address[] calldata _tokenList, uint256[] calldata _tokenAmounts) external {
-    //     // Withdraw the funds
-    //     withdrawFundsInternal(protocolAddresses().treasury, 0, _tokenList, _tokenAmounts);
-    // }
 
     /**
      * @notice Returns list of addresses for which the entity has funds available.
@@ -175,8 +153,8 @@ contract FundsFacet is Context, FermionErrors {
      * @param _tokenAmounts - list of amounts to be withdrawn, corresponding to tokens in tokenList
      */
     function withdrawFundsInternal(
-        address payable _destinationAddress,
         uint256 _entityId,
+        address payable _destinationAddress,
         address[] calldata _tokenList,
         uint256[] calldata _tokenAmounts
     ) internal {
