@@ -760,7 +760,7 @@ describe("Custody", function () {
           await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
           await mockToken.setBurnAmount(1);
           await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InsufficientValueReceived")
+            .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
             .withArgs(taxAmount, taxAmount - 1n);
           await mockToken.setBurnAmount(0);
 
