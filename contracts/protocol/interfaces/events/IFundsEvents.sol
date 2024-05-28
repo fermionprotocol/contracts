@@ -8,4 +8,10 @@ pragma solidity 0.8.24;
  */
 interface IFundsEvents {
     event AvailableFundsIncreased(uint256 indexed entityId, address indexed token, uint256 amount);
+    event FundsWithdrawn(
+        uint256 indexed entityId,
+        address indexed withdrawnTo,
+        address indexed tokenAddress,
+        uint256 amount
+    );
 }

@@ -20,11 +20,9 @@ library FundsLib {
      * @notice Validates that incoming payments matches expectation. If token is a native currency, it makes sure
      * msg.value is correct. If token is ERC20, it transfers the value from the sender to the protocol.
      *
-     * Emits ERC20 Transfer event in call stack if successful.
-     *
      * Reverts if:
-     * - Offer price is in native token and caller does not send enough
-     * - Offer price is in some ERC20 token and caller also sends native currency
+     * - Exchange token is native token and caller does not send enough
+     * - Exchange token is some ERC20 token and caller also sends native currency
      * - Contract at token address does not support ERC20 function transferFrom
      * - Calling transferFrom on token fails for some reason (e.g. protocol is not approved to transfer)
      * - Received ERC20 token amount differs from the expected value
@@ -35,7 +33,7 @@ library FundsLib {
     function validateIncomingPayment(address _exchangeToken, uint256 _value) internal {
         if (_exchangeToken == address(0)) {
             // if transfer is in the native currency, msg.value must match offer price
-            if (msg.value != _value) revert FermionErrors.InsufficientValueReceived(_value, msg.value);
+            if (msg.value != _value) revert FermionErrors.WrongValueReceived(_value, msg.value);
         } else {
             // when price is in an erc20 token, transferring the native currency is not allowed
             if (msg.value != 0) revert FermionErrors.NativeNotAllowed();
@@ -47,8 +45,6 @@ library FundsLib {
 
     /**
      * @notice Tries to transfer tokens from the caller to the protocol.
-     *
-     * Emits ERC20 Transfer event in call stack if successful.
      *
      * Reverts if:
      * - Contract at token address does not support ERC20 function transferFrom
@@ -71,7 +67,7 @@ library FundsLib {
 
         // make sure that expected amount of tokens was transferred
         uint256 receivedAmount = protocolTokenBalanceAfter - protocolTokenBalanceBefore;
-        if (receivedAmount != _amount) revert FermionErrors.InsufficientValueReceived(_amount, receivedAmount);
+        if (receivedAmount != _amount) revert FermionErrors.WrongValueReceived(_amount, receivedAmount);
     }
 
     /**
@@ -99,5 +95,112 @@ library FundsLib {
         availableFunds[_tokenAddress] += _amount;
 
         emit IFundsEvents.AvailableFundsIncreased(_entityId, _tokenAddress, _amount);
+    }
+
+    /**
+     * @notice Tries to transfer native currency or tokens from the protocol to the recipient.
+     *
+     * Emits FundsWithdrawn event if successful.
+     *
+     * Reverts if:
+     * - Transfer of native currency is not successful (i.e. recipient is a contract which reverts)
+     * - Contract at token address does not support ERC20 function transfer
+     * - Available funds is less than amount to be decreased
+     *
+     * @param _entityId - id of entity for which funds should be decreased, or 0 for protocol
+     * @param _tokenAddress - address of the token to be transferred
+     * @param _to - address of the recipient
+     * @param _amount - amount to be transferred
+     */
+    function transferFundsFromProtocol(
+        uint256 _entityId,
+        address _tokenAddress,
+        address payable _to,
+        uint256 _amount
+    ) internal {
+        // first decrease the amount to prevent the reentrancy attack
+        decreaseAvailableFunds(_entityId, _tokenAddress, _amount);
+
+        // try to transfer the funds
+        transferFundsFromProtocol(_tokenAddress, _to, _amount);
+
+        // notify the external observers
+        emit IFundsEvents.FundsWithdrawn(_entityId, _to, _tokenAddress, _amount);
+    }
+
+    /**
+     * @notice Tries to transfer native currency or tokens from the protocol to the recipient.
+     *
+     * Reverts if:
+     * - Transfer of native currency is not successful (i.e. recipient is a contract which reverts)
+     * - Contract at token address does not support ERC20 function transfer
+     * - Available funds is less than amount to be decreased
+     *
+     * @param _tokenAddress - address of the token to be transferred
+     * @param _to - address of the recipient
+     * @param _amount - amount to be transferred
+     */
+    function transferFundsFromProtocol(address _tokenAddress, address payable _to, uint256 _amount) internal {
+        // try to transfer the funds
+        if (_tokenAddress == address(0)) {
+            // transfer native currency
+            (bool success, bytes memory errorMessage) = _to.call{ value: _amount }("");
+            if (!success) revert FermionErrors.TokenTransferFailed(_to, _amount, errorMessage);
+        } else {
+            // transfer ERC20 tokens
+            IERC20(_tokenAddress).safeTransfer(_to, _amount);
+        }
+    }
+
+    /**
+     * @notice Decreases the amount available to withdraw or use as a seller deposit.
+     *
+     * Reverts if:
+     * - Available funds is less than amount to be decreased
+     *
+     * @param _entityId - id of entity for which funds should be decreased, or 0 for protocol
+     * @param _tokenAddress - funds contract address or zero address for native currency
+     * @param _amount - amount to be taken away
+     */
+    function decreaseAvailableFunds(uint256 _entityId, address _tokenAddress, uint256 _amount) internal {
+        if (_amount > 0) {
+            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+
+            // get available funds from storage
+            mapping(address => uint256) storage availableFunds = pl.availableFunds[_entityId];
+            uint256 entityFunds = availableFunds[_tokenAddress];
+
+            // make sure that seller has enough funds in the pool and reduce the available funds
+            if (entityFunds < _amount) revert FermionErrors.InsufficientAvailableFunds(entityFunds, _amount);
+
+            // Use unchecked to optimize execution cost. The math is safe because of the require above.
+            unchecked {
+                availableFunds[_tokenAddress] = entityFunds - _amount;
+            }
+
+            // if available funds are totally emptied, the token address is removed from the seller's tokenList
+            if (entityFunds == _amount) {
+                // Get the index in the tokenList array, which is 1 less than the tokenIndexByAccount index
+                address[] storage tokenList = pl.tokenList[_entityId];
+                uint256 lastTokenIndex = tokenList.length - 1;
+                mapping(address => uint256) storage entityTokens = pl.tokenIndexByAccount[_entityId];
+                uint256 index = entityTokens[_tokenAddress] - 1;
+
+                // if target is last index then only pop and delete are needed
+                // otherwise, we overwrite the target with the last token first
+                if (index != lastTokenIndex) {
+                    // Need to fill gap caused by delete if more than one element in storage array
+                    address tokenToMove = tokenList[lastTokenIndex];
+                    // Copy the last token in the array to this index to fill the gap
+                    tokenList[index] = tokenToMove;
+                    // Reset index mapping. Should be index in tokenList array + 1
+                    entityTokens[tokenToMove] = index + 1;
+                }
+                // Delete last token address in the array, which was just moved to fill the gap
+                tokenList.pop();
+                // Delete from index mapping
+                delete entityTokens[_tokenAddress];
+            }
+        }
     }
 }

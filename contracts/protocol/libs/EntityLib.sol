@@ -227,6 +227,41 @@ library EntityLib {
         return _compactEntityRoles & (1 << uint256(_entityRole)) != 0;
     }
 
+    /**
+     * @notice Gets the entity data from the storage.
+     *
+     * Reverts if:
+     * - Entity does not exist
+     *
+     * @param _adminWallet - the address of the entity's admin
+     * @return entityId - the entity ID
+     * @return entityData -  storage pointer to data location
+     */
+    function fetchEntityData(
+        address _adminWallet
+    ) internal view returns (uint256 entityId, FermionTypes.EntityData storage entityData) {
+        entityId = FermionStorage.protocolLookups().entityId[_adminWallet];
+        if (entityId == 0) revert FermionErrors.NoSuchEntity(0);
+
+        entityData = FermionStorage.protocolEntities().entityData[entityId];
+    }
+
+    /**
+     * @notice Gets the entity data from the storage.
+     *
+     * Reverts if:
+     * - Entity does not exist
+     *
+     * @param _entityId - the entity ID
+     * @return entityData -  storage pointer to data location
+     */
+    function fetchEntityData(uint256 _entityId) internal view returns (FermionTypes.EntityData storage entityData) {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        validateEntityId(_entityId, pl);
+
+        entityData = FermionStorage.protocolEntities().entityData[_entityId];
+    }
+
     /** @notice Reverts if the entity ID is invalid
      *
      * @param _entityId - the entity ID

@@ -18,6 +18,8 @@ interface FermionErrors {
     error NoSuchEntity(uint256 entityId);
     error NotAdmin(address admin, uint256 entityId, FermionTypes.EntityRole role);
     error NotEntityAdmin(uint256 entityId, address admin);
+    error NotEntityTreasury(uint256 entityId, address treasury);
+    error NotEntityAssistant(uint256 entityId, address assistant);
     error AlreadyAdmin(uint256 entityId, address admin);
     error EntityHasNoRole(uint256 entityId, FermionTypes.EntityRole role);
     error WalletHasNoRole(
@@ -34,9 +36,13 @@ interface FermionErrors {
     error InvalidOrder();
 
     // Funds errors
-    error InsufficientValueReceived(uint256 expected, uint256 actual);
+    error WrongValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
     error PriceTooLow(uint256 price, uint256 minimumPrice);
+    error ZeroDepositNotAllowed();
+    error NothingToWithdraw();
+    error TokenTransferFailed(address to, uint256 amount, bytes errorMessage);
+    error InsufficientAvailableFunds(uint256 availableFunds, uint256 requestedFunds);
 
     // Meta transaction errors
     error NonceUsedAlready();
