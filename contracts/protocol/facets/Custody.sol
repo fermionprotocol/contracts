@@ -24,6 +24,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      * Reverts if:
      * - Caller is not the custodian's assistant
      * - The token is not in the Verified state
+     * - The checkout request status is not None
      *
      * @param _tokenId - the token ID
      */
@@ -38,7 +39,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 custodianId = offer.custodianId;
 
-        // Check the caller is the the custodian's assistant
+        // Check the caller is the custodian's assistant
         EntityLib.validateWalletRole(
             custodianId,
             msgSender(),
@@ -63,8 +64,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * Reverts if:
      * - Caller is not the custodian's assistant
-     * - The token is not in the Verified state
-     * - The checkour request has not been made
+     * - The checkout request status is not CheckOutRequestCleared
      *
      * @param _tokenId - the token ID
      */
@@ -103,7 +103,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * Reverts if:
      * - Caller is not the owner of the token
-     * - The token is not in the CheckedIn state
+     * - The checkout request status is not CheckedIn
      *
      * @param _tokenId - the token ID
      */
@@ -136,7 +136,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * Reverts if:
      * - Caller is not the seller's assistant
-     * - The checkout request has not been made
+     * - The checkout request status is not CheckOutRequested
      * - The submitted tax amount is zero
      *
      * @param _tokenId - the token ID
@@ -176,11 +176,10 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      * Reverts if:
      * - If no taxes are to be paid and:
      *   - The caller is not the seller's assistant
-     *   - The checkout request has not been made
      * - if taxes are to be paid and:
      *   - the caller is not the buyer
      *   - the amount paid is less than the amount owed
-     * - The token is not in the CheckedIn state
+     * - The checkout request status is not CheckOutRequested
      *
      * @param _tokenId - the token ID
      */
