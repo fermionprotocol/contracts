@@ -5,10 +5,9 @@ import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, TokenState, VerificationStatus, WalletRole } from "../utils/enums";
-import { Seaport } from "@opensea/seaport-js";
-import { ItemType } from "@opensea/seaport-js/lib/constants";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { getBosonHandler } from "../utils/boson-protocol";
+import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 
 const { parseEther } = ethers;
 
@@ -80,6 +79,7 @@ describe("Verification", function () {
     // Unwrap some NFTs - normal sale and sale with self-verification
     buyer = wallets[4];
 
+    const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
     const { buyerAdvancedOrder, tokenId, encumberedAmount } = await createBuyerAdvancedOrder(
       buyer,
       offerId,
@@ -124,56 +124,6 @@ describe("Verification", function () {
       encumberedAmountSelfVerification -
       (encumberedAmountSelfVerification * BigInt(bosonProtocolFeePercentage)) / 10000n +
       sellerDeposit;
-  }
-
-  async function createBuyerAdvancedOrder(buyer: HardhatEthersSigner, offerId: string, exchangeId: string) {
-    const fullPrice = parseEther("1");
-    const openSeaFee = (fullPrice * 2n) / 100n;
-    const openSea = wallets[5]; // a mock OS address
-    const seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
-
-    await mockToken.mint(buyer.address, fullPrice);
-
-    const exchangeToken = await mockToken.getAddress();
-    const tokenId = deriveTokenId(offerId, exchangeId).toString();
-    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
-    const { executeAllActions } = await seaport.createOrder(
-      {
-        offer: [
-          {
-            itemType: ItemType.ERC20,
-            token: exchangeToken,
-            amount: fullPrice.toString(),
-          },
-        ],
-        consideration: [
-          {
-            itemType: ItemType.ERC721,
-            token: wrapperAddress,
-            identifier: tokenId,
-          },
-          {
-            itemType: ItemType.ERC20,
-            token: exchangeToken,
-            amount: openSeaFee.toString(),
-            recipient: openSea.address,
-          },
-        ],
-      },
-      buyer.address,
-    );
-
-    const buyerOrder = await executeAllActions();
-    const buyerAdvancedOrder = {
-      ...buyerOrder,
-      numerator: 1n,
-      denominator: 1n,
-      extraData: "0x",
-    };
-
-    const encumberedAmount = fullPrice - openSeaFee;
-
-    return { buyerAdvancedOrder, tokenId, encumberedAmount };
   }
 
   before(async function () {
