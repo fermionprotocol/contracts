@@ -59,6 +59,8 @@ library FermionStorage {
         mapping(uint256 => address[]) tokenList;
         // account id => token address => index on token addresses list
         mapping(uint256 => mapping(address => uint256)) tokenIndexByAccount;
+        // token id => checkout request
+        mapping(uint256 => FermionTypes.CheckoutRequest) checkoutRequest;
     }
 
     // Storage related to Meta Transactions
@@ -117,5 +119,19 @@ library FermionStorage {
         assembly {
             mt.slot := position
         }
+    }
+
+    /**
+     * @notice Gets the offer from the token id
+     *
+     * @param _tokenId - the token id
+     * @return offerId - the offer id
+     * @return offer storage pointer
+     */
+    function getOfferFromTokenId(
+        uint256 _tokenId
+    ) internal view returns (uint256 offerId, FermionTypes.Offer storage offer) {
+        offerId = _tokenId >> 128;
+        offer = protocolEntities().offer[offerId];
     }
 }

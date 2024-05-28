@@ -15,7 +15,6 @@ export enum TokenState {
   Unverified,
   Verified,
   CheckedIn,
-  Fractionalised,
   CheckedOut,
   Burned,
 }
@@ -29,6 +28,14 @@ export enum WalletRole {
 export enum VerificationStatus {
   Verified,
   Rejected,
+}
+
+export enum CheckoutRequestStatus {
+  None,
+  CheckedIn,
+  CheckOutRequested,
+  CheckOutRequestCleared,
+  CheckedOut,
 }
 
 export function enumIterator(enumObject: any) {

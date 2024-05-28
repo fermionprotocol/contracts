@@ -1,5 +1,10 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployFermionProtocolFixture, deployMockTokens, deriveTokenId } from "../utils/common";
+import {
+  deployFermionProtocolFixture,
+  deployMockTokens,
+  deriveTokenId,
+  verifySellerAssistantRoleClosure,
+} from "../utils/common";
 import { getBosonHandler, getBosonVoucher } from "../utils/boson-protocol";
 import { expect } from "chai";
 import { ethers } from "hardhat";
@@ -27,6 +32,7 @@ describe("Offer", function () {
   let bosonProtocolAddress: string;
   let seaportContract: Contract;
   let bosonTokenAddress: string;
+  let verifySellerAssistantRole: any;
 
   async function setupOfferTest() {
     // Create three entities
@@ -49,41 +55,6 @@ describe("Offer", function () {
     await mockBosonToken.mint(defaultSigner.address, parseEther("1000"));
   }
 
-  // Used to test methods that can be called by the Seller's Assistant only
-  async function verifySellerAssistantRole(method: string, args: any[]) {
-    const wallet = wallets[4];
-    const sellerId = "1";
-
-    // completely random wallet
-    await expect(offerFacet.connect(wallet)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
-
-    // an entity-wide Treasury or admin wallet (not Assistant)
-    await entityFacet.addEntityWallets(sellerId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
-    await expect(offerFacet.connect(wallet)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
-
-    // a Seller specific Treasury or Admin wallet
-    const wallet2 = wallets[5];
-    await entityFacet.addEntityWallets(
-      sellerId,
-      [wallet2],
-      [[EntityRole.Seller]],
-      [[[WalletRole.Treasury, WalletRole.Admin]]],
-    );
-    await expect(offerFacet.connect(wallet2)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
-
-    // an Assistant of another role than Seller
-    await entityFacet.addEntityWallets(sellerId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
-    await expect(offerFacet.connect(wallet2)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
-  }
-
   before(async function () {
     ({
       diamondAddress: fermionProtocolAddress,
@@ -98,6 +69,8 @@ describe("Offer", function () {
     } = await loadFixture(deployFermionProtocolFixture));
 
     await loadFixture(setupOfferTest);
+
+    verifySellerAssistantRole = verifySellerAssistantRoleClosure(offerFacet, wallets, entityFacet, fermionErrors);
   });
 
   afterEach(async function () {

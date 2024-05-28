@@ -170,8 +170,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _selfSale - if true, the NFT is unwrapped to the seller
      */
     function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder memory _buyerOrder, bool _selfSale) internal {
-        uint256 offerId = _tokenId >> 128;
-        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[offerId];
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         address msgSender = msgSender();
 
         // Check the caller is the the seller's assistant
