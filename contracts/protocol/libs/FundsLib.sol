@@ -163,6 +163,8 @@ library FundsLib {
      * @param _amount - amount to be taken away
      */
     function decreaseAvailableFunds(uint256 _entityId, address _tokenAddress, uint256 _amount) internal {
+        if (_amount == 0) return;
+
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
         // get available funds from storage

@@ -71,7 +71,6 @@ describe("Custody", function () {
     };
 
     // Make three offers one for normal sale, one of self sale and one for self custody
-    await mockToken.approve(fermionProtocolAddress, 3n * sellerDeposit);
     const offerId = "1"; // buyer != seller, custodian != seller
     const offerIdSelfSale = "2"; // buyer = seller, custodian != seller
     const offerIdSelfCustody = "3"; // buyer != seller, custodian = seller
@@ -91,6 +90,7 @@ describe("Custody", function () {
     // Unwrap some NFTs - normal sale and sale with self-custody
     buyer = wallets[4];
 
+    await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
     const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
     await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);

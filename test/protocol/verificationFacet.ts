@@ -59,7 +59,6 @@ describe("Verification", function () {
     };
 
     // Make three offers one for normal sale, one of self sale and one for self verification
-    await mockToken.approve(fermionProtocolAddress, 3n * sellerDeposit);
     const offerId = "1"; // buyer != seller, verifier != seller
     const offerIdSelfSale = "2"; // buyer = seller, verifier != seller
     const offerIdSelfVerification = "3"; // buyer != seller, verifier = seller
@@ -79,6 +78,7 @@ describe("Verification", function () {
     // Unwrap some NFTs - normal sale and sale with self-verification
     buyer = wallets[4];
 
+    await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit); // approve to transfer seller deposit during the unwrapping
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
     const { buyerAdvancedOrder, tokenId, encumberedAmount } = await createBuyerAdvancedOrder(
       buyer,

@@ -325,7 +325,6 @@ describe("Funds", function () {
         metadataHash: ZeroHash,
       };
 
-      await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await offerFacet.createOffer(fermionOffer);
       await offerFacet.mintAndWrapNFTs(offerId, quantity);
 
@@ -338,6 +337,7 @@ describe("Funds", function () {
         offerId,
         exchangeId,
       );
+      await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
 
       // Submit verdicts

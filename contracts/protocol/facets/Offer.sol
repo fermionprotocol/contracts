@@ -118,14 +118,11 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      *
      * Reverts if:
      * - Caller is not the seller's assistant
-     * - Not enough funds are sent to cover the seller deposit
-     * - Deposit is in ERC20 and the caller sends native currency
-     * - ERC20 token transfer fails
      *
      * @param _offerId - the offer ID
      * @param _quantity - the number of NFTs to mint
      */
-    function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external payable {
+    function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
         wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
     }
@@ -151,7 +148,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _tokenId - the token ID
      * @param _buyerOrder - the Seaport buyer order
      */
-    function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
+    function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external payable {
         unwrapNFT(_tokenId, _buyerOrder, false);
     }
 
@@ -162,6 +159,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      *
      * Reverts if:
      * - Caller is not the seller's assistant
+     * - If seller deposit is non zero and there are not enough funds to cover it
      * - It is self sale and the caller does not provide the verification fee
      * - It is a normal sale and the price is not high enough to cover the verification fee
      *
@@ -181,6 +179,9 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             FermionTypes.WalletRole.Assistant
         );
 
+        address exchangeToken = offer.exchangeToken;
+        handleBosonSellerDeposit(offer.sellerId, exchangeToken, offer.sellerDeposit);
+
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address wrapperAddress = pl.wrapperAddress[offerId];
 
@@ -190,11 +191,12 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         _priceDiscovery.conduit = wrapperAddress;
         uint256 bosonProtocolFee;
         if (_selfSale) {
-            address exchangeToken = offer.exchangeToken;
             uint256 minimalPrice;
             (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(exchangeToken, offer.verifierFee, 0);
-            FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-            IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
+            if (minimalPrice > 0) {
+                FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
+                IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
+            }
 
             _priceDiscovery.price = minimalPrice;
             _priceDiscovery.priceDiscoveryData = abi.encodeCall(
@@ -213,7 +215,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
 
             uint256 minimalPrice;
             (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                offer.exchangeToken,
+                exchangeToken,
                 offer.verifierFee,
                 _priceDiscovery.price
             );
@@ -228,6 +230,56 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
         BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
         emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId);
+    }
+
+    /**
+     * Handle Boson seller deposit
+     *
+     * If the seller deposit is non zero, the amount must be deposited into Boson so unwrapping can succed.
+     * It the seller has some available funds in Fermion, they are used first.
+     * Otherwise, the seller must provide the missing amount.
+     *
+     * Reverts if:
+     * - The available funds are not enough and:
+     *   - Not enough funds are sent to cover the seller deposit
+     *   - Deposit is in ERC20 and the caller sends native currency
+     *   - ERC20 token transfer fails
+     *
+     * @param _sellerId - the seller ID
+     * @param _exchangeToken - the exchange token
+     * @param _sellerDeposit - the seller deposit
+     */
+    function handleBosonSellerDeposit(uint256 _sellerId, address _exchangeToken, uint256 _sellerDeposit) internal {
+        // Validate that the seller deposit is provided
+        if (_sellerDeposit > 0) {
+            // Use the available funds first
+            // If there is not enough, the seller must provide the missing amount
+            uint256 availableFunds = FermionStorage.protocolLookups().availableFunds[_sellerId][_exchangeToken];
+
+            if (availableFunds >= _sellerDeposit) {
+                FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
+            } else {
+                FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, availableFunds); // Use all available funds
+
+                uint256 remainder;
+                unchecked {
+                    remainder = _sellerDeposit - availableFunds;
+                }
+
+                // Transfer the remainder from the seller
+                FundsLib.validateIncomingPayment(_exchangeToken, remainder);
+            }
+
+            // Deposit to the boson protocol
+            uint256 msgValue;
+            if (_exchangeToken != address(0)) {
+                IERC20(_exchangeToken).forceApprove(address(BOSON_PROTOCOL), _sellerDeposit);
+            } else {
+                msgValue = _sellerDeposit;
+            }
+            uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
+            BOSON_PROTOCOL.depositFunds{ value: msgValue }(bosonSellerId, _exchangeToken, _sellerDeposit);
+        }
     }
 
     /**
@@ -328,7 +380,6 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         if (_quantity == 0) {
             revert InvalidQuantity(_quantity);
         }
-        FermionStorage.ProtocolStatus storage ps = FermionStorage.protocolStatus();
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
         address msgSender = msgSender();
 
@@ -340,22 +391,6 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             FermionTypes.WalletRole.Assistant
         );
 
-        // Validate that the seller deposit is provided
-        uint256 sellerDeposit = offer.sellerDeposit;
-        if (sellerDeposit > 0) {
-            uint256 totalDeposit = sellerDeposit * _quantity;
-
-            // Transfer the deposit to the protocol.
-            address exchangeToken = offer.exchangeToken;
-            FundsLib.validateIncomingPayment(exchangeToken, totalDeposit);
-            // Deposit to the boson protocol
-            if (exchangeToken != address(0)) {
-                IERC20(exchangeToken).forceApprove(address(BOSON_PROTOCOL), totalDeposit);
-            }
-            uint256 bosonSellerId = ps.bosonSellerId;
-            BOSON_PROTOCOL.depositFunds{ value: msg.value }(bosonSellerId, exchangeToken, totalDeposit);
-        }
-
         uint256 nextExchangeId = BOSON_PROTOCOL.getNextExchangeId();
         startingNFTId = nextExchangeId | (_offerId << 128);
 
@@ -363,7 +398,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         BOSON_PROTOCOL.reserveRange(_offerId, _quantity, address(this)); // The recipient is this contract, so the NFTs can be wrapped later on
 
         // Premint NFTs on boson voucher
-        bosonVoucher = IBosonVoucher(ps.bosonNftCollection);
+        bosonVoucher = IBosonVoucher(FermionStorage.protocolStatus().bosonNftCollection);
         bosonVoucher.preMint(_offerId, _quantity);
 
         // emit event
