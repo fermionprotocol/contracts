@@ -21,6 +21,11 @@ const fermionConfig: FermionConfig = {
       openSeaConduit: ZeroAddress,
       openSeaConduitKey: ZeroHash,
     },
+    localhost: {
+      seaport: ZeroAddress,
+      openSeaConduit: ZeroAddress,
+      openSeaConduitKey: ZeroHash,
+    },
     amoy: {
       seaport: "0x0000000000000068F116a894984e2DB1123eB395",
       openSeaConduit: ZeroAddress,
