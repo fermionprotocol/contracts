@@ -5,37 +5,49 @@
   "protocolVersion": "0.0.1",
   "contracts": [
     {
+      "name": "FermionWrapper",
+      "address": "0xC1fD27785c958909F3Fee6403f6e0C8D425E3a91",
+      "args": [
+        "0xFFcd4c407B60B0d4351945484F9354d2C9E34EA1",
+        {
+          "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
+          "openSeaConduit": "0x0000000000000000000000000000000000000000",
+          "openSeaConduitKey": "0x0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
       "name": "DiamondCutFacet",
-      "address": "0xcEAC5d357cD41c9F922A9c96a1573c365cB65c8C",
+      "address": "0x9a4d1e10eF41952d59A94e16e0e2378c69Cfdb39",
       "args": []
     },
     {
       "name": "DiamondLoupeFacet",
-      "address": "0xDa9e055b33E68B828A9f6237e8E70393db70dD56",
+      "address": "0x1b392C57e5c497B749f6Cacea277190b89B270C5",
       "args": []
     },
     {
       "name": "OwnershipFacet",
-      "address": "0xD211FEB768Aa4fb3a522Ba9BFcF5880D7C1Eb18f",
+      "address": "0x6Ceb36aDBDDC325Cb27F27d8B32B85b5256F537E",
       "args": []
     },
     {
       "name": "InitializationFacet",
-      "address": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
+      "address": "0xb5b31A717C7420E51E89A8188F9F63865573E4DF",
       "args": []
     },
     {
       "name": "FermionDiamond",
-      "address": "0xdE2522fd81d90cACF69229186792b5A0F2852FbF",
+      "address": "0x101Cbc4C2232Ed84375B5e7f261d657c9ad10cB1",
       "args": [
         [
           {
-            "facetAddress": "0xcEAC5d357cD41c9F922A9c96a1573c365cB65c8C",
+            "facetAddress": "0x9a4d1e10eF41952d59A94e16e0e2378c69Cfdb39",
             "action": 0,
             "functionSelectors": ["0x1f931c1c"]
           },
           {
-            "facetAddress": "0xDa9e055b33E68B828A9f6237e8E70393db70dD56",
+            "facetAddress": "0x1b392C57e5c497B749f6Cacea277190b89B270C5",
             "action": 0,
             "functionSelectors": [
               "0xcdffacc6",
@@ -46,32 +58,52 @@
             ]
           },
           {
-            "facetAddress": "0xD211FEB768Aa4fb3a522Ba9BFcF5880D7C1Eb18f",
+            "facetAddress": "0x6Ceb36aDBDDC325Cb27F27d8B32B85b5256F537E",
             "action": 0,
             "functionSelectors": ["0x8da5cb5b", "0xf2fde38b"]
           },
           {
-            "facetAddress": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
+            "facetAddress": "0xb5b31A717C7420E51E89A8188F9F63865573E4DF",
             "action": 0,
             "functionSelectors": ["0x0d8e6e2c"]
           }
         ],
         {
           "owner": "0x2a91A0148EE62fA638bE38C7eE05c29a3e568dD8",
-          "init": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
-          "initCalldata": "0x0751e5b50000000000000000000000007de418a7ce94debd057c34ebac232e7027634ade"
+          "init": "0xb5b31A717C7420E51E89A8188F9F63865573E4DF",
+          "initCalldata": "0x6477e2990000000000000000000000007de418a7ce94debd057c34ebac232e7027634ade000000000000000000000000c1fd27785c958909f3fee6403f6e0c8d425e3a91"
         }
       ]
     },
     {
       "name": "EntityFacet",
-      "address": "0x32ed11a3545037bbE91A28addc13c02DdB454C2a",
+      "address": "0xB336d1b8AEd1388c260d5cAfD86c9cfe7e3307ea",
       "args": []
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0xD8971422F647B5124E8Ae110840475B30fb86b79",
-      "args": ["0xdE2522fd81d90cACF69229186792b5A0F2852FbF"]
+      "address": "0x82A4Eb7E081122795e0c557fCAC4C936ad485612",
+      "args": ["0x101Cbc4C2232Ed84375B5e7f261d657c9ad10cB1"]
+    },
+    {
+      "name": "OfferFacet",
+      "address": "0xcC1AF260111da360f99283bA0d048c3bf23b02bA",
+      "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
+    },
+    {
+      "name": "VerificationFacet",
+      "address": "0x95022c24A6844130c4095D063DcAb4796a9210B1",
+      "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
+    },
+    {
+      "name": "CustodyFacet",
+      "address": "0x9dE7cA2ea5e80263578EAfD2D350d7DEf341EF6C",
+      "args": []
+    },
+    {
+      "name": "FundsFacet",
+      "address": "0xEeB9664e0E20658F0599715397c37ceE60d8fEf3",
+      "args": []
     }
   ]
 }

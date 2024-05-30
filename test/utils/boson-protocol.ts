@@ -115,8 +115,8 @@ export async function initBosonProtocolFixture(resetAfter: boolean = true) {
 
 // Load Boson handler ABI creates contract instant and attach it to the Boson protocol address
 // If Boson protocol is not initialized yet, it will be initialized
-export async function getBosonHandler(handlerName: string) {
-  if (!bosonProtocolAddress) {
+export async function getBosonHandler(handlerName: string, bosonProtocolAddressOverride: string = "") {
+  if (!bosonProtocolAddress && !bosonProtocolAddressOverride) {
     ({ bosonProtocolAddress } = await initBosonProtocolFixture());
   }
 
@@ -127,7 +127,7 @@ export async function getBosonHandler(handlerName: string) {
     ),
   );
 
-  const facet = await ethers.getContractAt(facetABI, bosonProtocolAddress);
+  const facet = await ethers.getContractAt(facetABI, bosonProtocolAddressOverride || bosonProtocolAddress);
 
   return facet;
 }

@@ -5,9 +5,10 @@ import { FacetCutAction, getSelectors } from "./libraries/diamond";
 import { getStateModifyingFunctionsHashes } from "./libraries/metaTransaction";
 import { writeContracts, readContracts } from "./libraries/utils";
 
-import { initBosonProtocolFixture } from "./../test/utils/boson-protocol";
+import { initBosonProtocolFixture, getBosonHandler } from "./../test/utils/boson-protocol";
 import { initSeaportFixture } from "./../test/utils/seaport";
-import { Contract, ZeroAddress, ZeroHash } from "ethers";
+import { Contract, ZeroAddress } from "ethers";
+import fermionConfig from "./../fermion.config";
 
 const version = "0.0.1";
 let deploymentData: any[] = [];
@@ -18,9 +19,11 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   // if deploying with hardhat, first deploy the boson protocol
   let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, bosonTokenAddress: string;
   let seaportAddress: string, seaportContract: Contract;
+  const seaportConfig = fermionConfig.seaport[network.name];
   if (network.name === "hardhat" || network.name === "localhost") {
     ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress } = await initBosonProtocolFixture(false));
     ({ seaportAddress, seaportContract } = await initSeaportFixture());
+    seaportConfig.seaport = seaportAddress;
   } else {
     // Check if the deployer key is set
     const NETWORK = network.name.toUpperCase();
@@ -39,12 +42,25 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
       ),
     );
 
+    // Boson addresses
     bosonProtocolAddress = bosonContracts.find((contract) => contract.name === "ProtocolDiamond")?.address;
     bosonPriceDiscoveryAddress = bosonContracts.find(
       (contract) => contract.name === "BosonPriceDiscoveryClient",
     )?.address;
+    const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler", bosonProtocolAddress);
+    bosonTokenAddress = await bosonConfigHandler.getTokenAddress();
 
-    // ToDo: seaport address from somewhere
+    if (!bosonProtocolAddress || !bosonPriceDiscoveryAddress || !bosonTokenAddress) {
+      throw Error(`One or more addresses missing:
+      bosonProtocolAddress: ${bosonProtocolAddress}
+      bosonPriceDiscoveryAddress:${bosonPriceDiscoveryAddress}
+      bosonTokenAddress:${bosonTokenAddress}`);
+    }
+
+    seaportAddress = seaportConfig.seaport;
+    if (!seaportAddress || seaportAddress === ZeroAddress) {
+      throw Error("Seaport address not found in fermion config");
+    }
   }
   const deployerAddress = (await ethers.getSigners())[0].address;
   console.log(`Deploying to network: ${network.name} (env: ${env}) with deployer: ${deployerAddress}`);
@@ -54,7 +70,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("wrapper")) {
-    const constructorArgs = [ZeroAddress, ZeroHash, bosonPriceDiscoveryAddress, seaportAddress];
+    const constructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
 
     const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
     const fermionWrapper = await FermionWrapper.deploy(...constructorArgs);
@@ -75,7 +91,6 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   let diamondAddress, initializationFacet;
   if (allModules || modules.includes("diamond")) {
     ({ diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress, wrapperImplementationAddress));
-    //  setEnvironmentData()
     await writeContracts(deploymentData, env, version);
   } else {
     // get the diamond address and initialization from contracts file
@@ -243,7 +258,7 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
   return tx;
 }
 
-function deploymentComplete(name: string, address: string, args: string[], save: boolean = false) {
+function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
   if (save) deploymentData.push({ name, address, args });
   console.log(`✅ ${name} deployed to: ${address}`);
 }
