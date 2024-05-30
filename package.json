@@ -28,7 +28,7 @@
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
     "@types/mocha": ">=9.1.0",
-    "@types/node": ">=20.12.12",
+    "@types/node": ">=20.12.13",
     "chai": "^4.2.0",
     "eslint": "^9.3.0",
     "eslint-config-prettier": "^9.1.0",
