@@ -26,33 +26,42 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     using SafeERC20 for IERC20;
 
+    struct SeaportConfig {
+        address seaport;
+        address openSeaConduit;
+        bytes32 openSeaConduitKey;
+    }
+
     mapping(uint256 => TokenState) public tokenState;
 
     // Contract addresses
     address private voucherAddress;
     address private fermionProtocol;
+
+    address private immutable SEAPORT;
+    address private immutable BP_PRICE_DISCOVERY; // Boson protocol Price Discovery client
+
+    // OpenSea Conduit
     address private immutable OS_CONDUIT;
     bytes32 private immutable OS_CONDUIT_KEY;
-    address private immutable BP_PRICE_DISCOVERY; // Boson protocol Price Discovery client
-    address private immutable SEAPORT;
 
     /**
      * @notice Constructor
      *
      */
     constructor(
-        address _openSeaConduit,
-        bytes32 _openSeaConduitKey,
         address _bosonPriceDiscovery,
-        address _seaport
+        SeaportConfig memory _seaportConfig
     )
         ERC721("Fermion F-NFT", "FMION-NFT") // todo: add make correct names + symbol
         Ownable(msg.sender)
     {
-        OS_CONDUIT = _openSeaConduit == address(0) ? _seaport : _openSeaConduit;
-        OS_CONDUIT_KEY = _openSeaConduitKey;
         BP_PRICE_DISCOVERY = _bosonPriceDiscovery;
-        SEAPORT = _seaport;
+        SEAPORT = _seaportConfig.seaport;
+        OS_CONDUIT = _seaportConfig.openSeaConduit == address(0)
+            ? _seaportConfig.seaport
+            : _seaportConfig.openSeaConduit;
+        OS_CONDUIT_KEY = _seaportConfig.openSeaConduitKey;
     }
 
     /**
