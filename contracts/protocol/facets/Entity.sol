@@ -145,6 +145,45 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         }
     }
 
+    /** Add seller's facilitator.
+     *
+     * Another entity with seller role can act as a facilitator for the seller.
+     * This function enables the facilitator to act on behalf of the seller.
+     *
+     * Emits an FacilitatorsAdded event if successful.
+     *
+     * Reverts if:
+     * - Entity does not exist
+     * - Caller is not an entity admin
+     * - Facilitator does not have a seller role
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatoIds - the facilitator's entity IDs
+     */
+    function addFacilitators(uint256 _sellerId, uint256[] calldata _facilitatoIds) external {
+        addOrRemoveFacilitatos(_sellerId, _facilitatoIds, true);
+        emit FacilitatorsAdded(_sellerId, _facilitatoIds);
+    }
+
+    /** Remove seller's facilitator.
+     *
+     * Removes the facilitator's ability to act on behalf of the seller.
+     *
+     * Emits an FacilitatorsRemoved event if successful.
+     *
+     * Reverts if:
+     * - Entity does not exist
+     * - Caller is not an entity admin
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatoIds - the facilitator's entity IDs
+     */
+    function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatoIds) external {
+        addOrRemoveFacilitatos(_sellerId, _facilitatoIds, false);
+
+        emit FacilitatorsRemoved(_sellerId, _facilitatoIds);
+    }
+
     /** Add entity wide admin wallet.
      *
      * This is different from adding a wallet with admin role for each entity role.
@@ -233,7 +272,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
     ) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
-        validateEntityAdmin(_entityId, FermionStorage.protocolLookups());
+        validateEntityAdmin(_entityId, pl);
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
 
         EntityLib.storeEntity(_entityId, address(0), entityData, _roles, _metadata);
@@ -280,12 +319,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         uint256 entityId = offer.sellerId;
         validateEntityAdmin(entityId, pl);
 
-        EntityLib.validateWalletRole(
-            entityId,
-            _newOwner,
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
         FermionWrapper(wrapperAddress).transferOwnership(_newOwner);
     }
@@ -515,5 +549,38 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         delete pl.entityId[entityData.admin];
 
         entityData.admin = _wallet;
+    }
+
+    /** Remove seller's facilitator.
+     *
+     * Removes the facilitator's ability to act on behalf of the seller.
+     *
+     * Reverts if:
+     * - Entity does not exist
+     * - Caller is not an entity admin
+     * - When adding, if the facilitator does not have a seller role
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatoIds - the facilitator's entity IDs
+     * @param _add - if true, the facilitator is added, if false, it is removed
+     */
+    function addOrRemoveFacilitatos(uint256 _sellerId, uint256[] calldata _facilitatoIds, bool _add) internal {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        EntityLib.validateEntityId(_sellerId, pl);
+        validateEntityAdmin(_sellerId, pl);
+
+        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
+        for (uint256 i = 0; i < _facilitatoIds.length; i++) {
+            uint256 facilitatorId = _facilitatoIds[i];
+            if (_add) {
+                EntityLib.validateEntityRole(
+                    facilitatorId,
+                    pe.entityData[facilitatorId].roles,
+                    FermionTypes.EntityRole.Seller
+                );
+            }
+
+            pl.isSellersFacilitator[_sellerId][facilitatorId] = _add;
+        }
     }
 }

@@ -47,13 +47,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _offer Offer to list
      */
     function createOffer(FermionTypes.Offer calldata _offer) external {
-        // Caller must be the seller's assistant
-        EntityLib.validateWalletRole(
-            _offer.sellerId,
-            msgSender(),
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        EntityLib.validateSellerAssistantOrFacilitator(_offer.sellerId, _offer.facilitatorId);
 
         // Validate verifier and custodian IDs
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
@@ -104,7 +98,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
         );
 
         // Store fermion offer properties
-        FermionStorage.protocolEntities().offer[bosonOfferId] = _offer;
+        pe.offer[bosonOfferId] = _offer;
 
         emit OfferCreated(_offer.sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
     }
@@ -169,18 +163,13 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      */
     function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder memory _buyerOrder, bool _selfSale) internal {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-        address msgSender = msgSender();
 
         // Check the caller is the the seller's assistant
-        EntityLib.validateWalletRole(
-            offer.sellerId,
-            msgSender,
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        uint256 sellerId = offer.sellerId;
+        EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
 
         address exchangeToken = offer.exchangeToken;
-        handleBosonSellerDeposit(offer.sellerId, exchangeToken, offer.sellerDeposit);
+        handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address wrapperAddress = pl.wrapperAddress[offerId];
@@ -381,15 +370,9 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
             revert InvalidQuantity(_quantity);
         }
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-        address msgSender = msgSender();
 
-        // Check the caller is the the seller's assistant
-        EntityLib.validateWalletRole(
-            offer.sellerId,
-            msgSender,
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        // Check the caller is the the seller's assistant or facilitator
+        EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
 
         uint256 nextExchangeId = BOSON_PROTOCOL.getNextExchangeId();
         startingNFTId = nextExchangeId | (_offerId << 128);

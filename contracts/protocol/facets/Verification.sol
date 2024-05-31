@@ -64,11 +64,15 @@ contract VerificationFacet is Context, IVerificationEvents {
         uint256 verifierFee = offer.verifierFee;
         FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
 
+        // pay the facilitator (ToDo: open question fixed or percentage fee?)
+        uint256 facilitatorFee = offer.facilitatorFee;
+        FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFee);
+
         // fermion fee
         uint256 fermionFee = 0; //ToDo
         FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFee); // Protocol fees are stored in entity 0
 
-        uint256 remainder = totalAmount - verifierFee - fermionFee;
+        uint256 remainder = totalAmount - verifierFee - facilitatorFee - fermionFee;
 
         if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
             // transfer the remainder to the seller

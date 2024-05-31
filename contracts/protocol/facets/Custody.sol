@@ -152,12 +152,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         uint256 sellerId = offer.sellerId;
-        EntityLib.validateWalletRole(
-            sellerId,
-            msgSender(),
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
 
         if (_taxAmount == 0) revert InvalidTaxAmount();
         checkoutRequest.taxAmount = _taxAmount;
@@ -196,12 +191,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
         uint256 taxAmount = checkoutRequest.taxAmount;
         if (taxAmount == 0) {
             // Seller is finalizing the checkout
-            EntityLib.validateWalletRole(
-                offer.sellerId,
-                msgSender(),
-                FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant
-            );
+            EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
         } else {
             // Buyer is finalizing the checkout
             address buyer = checkoutRequest.buyer;

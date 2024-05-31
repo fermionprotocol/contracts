@@ -61,6 +61,8 @@ library FermionStorage {
         mapping(uint256 => mapping(address => uint256)) tokenIndexByAccount;
         // token id => checkout request
         mapping(uint256 => FermionTypes.CheckoutRequest) checkoutRequest;
+        // seller id => facilitator id => status
+        mapping(uint256 => mapping(uint256 => bool)) isSellersFacilitator;
     }
 
     // Storage related to Meta Transactions
