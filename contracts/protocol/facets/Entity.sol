@@ -158,11 +158,11 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * - Facilitator does not have a seller role
      *
      * @param _sellerId - the seller's entity ID
-     * @param _facilitatoIds - the facilitator's entity IDs
+     * @param _facilitatorIds - the facilitator's entity IDs
      */
-    function addFacilitators(uint256 _sellerId, uint256[] calldata _facilitatoIds) external {
-        addOrRemoveFacilitatos(_sellerId, _facilitatoIds, true);
-        emit FacilitatorsAdded(_sellerId, _facilitatoIds);
+    function addFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
+        addOrRemoveFacilitatos(_sellerId, _facilitatorIds, true);
+        emit FacilitatorsAdded(_sellerId, _facilitatorIds);
     }
 
     /** Remove seller's facilitator.
@@ -176,12 +176,12 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * - Caller is not an entity admin
      *
      * @param _sellerId - the seller's entity ID
-     * @param _facilitatoIds - the facilitator's entity IDs
+     * @param _facilitatorIds - the facilitator's entity IDs
      */
-    function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatoIds) external {
-        addOrRemoveFacilitatos(_sellerId, _facilitatoIds, false);
+    function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
+        addOrRemoveFacilitatos(_sellerId, _facilitatorIds, false);
 
-        emit FacilitatorsRemoved(_sellerId, _facilitatoIds);
+        emit FacilitatorsRemoved(_sellerId, _facilitatorIds);
     }
 
     /** Add entity wide admin wallet.
@@ -561,17 +561,17 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * - When adding, if the facilitator does not have a seller role
      *
      * @param _sellerId - the seller's entity ID
-     * @param _facilitatoIds - the facilitator's entity IDs
+     * @param _facilitatorIds - the facilitator's entity IDs
      * @param _add - if true, the facilitator is added, if false, it is removed
      */
-    function addOrRemoveFacilitatos(uint256 _sellerId, uint256[] calldata _facilitatoIds, bool _add) internal {
+    function addOrRemoveFacilitatos(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_sellerId, pl);
         validateEntityAdmin(_sellerId, pl);
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
-        for (uint256 i = 0; i < _facilitatoIds.length; i++) {
-            uint256 facilitatorId = _facilitatoIds[i];
+        for (uint256 i = 0; i < _facilitatorIds.length; i++) {
+            uint256 facilitatorId = _facilitatorIds[i];
             if (_add) {
                 EntityLib.validateEntityRole(
                     facilitatorId,
