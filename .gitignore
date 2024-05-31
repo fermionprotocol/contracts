@@ -13,6 +13,6 @@ node_modules
 /coverage
 /coverage.json
 
-contracts/external/boson-protocol-contracts
+contracts/external
 
 /addresses/31337-*
