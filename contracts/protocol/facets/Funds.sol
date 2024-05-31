@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionStorage } from "../libs/Storage.sol";
+import { Access } from "../libs/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { FermionTypes } from "../domain/Types.sol";
@@ -13,7 +14,7 @@ import { Context } from "../libs/Context.sol";
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FermionErrors {
+contract FundsFacet is Context, FermionErrors, Access {
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *
@@ -32,7 +33,11 @@ contract FundsFacet is Context, FermionErrors {
      * @param _tokenAddress - contract address of token that is being deposited (0 for native currency)
      * @param _amount - amount to be credited
      */
-    function depositFunds(uint256 _entityId, address _tokenAddress, uint256 _amount) external payable {
+    function depositFunds(
+        uint256 _entityId,
+        address _tokenAddress,
+        uint256 _amount
+    ) external payable notPaused(FermionTypes.PausableRegion.Funds) {
         if (_amount == 0) revert ZeroDepositNotAllowed();
 
         // Check that entity exists
@@ -68,7 +73,7 @@ contract FundsFacet is Context, FermionErrors {
         address payable _treasury,
         address[] calldata _tokenList,
         uint256[] calldata _tokenAmounts
-    ) external {
+    ) external notPaused(FermionTypes.PausableRegion.Funds) {
         if (
             !EntityLib.hasWalletRole(
                 _entityId,

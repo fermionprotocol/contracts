@@ -83,8 +83,9 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
         bytes32 _sigR,
         bytes32 _sigS,
         uint8 _sigV
-    ) external payable returns (bytes memory) {
-        validateTx(_functionName, _functionSignature, _nonce, _userAddress);
+    ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) returns (bytes memory) {
+        address userAddress = _userAddress; // stack too deep workaround. ToDo: Consider using a struct for signature
+        validateTx(_functionName, _functionSignature, _nonce, userAddress);
 
         FermionTypes.MetaTransaction memory metaTx;
         metaTx.nonce = _nonce;
@@ -121,7 +122,10 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
      * @param _functionNameHashes - a list of hashed function names (keccak256)
      * @param _isAllowlisted - new allowlist status
      */
-    function setAllowlistedFunctions(bytes32[] calldata _functionNameHashes, bool _isAllowlisted) public onlyAdmin {
+    function setAllowlistedFunctions(
+        bytes32[] calldata _functionNameHashes,
+        bool _isAllowlisted
+    ) external onlyAdmin notPaused(FermionTypes.PausableRegion.MetaTransaction) {
         setAllowlistedFunctionsInternal(_functionNameHashes, _isAllowlisted);
     }
 

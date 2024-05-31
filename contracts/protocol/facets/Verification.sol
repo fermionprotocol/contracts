@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
+import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
@@ -15,7 +16,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, IVerificationEvents {
+contract VerificationFacet is Context, Access, IVerificationEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol) {
@@ -33,7 +34,10 @@ contract VerificationFacet is Context, IVerificationEvents {
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
      */
-    function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
+    function submitVerdict(
+        uint256 _tokenId,
+        FermionTypes.VerificationStatus _verificationStatus
+    ) external notPaused(FermionTypes.PausableRegion.Verification) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 verifierId = offer.verifierId;
 

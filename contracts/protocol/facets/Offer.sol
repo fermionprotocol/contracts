@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
+import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
@@ -24,7 +25,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
  *
  * @notice Handles offer listing.
  */
-contract OfferFacet is Context, FermionErrors, IOfferEvents {
+contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
     using SafeERC20 for IERC20;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
@@ -46,7 +47,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      *
      * @param _offer Offer to list
      */
-    function createOffer(FermionTypes.Offer calldata _offer) external {
+    function createOffer(FermionTypes.Offer calldata _offer) external notPaused(FermionTypes.PausableRegion.Offer) {
         // Caller must be the seller's assistant
         EntityLib.validateWalletRole(
             _offer.sellerId,
@@ -122,7 +123,10 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _offerId - the offer ID
      * @param _quantity - the number of NFTs to mint
      */
-    function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external {
+    function mintAndWrapNFTs(
+        uint256 _offerId,
+        uint256 _quantity
+    ) external notPaused(FermionTypes.PausableRegion.Offer) {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
         wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
     }
@@ -167,7 +171,11 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _buyerOrder - the Seaport buyer order (if not self sale)
      * @param _selfSale - if true, the NFT is unwrapped to the seller
      */
-    function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder memory _buyerOrder, bool _selfSale) internal {
+    function unwrapNFT(
+        uint256 _tokenId,
+        SeaportTypes.AdvancedOrder memory _buyerOrder,
+        bool _selfSale
+    ) internal notPaused(FermionTypes.PausableRegion.Offer) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         address msgSender = msgSender();
 
@@ -317,7 +325,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      *
      * @param _tokenAddress Token address
      */
-    function addSupportedToken(address _tokenAddress) external {
+    function addSupportedToken(address _tokenAddress) external notPaused(FermionTypes.PausableRegion.Offer) {
         IBosonProtocol.DisputeResolverFee[] memory disputeResolverFees = new IBosonProtocol.DisputeResolverFee[](1);
         disputeResolverFees[0] = IBosonProtocol.DisputeResolverFee({
             tokenAddress: _tokenAddress,

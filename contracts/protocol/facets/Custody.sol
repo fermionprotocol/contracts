@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
+import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
@@ -15,7 +16,7 @@ import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
  *
  * @notice Handles RWA custody.
  */
-contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
+contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
     /**
      * @notice Notifies the protocol that an RWA has been checked in
      *
@@ -28,7 +29,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * @param _tokenId - the token ID
      */
-    function checkIn(uint256 _tokenId) external {
+    function checkIn(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
@@ -68,7 +69,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * @param _tokenId - the token ID
      */
-    function checkOut(uint256 _tokenId) external {
+    function checkOut(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
@@ -107,7 +108,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * @param _tokenId - the token ID
      */
-    function requestCheckOut(uint256 _tokenId) external {
+    function requestCheckOut(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
@@ -142,7 +143,10 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      * @param _tokenId - the token ID
      * @param _taxAmount - the tax amount
      */
-    function submitTaxAmount(uint256 _tokenId, uint256 _taxAmount) external {
+    function submitTaxAmount(
+        uint256 _tokenId,
+        uint256 _taxAmount
+    ) external notPaused(FermionTypes.PausableRegion.Custody) {
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
             FermionTypes.CheckoutRequestStatus.CheckOutRequested,
@@ -183,7 +187,7 @@ contract CustodyFacet is Context, FermionErrors, ICustodyEvents {
      *
      * @param _tokenId - the token ID
      */
-    function clearCheckoutRequest(uint256 _tokenId) external payable {
+    function clearCheckoutRequest(uint256 _tokenId) external payable notPaused(FermionTypes.PausableRegion.Custody) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
