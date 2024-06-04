@@ -29,6 +29,7 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
      * Emits an VerdictSubmitted event
      *
      * Reverts if:
+     * - Verification region is paused
      * - Caller is not the verifier's assistant
      *
      * @param _tokenId - the token ID

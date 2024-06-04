@@ -60,6 +60,7 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
      * @notice Handles the incoming meta transaction.
      *
      * Reverts if:
+     * - Metatransaction region is paused
      * - Nonce is already used by the msg.sender for another transaction
      * - Function is not allowlisted to be called using metatransactions
      * - Function name does not match the bytes4 version of the function signature
@@ -117,6 +118,7 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
      * Emits a FunctionsAllowlisted event if successful.
      *
      * Reverts if:
+     * - Metatransaction region is paused
      * - Caller is not a protocol admin
      *
      * @param _functionNameHashes - a list of hashed function names (keccak256)

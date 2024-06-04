@@ -1,19 +1,19 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { EntityRole, WalletRole, enumIterator } from "../utils/enums";
+import { EntityRole, PausableRegion, WalletRole, enumIterator } from "../utils/enums";
 import { deployFermionProtocolFixture, deriveTokenId } from "../utils/common";
 import { BigNumberish, Contract, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 describe("Entity", function () {
-  let entityFacet: Contract, offerFacet: Contract;
+  let entityFacet: Contract, offerFacet: Contract, pauseFacet: Contract;
   let wallets: HardhatEthersSigner[], defaultSigner: HardhatEthersSigner;
   let fermionErrors: Contract;
 
   before(async function () {
     ({
-      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet },
+      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet, PauseFacet: pauseFacet },
       fermionErrors,
       wallets,
       defaultSigner,
@@ -102,6 +102,14 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          await expect(entityFacet.createEntity([EntityRole.Seller], metadataURI))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
         it("An entity already exists", async function () {
           await entityFacet.createEntity([EntityRole.Seller], metadataURI);
 
@@ -186,6 +194,14 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          await expect(entityFacet.updateEntity(0, [EntityRole.Seller], metadataURI))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
         it("An entity does not exist", async function () {
           await expect(entityFacet.updateEntity(0, [EntityRole.Seller], metadataURI))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
@@ -239,6 +255,14 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          await expect(entityFacet.deleteEntity(entityId))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
         it("An entity does not exist", async function () {
           await expect(entityFacet.deleteEntity(0))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
@@ -349,6 +373,14 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          await expect(entityFacet.addEntityWallets(0, [], [], []))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
         it("Entity does not exist", async function () {
           await expect(entityFacet.addEntityWallets(0, [], [], []))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
@@ -582,6 +614,14 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          await expect(entityFacet.removeEntityWallets(0, [], [], []))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
         it("Entity does not exist", async function () {
           await expect(entityFacet.removeEntityWallets(0, [], [], []))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
@@ -760,6 +800,14 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          await expect(entityFacet.setEntityAdmin(0, ZeroAddress, true))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
         it("Entity does not exist", async function () {
           const newAdmin = wallets[2];
 
@@ -826,6 +874,15 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          const newAdmin = wallets[2];
+          await expect(entityFacet.changeWallet(newAdmin.address))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
         it("Caller is an entity admin", async function () {
           const newAdmin = wallets[2];
 
@@ -890,6 +947,14 @@ describe("Entity", function () {
       });
 
       context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          await expect(entityFacet.transferWrapperContractOwnership(bosonOfferId, ZeroAddress))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
         it("An offer does not exist", async function () {
           await expect(entityFacet.transferWrapperContractOwnership(0, ZeroAddress))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchOffer")

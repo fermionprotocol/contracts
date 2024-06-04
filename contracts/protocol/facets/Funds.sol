@@ -21,6 +21,7 @@ contract FundsFacet is Context, FermionErrors, Access {
      * Emits AvailableFundsIncreased event if successful.
      *
      * Reverts if:
+     * - Funds region is paused
      * - Amount to deposit is zero
      * - Entity does not exist
      * - Exchange token is native token and caller does not send enough
@@ -53,6 +54,7 @@ contract FundsFacet is Context, FermionErrors, Access {
      * Emits FundsWithdrawn event if successful.
      *
      * Reverts if:
+     * - Funds region is paused
      * - Entity does not exist
      * - Caller is not associated with the entity id
      * - Treasury wallet is not associated with the entity id

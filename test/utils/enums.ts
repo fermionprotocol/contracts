@@ -38,6 +38,15 @@ export enum CheckoutRequestStatus {
   CheckedOut,
 }
 
+export enum PausableRegion {
+  MetaTransaction,
+  Entity,
+  Funds,
+  Offer,
+  Custody,
+  Verification,
+}
+
 export function enumIterator(enumObject: any) {
   return Object.keys(enumObject).filter((key) => !isNaN(Number(key)));
 }

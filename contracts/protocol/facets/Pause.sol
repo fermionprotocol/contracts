@@ -13,7 +13,7 @@ import { IPauseEvents } from "../interfaces/events/IPauseEvents.sol";
  *
  * @notice Handles protocol region pausing.
  */
-contract PauseHandlerFacet is Access, Context, FermionErrors, IPauseEvents {
+contract PauseFacet is Access, Context, FermionErrors, IPauseEvents {
     uint256 private constant ALL_REGIONS_MASK = (1 << (uint256(type(FermionTypes.PausableRegion).max) + 1)) - 1;
 
     /**

@@ -42,6 +42,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      * Emits an OfferCreated event
      *
      * Reverts if:
+     * - Offer region is paused
      * - Caller is not the seller's assistant
      * - Invalid verifier or custodian ID is provided
      *
@@ -118,6 +119,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      * Emits an NFTsMinted and NFTsWrapped event
      *
      * Reverts if:
+     * - Offer region is paused
      * - Caller is not the seller's assistant
      *
      * @param _offerId - the offer ID
@@ -136,6 +138,12 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      *
      * Price is 0, so the caller must provide the verification fee in the exchange token
      *
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant
+     * - If seller deposit is non zero and there are not enough funds to cover it
+     * - The caller does not provide the verification fee
+     *
      * N.B. currently, the F-NFT owner will be the assistant that wrapped it, not the caller of this function
      * This behavior can be changed in the future
      *
@@ -148,6 +156,11 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
 
     /**
      * @notice Unwraps F-NFT, uses seaport to sell the NFT
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant
+     * - If seller deposit is non zero and there are not enough funds to cover it
+     * - The price is not high enough to cover the verification fee
      *
      * @param _tokenId - the token ID
      * @param _buyerOrder - the Seaport buyer order
@@ -322,6 +335,10 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      *
      * Not restricted with onlyAdmin. The purpose of this method is to allow the seller to add supported tokens in boson if they
      * want to use them in their offers and not already added by the protocol.
+     *
+     * Reverts if:
+     * - Offer region is paused
+     * - Call to Boson protocol reverts
      *
      * @param _tokenAddress Token address
      */

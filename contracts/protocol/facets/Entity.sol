@@ -28,6 +28,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * Emits an EntityStored event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity exists already
      *
      * @param _roles - the roles the entity will have
@@ -54,6 +55,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * Emits an EntityWalletAdded event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      * - Length of _wallets, _entityRoles and _walletRoles do not match
@@ -78,6 +80,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * Emits an EntityWalletRemoved event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not the admin for the entity role
      * - Length of _wallets, _entityRoles and _walletRoles do not match
@@ -159,6 +162,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * Emits an EntityWalletAdded event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an entity admin
      *
@@ -201,6 +205,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * Emits an WalletChanged event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Caller is an entity admin
      * - Caller is not a wallet for any enitity
      *
@@ -228,6 +233,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * Emits an EntityStored event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
@@ -253,6 +259,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * Emits an EntityDeleted event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
@@ -273,6 +280,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * @notice Updates the owner of the wrapper contract, associated with the offer id
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *

@@ -23,6 +23,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
      * Emits an CheckedIn event
      *
      * Reverts if:
+     * - Custody region is paused
      * - Caller is not the custodian's assistant
      * - The token is not in the Verified state
      * - The checkout request status is not None
@@ -64,6 +65,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
      * Emits an CheckedOut event
      *
      * Reverts if:
+     * - Custody region is paused
      * - Caller is not the custodian's assistant
      * - The checkout request status is not CheckOutRequestCleared
      *
@@ -103,6 +105,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
      * Emits an CheckoutRequested event
      *
      * Reverts if:
+     * - Custody region is paused
      * - Caller is not the owner of the token
      * - The checkout request status is not CheckedIn
      *
@@ -136,6 +139,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
      * Emits an TaxAmountSubmitted event
      *
      * Reverts if:
+     * - Custody region is paused
      * - Caller is not the seller's assistant
      * - The checkout request status is not CheckOutRequested
      * - The submitted tax amount is zero
@@ -178,6 +182,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
      * Emits an CheckOutRequestCleared event
      *
      * Reverts if:
+     * - Custody region is paused
      * - If no taxes are to be paid and:
      *   - The caller is not the seller's assistant
      * - if taxes are to be paid and:
