@@ -6,11 +6,15 @@ import { FermionTypes } from "../../domain/Types.sol";
 /**
  * @title IPauseEvents
  *
- * @notice Defines events related to pauseing of the protocol.
+ * @notice Defines events related to pausing of the protocol.
  */
 interface IPauseEvents {
-    // When array of regions is empty, all regions are paused
+    // `regions` is the list of regions, paused by the transaction, emitting the event.
+    // Other regions could be paused from before.
+    // When the array of regions is empty, all regions are paused
     event ProtocolPaused(FermionTypes.PausableRegion[] regions);
-    // When array of regions is empty, all regions are unpaused
+    // `regions` is the list of regions, unpaused by the transaction, emitting the event.
+    // Other regions can remain paused.
+    // When the array of regions is empty, all regions are unpaused
     event ProtocolUnpaused(FermionTypes.PausableRegion[] regions);
 }
