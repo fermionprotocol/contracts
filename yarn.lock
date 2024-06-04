@@ -809,10 +809,10 @@
     "@nomicfoundation/solidity-analyzer-win32-ia32-msvc" "0.1.1"
     "@nomicfoundation/solidity-analyzer-win32-x64-msvc" "0.1.1"
 
-"@opensea/seaport-js@4.0.0":
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/@opensea/seaport-js/-/seaport-js-4.0.0.tgz#e519785e4441aa6b6870c4353721f0c9fbe25aa8"
-  integrity sha512-xL0kv4CDdtuuJd7w2zI+cWR0e33T10Y9Sor+R1e1DfBHfc8w0POcgCqG0LsyAM0ZuopuYw4gwYY1eVyoqLJfVg==
+"@opensea/seaport-js@4.0.1":
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/@opensea/seaport-js/-/seaport-js-4.0.1.tgz#69f5a76e41e3b6ef7788504174780b9e9ff75818"
+  integrity sha512-zcSXQ9XH55/9RG0dl8jwyUsUEmuZNfrh5OhHVUUAWYQvw1/allhqjwPdIZvKJp/EGXSB7vDBXR5j4T0fN9ssCA==
   dependencies:
     ethers "^6.9.0"
     merkletreejs "^0.3.11"
