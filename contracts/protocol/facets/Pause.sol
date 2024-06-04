@@ -60,7 +60,7 @@ contract PauseFacet is Access, Context, FermionErrors, IPauseEvents {
     function getPausedRegions() external view returns (FermionTypes.PausableRegion[] memory regions) {
         // Cache protocol status for reference
         FermionStorage.ProtocolStatus storage status = FermionStorage.protocolStatus();
-        uint256 totalRegions = uint256(type(FermionTypes.PausableRegion).max);
+        uint256 totalRegions = uint256(type(FermionTypes.PausableRegion).max) + 1;
 
         regions = new FermionTypes.PausableRegion[](totalRegions);
 
