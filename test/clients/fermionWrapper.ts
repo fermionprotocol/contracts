@@ -19,12 +19,11 @@ describe("FermionWrapper", function () {
   async function setupFermionWrapperTest() {
     const [mockConduit, mockBosonPriceDiscovery] = (await ethers.getSigners()).slice(9, 11);
     const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
-    const fermionWrapper = await FermionWrapper.deploy(
-      mockConduit.address,
-      ZeroHash,
-      mockBosonPriceDiscovery.address,
-      ZeroAddress,
-    ); // For these tests, zero constructor arguments are okay
+    const fermionWrapper = await FermionWrapper.deploy(mockBosonPriceDiscovery.address, {
+      seaport: ZeroAddress,
+      openSeaConduit: mockConduit.address,
+      openSeaConduitKey: ZeroHash,
+    }); // For these tests, zero constructor arguments are okay
 
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionWrapper.getAddress());
