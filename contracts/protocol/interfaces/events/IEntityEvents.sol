@@ -29,6 +29,6 @@ interface IEntityEvents {
         FermionTypes.WalletRole[][] walletRole
     );
     event WalletChanged(address indexed oldWallet, address indexed newWallet);
-    event FacilitatorsAdded(uint256 indexed entityId, uint256[] facilitatorIds);
-    event FacilitatorsRemoved(uint256 indexed entityId, uint256[] facilitatorIds);
+    event FacilitatorAdded(uint256 indexed entityId, uint256 indexed facilitatorIds);
+    event FacilitatorRemoved(uint256 indexed entityId, uint256 indexed facilitatorIds);
 }

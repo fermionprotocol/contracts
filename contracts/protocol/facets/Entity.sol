@@ -150,7 +150,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Another entity with seller role can act as a facilitator for the seller.
      * This function enables the facilitator to act on behalf of the seller.
      *
-     * Emits an FacilitatorsAdded event if successful.
+     * Emits an FacilitatorAdded for each facilitator event if successful.
      *
      * Reverts if:
      * - Entity does not exist
@@ -163,14 +163,13 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      */
     function addFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
         addOrRemoveFacilitatos(_sellerId, _facilitatorIds, true);
-        emit FacilitatorsAdded(_sellerId, _facilitatorIds);
     }
 
     /** Remove seller's facilitator.
      *
      * Removes the facilitator's ability to act on behalf of the seller.
      *
-     * Emits an FacilitatorsRemoved event if successful.
+     * Emits an FacilitatorRemoved event for each facilitator if successful.
      *
      * Reverts if:
      * - Entity does not exist
@@ -181,7 +180,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      */
     function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
         addOrRemoveFacilitatos(_sellerId, _facilitatorIds, false);
-        emit FacilitatorsRemoved(_sellerId, _facilitatorIds);
     }
 
     /** Add entity wide admin wallet.
@@ -607,12 +605,16 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
                 );
 
                 facilitators.push(facilitatorId);
+
+                emit FacilitatorAdded(_sellerId, facilitatorId);
             } else {
                 uint256 facilitatorsLength = facilitators.length;
                 for (uint256 j = 0; j < facilitatorsLength; j++) {
                     if (facilitators[j] == facilitatorId) {
                         if (j != facilitatorsLength - 1) facilitators[j] = facilitators[facilitatorsLength - 1];
                         facilitators.pop();
+
+                        emit FacilitatorRemoved(_sellerId, facilitatorId);
                         break;
                     }
                 }

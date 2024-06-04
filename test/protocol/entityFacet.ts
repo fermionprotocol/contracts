@@ -815,9 +815,11 @@ describe("Entity", function () {
         it("Seller can add facilitators", async function () {
           const facilitators = [facilitator1Id, facilitator2Id];
 
-          await expect(entityFacet.addFacilitators(sellerId, facilitators))
-            .to.emit(entityFacet, "FacilitatorsAdded")
-            .withArgs(sellerId, facilitators);
+          const tx = await entityFacet.addFacilitators(sellerId, facilitators);
+
+          for (const facilitatorId of facilitators) {
+            await expect(tx).to.emit(entityFacet, "FacilitatorAdded").withArgs(sellerId, facilitatorId);
+          }
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(facilitators);
@@ -830,8 +832,8 @@ describe("Entity", function () {
           await entityFacet.connect(facilitator3).createEntity([EntityRole.Seller], metadataURI); // facilitator3
 
           await expect(entityFacet.addFacilitators(sellerId, [facilitator3Id]))
-            .to.emit(entityFacet, "FacilitatorsAdded")
-            .withArgs(sellerId, [facilitator3Id]);
+            .to.emit(entityFacet, "FacilitatorAdded")
+            .withArgs(sellerId, facilitator3Id);
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([...facilitators, facilitator3Id]);
@@ -839,9 +841,7 @@ describe("Entity", function () {
         });
 
         it("Adding empty list does nothing", async function () {
-          await expect(entityFacet.addFacilitators(sellerId, []))
-            .to.emit(entityFacet, "FacilitatorsAdded")
-            .withArgs(sellerId, []);
+          await expect(entityFacet.addFacilitators(sellerId, [])).to.not.emit(entityFacet, "FacilitatorAdded");
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([]);
@@ -932,8 +932,8 @@ describe("Entity", function () {
           const facilitators = [facilitator1Id];
 
           await expect(entityFacet.removeFacilitators(sellerId, facilitators))
-            .to.emit(entityFacet, "FacilitatorsRemoved")
-            .withArgs(sellerId, facilitators);
+            .to.emit(entityFacet, "FacilitatorRemoved")
+            .withArgs(sellerId, facilitator1Id);
 
           // verify state
           const expectedFacilitators = [facilitator4Id, facilitator2Id, facilitator3Id];
@@ -948,9 +948,11 @@ describe("Entity", function () {
         it("Removing multiple facilitators", async function () {
           const facilitators = [facilitator4Id, facilitator2Id];
 
-          await expect(entityFacet.removeFacilitators(sellerId, facilitators))
-            .to.emit(entityFacet, "FacilitatorsRemoved")
-            .withArgs(sellerId, facilitators);
+          const tx = await entityFacet.removeFacilitators(sellerId, facilitators);
+
+          for (const facilitatorId of facilitators) {
+            await expect(tx).to.emit(entityFacet, "FacilitatorRemoved").withArgs(sellerId, facilitatorId);
+          }
 
           // verify state
           const expectedFacilitators = [facilitator1Id, facilitator3Id];
@@ -963,9 +965,7 @@ describe("Entity", function () {
         });
 
         it("Removing a facilitator that was not added", async function () {
-          await expect(entityFacet.removeFacilitators(sellerId, [6]))
-            .to.emit(entityFacet, "FacilitatorsRemoved")
-            .withArgs(sellerId, [6]);
+          await expect(entityFacet.removeFacilitators(sellerId, [6])).to.not.emit(entityFacet, "FacilitatorRemoved");
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([
@@ -985,8 +985,8 @@ describe("Entity", function () {
           const facilitators = [facilitator2Id, facilitator2Id];
 
           await expect(entityFacet.removeFacilitators(sellerId, facilitators))
-            .to.emit(entityFacet, "FacilitatorsRemoved")
-            .withArgs(sellerId, facilitators);
+            .to.emit(entityFacet, "FacilitatorRemoved")
+            .withArgs(sellerId, facilitator2Id);
 
           // verify state
           const expectedFacilitators = [facilitator1Id, facilitator4Id, facilitator3Id];
