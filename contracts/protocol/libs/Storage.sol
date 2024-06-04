@@ -63,6 +63,8 @@ library FermionStorage {
         mapping(uint256 => FermionTypes.CheckoutRequest) checkoutRequest;
         // seller id => facilitator id => status
         mapping(uint256 => mapping(uint256 => bool)) isSellersFacilitator;
+        // seller id => list of facilitators
+        mapping(uint256 => uint256[]) sellerFacilitators;
     }
 
     // Storage related to Meta Transactions

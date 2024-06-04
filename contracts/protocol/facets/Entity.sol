@@ -156,6 +156,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * - Entity does not exist
      * - Caller is not an entity admin
      * - Facilitator does not have a seller role
+     * - Facilitator is already a facilitator for the seller
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
@@ -180,7 +181,6 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      */
     function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
         addOrRemoveFacilitatos(_sellerId, _facilitatorIds, false);
-
         emit FacilitatorsRemoved(_sellerId, _facilitatorIds);
     }
 
@@ -363,6 +363,28 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         adminWallet = entityData.admin;
         roles = compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
+    }
+
+    /** Returns the list of seller's facilitator.
+     *
+     * @param _sellerId - the seller's entity ID
+     * @return facilitatorIds - the facilitator's entity IDs
+     */
+    function getSellersFacilitators(uint256 _sellerId) external view returns (uint256[] memory facilitatorIds) {
+        return FermionStorage.protocolLookups().sellerFacilitators[_sellerId];
+    }
+
+    /** Tells if the entity is seller's factiliator.
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatorId - the facilitator's entity ID
+     * @return isSellersFcilitator - the facilitator's status
+     */
+    function isSellersFacilitator(
+        uint256 _sellerId,
+        uint256 _facilitatorId
+    ) external view returns (bool isSellersFcilitator) {
+        return FermionStorage.protocolLookups().isSellersFacilitator[_sellerId][_facilitatorId];
     }
 
     /**
@@ -569,18 +591,34 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         EntityLib.validateEntityId(_sellerId, pl);
         validateEntityAdmin(_sellerId, pl);
 
+        uint256[] storage facilitators = pl.sellerFacilitators[_sellerId];
+        mapping(uint256 => bool) storage isFacilitator = pl.isSellersFacilitator[_sellerId];
+
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
         for (uint256 i = 0; i < _facilitatorIds.length; i++) {
             uint256 facilitatorId = _facilitatorIds[i];
             if (_add) {
+                if (isFacilitator[facilitatorId]) revert FacilitatorAlreadyExists(_sellerId, facilitatorId);
+
                 EntityLib.validateEntityRole(
                     facilitatorId,
                     pe.entityData[facilitatorId].roles,
                     FermionTypes.EntityRole.Seller
                 );
+
+                facilitators.push(facilitatorId);
+            } else {
+                uint256 facilitatorsLength = facilitators.length;
+                for (uint256 j = 0; j < facilitatorsLength; j++) {
+                    if (facilitators[j] == facilitatorId) {
+                        if (j != facilitatorsLength - 1) facilitators[j] = facilitators[facilitatorsLength - 1];
+                        facilitators.pop();
+                        break;
+                    }
+                }
             }
 
-            pl.isSellersFacilitator[_sellerId][facilitatorId] = _add;
+            isFacilitator[facilitatorId] = _add;
         }
     }
 }

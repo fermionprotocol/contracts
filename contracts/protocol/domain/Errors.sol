@@ -29,7 +29,8 @@ interface FermionErrors {
         FermionTypes.WalletRole walletRole
     );
     error ChangeNotAllowed();
-    error NotSellersFacilitator(uint256 entityId, uint256 facilitatorId);
+    error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
+    error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
 
     // Offer errors
     error InvalidQuantity(uint256 quantity);
