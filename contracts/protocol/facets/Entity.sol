@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import { BYTE_SIZE } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
+import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Context } from "../libs/Context.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -16,7 +17,7 @@ import { FermionWrapper } from "../clients/FermionWrapper.sol";
  *
  * @notice Handles entity management.
  */
-contract EntityFacet is Context, FermionErrors, IEntityEvents {
+contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
     uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRole).max) + 1;
     uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
     uint256 private constant WALLET_ROLE_MASK = (1 << (uint256(type(FermionTypes.WalletRole).max) + 1)) - 1;
@@ -27,12 +28,16 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Emits an EntityStored event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity exists already
      *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
      */
-    function createEntity(FermionTypes.EntityRole[] calldata _roles, string calldata _metadata) external {
+    function createEntity(
+        FermionTypes.EntityRole[] calldata _roles,
+        string calldata _metadata
+    ) external notPaused(FermionTypes.PausableRegion.Entity) {
         address msgSender = msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
@@ -50,6 +55,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Emits an EntityWalletAdded event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      * - Length of _wallets, _entityRoles and _walletRoles do not match
@@ -64,7 +70,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         address[] calldata _wallets,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.WalletRole[][][] calldata _walletRoles
-    ) external {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) {
         addOrRemoveEntityWallets(_entityId, _wallets, _entityRoles, _walletRoles, true);
     }
 
@@ -74,6 +80,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Emits an EntityWalletRemoved event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not the admin for the entity role
      * - Length of _wallets, _entityRoles and _walletRoles do not match
@@ -89,7 +96,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         address[] calldata _wallets,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.WalletRole[][][] calldata _walletRoles
-    ) external {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) {
         addOrRemoveEntityWallets(_entityId, _wallets, _entityRoles, _walletRoles, false);
     }
 
@@ -155,13 +162,18 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Emits an EntityWalletAdded event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an entity admin
      *
      * @param _entityId - the entity ID
      * @param _wallet - the admin wallet address
      */
-    function setEntityAdmin(uint256 _entityId, address _wallet, bool _status) external {
+    function setEntityAdmin(
+        uint256 _entityId,
+        address _wallet,
+        bool _status
+    ) external notPaused(FermionTypes.PausableRegion.Entity) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
         validateEntityAdmin(_entityId, pl);
@@ -193,12 +205,13 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Emits an WalletChanged event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Caller is an entity admin
      * - Caller is not a wallet for any enitity
      *
      * @param _newWallet - the new wallet address
      */
-    function changeWallet(address _newWallet) external {
+    function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) {
         address msgSender = msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
@@ -220,6 +233,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Emits an EntityStored event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
@@ -230,7 +244,7 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
         uint256 _entityId,
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
-    ) external {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
         validateEntityAdmin(_entityId, FermionStorage.protocolLookups());
@@ -245,12 +259,13 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * Emits an EntityDeleted event if successful.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
      * @param _entityId - the entity ID
      */
-    function deleteEntity(uint256 _entityId) external {
+    function deleteEntity(uint256 _entityId) external notPaused(FermionTypes.PausableRegion.Entity) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
         address adminWallet = validateEntityAdmin(_entityId, pl);
@@ -265,13 +280,17 @@ contract EntityFacet is Context, FermionErrors, IEntityEvents {
      * @notice Updates the owner of the wrapper contract, associated with the offer id
      *
      * Reverts if:
+     * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
      * @param _offerId - the offer ID
      * @param _newOwner - the new owner address
      */
-    function transferWrapperContractOwnership(uint256 _offerId, address _newOwner) external {
+    function transferWrapperContractOwnership(
+        uint256 _offerId,
+        address _newOwner
+    ) external notPaused(FermionTypes.PausableRegion.Entity) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address wrapperAddress = pl.wrapperAddress[_offerId];
         if (wrapperAddress == address(0)) revert NoSuchOffer(_offerId);

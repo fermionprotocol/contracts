@@ -53,6 +53,10 @@ interface FermionErrors {
     error TokenTransferFailed(address to, uint256 amount, bytes errorMessage);
     error InsufficientAvailableFunds(uint256 availableFunds, uint256 requestedFunds);
 
+    // Pause handler
+    error NotPaused();
+    error RegionPaused(FermionTypes.PausableRegion region);
+
     // Meta transaction errors
     error NonceUsedAlready();
     error FunctionNotAllowlisted();

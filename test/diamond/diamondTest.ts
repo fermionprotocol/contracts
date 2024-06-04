@@ -36,7 +36,7 @@ describe("DiamondTest", async function () {
       addresses.push(address);
     }
     console.log({ addresses });
-    assert.equal(addresses.length, 10); // default facets: [diamondCut, diamondLoupe, ownership, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds]
+    assert.equal(addresses.length, 11); // default facets: [diamondCut, diamondLoupe, ownership, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause]
   });
 
   it("facets should have the right function selectors -- call to facetFunctionSelectors function", async () => {

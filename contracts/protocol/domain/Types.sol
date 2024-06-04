@@ -35,6 +35,15 @@ contract FermionTypes {
         CheckedOut
     }
 
+    enum PausableRegion {
+        MetaTransaction,
+        Entity,
+        Funds,
+        Offer,
+        Custody,
+        Verification
+    }
+
     struct EntityData {
         address admin;
         uint256 roles;

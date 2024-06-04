@@ -25,6 +25,8 @@ library FermionStorage {
         address wrapperBeacon;
         // Beacon proxy, which uses wrapperBeacon
         address wrapperBeaconProxy;
+        // Pause status
+        uint256 paused;
     }
 
     // Protocol entities storage
