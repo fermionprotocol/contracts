@@ -41,12 +41,18 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * Emits an OfferCreated event
      *
      * Reverts if:
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - Invalid verifier or custodian ID is provided
      *
      * @param _offer Offer to list
      */
     function createOffer(FermionTypes.Offer calldata _offer) external {
+        if (
+            _offer.sellerId != _offer.facilitatorId &&
+            !FermionStorage.protocolLookups().isSellersFacilitator[_offer.sellerId][_offer.facilitatorId]
+        ) {
+            revert FermionErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
+        }
         EntityLib.validateSellerAssistantOrFacilitator(_offer.sellerId, _offer.facilitatorId);
 
         // Validate verifier and custodian IDs

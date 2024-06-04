@@ -22,12 +22,18 @@ const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
 const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
 describe("Offer", function () {
+  const sellerId = "1";
+  const verifierId = "2";
+  const custodianId = "3";
+  const facilitatorId = "4";
+  const facilitator2Id = "5";
   let offerFacet: Contract, entityFacet: Contract, fundsFacet: Contract;
   let mockToken: Contract, mockBosonToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
   let wallets: HardhatEthersSigner[];
   let defaultSigner: HardhatEthersSigner;
+  let facilitator: HardhatEthersSigner, facilitator2: HardhatEthersSigner;
   let seaportAddress: string;
   let bosonProtocolAddress: string;
   let seaportContract: Contract;
@@ -35,14 +41,21 @@ describe("Offer", function () {
   let verifySellerAssistantRole: any;
 
   async function setupOfferTest() {
+    facilitator = wallets[4];
+    facilitator2 = wallets[5];
     // Create three entities
     // Seller, Verifier, Custodian combined
     // Verifier only
     // Custodian only
+    // Facilitator
     const metadataURI = "https://example.com/seller-metadata.json";
     await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI); // "1"
     await entityFacet.connect(wallets[2]).createEntity([EntityRole.Verifier], metadataURI); // "2"
     await entityFacet.connect(wallets[3]).createEntity([EntityRole.Custodian], metadataURI); // "3"
+    await entityFacet.connect(facilitator).createEntity([EntityRole.Seller], metadataURI); // "4"
+    await entityFacet.connect(facilitator2).createEntity([EntityRole.Seller], metadataURI); // "4"
+
+    await entityFacet.addFacilitators(sellerId, [facilitatorId, facilitator2Id]);
 
     [mockToken] = await deployMockTokens(["ERC20"]);
     mockToken = mockToken.connect(defaultSigner);
@@ -78,9 +91,6 @@ describe("Offer", function () {
   });
 
   context("createOffer", function () {
-    const sellerId = "1";
-    const verifierId = "2";
-    const custodianId = "3";
     const sellerDeposit = 100;
     const verifierFee = 10;
     const metadataURI = "https://example.com/offer-metadata.json";
@@ -97,6 +107,8 @@ describe("Offer", function () {
         verifierId,
         verifierFee,
         custodianId,
+        facilitatorId,
+        facilitatorFee: "0",
         exchangeToken,
         metadataURI,
         metadataHash: id(metadataURI),
@@ -196,6 +208,23 @@ describe("Offer", function () {
         .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), "2");
     });
 
+    it("Facilitator wallets can create the offer", async function () {
+      const facilitatorAssistant = wallets[5]; // Facilitator-specific Assistant
+
+      await entityFacet
+        .connect(facilitator)
+        .addEntityWallets(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[WalletRole.Assistant]]]);
+
+      // test event
+      await expect(offerFacet.connect(facilitator).createOffer(fermionOffer))
+        .to.emit(offerFacet, "OfferCreated")
+        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), bosonOfferId);
+
+      await expect(offerFacet.connect(facilitatorAssistant).createOffer(fermionOffer))
+        .to.emit(offerFacet, "OfferCreated")
+        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), "2");
+    });
+
     context("Revert reasons", function () {
       it("Caller is not the seller's assistant", async function () {
         await verifySellerAssistantRole("createOffer", [fermionOffer]);
@@ -228,6 +257,28 @@ describe("Offer", function () {
           .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
           .withArgs("10", EntityRole.Custodian);
       });
+
+      it("Provided facilitator ID is incorrect", async function () {
+        // existent id, but not a custodian
+        const fermionOffer2 = { ...fermionOffer, facilitatorId: "2" };
+        await expect(offerFacet.createOffer(fermionOffer2))
+          .to.be.revertedWithCustomError(fermionErrors, "NotSellersFacilitator")
+          .withArgs(sellerId, "2");
+
+        // non existent id
+        fermionOffer2.facilitatorId = "10";
+        await expect(offerFacet.createOffer(fermionOffer2))
+          .to.be.revertedWithCustomError(fermionErrors, "NotSellersFacilitator")
+          .withArgs(sellerId, "10");
+      });
+
+      it("Facilitator don't set themselves as facilitator", async function () {
+        const fermionOffer2 = { ...fermionOffer, facilitatorId: facilitator2Id };
+        // test event
+        await expect(offerFacet.connect(facilitator).createOffer({ ...fermionOffer2 }))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(sellerId, facilitator.address, EntityRole.Seller, WalletRole.Assistant);
+      });
     });
   });
 
@@ -248,6 +299,8 @@ describe("Offer", function () {
         verifierId,
         verifierFee,
         custodianId,
+        facilitatorId: sellerId,
+        facilitatorFee: "0",
         exchangeToken,
         metadataURI,
         metadataHash: id(metadataURI),
@@ -291,6 +344,8 @@ describe("Offer", function () {
         verifierId: "2",
         verifierFee: 10,
         custodianId: "3",
+        facilitatorId,
+        facilitatorFee: "0",
         exchangeToken: await mockToken.getAddress(),
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,
@@ -425,9 +480,34 @@ describe("Offer", function () {
       );
     });
 
+    it("Facilitator wallets can mint NFTs", async function () {
+      const facilitatorAssistant = wallets[5]; // Facilitator-specific Assistant
+
+      await entityFacet
+        .connect(facilitator)
+        .addEntityWallets(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[WalletRole.Assistant]]]);
+
+      // test event
+      await expect(offerFacet.connect(facilitator).mintAndWrapNFTs(bosonOfferId, quantity)).to.emit(
+        offerFacet,
+        "NFTsMinted",
+      );
+
+      await expect(offerFacet.connect(facilitatorAssistant).mintAndWrapNFTs(bosonOfferId + 1n, quantity)).to.emit(
+        offerFacet,
+        "NFTsMinted",
+      );
+    });
+
     context("Revert reasons", function () {
       it("Caller is not the seller's assistant", async function () {
         await verifySellerAssistantRole("mintAndWrapNFTs", [bosonOfferId, quantity]);
+      });
+
+      it("Caller is not the facilitator defined in the offer", async function () {
+        await expect(offerFacet.connect(facilitator2).mintAndWrapNFTs(bosonOfferId, quantity))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(sellerId, facilitator2.address, EntityRole.Seller, WalletRole.Assistant);
       });
 
       it("Quantity is zero", async function () {
@@ -483,6 +563,8 @@ describe("Offer", function () {
           verifierId,
           verifierFee,
           custodianId: "3",
+          facilitatorId,
+          facilitatorFee: "0",
           exchangeToken,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,
@@ -600,6 +682,16 @@ describe("Offer", function () {
           expect(newOpenSeaBalance).to.equal(openSeaBalance + openSeaFee);
         });
 
+        it("Facilitator can unwrap", async function () {
+          await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit);
+
+          const tx = await offerFacet.connect(facilitator).unwrapNFT(tokenId, buyerAdvancedOrder);
+
+          // events:
+          // fermion
+          await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+        });
+
         context("Boson seller deposit covered from the available funds", function () {
           it("Fully covered", async function () {
             await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
@@ -668,6 +760,8 @@ describe("Offer", function () {
               verifierId,
               verifierFee: "0",
               custodianId: "3",
+              facilitatorId: sellerId,
+              facilitatorFee: "0",
               exchangeToken: await mockToken.getAddress(),
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
@@ -881,6 +975,12 @@ describe("Offer", function () {
             await verifySellerAssistantRole("unwrapNFT", [tokenId, buyerAdvancedOrder]);
           });
 
+          it("Caller is not the facilitator defined in the offer", async function () {
+            await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, buyerAdvancedOrder))
+              .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+              .withArgs(sellerId, facilitator2.address, EntityRole.Seller, WalletRole.Assistant);
+          });
+
           context("Boson deposit not covered", async function () {
             it("Zero available funds", async function () {
               // ERC20 offer - insufficient allowance
@@ -960,6 +1060,8 @@ describe("Offer", function () {
                   verifierId,
                   verifierFee,
                   custodianId: "3",
+                  facilitatorId: sellerId,
+                  facilitatorFee: "0",
                   exchangeToken: ZeroAddress,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
@@ -1025,6 +1127,8 @@ describe("Offer", function () {
               verifierId,
               verifierFee,
               custodianId: "3",
+              facilitatorId: sellerId,
+              facilitatorFee: "0",
               exchangeToken: bosonTokenAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
@@ -1134,6 +1238,19 @@ describe("Offer", function () {
           expect(newOpenSeaBalance).to.equal(openSeaBalance);
         });
 
+        it("Facilitator can unwrap", async function () {
+          await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+          await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+          await mockToken.mint(facilitator.address, minimalPrice);
+          await mockToken.connect(facilitator).approve(fermionProtocolAddress, minimalPrice);
+          const tx = await offerFacet.connect(facilitator).unwrapNFTToSelf(tokenId);
+
+          // events:
+          // fermion
+          await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+        });
+
         context("Boson seller deposit covered from the available funds", function () {
           it("Fully covered", async function () {
             await mockToken.approve(fermionProtocolAddress, sellerDeposit);
@@ -1204,6 +1321,8 @@ describe("Offer", function () {
               verifierId,
               verifierFee: "0",
               custodianId: "3",
+              facilitatorId: sellerId,
+              facilitatorFee: "0",
               exchangeToken: ZeroAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
@@ -1282,6 +1401,12 @@ describe("Offer", function () {
         context("Revert reasons", function () {
           it("Caller is not the seller's assistant", async function () {
             await verifySellerAssistantRole("unwrapNFTToSelf", [tokenId]);
+          });
+
+          it("Caller is not the facilitator defined in the offer", async function () {
+            await expect(offerFacet.connect(facilitator2).unwrapNFTToSelf(tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+              .withArgs(sellerId, facilitator2.address, EntityRole.Seller, WalletRole.Assistant);
           });
 
           context("Boson deposit not covered", async function () {
@@ -1364,6 +1489,8 @@ describe("Offer", function () {
                   verifierId,
                   verifierFee,
                   custodianId: "3",
+                  facilitatorId: sellerId,
+                  facilitatorFee: "0",
                   exchangeToken: ZeroAddress,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
@@ -1448,6 +1575,8 @@ describe("Offer", function () {
               verifierId,
               verifierFee,
               custodianId: "3",
+              facilitatorId: sellerId,
+              facilitatorFee: "0",
               exchangeToken: bosonTokenAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
@@ -1483,6 +1612,8 @@ describe("Offer", function () {
           verifierId,
           verifierFee,
           custodianId: "3",
+          facilitatorId: sellerId,
+          facilitatorFee: "0",
           exchangeToken,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,

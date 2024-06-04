@@ -1077,10 +1077,17 @@ describe("Entity", function () {
       const entityId = "1";
       const bosonOfferId = "1";
       const sellerId = "1";
+      const facilitatorId = "2";
       let wrapper: Contract;
+      let facilitator: HardhatEthersSigner;
 
       beforeEach(async function () {
+        facilitator = wallets[2];
         await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        await entityFacet
+          .connect(facilitator)
+          .createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        await entityFacet.addFacilitators(sellerId, [facilitatorId]);
 
         const fermionOffer = {
           sellerId,
@@ -1088,6 +1095,8 @@ describe("Entity", function () {
           verifierId: sellerId,
           verifierFee: "0",
           custodianId: sellerId,
+          facilitatorId,
+          facilitatorFee: "0",
           exchangeToken: ZeroAddress,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: "",
@@ -1115,6 +1124,31 @@ describe("Entity", function () {
 
         // verify state
         expect(await wrapper.owner()).to.equal(newAssistant);
+      });
+
+      it("Transfer ownership to facilitator", async function () {
+        // Transfer to facilitator's super admin
+        // test event
+        await expect(entityFacet.transferWrapperContractOwnership(bosonOfferId, facilitator.address))
+          .to.emit(wrapper, "OwnershipTransferred")
+          .withArgs(defaultSigner.address, facilitator.address);
+
+        // verify state
+        expect(await wrapper.owner()).to.equal(facilitator.address);
+
+        // Transfer to facilitator's assistant
+        const facilitatorAssistant = wallets[4].address;
+        await entityFacet
+          .connect(facilitator)
+          .addEntityWallets(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[WalletRole.Assistant]]]);
+
+        // test event
+        await expect(entityFacet.transferWrapperContractOwnership(bosonOfferId, facilitatorAssistant))
+          .to.emit(wrapper, "OwnershipTransferred")
+          .withArgs(facilitator.address, facilitatorAssistant);
+
+        // verify state
+        expect(await wrapper.owner()).to.equal(facilitatorAssistant);
       });
 
       context("Revert reasons", function () {

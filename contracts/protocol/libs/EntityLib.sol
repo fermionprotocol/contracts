@@ -291,23 +291,24 @@ library EntityLib {
         uint256 _facilitatorId,
         address _walletAddress
     ) internal view {
-        if (_facilitatorId == _sellerId) {
-            // Caller must be the seller's assistant
-            validateWalletRole(
-                _sellerId,
+        bool isSellerOrFacilitator = hasWalletRole(
+            _sellerId,
+            _walletAddress,
+            FermionTypes.EntityRole.Seller,
+            FermionTypes.WalletRole.Assistant,
+            false
+        ) ||
+            hasWalletRole(
+                _facilitatorId,
                 _walletAddress,
                 FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant
+                FermionTypes.WalletRole.Assistant,
+                false
             );
-        } else {
-            // Checkt that it's the seller's facilitator
-            if (!FermionStorage.protocolLookups().isSellersFacilitator[_sellerId][_facilitatorId]) {
-                revert FermionErrors.NotSellersFacilitator(_sellerId, _facilitatorId);
-            }
 
-            // Caller must be the facilitator's assistant
-            validateWalletRole(
-                _facilitatorId,
+        if (!isSellerOrFacilitator) {
+            revert FermionErrors.WalletHasNoRole(
+                _sellerId,
                 _walletAddress,
                 FermionTypes.EntityRole.Seller,
                 FermionTypes.WalletRole.Assistant
