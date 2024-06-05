@@ -64,7 +64,7 @@ contract VerificationFacet is Context, IVerificationEvents {
         uint256 verifierFee = offer.verifierFee;
         FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
 
-        // pay the facilitator (ToDo: open question fixed or percentage fee?)
+        // pay the facilitator (ToDo: open question fixed or percentage fee? Dependent on the outcome?)
         uint256 facilitatorFee = offer.facilitatorFee;
         FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFee);
 

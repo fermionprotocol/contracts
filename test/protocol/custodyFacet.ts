@@ -98,7 +98,7 @@ describe("Custody", function () {
     const exchangeIdSelfCustody = "3";
 
     // Unwrap some NFTs - normal sale and sale with self-custody
-    buyer = wallets[5];
+    buyer = wallets[6];
 
     await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
