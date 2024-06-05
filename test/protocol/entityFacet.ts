@@ -197,7 +197,7 @@ describe("Entity", function () {
         it("Entity region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Entity]);
 
-          await expect(entityFacet.updateEntity(0, [EntityRole.Seller], metadataURI))
+          await expect(entityFacet.updateEntity(entityId, [EntityRole.Seller], metadataURI))
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Entity);
         });
@@ -803,7 +803,7 @@ describe("Entity", function () {
         it("Entity region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Entity]);
 
-          await expect(entityFacet.setEntityAdmin(0, ZeroAddress, true))
+          await expect(entityFacet.setEntityAdmin(entityId, ZeroAddress, true))
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Entity);
         });
@@ -904,6 +904,14 @@ describe("Entity", function () {
         });
 
         context("Revert reasons", function () {
+          it("Entity region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.Entity]);
+
+            await expect(entityFacet.addFacilitators(sellerId, [facilitator1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.Entity);
+          });
+
           it("Entity does not exist", async function () {
             await expect(entityFacet.addFacilitators(0, []))
               .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
@@ -1047,6 +1055,14 @@ describe("Entity", function () {
         });
 
         context("Revert reasons", function () {
+          it("Entity region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.Entity]);
+
+            await expect(entityFacet.removeFacilitators(sellerId, [facilitator1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.Entity);
+          });
+
           it("Entity does not exist", async function () {
             await expect(entityFacet.removeFacilitators(0, []))
               .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
