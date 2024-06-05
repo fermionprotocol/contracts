@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, TokenState, VerificationStatus, WalletRole } from "../utils/enums";
+import { EntityRole, PausableRegion, TokenState, VerificationStatus, WalletRole } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { getBosonHandler } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
@@ -12,7 +12,11 @@ import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 const { parseEther } = ethers;
 
 describe("Verification", function () {
-  let offerFacet: Contract, entityFacet: Contract, verificationFacet: Contract, fundsFacet: Contract;
+  let offerFacet: Contract,
+    entityFacet: Contract,
+    verificationFacet: Contract,
+    fundsFacet: Contract,
+    pauseFacet: Contract;
   let mockToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -145,6 +149,7 @@ describe("Verification", function () {
         OfferFacet: offerFacet,
         VerificationFacet: verificationFacet,
         FundsFacet: fundsFacet,
+        PauseFacet: pauseFacet,
       },
       fermionErrors,
       wallets,
@@ -453,6 +458,14 @@ describe("Verification", function () {
     });
 
     context("Revert reasons", function () {
+      it("Verification region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Verification]);
+
+        await expect(verificationFacet.submitVerdict(exchange.tokenId, VerificationStatus.Verified))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Verification);
+      });
+
       it("Caller is not the verifiers's assistant", async function () {
         const wallet = wallets[9];
 

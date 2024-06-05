@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
-import { EntityRole } from "../utils/enums";
+import { EntityRole, PausableRegion } from "../utils/enums";
 import { deployFermionProtocolFixture } from "../utils/common";
 import {
   getStateModifyingFunctions,
@@ -16,14 +16,14 @@ import { deployDiamond, prepareFacetCuts, makeDiamondCut } from "../../scripts/d
 const { id, getContractAt, getContractFactory, MaxUint256, toBeHex, ZeroAddress, ZeroHash } = ethers;
 
 describe("MetaTransactions", function () {
-  let entityFacet: Contract, metaTransactionFacet: Contract;
+  let entityFacet: Contract, metaTransactionFacet: Contract, pauseFacet: Contract;
   let wallets, defaultSigner;
   let fermionErrors: Contract;
   let bosonProtocolAddress: string, wrapperImplementationAddress: string;
 
   before(async function () {
     ({
-      facets: { EntityFacet: entityFacet, MetaTransactionFacet: metaTransactionFacet },
+      facets: { EntityFacet: entityFacet, MetaTransactionFacet: metaTransactionFacet, PauseFacet: pauseFacet },
       fermionErrors,
       wallets,
       defaultSigner,
@@ -137,6 +137,24 @@ describe("MetaTransactions", function () {
         });
 
         context("Revert reasons", function () {
+          it("Metatransaction region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.MetaTransaction]);
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                ZeroAddress,
+                "testFunction",
+                ZeroHash,
+                ZeroHash,
+                ZeroHash,
+                ZeroHash,
+                0,
+              ),
+            )
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.MetaTransaction);
+          });
+
           it("Nonce is already used by the msg.sender for another transaction", async function () {
             const metadataURI = "https://example.com/metadata.json";
             const entityRoles = [EntityRole.Verifier, EntityRole.Custodian];
@@ -640,6 +658,14 @@ describe("MetaTransactions", function () {
         });
 
         context("💔 Revert Reasons", async function () {
+          it("Metatransaction region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.MetaTransaction]);
+
+            await expect(metaTransactionFacet.connect(admin).setAllowlistedFunctions(functionHashList, true))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.MetaTransaction);
+          });
+
           it("caller is not the admin", async function () {
             await expect(metaTransactionFacet.setAllowlistedFunctions(functionHashList, true))
               .to.revertedWithCustomError(metaTransactionFacet, "NotContractOwner")

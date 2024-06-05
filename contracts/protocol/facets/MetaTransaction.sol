@@ -60,6 +60,7 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
      * @notice Handles the incoming meta transaction.
      *
      * Reverts if:
+     * - Metatransaction region is paused
      * - Nonce is already used by the msg.sender for another transaction
      * - Function is not allowlisted to be called using metatransactions
      * - Function name does not match the bytes4 version of the function signature
@@ -83,8 +84,9 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
         bytes32 _sigR,
         bytes32 _sigS,
         uint8 _sigV
-    ) external payable returns (bytes memory) {
-        validateTx(_functionName, _functionSignature, _nonce, _userAddress);
+    ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) returns (bytes memory) {
+        address userAddress = _userAddress; // stack too deep workaround. ToDo: Consider using a struct for signature
+        validateTx(_functionName, _functionSignature, _nonce, userAddress);
 
         FermionTypes.MetaTransaction memory metaTx;
         metaTx.nonce = _nonce;
@@ -116,12 +118,16 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
      * Emits a FunctionsAllowlisted event if successful.
      *
      * Reverts if:
+     * - Metatransaction region is paused
      * - Caller is not a protocol admin
      *
      * @param _functionNameHashes - a list of hashed function names (keccak256)
      * @param _isAllowlisted - new allowlist status
      */
-    function setAllowlistedFunctions(bytes32[] calldata _functionNameHashes, bool _isAllowlisted) public onlyAdmin {
+    function setAllowlistedFunctions(
+        bytes32[] calldata _functionNameHashes,
+        bool _isAllowlisted
+    ) external onlyAdmin notPaused(FermionTypes.PausableRegion.MetaTransaction) {
         setAllowlistedFunctionsInternal(_functionNameHashes, _isAllowlisted);
     }
 

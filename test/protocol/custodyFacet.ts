@@ -9,7 +9,14 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroAddress, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, CheckoutRequestStatus, TokenState, VerificationStatus, WalletRole } from "../utils/enums";
+import {
+  EntityRole,
+  CheckoutRequestStatus,
+  PausableRegion,
+  TokenState,
+  VerificationStatus,
+  WalletRole,
+} from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 
@@ -20,7 +27,8 @@ describe("Custody", function () {
     entityFacet: Contract,
     verificationFacet: Contract,
     custodyFacet: Contract,
-    fundsFacet: Contract;
+    fundsFacet: Contract,
+    pauseFacet: Contract;
   let mockToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -151,6 +159,7 @@ describe("Custody", function () {
         VerificationFacet: verificationFacet,
         CustodyFacet: custodyFacet,
         FundsFacet: fundsFacet,
+        PauseFacet: pauseFacet,
       },
       fermionErrors,
       wallets,
@@ -223,6 +232,14 @@ describe("Custody", function () {
     });
 
     context("Revert reasons", function () {
+      it("Custody region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Custody]);
+
+        await expect(custodyFacet.checkIn(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Custody);
+      });
+
       it("Caller is not the custodian's assistant", async function () {
         const wallet = wallets[9];
 
@@ -409,6 +426,14 @@ describe("Custody", function () {
     });
 
     context("Revert reasons", function () {
+      it("Custody region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Custody]);
+
+        await expect(custodyFacet.requestCheckOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Custody);
+      });
+
       it("Caller is not the buyer", async function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
 
@@ -577,6 +602,14 @@ describe("Custody", function () {
     });
 
     context("Revert reasons", function () {
+      it("Custody region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Custody]);
+
+        await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Custody);
+      });
+
       it("Caller is not the seller's assistant", async function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
         await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
@@ -749,6 +782,14 @@ describe("Custody", function () {
       });
 
       context("Revert reasons", function () {
+        it("Custody region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Custody]);
+
+          await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Custody);
+        });
+
         it("Caller is not the buyer", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
@@ -1117,6 +1158,14 @@ describe("Custody", function () {
     });
 
     context("Revert reasons", function () {
+      it("Custody region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Custody]);
+
+        await expect(custodyFacet.checkOut(exchange.tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Custody);
+      });
+
       it("Caller is not the custodian's assistant", async function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
         await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);

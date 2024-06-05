@@ -4,14 +4,18 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroAddress, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, VerificationStatus, WalletRole } from "../utils/enums";
+import { EntityRole, PausableRegion, VerificationStatus, WalletRole } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 
 const { parseEther, id } = ethers;
 
 describe("Funds", function () {
-  let offerFacet: Contract, entityFacet: Contract, verificationFacet: Contract, fundsFacet: Contract;
+  let offerFacet: Contract,
+    entityFacet: Contract,
+    verificationFacet: Contract,
+    fundsFacet: Contract,
+    pauseFacet: Contract;
   let mockToken1: Contract, mockToken2: Contract, mockToken3: Contract;
   let mockToken1Address: string, mockToken2Address: string, mockToken3Address: string;
   let fermionErrors: Contract;
@@ -55,6 +59,7 @@ describe("Funds", function () {
         OfferFacet: offerFacet,
         VerificationFacet: verificationFacet,
         FundsFacet: fundsFacet,
+        PauseFacet: pauseFacet,
       },
       fermionErrors,
       wallets,
@@ -133,6 +138,14 @@ describe("Funds", function () {
     });
 
     context("Revert reasons", function () {
+      it("Funds region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Funds]);
+
+        await expect(fundsFacet.depositFunds(sellerId, ZeroAddress, amount, { value: amount }))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Funds);
+      });
+
       it("Zero amount is not allowed", async function () {
         const amount = "0";
         await expect(
@@ -385,6 +398,14 @@ describe("Funds", function () {
     });
 
     context("Revert reasons", function () {
+      it("Funds region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Funds]);
+
+        await expect(fundsFacet.withdrawFunds(sellerId, defaultSigner.address, [], []))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Funds);
+      });
+
       it("Caller is not entity's assistant", async function () {
         const wallet = wallets[9];
 

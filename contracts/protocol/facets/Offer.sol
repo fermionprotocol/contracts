@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
+import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
@@ -24,7 +25,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
  *
  * @notice Handles offer listing.
  */
-contract OfferFacet is Context, FermionErrors, IOfferEvents {
+contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
     using SafeERC20 for IERC20;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
@@ -41,12 +42,13 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * Emits an OfferCreated event
      *
      * Reverts if:
+     * - Offer region is paused
      * - Caller is not the seller's assistant or facilitator
      * - Invalid verifier or custodian ID is provided
      *
      * @param _offer Offer to list
      */
-    function createOffer(FermionTypes.Offer calldata _offer) external {
+    function createOffer(FermionTypes.Offer calldata _offer) external notPaused(FermionTypes.PausableRegion.Offer) {
         if (
             _offer.sellerId != _offer.facilitatorId &&
             !FermionStorage.protocolLookups().isSellersFacilitator[_offer.sellerId][_offer.facilitatorId]
@@ -117,12 +119,16 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * Emits an NFTsMinted and NFTsWrapped event
      *
      * Reverts if:
-     * - Caller is not the seller's assistant
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator
      *
      * @param _offerId - the offer ID
      * @param _quantity - the number of NFTs to mint
      */
-    function mintAndWrapNFTs(uint256 _offerId, uint256 _quantity) external {
+    function mintAndWrapNFTs(
+        uint256 _offerId,
+        uint256 _quantity
+    ) external notPaused(FermionTypes.PausableRegion.Offer) {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
         wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
     }
@@ -131,6 +137,12 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @notice Unwraps NFT, but skips the auction and keeps the F-NFT with the seller
      *
      * Price is 0, so the caller must provide the verification fee in the exchange token
+     *
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator
+     * - If seller deposit is non zero and there are not enough funds to cover it
+     * - The caller does not provide the verification fee
      *
      * N.B. currently, the F-NFT owner will be the assistant that wrapped it, not the caller of this function
      * This behavior can be changed in the future
@@ -144,6 +156,11 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
 
     /**
      * @notice Unwraps F-NFT, uses seaport to sell the NFT
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator
+     * - If seller deposit is non zero and there are not enough funds to cover it
+     * - The price is not high enough to cover the verification fee
      *
      * @param _tokenId - the token ID
      * @param _buyerOrder - the Seaport buyer order
@@ -153,12 +170,12 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
     }
 
     /**
-     * @notice Unwraps F-NFT, uses seaport to sell the NFT
+     * @notice Unwraps F-NFT
      *
      * Emits VerificationInitiated event
      *
      * Reverts if:
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - If seller deposit is non zero and there are not enough funds to cover it
      * - It is self sale and the caller does not provide the verification fee
      * - It is a normal sale and the price is not high enough to cover the verification fee
@@ -167,7 +184,11 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * @param _buyerOrder - the Seaport buyer order (if not self sale)
      * @param _selfSale - if true, the NFT is unwrapped to the seller
      */
-    function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder memory _buyerOrder, bool _selfSale) internal {
+    function unwrapNFT(
+        uint256 _tokenId,
+        SeaportTypes.AdvancedOrder memory _buyerOrder,
+        bool _selfSale
+    ) internal notPaused(FermionTypes.PausableRegion.Offer) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         // Check the caller is the the seller's assistant
@@ -310,9 +331,13 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * Not restricted with onlyAdmin. The purpose of this method is to allow the seller to add supported tokens in boson if they
      * want to use them in their offers and not already added by the protocol.
      *
+     * Reverts if:
+     * - Offer region is paused
+     * - Call to Boson protocol reverts
+     *
      * @param _tokenAddress Token address
      */
-    function addSupportedToken(address _tokenAddress) external {
+    function addSupportedToken(address _tokenAddress) external notPaused(FermionTypes.PausableRegion.Offer) {
         IBosonProtocol.DisputeResolverFee[] memory disputeResolverFees = new IBosonProtocol.DisputeResolverFee[](1);
         disputeResolverFees[0] = IBosonProtocol.DisputeResolverFee({
             tokenAddress: _tokenAddress,
@@ -360,7 +385,7 @@ contract OfferFacet is Context, FermionErrors, IOfferEvents {
      * Emits an NFTsMinted event
      *
      * Reverts if:
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - Not enough funds are sent to cover the seller deposit
      * - Deposit is in ERC20 and the caller sends native currency
      * - ERC20 token transfer fails

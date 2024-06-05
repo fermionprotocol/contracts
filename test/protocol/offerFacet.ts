@@ -10,7 +10,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, TokenState, WalletRole } from "../utils/enums";
+import { EntityRole, PausableRegion, TokenState, WalletRole } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
 import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
@@ -27,7 +27,7 @@ describe("Offer", function () {
   const custodianId = "3";
   const facilitatorId = "4";
   const facilitator2Id = "5";
-  let offerFacet: Contract, entityFacet: Contract, fundsFacet: Contract;
+  let offerFacet: Contract, entityFacet: Contract, fundsFacet: Contract, pauseFacet: Contract;
   let mockToken: Contract, mockBosonToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -71,7 +71,7 @@ describe("Offer", function () {
   before(async function () {
     ({
       diamondAddress: fermionProtocolAddress,
-      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet, FundsFacet: fundsFacet },
+      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet, FundsFacet: fundsFacet, PauseFacet: pauseFacet },
       fermionErrors,
       wallets,
       defaultSigner,
@@ -226,6 +226,14 @@ describe("Offer", function () {
     });
 
     context("Revert reasons", function () {
+      it("Offer region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Offer]);
+
+        await expect(offerFacet.createOffer(fermionOffer))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Offer);
+      });
+
       it("Caller is not the seller's assistant", async function () {
         await verifySellerAssistantRole("createOffer", [fermionOffer]);
       });
@@ -287,10 +295,7 @@ describe("Offer", function () {
       const bosonOfferId = "1";
       const exchangeToken = await mockToken.getAddress();
       const sellerDeposit = 100;
-      const sellerId = "1";
-      const verifierId = "2";
       const verifierFee = 10;
-      const custodianId = "3";
       const metadataURI = "https://example.com/offer-metadata.json";
 
       const fermionOffer = {
@@ -333,7 +338,6 @@ describe("Offer", function () {
   });
 
   context("mintAndWrapNFTs", function () {
-    const sellerId = "1";
     const bosonOfferId = 1n;
     const sellerDeposit = 100n;
     const quantity = 15n;
@@ -500,6 +504,14 @@ describe("Offer", function () {
     });
 
     context("Revert reasons", function () {
+      it("Offer region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Offer]);
+
+        await expect(offerFacet.mintAndWrapNFTs(bosonOfferId, quantity))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Offer);
+      });
+
       it("Caller is not the seller's assistant", async function () {
         await verifySellerAssistantRole("mintAndWrapNFTs", [bosonOfferId, quantity]);
       });
@@ -519,10 +531,8 @@ describe("Offer", function () {
   });
 
   context("unwrapping", function () {
-    const sellerId = "1";
     const bosonOfferId = 1n;
     const quantity = 15n;
-    const verifierId = "2";
     const verifierFee = parseEther("0.01");
     const bosonSellerId = "1"; // Fermion's seller id inside Boson
     const bosonBuyerId = "2"; // Fermion's buyer id inside Boson
@@ -971,6 +981,14 @@ describe("Offer", function () {
         });
 
         context("Revert reasons", function () {
+          it("Offer region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.Offer]);
+
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.Offer);
+          });
+
           it("Caller is not the seller's assistant", async function () {
             await verifySellerAssistantRole("unwrapNFT", [tokenId, buyerAdvancedOrder]);
           });
@@ -1399,6 +1417,14 @@ describe("Offer", function () {
         });
 
         context("Revert reasons", function () {
+          it("Offer region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.Offer]);
+
+            await expect(offerFacet.unwrapNFTToSelf(tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.Offer);
+          });
+
           it("Caller is not the seller's assistant", async function () {
             await verifySellerAssistantRole("unwrapNFTToSelf", [tokenId]);
           });
@@ -1748,11 +1774,21 @@ describe("Offer", function () {
       ]); // mockToken and zero address (native currency) are there from the setup
     });
 
-    it("Adding existing token fail", async function () {
-      await expect(offerFacet.addSupportedToken(await mockToken.getAddress())).to.be.revertedWithCustomError(
-        accountHandler,
-        "DuplicateDisputeResolverFees",
-      );
+    context("Revert reasons", function () {
+      it("Offer region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Offer]);
+
+        await expect(offerFacet.addSupportedToken(ZeroAddress))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Offer);
+      });
+
+      it("Adding existing token fail", async function () {
+        await expect(offerFacet.addSupportedToken(await mockToken.getAddress())).to.be.revertedWithCustomError(
+          accountHandler,
+          "DuplicateDisputeResolverFees",
+        );
+      });
     });
   });
 });
