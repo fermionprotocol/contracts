@@ -82,7 +82,7 @@ describe("Custody", function () {
       verifierFee,
       custodianId: "3",
       facilitatorId: sellerId,
-      facilitatorFee: "0",
+      facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,

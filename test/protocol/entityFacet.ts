@@ -1169,7 +1169,7 @@ describe("Entity", function () {
           verifierFee: "0",
           custodianId: sellerId,
           facilitatorId,
-          facilitatorFee: "0",
+          facilitatorFeePercent: "0",
           exchangeToken: ZeroAddress,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: "",

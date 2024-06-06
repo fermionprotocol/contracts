@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FermionErrors } from "../domain/Errors.sol";
@@ -202,5 +203,15 @@ library FundsLib {
             // Delete from index mapping
             delete entityTokens[_tokenAddress];
         }
+    }
+
+    /**
+     * @notice Applies a percentage to the amount.
+     *
+     * @param _amount - the amount to apply the percentage to
+     * @param _percentage - the percentage to apply
+     */
+    function applyPercentage(uint256 _amount, uint256 _percentage) internal pure returns (uint256) {
+        return (_amount * _percentage) / HUNDRED_PERCENT;
     }
 }

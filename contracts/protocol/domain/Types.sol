@@ -65,7 +65,7 @@ contract FermionTypes {
         uint256 verifierFee;
         uint256 custodianId;
         uint256 facilitatorId;
-        uint256 facilitatorFee;
+        uint256 facilitatorFeePercent;
         address exchangeToken;
         string metadataURI;
         string metadataHash;

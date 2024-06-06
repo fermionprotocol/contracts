@@ -334,7 +334,7 @@ describe("Funds", function () {
         verifierFee,
         custodianId: verifierId,
         facilitatorId: sellerId,
-        facilitatorFee: "0",
+        facilitatorFeePercent: "0",
         exchangeToken: mockToken1Address,
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,

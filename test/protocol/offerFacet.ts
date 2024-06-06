@@ -108,7 +108,7 @@ describe("Offer", function () {
         verifierFee,
         custodianId,
         facilitatorId,
-        facilitatorFee: "0",
+        facilitatorFeePercent: "0",
         exchangeToken,
         metadataURI,
         metadataHash: id(metadataURI),
@@ -287,6 +287,15 @@ describe("Offer", function () {
           .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
           .withArgs(sellerId, facilitator.address, EntityRole.Seller, WalletRole.Assistant);
       });
+
+      it("Facilitator fee percentage is more than 100%", async function () {
+        const facilitatorFeePercent = "10001";
+        const fermionOffer2 = { ...fermionOffer, facilitatorFeePercent };
+        // test event
+        await expect(offerFacet.connect(facilitator).createOffer({ ...fermionOffer2 }))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
+          .withArgs(facilitatorFeePercent);
+      });
     });
   });
 
@@ -305,7 +314,7 @@ describe("Offer", function () {
         verifierFee,
         custodianId,
         facilitatorId: sellerId,
-        facilitatorFee: "0",
+        facilitatorFeePercent: "0",
         exchangeToken,
         metadataURI,
         metadataHash: id(metadataURI),
@@ -349,7 +358,7 @@ describe("Offer", function () {
         verifierFee: 10,
         custodianId: "3",
         facilitatorId,
-        facilitatorFee: "0",
+        facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,
@@ -574,7 +583,7 @@ describe("Offer", function () {
           verifierFee,
           custodianId: "3",
           facilitatorId,
-          facilitatorFee: "0",
+          facilitatorFeePercent: "0",
           exchangeToken,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,
@@ -771,7 +780,7 @@ describe("Offer", function () {
               verifierFee: "0",
               custodianId: "3",
               facilitatorId: sellerId,
-              facilitatorFee: "0",
+              facilitatorFeePercent: "0",
               exchangeToken: await mockToken.getAddress(),
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
@@ -1079,7 +1088,7 @@ describe("Offer", function () {
                   verifierFee,
                   custodianId: "3",
                   facilitatorId: sellerId,
-                  facilitatorFee: "0",
+                  facilitatorFeePercent: "0",
                   exchangeToken: ZeroAddress,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
@@ -1146,7 +1155,7 @@ describe("Offer", function () {
               verifierFee,
               custodianId: "3",
               facilitatorId: sellerId,
-              facilitatorFee: "0",
+              facilitatorFeePercent: "0",
               exchangeToken: bosonTokenAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
@@ -1340,7 +1349,7 @@ describe("Offer", function () {
               verifierFee: "0",
               custodianId: "3",
               facilitatorId: sellerId,
-              facilitatorFee: "0",
+              facilitatorFeePercent: "0",
               exchangeToken: ZeroAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
@@ -1516,7 +1525,7 @@ describe("Offer", function () {
                   verifierFee,
                   custodianId: "3",
                   facilitatorId: sellerId,
-                  facilitatorFee: "0",
+                  facilitatorFeePercent: "0",
                   exchangeToken: ZeroAddress,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
@@ -1602,7 +1611,7 @@ describe("Offer", function () {
               verifierFee,
               custodianId: "3",
               facilitatorId: sellerId,
-              facilitatorFee: "0",
+              facilitatorFeePercent: "0",
               exchangeToken: bosonTokenAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
@@ -1639,7 +1648,7 @@ describe("Offer", function () {
           verifierFee,
           custodianId: "3",
           facilitatorId: sellerId,
-          facilitatorFee: "0",
+          facilitatorFeePercent: "0",
           exchangeToken,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,

@@ -54,32 +54,34 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address exchangeToken = offer.exchangeToken;
-        uint256 totalAmount = offer.sellerDeposit + pl.offerPrice[offerId];
+        uint256 sellerDeposit = offer.sellerDeposit;
+        uint256 offerPrice = pl.offerPrice[offerId];
 
         {
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
             address[] memory tokenList = new address[](1);
             uint256[] memory amountList = new uint256[](1);
             tokenList[0] = exchangeToken;
-            amountList[0] = totalAmount;
+            amountList[0] = offerPrice + sellerDeposit;
             BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
         }
 
         uint256 remainder;
-        {
+        unchecked {
             // pay the verifier
             uint256 verifierFee = offer.verifierFee;
             FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
-
-            // pay the facilitator (ToDo: open question fixed or percentage fee? Dependent on the outcome?)
-            uint256 facilitatorFee = offer.facilitatorFee;
-            FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFee);
+            remainder = offerPrice - verifierFee; // guaranteed to be positive
 
             // fermion fee
-            uint256 fermionFee = 0; //ToDo
-            FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFee); // Protocol fees are stored in entity 0
+            uint256 fermionFeeAmount = FundsLib.applyPercentage(remainder, 0); //ToDo
+            FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
+            remainder -= fermionFeeAmount;
 
-            remainder = totalAmount - verifierFee - facilitatorFee - fermionFee;
+            // pay the facilitator
+            uint256 facilitatorFeeAmount = FundsLib.applyPercentage(remainder, offer.facilitatorFeePercent);
+            FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
+            remainder = remainder - facilitatorFeeAmount + sellerDeposit;
         }
 
         if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {

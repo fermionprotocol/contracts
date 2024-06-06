@@ -70,6 +70,11 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
             FermionTypes.EntityRole.Custodian
         );
 
+        // Fermion offer parameter validation
+        if (_offer.facilitatorFeePercent > HUNDRED_PERCENT) {
+            revert FermionErrors.InvalidPercentage(_offer.facilitatorFeePercent);
+        }
+
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
