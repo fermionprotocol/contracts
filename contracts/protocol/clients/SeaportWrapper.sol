@@ -195,7 +195,7 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
      * @param _tokenId The token id.
      * @param _auth The address that is allowed to transfer the token.
      */
-    function _update(address _to, uint256 _tokenId, address _auth) internal override returns (address) {
+    function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
         TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
         if (state == TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
             revert InvalidStateOrCaller(_tokenId, _msgSender(), TokenState.Wrapped);

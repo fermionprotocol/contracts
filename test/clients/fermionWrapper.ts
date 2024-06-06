@@ -126,8 +126,8 @@ describe("FermionFNFT", function () {
 
   context("wrapForAuction", function () {
     let seller: HardhatEthersSigner;
-    const startTokenId = 1;
-    const quantity = 10;
+    const startTokenId = 2n ** 128n + 1n;
+    const quantity = 10n;
     beforeEach(async function () {
       await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
 
@@ -140,7 +140,7 @@ describe("FermionFNFT", function () {
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
       const tx = await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
 
-      for (let i = 0; i < quantity; i++) {
+      for (let i = 0n; i < quantity; i++) {
         const tokenId = startTokenId + i;
         await expect(tx).to.emit(fermionWrapperProxy, "Transfer").withArgs(ZeroAddress, seller.address, tokenId);
         expect(await fermionWrapperProxy.ownerOf(tokenId)).to.equal(seller.address);
@@ -160,7 +160,7 @@ describe("FermionFNFT", function () {
         await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
         await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
 
-        for (let i = 0; i < quantity; i++) {
+        for (let i = 0n; i < quantity; i++) {
           const tokenId = startTokenId + i;
           await expect(fermionWrapperProxy.connect(seller).transferFrom(seller.address, newOwner.address, tokenId))
             .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")

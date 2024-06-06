@@ -142,7 +142,7 @@ contract FermionWrapper is SeaportWrapper {
 
             // Transfer vouchers to this contract
             // Not using safeTransferFrom since this contract is the recipient and we are sure it can handle the vouchers
-            IERC721(voucherAddress).transferFrom(msg.sender, address(this), tokenId);
+            IERC721(voucherAddress).transferFrom(_msgSender(), address(this), tokenId);
 
             // Mint to the specified address
             _safeMint(_to, tokenId);
