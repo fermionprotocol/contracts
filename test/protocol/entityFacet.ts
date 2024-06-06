@@ -929,7 +929,7 @@ describe("Entity", function () {
         const nextBosonExchangeId = "1";
         const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
         const wrapperAddress = await offerFacet.predictFermionWrapperAddress(startingTokenId);
-        wrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+        wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
       });
 
       it("Transfer ownership to another assistant", async function () {

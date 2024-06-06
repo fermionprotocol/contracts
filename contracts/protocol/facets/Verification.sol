@@ -10,6 +10,7 @@ import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { TokenState } from "../clients/Common.sol";
 
 /**
  * @title VerificationFacet
@@ -42,7 +43,7 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 verifierId = offer.verifierId;
 
-        // Check the caller is the the verifier's assistant
+        // Check the caller is the verifier's assistant
         EntityLib.validateWalletRole(
             verifierId,
             msgSender(),
@@ -78,10 +79,7 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
         if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
             // transfer the remainder to the seller
             FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
-            IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(
-                _tokenId,
-                IFermionWrapper.TokenState.Verified
-            );
+            IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, TokenState.Verified);
         } else {
             address buyerAddress = IFermionWrapper(pl.wrapperAddress[offerId]).burn(_tokenId);
 

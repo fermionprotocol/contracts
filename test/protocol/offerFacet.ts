@@ -352,7 +352,7 @@ describe("Offer", function () {
         .withArgs(bosonOfferId, [startingTokenId, quantity, 0n, 0n, fermionProtocolAddress]);
 
       // fermion wrapper
-      const fermionWrapper = await ethers.getContractAt("FermionWrapper", predictedWrapperAddress);
+      const fermionWrapper = await ethers.getContractAt("FermionFNFT", predictedWrapperAddress);
       for (let i = 0; i < quantity; i++) {
         const tokenId = startingTokenId + BigInt(i);
 
@@ -393,7 +393,7 @@ describe("Offer", function () {
         .to.emit(bosonVoucher, "RangeReserved")
         .withArgs(bosonOfferId2, [startingTokenId2, quantity, 0n, 0n, fermionProtocolAddress]);
 
-      const fermionWrapper2 = await ethers.getContractAt("FermionWrapper", predictedWrapperAddress2);
+      const fermionWrapper2 = await ethers.getContractAt("FermionFNFT", predictedWrapperAddress2);
       for (let i = 0; i < quantity; i++) {
         const tokenId = startingTokenId2 + BigInt(i);
 
@@ -486,7 +486,7 @@ describe("Offer", function () {
       exchangeToken = await mockToken.getAddress();
 
       wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
-      fermionWrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+      fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
     });
 
     context("Non-zero seller deposit", function () {
@@ -591,7 +591,7 @@ describe("Offer", function () {
           // - burned
           await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
 
-          // FermionWrapper
+          // FermionFNFT
           // - Transfer to buyer (2step seller->wrapper->buyer)
           await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(defaultSigner.address, wrapperAddress, tokenId);
           await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(wrapperAddress, buyerAddress, tokenId);
@@ -607,7 +607,7 @@ describe("Offer", function () {
           const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
           expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
 
-          // FermionWrapper:
+          // FermionFNFT:
           expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
           expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
 
@@ -696,7 +696,7 @@ describe("Offer", function () {
             await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
 
             wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
-            fermionWrapper = await ethers.getContractAt("FermionWrapper", wrapperAddress);
+            fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
           });
 
           it("Non-zero item price", async function () {
@@ -770,7 +770,7 @@ describe("Offer", function () {
             // - burned
             await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
 
-            // FermionWrapper
+            // FermionFNFT
             // - Transfer to buyer (2step seller->wrapper->buyer)
             await expect(tx)
               .to.emit(fermionWrapper, "Transfer")
@@ -788,7 +788,7 @@ describe("Offer", function () {
             const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
             expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
 
-            // FermionWrapper:
+            // FermionFNFT:
             expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
             expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
 
@@ -867,7 +867,7 @@ describe("Offer", function () {
             // - burned
             await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
 
-            // FermionWrapper
+            // FermionFNFT
             // - Transfer to buyer (1step seller->buyer)
             await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(defaultSigner.address, buyerAddress, tokenId);
 
@@ -882,7 +882,7 @@ describe("Offer", function () {
             const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
             expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance); // no change expected
 
-            // FermionWrapper:
+            // FermionFNFT:
             expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
             expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
 
@@ -1134,7 +1134,7 @@ describe("Offer", function () {
           // - burned
           await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
 
-          // FermionWrapper
+          // FermionFNFT
           // - No transfer should happen, since the seller is the buyer
           await expect(tx).to.not.emit(fermionWrapper, "Transfer");
 
@@ -1149,7 +1149,7 @@ describe("Offer", function () {
           const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
           expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + minimalPrice);
 
-          // FermionWrapper:
+          // FermionFNFT:
           expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
           expect(await fermionWrapper.ownerOf(tokenId)).to.equal(defaultSigner.address);
 

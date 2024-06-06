@@ -10,6 +10,7 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
+import { TokenState } from "../clients/Common.sol";
 
 /**
  * @title CustodyFacet
@@ -49,10 +50,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
             FermionTypes.WalletRole.Assistant
         );
 
-        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(
-            _tokenId,
-            IFermionWrapper.TokenState.CheckedIn
-        );
+        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, TokenState.CheckedIn);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
@@ -82,7 +80,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 custodianId = offer.custodianId;
 
-        // Check the caller is the the verifier's assistant
+        // Check the caller is the verifier's assistant
         EntityLib.validateWalletRole(
             custodianId,
             msgSender(),
@@ -93,10 +91,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
 
-        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(
-            _tokenId,
-            IFermionWrapper.TokenState.CheckedOut
-        );
+        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, TokenState.CheckedOut);
     }
 
     /**

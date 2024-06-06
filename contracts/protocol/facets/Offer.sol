@@ -192,7 +192,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         address msgSender = msgSender();
 
-        // Check the caller is the the seller's assistant
+        // Check the caller is the seller's assistant
         EntityLib.validateWalletRole(
             offer.sellerId,
             msgSender,
@@ -408,7 +408,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
         address msgSender = msgSender();
 
-        // Check the caller is the the seller's assistant
+        // Check the caller is the seller's assistant
         EntityLib.validateWalletRole(
             offer.sellerId,
             msgSender,

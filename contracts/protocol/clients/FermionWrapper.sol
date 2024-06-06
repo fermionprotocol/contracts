@@ -1,49 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { Common, TokenState } from "./Common.sol";
+import { SeaportWrapper } from "./SeaportWrapper.sol";
+
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
-import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 /**
  * @title FermionWrapper
- * @notice Wraps Boson Vouchers so they can be used with Opensea. Possibly with other marketplaces in the future.
+ * @notice Wraps Boson Vouchers so they can be used with external price discovery mechanism
  *
- * Features:
- *
- * Out-of-band setup:
- *
- * Usage:
+ * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
+contract FermionWrapper is SeaportWrapper {
     using SafeERC20 for IERC20;
-
-    struct SeaportConfig {
-        address seaport;
-        address openSeaConduit;
-        bytes32 openSeaConduitKey;
-    }
-
-    mapping(uint256 => TokenState) public tokenState;
-
-    // Contract addresses
-    address private voucherAddress;
-    address private fermionProtocol;
-
-    address private immutable SEAPORT;
-    address private immutable BP_PRICE_DISCOVERY; // Boson protocol Price Discovery client
-
-    // OpenSea Conduit
-    address private immutable OS_CONDUIT;
-    bytes32 private immutable OS_CONDUIT_KEY;
 
     /**
      * @notice Constructor
@@ -52,17 +27,7 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     constructor(
         address _bosonPriceDiscovery,
         SeaportConfig memory _seaportConfig
-    )
-        ERC721("Fermion F-NFT", "FMION-NFT") // todo: add make correct names + symbol
-        Ownable(msg.sender)
-    {
-        BP_PRICE_DISCOVERY = _bosonPriceDiscovery;
-        SEAPORT = _seaportConfig.seaport;
-        OS_CONDUIT = _seaportConfig.openSeaConduit == address(0)
-            ? _seaportConfig.seaport
-            : _seaportConfig.openSeaConduit;
-        OS_CONDUIT_KEY = _seaportConfig.openSeaConduitKey;
-    }
+    ) SeaportWrapper(_bosonPriceDiscovery, _seaportConfig) {}
 
     /**
      * @notice Initializes the contract
@@ -70,27 +35,10 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      * Reverts if:
      * - Contract is already initialized
      *
-     * @param _voucherAddress The address of the Boson Voucher contract
      * @param _owner The address of the owner
      */
-    function initialize(address _voucherAddress, address _owner) external {
-        if (owner() != address(0)) {
-            revert AlreadyInitialized();
-        }
-
-        fermionProtocol = msg.sender;
-        voucherAddress = _voucherAddress;
-        _transferOwnership(_owner);
-    }
-
-    /**
-     * @dev Returns true if this contract implements the interface defined by
-     * `interfaceId`. See the corresponding
-     * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
-     * to learn more about how these ids are created.
-     */
-    function supportsInterface(bytes4 _interfaceId) public view virtual override(ERC721, IERC165) returns (bool) {
-        return super.supportsInterface(_interfaceId) || _interfaceId == type(IFermionWrapper).interfaceId;
+    function initializeWrapper(address _owner) internal virtual {
+        initialize(_owner);
     }
 
     /**
@@ -116,12 +64,14 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
     function unwrap(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
         unwrap(_tokenId);
 
-        (uint256 price, address exchangeToken) = finalizeAuction(_tokenId, _buyerOrder);
+        (uint256 price, address _exchangeToken) = finalizeAuction(_tokenId, _buyerOrder);
 
         // Transfer token to protocol
         if (price > 0) {
-            IERC20(exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
+            IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
         }
+
+        Common._getFermionCommonStorage().exchangeToken = _exchangeToken;
     }
 
     /**
@@ -135,43 +85,8 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
         if (_verifierFee > 0) {
             IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _verifierFee);
         }
-    }
 
-    /**
-     * @notice Burns the token and returns the voucher owner
-     *
-     * Reverts if:
-     * - Caller is not the Fermion Protocol
-     * - Token is not in the Unverified state
-     *
-     * @param _tokenId The token id.
-     */
-    function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner) {
-        checkStateAndCaller(_tokenId, TokenState.Unverified, fermionProtocol);
-
-        wrappedVoucherOwner = ownerOf(_tokenId);
-
-        _burn(_tokenId);
-        changeTokenState(_tokenId, TokenState.Burned);
-    }
-
-    /**
-     * @notice Pushes the F-NFT from unverified to verified
-     *
-     * Reverts if:
-     * - Caller is not the Fermion Protocol
-     * - The new token state is not consecutive to the current state
-     *
-     * N.B. Not checking if the new state is valid, since the caller is the Fermion Protocol, which is trusted
-     *
-     * @param _tokenId The token id.
-     */
-    function pushToNextTokenState(uint256 _tokenId, TokenState _newState) external {
-        checkStateAndCaller(_tokenId, TokenState(uint8(_newState) - 1), fermionProtocol);
-        changeTokenState(_tokenId, _newState);
-        if (_newState == TokenState.CheckedOut) {
-            _burn(_tokenId);
-        }
+        Common._getFermionCommonStorage().exchangeToken = _exchangeToken;
     }
 
     /**
@@ -180,9 +95,9 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
      * @param _tokenId The token id.
      */
     function unwrap(uint256 _tokenId) internal {
-        checkStateAndCaller(_tokenId, TokenState.Wrapped, BP_PRICE_DISCOVERY);
+        Common.checkStateAndCaller(_tokenId, TokenState.Wrapped, BP_PRICE_DISCOVERY);
 
-        changeTokenState(_tokenId, TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
+        Common.changeTokenState(_tokenId, TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
 
         // transfer Boson Voucher to Fermion protocol. Not using safeTransferFrom since we are sure Fermion Protocol can handle the voucher
         IERC721(voucherAddress).transferFrom(address(this), fermionProtocol, _tokenId);
@@ -210,109 +125,8 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
             _safeTransfer(wrappedVoucherOwner, buyer, _tokenId);
             return (0, address(0));
         }
-        uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount; // toDo: make check that this is the fee
-        reducedPrice = _price - _openSeaFee;
 
-        exchangeToken = _buyerOrder.parameters.offer[0].token;
-
-        // prepare match advanced order. Can this be optimized with some simpler order?
-        // caller must supply buyers signed order (_buyerOrder)
-        // ToDo: verify that buyerOrder matches the expected format
-        SeaportTypes.OfferItem[] memory offer = new SeaportTypes.OfferItem[](1);
-        offer[0] = SeaportTypes.OfferItem({
-            itemType: SeaportTypes.ItemType.ERC721,
-            token: address(this),
-            identifierOrCriteria: _tokenId,
-            startAmount: 1,
-            endAmount: 1
-        });
-
-        SeaportTypes.ConsiderationItem[] memory consideration = new SeaportTypes.ConsiderationItem[](2);
-        consideration[0] = SeaportTypes.ConsiderationItem({
-            itemType: _buyerOrder.parameters.offer[0].itemType,
-            token: exchangeToken,
-            identifierOrCriteria: 0,
-            startAmount: reducedPrice,
-            endAmount: reducedPrice,
-            recipient: payable(address(this))
-        });
-
-        SeaportTypes.AdvancedOrder memory wrapperOrder = SeaportTypes.AdvancedOrder({
-            parameters: SeaportTypes.OrderParameters({
-                offerer: address(this),
-                zone: address(0), // ToDo: is 0 ok, or do we need _buyerOrder.parameters.zone, or sth buyer can't influence
-                offer: offer,
-                consideration: consideration,
-                orderType: SeaportTypes.OrderType.FULL_OPEN,
-                startTime: _buyerOrder.parameters.startTime,
-                endTime: _buyerOrder.parameters.endTime,
-                zoneHash: bytes32(0), // ToDo: is 0 ok, or do we need, or do we need _buyerOrder.parameters.zoneHash, or sth buyer can't influence
-                salt: 0,
-                conduitKey: OS_CONDUIT_KEY,
-                totalOriginalConsiderationItems: 1
-            }),
-            numerator: 1,
-            denominator: 1,
-            signature: "",
-            extraData: ""
-        });
-
-        SeaportTypes.AdvancedOrder[] memory orders = new SeaportTypes.AdvancedOrder[](2);
-        orders[0] = _buyerOrder;
-        orders[1] = wrapperOrder;
-
-        SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](3);
-
-        // NFT from buyer, to NFT from seller
-        fulfillments[0] = SeaportTypes.Fulfillment({
-            offerComponents: new SeaportTypes.FulfillmentComponent[](1),
-            considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
-        });
-        fulfillments[0].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 1, itemIndex: 0 });
-        fulfillments[0].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
-
-        // Payment from buyer to seller
-        fulfillments[1] = SeaportTypes.Fulfillment({
-            offerComponents: new SeaportTypes.FulfillmentComponent[](1),
-            considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
-        });
-        fulfillments[1].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
-        fulfillments[1].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 1, itemIndex: 0 });
-
-        // Payment from buyer to OpenSea
-        fulfillments[2] = SeaportTypes.Fulfillment({
-            offerComponents: new SeaportTypes.FulfillmentComponent[](1),
-            considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
-        });
-        fulfillments[2].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
-        fulfillments[2].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 1 });
-
-        // transfer to itself to finalize the auction
-        _transfer(wrappedVoucherOwner, address(this), _tokenId);
-
-        SeaportInterface(SEAPORT).matchAdvancedOrders(
-            orders,
-            new SeaportTypes.CriteriaResolver[](0),
-            fulfillments,
-            address(this)
-        );
-    }
-
-    /**
-     * @notice Transfers the contract ownership to a new owner
-     *
-     * Reverts if:
-     * - Caller is not the Fermion Protocol
-     *
-     * N.B. transferring ownership to 0 are allowed, since they can still be change via Fermion Protocol
-     *
-     * @param _newOwner The address of the new owner
-     */
-    function transferOwnership(address _newOwner) public override {
-        if (fermionProtocol != _msgSender()) {
-            revert OwnableUnauthorizedAccount(_msgSender());
-        }
-        _transferOwnership(_newOwner);
+        return finalizeOpenSeaAuction(_tokenId, _buyerOrder); // make delegatcall instead
     }
 
     /**
@@ -332,53 +146,8 @@ contract FermionWrapper is Ownable, ERC721, IFermionWrapper {
 
             // Mint to the specified address
             _safeMint(_to, tokenId);
-            changeTokenState(tokenId, TokenState.Wrapped);
+            Common.changeTokenState(tokenId, TokenState.Wrapped);
         }
-        _setApprovalForAll(address(this), OS_CONDUIT, true);
-    }
-
-    /**
-     * @notice Wrapped vouchers cannot be transferred. To transfer them, invoke a function that unwraps them first.
-     *
-     *
-     * @param _to The address to transfer the wrapped tokens to.
-     * @param _tokenId The token id.
-     * @param _auth The address that is allowed to transfer the token.
-     */
-    function _update(address _to, uint256 _tokenId, address _auth) internal override returns (address) {
-        if (tokenState[_tokenId] == TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
-            revert InvalidStateOrCaller(_tokenId, _msgSender(), TokenState.Wrapped);
-        }
-        return super._update(_to, _tokenId, _auth);
-    }
-
-    /**
-     * @notice Checks it the token is in the expected state and the caller is the expected address
-     *
-     * Reverts if:
-     * - Token is not in the expected state
-     * - Caller is not the expected address
-     *
-     * @param _tokenId The token id
-     * @param _expectedState The expected state
-     * @param _expectedCaller The expected caller
-     */
-    function checkStateAndCaller(uint256 _tokenId, TokenState _expectedState, address _expectedCaller) internal view {
-        if (tokenState[_tokenId] != _expectedState || _msgSender() != _expectedCaller) {
-            revert InvalidStateOrCaller(_tokenId, _msgSender(), tokenState[_tokenId]);
-        }
-    }
-
-    /**
-     * @notice Changes the state of a token
-     *
-     * Emits an TokenStateChange event
-     *
-     * @param _tokenId The token id
-     * @param _state The new state
-     */
-    function changeTokenState(uint256 _tokenId, TokenState _state) internal {
-        tokenState[_tokenId] = _state;
-        emit TokenStateChange(_tokenId, _state);
+        wrapOpenSea();
     }
 }

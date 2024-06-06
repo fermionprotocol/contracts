@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
+import { TokenState } from "../clients/Common.sol";
 
 /**
  * @title FermionWrapper interface
@@ -10,21 +11,6 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * A set of methods to interact with the FermionWrapper contract.
  */
 interface IFermionWrapper is IERC721 {
-    enum TokenState {
-        Inexistent,
-        Wrapped,
-        Unverified,
-        Verified,
-        CheckedIn,
-        CheckedOut,
-        Burned
-    }
-
-    error AlreadyInitialized();
-    error InvalidStateOrCaller(uint256 tokenId, address sender, TokenState state);
-
-    event TokenStateChange(uint256 indexed tokenId, TokenState state);
-
     /**
      * @notice Initializes the contract
      *

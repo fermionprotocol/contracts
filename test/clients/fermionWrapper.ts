@@ -8,7 +8,7 @@ import { TokenState } from "../utils/enums";
 
 const { ZeroAddress } = ethers;
 
-describe("FermionWrapper", function () {
+describe("FermionFNFT", function () {
   let fermionWrapper: Contract, fermionWrapperProxy: Contract;
   let wallets: HardhatEthersSigner[];
   let fermionProtocolSigner: HardhatEthersSigner;
@@ -18,8 +18,8 @@ describe("FermionWrapper", function () {
 
   async function setupFermionWrapperTest() {
     const [mockConduit, mockBosonPriceDiscovery] = (await ethers.getSigners()).slice(9, 11);
-    const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
-    const fermionWrapper = await FermionWrapper.deploy(mockBosonPriceDiscovery.address, {
+    const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
+    const fermionWrapper = await FermionFNFT.deploy(mockBosonPriceDiscovery.address, {
       seaport: ZeroAddress,
       openSeaConduit: mockConduit.address,
       openSeaConduitKey: ZeroHash,
@@ -28,7 +28,7 @@ describe("FermionWrapper", function () {
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionWrapper.getAddress());
 
-    const fermionWrapperProxy = await ethers.getContractAt("FermionWrapper", await proxy.getAddress());
+    const fermionWrapperProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
 
     const [mockBoson] = await deployMockTokens(["ERC721"]);
     return { fermionWrapper, fermionWrapperProxy, mockBoson, mockBosonPriceDiscovery };
@@ -77,7 +77,7 @@ describe("FermionWrapper", function () {
       it("Direct initialization fails", async function () {
         await expect(
           fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address),
-        ).to.be.revertedWithCustomError(fermionWrapper, "AlreadyInitialized");
+        ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
 
       it("Second initialization via proxy fails", async function () {
@@ -85,7 +85,7 @@ describe("FermionWrapper", function () {
 
         await expect(
           fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address),
-        ).to.be.revertedWithCustomError(fermionWrapper, "AlreadyInitialized");
+        ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
     });
   });
@@ -171,7 +171,7 @@ describe("FermionWrapper", function () {
   });
 
   context("unwrap/unwrapToSelf", function () {
-    // This tests internal FermionWrapper.unwrap function, which is used by both unwrap and unwrapToSelf
+    // This tests internal FermionFNFT.unwrap function, which is used by both unwrap and unwrapToSelf
     // Tests are done using only unwrapToSelf, since the setup is simpler
 
     let seller: HardhatEthersSigner;
