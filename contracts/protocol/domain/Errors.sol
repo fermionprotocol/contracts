@@ -7,6 +7,7 @@ interface FermionErrors {
     // General errors
     error InvalidAddress();
     error ArrayLengthMismatch(uint256 expectedLength, uint256 actualLength);
+    error InvalidPercentage(uint256 percentage);
 
     // Initialization errors
     error DirectInitializationNotAllowed();
@@ -29,6 +30,8 @@ interface FermionErrors {
         FermionTypes.WalletRole walletRole
     );
     error ChangeNotAllowed();
+    error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
+    error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
 
     // Offer errors
     error InvalidQuantity(uint256 quantity);

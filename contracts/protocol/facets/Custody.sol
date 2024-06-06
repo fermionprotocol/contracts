@@ -140,7 +140,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
      *
      * Reverts if:
      * - Custody region is paused
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - The checkout request status is not CheckOutRequested
      * - The submitted tax amount is zero
      *
@@ -160,12 +160,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         uint256 sellerId = offer.sellerId;
-        EntityLib.validateWalletRole(
-            sellerId,
-            msgSender(),
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
 
         if (_taxAmount == 0) revert InvalidTaxAmount();
         checkoutRequest.taxAmount = _taxAmount;
@@ -184,7 +179,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
      * Reverts if:
      * - Custody region is paused
      * - If no taxes are to be paid and:
-     *   - The caller is not the seller's assistant
+     *   - The caller is not the seller's assistant or facilitator
      * - if taxes are to be paid and:
      *   - the caller is not the buyer
      *   - the amount paid is less than the amount owed
@@ -205,12 +200,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         uint256 taxAmount = checkoutRequest.taxAmount;
         if (taxAmount == 0) {
             // Seller is finalizing the checkout
-            EntityLib.validateWalletRole(
-                offer.sellerId,
-                msgSender(),
-                FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant
-            );
+            EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
         } else {
             // Buyer is finalizing the checkout
             address buyer = checkoutRequest.buyer;

@@ -6,6 +6,7 @@ import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
+import { ContextLib } from "../libs/Context.sol";
 
 /**
  * @title EntityLib
@@ -268,5 +269,50 @@ library EntityLib {
      */
     function validateEntityId(uint256 _entityId, FermionStorage.ProtocolLookups storage pl) internal view {
         if (_entityId == 0 || _entityId > pl.entityCounter) revert FermionErrors.NoSuchEntity(_entityId);
+    }
+
+    /** @notice Verifies that the caller is either a seller's assistant or seller's facilitator's assistant
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatorId - the facilitator's entity ID
+     */
+    function validateSellerAssistantOrFacilitator(uint256 _sellerId, uint256 _facilitatorId) internal view {
+        validateSellerAssistantOrFacilitator(_sellerId, _facilitatorId, ContextLib.msgSender());
+    }
+
+    /** @notice Verifies that the caller is either a seller's assistant or seller's facilitator's assistant
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatorId - the facilitator's entity ID
+     * @param _walletAddress - the address of the wallet
+     */
+    function validateSellerAssistantOrFacilitator(
+        uint256 _sellerId,
+        uint256 _facilitatorId,
+        address _walletAddress
+    ) internal view {
+        bool isSellerOrFacilitator = hasWalletRole(
+            _sellerId,
+            _walletAddress,
+            FermionTypes.EntityRole.Seller,
+            FermionTypes.WalletRole.Assistant,
+            false
+        ) ||
+            hasWalletRole(
+                _facilitatorId,
+                _walletAddress,
+                FermionTypes.EntityRole.Seller,
+                FermionTypes.WalletRole.Assistant,
+                false
+            );
+
+        if (!isSellerOrFacilitator) {
+            revert FermionErrors.WalletHasNoRole(
+                _sellerId,
+                _walletAddress,
+                FermionTypes.EntityRole.Seller,
+                FermionTypes.WalletRole.Assistant
+            );
+        }
     }
 }

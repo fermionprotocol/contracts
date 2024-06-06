@@ -173,3 +173,7 @@ export function verifySellerAssistantRoleClosure(
       .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
   };
 }
+
+export function applyPercentage(amount: BigNumberish, percentage: BigNumberish | number) {
+  return (BigInt(amount) * BigInt(percentage)) / 10000n;
+}

@@ -35,12 +35,15 @@ describe("Custody", function () {
   let wallets: HardhatEthersSigner[];
   let defaultSigner: HardhatEthersSigner;
   let custodian: HardhatEthersSigner;
+  let facilitator: HardhatEthersSigner, facilitator2: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
   let seaportAddress: string;
   let wrapper: Contract, wrapperSelfSale: Contract, wrapperSelfCustody: Contract;
   const sellerId = "1";
   const verifierId = "2";
   const custodianId = "3";
+  const facilitatorId = "4";
+  const facilitator2Id = "5";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
   const exchange = { tokenId: "", custodianId: "" };
@@ -56,9 +59,14 @@ describe("Custody", function () {
     const metadataURI = "https://example.com/seller-metadata.json";
     const verifier = wallets[2];
     custodian = wallets[3];
+    facilitator = wallets[4];
+    facilitator2 = wallets[5];
     await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI); // "1"
     await entityFacet.connect(verifier).createEntity([EntityRole.Verifier], metadataURI); // "2"
     await entityFacet.connect(custodian).createEntity([EntityRole.Custodian], metadataURI); // "3"
+    await entityFacet.connect(facilitator).createEntity([EntityRole.Seller], metadataURI); // "4"
+    await entityFacet.connect(facilitator2).createEntity([EntityRole.Seller], metadataURI); // "4"
+    await entityFacet.addFacilitators(sellerId, [facilitatorId, facilitator2Id]);
 
     [mockToken] = await deployMockTokens(["ERC20"]);
     mockToken = mockToken.connect(defaultSigner);
@@ -73,6 +81,8 @@ describe("Custody", function () {
       verifierId,
       verifierFee,
       custodianId: "3",
+      facilitatorId: sellerId,
+      facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
@@ -82,7 +92,7 @@ describe("Custody", function () {
     const offerId = "1"; // buyer != seller, custodian != seller
     const offerIdSelfSale = "2"; // buyer = seller, custodian != seller
     const offerIdSelfCustody = "3"; // buyer != seller, custodian = seller
-    await offerFacet.createOffer(fermionOffer);
+    await offerFacet.connect(facilitator).createOffer({ ...fermionOffer, facilitatorId });
     await offerFacet.createOffer({ ...fermionOffer, sellerDeposit: "0" });
     await offerFacet.createOffer({ ...fermionOffer, verifierId: "1", custodianId: "1", verifierFee: "0" });
 
@@ -96,7 +106,7 @@ describe("Custody", function () {
     const exchangeIdSelfCustody = "3";
 
     // Unwrap some NFTs - normal sale and sale with self-custody
-    buyer = wallets[4];
+    buyer = wallets[6];
 
     await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
@@ -565,6 +575,18 @@ describe("Custody", function () {
       expect(await wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId)).to.equal(fermionProtocolAddress);
     });
 
+    it("Facilitator can add tax amount", async function () {
+      await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
+      await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+      const tx = await custodyFacet.connect(facilitator).submitTaxAmount(exchange.tokenId, taxAmount);
+
+      // Events
+      // Fermion
+      await expect(tx).to.emit(custodyFacet, "TaxAmountSubmitted").withArgs(exchange.tokenId, sellerId, taxAmount);
+    });
+
     it("Tax amount can be updated", async function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
       await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
@@ -594,6 +616,16 @@ describe("Custody", function () {
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
         await verifySellerAssistantRole("submitTaxAmount", [exchange.tokenId, taxAmount]);
+      });
+
+      it("Caller is not the facilitator defined in the offer", async function () {
+        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+        await expect(custodyFacet.connect(facilitator2).submitTaxAmount(exchange.tokenId, taxAmount))
+          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+          .withArgs(sellerId, facilitator2.address, EntityRole.Seller, WalletRole.Assistant);
       });
 
       it("Tax amount is 0", async function () {
@@ -967,6 +999,18 @@ describe("Custody", function () {
         expect(await wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId)).to.equal(fermionProtocolAddress);
       });
 
+      it("Facilitator clears checkout request", async function () {
+        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+        const tx = await custodyFacet.connect(facilitator).clearCheckoutRequest(exchange.tokenId);
+
+        // Events
+        // Fermion
+        await expect(tx).to.emit(custodyFacet, "CheckOutRequestCleared").withArgs(custodianId, exchange.tokenId);
+      });
+
       context("Revert reasons", function () {
         it("Caller is not the seller's assistant", async function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
@@ -974,6 +1018,16 @@ describe("Custody", function () {
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
           await verifySellerAssistantRole("clearCheckoutRequest", [exchange.tokenId]);
+        });
+
+        it("Caller is not the facilitator defined in the offer", async function () {
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+
+          await expect(custodyFacet.connect(facilitator2).clearCheckoutRequest(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
+            .withArgs(sellerId, facilitator2.address, EntityRole.Seller, WalletRole.Assistant);
         });
 
         context("Invalid state", function () {

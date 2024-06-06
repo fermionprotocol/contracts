@@ -152,6 +152,49 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         }
     }
 
+    /** Add seller's facilitator.
+     *
+     * Another entity with seller role can act as a facilitator for the seller.
+     * This function enables the facilitator to act on behalf of the seller.
+     *
+     * Emits an FacilitatorAdded for each facilitator event if successful.
+     *
+     * Reverts if:
+     * - Entity region is paused
+     * - Entity does not exist
+     * - Caller is not an entity admin
+     * - Facilitator does not have a seller role
+     * - Facilitator is already a facilitator for the seller
+     *
+     * @dev Pausing modifier is enforced via `addOrRemoveFacilitatos`
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatorIds - the facilitator's entity IDs
+     */
+    function addFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
+        addOrRemoveFacilitatos(_sellerId, _facilitatorIds, true);
+    }
+
+    /** Remove seller's facilitator.
+     *
+     * Removes the facilitator's ability to act on behalf of the seller.
+     *
+     * Emits an FacilitatorRemoved event for each facilitator if successful.
+     *
+     * Reverts if:
+     * - Entity region is paused
+     * - Entity does not exist
+     * - Caller is not an entity admin
+     *
+     * @dev Pausing modifier is enforced via `addOrRemoveFacilitatos`
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatorIds - the facilitator's entity IDs
+     */
+    function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
+        addOrRemoveFacilitatos(_sellerId, _facilitatorIds, false);
+    }
+
     /** Add entity wide admin wallet.
      *
      * This is different from adding a wallet with admin role for each entity role.
@@ -166,14 +209,12 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * - Entity does not exist
      * - Caller is not an entity admin
      *
+     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     *
      * @param _entityId - the entity ID
      * @param _wallet - the admin wallet address
      */
-    function setEntityAdmin(
-        uint256 _entityId,
-        address _wallet,
-        bool _status
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    function setEntityAdmin(uint256 _entityId, address _wallet, bool _status) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
         validateEntityAdmin(_entityId, pl);
@@ -237,6 +278,8 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
+     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
      */
@@ -244,10 +287,10 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         uint256 _entityId,
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    ) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
-        validateEntityAdmin(_entityId, FermionStorage.protocolLookups());
+        validateEntityAdmin(_entityId, pl);
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
 
         EntityLib.storeEntity(_entityId, address(0), entityData, _roles, _metadata);
@@ -263,9 +306,11 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
+     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     *
      * @param _entityId - the entity ID
      */
-    function deleteEntity(uint256 _entityId) external notPaused(FermionTypes.PausableRegion.Entity) {
+    function deleteEntity(uint256 _entityId) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
         address adminWallet = validateEntityAdmin(_entityId, pl);
@@ -283,14 +328,14 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
+     * - New owner is not the seller's assistant or facilitator
+     *
+     * @dev Pausing modifier is enforced via `validateEntityAdmin`
      *
      * @param _offerId - the offer ID
      * @param _newOwner - the new owner address
      */
-    function transferWrapperContractOwnership(
-        uint256 _offerId,
-        address _newOwner
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    function transferWrapperContractOwnership(uint256 _offerId, address _newOwner) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address wrapperAddress = pl.wrapperAddress[_offerId];
         if (wrapperAddress == address(0)) revert NoSuchOffer(_offerId);
@@ -299,12 +344,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         uint256 entityId = offer.sellerId;
         validateEntityAdmin(entityId, pl);
 
-        EntityLib.validateWalletRole(
-            entityId,
-            _newOwner,
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
         FermionWrapper(wrapperAddress).transferOwnership(_newOwner);
     }
@@ -348,6 +388,28 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         adminWallet = entityData.admin;
         roles = compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
+    }
+
+    /** Returns the list of seller's facilitator.
+     *
+     * @param _sellerId - the seller's entity ID
+     * @return facilitatorIds - the facilitator's entity IDs
+     */
+    function getSellersFacilitators(uint256 _sellerId) external view returns (uint256[] memory facilitatorIds) {
+        return FermionStorage.protocolLookups().sellerFacilitators[_sellerId];
+    }
+
+    /** Tells if the entity is seller's factiliator.
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatorId - the facilitator's entity ID
+     * @return isSellersFcilitator - the facilitator's status
+     */
+    function isSellersFacilitator(
+        uint256 _sellerId,
+        uint256 _facilitatorId
+    ) external view returns (bool isSellersFcilitator) {
+        return FermionStorage.protocolLookups().isSellersFacilitator[_sellerId][_facilitatorId];
     }
 
     /**
@@ -495,6 +557,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * @notice Check if the caller is the admin or accept the admin role if it's pending admin.
      *
      * Reverts if:
+     * - Entity region is paused
      * - Caller is neither the admin and nor the pending admin for the entity
      * - Caller is already an admin for another entity
      *
@@ -503,7 +566,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
     function validateEntityAdmin(
         uint256 _entityId,
         FermionStorage.ProtocolLookups storage pl
-    ) internal returns (address) {
+    ) internal notPaused(FermionTypes.PausableRegion.Entity) returns (address) {
         address msgSender = msgSender();
         uint256 callerEntityId = pl.entityId[msgSender];
         if (callerEntityId == 0) {
@@ -534,5 +597,61 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         delete pl.entityId[entityData.admin];
 
         entityData.admin = _wallet;
+    }
+
+    /** Remove seller's facilitator.
+     *
+     * Removes the facilitator's ability to act on behalf of the seller.
+     *
+     * Reverts if:
+     * - Entity region is paused
+     * - Entity does not exist
+     * - Caller is not an entity admin
+     * - When adding, if the facilitator does not have a seller role
+     *
+     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _facilitatorIds - the facilitator's entity IDs
+     * @param _add - if true, the facilitator is added, if false, it is removed
+     */
+    function addOrRemoveFacilitatos(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        EntityLib.validateEntityId(_sellerId, pl);
+        validateEntityAdmin(_sellerId, pl);
+
+        uint256[] storage facilitators = pl.sellerFacilitators[_sellerId];
+        mapping(uint256 => bool) storage isFacilitator = pl.isSellersFacilitator[_sellerId];
+
+        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
+        for (uint256 i = 0; i < _facilitatorIds.length; i++) {
+            uint256 facilitatorId = _facilitatorIds[i];
+            if (_add) {
+                if (isFacilitator[facilitatorId]) revert FacilitatorAlreadyExists(_sellerId, facilitatorId);
+
+                EntityLib.validateEntityRole(
+                    facilitatorId,
+                    pe.entityData[facilitatorId].roles,
+                    FermionTypes.EntityRole.Seller
+                );
+
+                facilitators.push(facilitatorId);
+
+                emit FacilitatorAdded(_sellerId, facilitatorId);
+            } else {
+                uint256 facilitatorsLength = facilitators.length;
+                for (uint256 j = 0; j < facilitatorsLength; j++) {
+                    if (facilitators[j] == facilitatorId) {
+                        if (j != facilitatorsLength - 1) facilitators[j] = facilitators[facilitatorsLength - 1];
+                        facilitators.pop();
+
+                        emit FacilitatorRemoved(_sellerId, facilitatorId);
+                        break;
+                    }
+                }
+            }
+
+            isFacilitator[facilitatorId] = _add;
+        }
     }
 }

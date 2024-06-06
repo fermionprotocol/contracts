@@ -197,7 +197,7 @@ describe("Entity", function () {
         it("Entity region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Entity]);
 
-          await expect(entityFacet.updateEntity(0, [EntityRole.Seller], metadataURI))
+          await expect(entityFacet.updateEntity(entityId, [EntityRole.Seller], metadataURI))
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Entity);
         });
@@ -803,7 +803,7 @@ describe("Entity", function () {
         it("Entity region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Entity]);
 
-          await expect(entityFacet.setEntityAdmin(0, ZeroAddress, true))
+          await expect(entityFacet.setEntityAdmin(entityId, ZeroAddress, true))
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Entity);
         });
@@ -828,7 +828,7 @@ describe("Entity", function () {
             .withArgs(entityId, newAdmin.address);
         });
 
-        it("Caller is not an admin for another entity", async function () {
+        it("Caller is an admin for another entity", async function () {
           const newAdmin = wallets[2];
 
           await entityFacet.connect(newAdmin).createEntity([EntityRole.Seller, EntityRole.Custodian], metadataURI);
@@ -836,6 +836,250 @@ describe("Entity", function () {
           await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true))
             .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
             .withArgs(entityId, newAdmin.address);
+        });
+      });
+    });
+
+    context("facilitators", function () {
+      const sellerId = 1n;
+      const facilitator1Id = 2n;
+      const facilitator2Id = 3n;
+      let facilitator1: HardhatEthersSigner;
+      let facilitator2: HardhatEthersSigner;
+      const metadataURI = "https://example.com/metadata.json";
+
+      before(async function () {
+        facilitator1 = wallets[2];
+        facilitator2 = wallets[3];
+      });
+
+      beforeEach(async function () {
+        await entityFacet.createEntity([EntityRole.Seller], metadataURI); // seller
+        await entityFacet.connect(facilitator1).createEntity([EntityRole.Seller], metadataURI); // facilitator1
+        await entityFacet.connect(facilitator2).createEntity([EntityRole.Seller], metadataURI); // facilitator2
+      });
+
+      context("addFacilitators", function () {
+        it("Seller can add facilitators", async function () {
+          const facilitators = [facilitator1Id, facilitator2Id];
+
+          const tx = await entityFacet.addFacilitators(sellerId, facilitators);
+
+          for (const facilitatorId of facilitators) {
+            await expect(tx).to.emit(entityFacet, "FacilitatorAdded").withArgs(sellerId, facilitatorId);
+          }
+
+          // verify state
+          expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(facilitators);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.true;
+
+          // add another facilitator
+          const facilitator3Id = 4n;
+          const facilitator3 = wallets[4];
+          await entityFacet.connect(facilitator3).createEntity([EntityRole.Seller], metadataURI); // facilitator3
+
+          await expect(entityFacet.addFacilitators(sellerId, [facilitator3Id]))
+            .to.emit(entityFacet, "FacilitatorAdded")
+            .withArgs(sellerId, facilitator3Id);
+
+          // verify state
+          expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([...facilitators, facilitator3Id]);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
+        });
+
+        it("Adding empty list does nothing", async function () {
+          await expect(entityFacet.addFacilitators(sellerId, [])).to.not.emit(entityFacet, "FacilitatorAdded");
+
+          // verify state
+          expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([]);
+
+          const facilitators = [facilitator1Id, facilitator2Id];
+          await entityFacet.addFacilitators(sellerId, facilitators);
+          await entityFacet.addFacilitators(sellerId, []);
+
+          expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(facilitators);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.true;
+        });
+
+        context("Revert reasons", function () {
+          it("Entity region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.Entity]);
+
+            await expect(entityFacet.addFacilitators(sellerId, [facilitator1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.Entity);
+          });
+
+          it("Entity does not exist", async function () {
+            await expect(entityFacet.addFacilitators(0, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(0);
+
+            await expect(entityFacet.addFacilitators(10, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(10);
+          });
+
+          it("Caller is not an admin for the entity role", async function () {
+            const newAdmin = wallets[2];
+
+            await expect(entityFacet.connect(newAdmin).addFacilitators(sellerId, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+              .withArgs(sellerId, newAdmin.address);
+          });
+
+          it("Facilitator does not exist", async function () {
+            await expect(entityFacet.addFacilitators(sellerId, [0]))
+              .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+              .withArgs(0, EntityRole.Seller);
+
+            await expect(entityFacet.addFacilitators(sellerId, [10]))
+              .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+              .withArgs(10, EntityRole.Seller);
+          });
+
+          it("Facilitator does not have the seller role", async function () {
+            const entityId = 4n;
+            const entity = wallets[4];
+            await entityFacet.connect(entity).createEntity([EntityRole.Verifier], metadataURI); // facilitator3
+
+            await expect(entityFacet.addFacilitators(sellerId, [entityId]))
+              .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+              .withArgs(entityId, EntityRole.Seller);
+          });
+
+          it("Facilitator is already a facilitator", async function () {
+            await entityFacet.addFacilitators(sellerId, [facilitator1Id, facilitator2Id]);
+
+            await expect(entityFacet.addFacilitators(sellerId, [facilitator1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "FacilitatorAlreadyExists")
+              .withArgs(sellerId, facilitator1Id);
+          });
+
+          it("Duplicate entry", async function () {
+            await expect(entityFacet.addFacilitators(sellerId, [facilitator1Id, facilitator1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "FacilitatorAlreadyExists")
+              .withArgs(sellerId, facilitator1Id);
+          });
+        });
+      });
+
+      context("removeFacilitators", function () {
+        const facilitator3Id = 4n;
+        const facilitator4Id = 5n;
+        let facilitator3: HardhatEthersSigner;
+        let facilitator4: HardhatEthersSigner;
+
+        before(async function () {
+          facilitator3 = wallets[4];
+          facilitator4 = wallets[5];
+        });
+
+        beforeEach(async function () {
+          await entityFacet.connect(facilitator3).createEntity([EntityRole.Seller], metadataURI); // facilitator1
+          await entityFacet.connect(facilitator4).createEntity([EntityRole.Seller], metadataURI); // facilitator2
+
+          await entityFacet.addFacilitators(sellerId, [facilitator1Id, facilitator2Id, facilitator3Id, facilitator4Id]);
+        });
+
+        it("Seller can remove a facilitator", async function () {
+          const facilitators = [facilitator1Id];
+
+          await expect(entityFacet.removeFacilitators(sellerId, facilitators))
+            .to.emit(entityFacet, "FacilitatorRemoved")
+            .withArgs(sellerId, facilitator1Id);
+
+          // verify state
+          const expectedFacilitators = [facilitator4Id, facilitator2Id, facilitator3Id];
+          expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(expectedFacilitators);
+
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.false;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.true;
+        });
+
+        it("Removing multiple facilitators", async function () {
+          const facilitators = [facilitator4Id, facilitator2Id];
+
+          const tx = await entityFacet.removeFacilitators(sellerId, facilitators);
+
+          for (const facilitatorId of facilitators) {
+            await expect(tx).to.emit(entityFacet, "FacilitatorRemoved").withArgs(sellerId, facilitatorId);
+          }
+
+          // verify state
+          const expectedFacilitators = [facilitator1Id, facilitator3Id];
+          expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(expectedFacilitators);
+
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.false;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.false;
+        });
+
+        it("Removing a facilitator that was not added", async function () {
+          await expect(entityFacet.removeFacilitators(sellerId, [6])).to.not.emit(entityFacet, "FacilitatorRemoved");
+
+          // verify state
+          expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([
+            facilitator1Id,
+            facilitator2Id,
+            facilitator3Id,
+            facilitator4Id,
+          ]);
+
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.true;
+        });
+
+        it("Remove the same facilitator twice", async function () {
+          const facilitators = [facilitator2Id, facilitator2Id];
+
+          await expect(entityFacet.removeFacilitators(sellerId, facilitators))
+            .to.emit(entityFacet, "FacilitatorRemoved")
+            .withArgs(sellerId, facilitator2Id);
+
+          // verify state
+          const expectedFacilitators = [facilitator1Id, facilitator4Id, facilitator3Id];
+          expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(expectedFacilitators);
+
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.false;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.true;
+        });
+
+        context("Revert reasons", function () {
+          it("Entity region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.Entity]);
+
+            await expect(entityFacet.removeFacilitators(sellerId, [facilitator1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.Entity);
+          });
+
+          it("Entity does not exist", async function () {
+            await expect(entityFacet.removeFacilitators(0, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(0);
+
+            await expect(entityFacet.removeFacilitators(10, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(10);
+          });
+
+          it("Caller is not an admin for the entity role", async function () {
+            const newAdmin = wallets[2];
+
+            await expect(entityFacet.connect(newAdmin).removeFacilitators(sellerId, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+              .withArgs(sellerId, newAdmin.address);
+          });
         });
       });
     });
@@ -906,10 +1150,17 @@ describe("Entity", function () {
       const entityId = "1";
       const bosonOfferId = "1";
       const sellerId = "1";
+      const facilitatorId = "2";
       let wrapper: Contract;
+      let facilitator: HardhatEthersSigner;
 
       beforeEach(async function () {
+        facilitator = wallets[2];
         await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        await entityFacet
+          .connect(facilitator)
+          .createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        await entityFacet.addFacilitators(sellerId, [facilitatorId]);
 
         const fermionOffer = {
           sellerId,
@@ -917,6 +1168,8 @@ describe("Entity", function () {
           verifierId: sellerId,
           verifierFee: "0",
           custodianId: sellerId,
+          facilitatorId,
+          facilitatorFeePercent: "0",
           exchangeToken: ZeroAddress,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: "",
@@ -944,6 +1197,31 @@ describe("Entity", function () {
 
         // verify state
         expect(await wrapper.owner()).to.equal(newAssistant);
+      });
+
+      it("Transfer ownership to facilitator", async function () {
+        // Transfer to facilitator's super admin
+        // test event
+        await expect(entityFacet.transferWrapperContractOwnership(bosonOfferId, facilitator.address))
+          .to.emit(wrapper, "OwnershipTransferred")
+          .withArgs(defaultSigner.address, facilitator.address);
+
+        // verify state
+        expect(await wrapper.owner()).to.equal(facilitator.address);
+
+        // Transfer to facilitator's assistant
+        const facilitatorAssistant = wallets[4].address;
+        await entityFacet
+          .connect(facilitator)
+          .addEntityWallets(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[WalletRole.Assistant]]]);
+
+        // test event
+        await expect(entityFacet.transferWrapperContractOwnership(bosonOfferId, facilitatorAssistant))
+          .to.emit(wrapper, "OwnershipTransferred")
+          .withArgs(facilitator.address, facilitatorAssistant);
+
+        // verify state
+        expect(await wrapper.owner()).to.equal(facilitatorAssistant);
       });
 
       context("Revert reasons", function () {
