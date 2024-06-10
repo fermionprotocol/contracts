@@ -16,5 +16,5 @@ interface IFermionFractionsEvents {
     event VoteRemoved(address indexed from, uint256 indexed tokenId, uint256 fractionAmount);
     event AuctionStarted(uint256 indexed tokenId, uint256 endTime);
     event Fractionalised(uint256 indexed tokenId, uint256 fractionsCount);
-    event FracionsSetup(uint256 initialFractionsAmount, FermionTypes.BuyoutAuctionParameters buyoutAuctionParameters);
+    event FractionsSetup(uint256 initialFractionsAmount, FermionTypes.BuyoutAuctionParameters buyoutAuctionParameters);
 }

@@ -89,7 +89,7 @@ abstract contract FermionFractions is
 
         $.auctionParameters = _buyoutAuctionParameters;
 
-        emit FracionsSetup(_fractionsAmount, _buyoutAuctionParameters);
+        emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters);
 
         // ToDo: call the protocol to setup the vault
     }
@@ -466,7 +466,6 @@ abstract contract FermionFractions is
             FermionTypes.TokenState tokenState = Common._getFermionCommonStorage().tokenState[tokenId];
             if (tokenState != FermionTypes.TokenState.Verified)
                 revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
-            if ($.isFractionalised[tokenId]) revert AlreadyFractionalized(tokenId);
 
             if (_msgSender() == fermionProtocol) {
                 // forceful fractionalisation
@@ -562,7 +561,6 @@ abstract contract FermionFractions is
         auction.state = FermionTypes.AuctionState.Finalized;
 
         $.votes[_tokenId].push();
-        $.isFractionalised[_tokenId] = false;
 
         if ($.nftCount == 0) {
             // allow fractionalisation with new parameters
