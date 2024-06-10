@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { Common, TokenState, InvalidStateOrCaller } from "./Common.sol";
+import { FermionTypes } from "../domain/Types.sol";
+import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
@@ -196,9 +197,9 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
      * @param _auth The address that is allowed to transfer the token.
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
-        TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
-        if (state == TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
-            revert InvalidStateOrCaller(_tokenId, _msgSender(), TokenState.Wrapped);
+        FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
+        if (state == FermionTypes.TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
+            revert InvalidStateOrCaller(_tokenId, _msgSender(), FermionTypes.TokenState.Wrapped);
         }
         return super._update(_to, _tokenId, _auth);
     }

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
-import { Common, TokenState } from "./Common.sol";
+import { Common } from "./Common.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 
 /**
@@ -56,12 +57,12 @@ contract FermionFNFT is FermionFractions, FermionWrapper {
      * @param _tokenId The token id.
      */
     function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner) {
-        Common.checkStateAndCaller(_tokenId, TokenState.Unverified, fermionProtocol);
+        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unverified, fermionProtocol);
 
         wrappedVoucherOwner = ownerOf(_tokenId);
 
         _burn(_tokenId);
-        Common.changeTokenState(_tokenId, TokenState.Burned);
+        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Burned);
     }
 
     /**
@@ -75,10 +76,10 @@ contract FermionFNFT is FermionFractions, FermionWrapper {
      *
      * @param _tokenId The token id.
      */
-    function pushToNextTokenState(uint256 _tokenId, TokenState _newState) external {
-        Common.checkStateAndCaller(_tokenId, TokenState(uint8(_newState) - 1), fermionProtocol);
+    function pushToNextTokenState(uint256 _tokenId, FermionTypes.TokenState _newState) external {
+        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState(uint8(_newState) - 1), fermionProtocol);
         Common.changeTokenState(_tokenId, _newState);
-        if (_newState == TokenState.CheckedOut) {
+        if (_newState == FermionTypes.TokenState.CheckedOut) {
             _burn(_tokenId);
         }
     }
@@ -89,7 +90,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper {
      * @param _tokenId The token id.
      * @return The token state
      */
-    function tokenState(uint256 _tokenId) external view returns (TokenState) {
+    function tokenState(uint256 _tokenId) external view returns (FermionTypes.TokenState) {
         return Common._getFermionCommonStorage().tokenState[_tokenId];
     }
 

@@ -10,7 +10,6 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
-import { TokenState } from "../clients/Common.sol";
 
 /**
  * @title CustodyFacet
@@ -50,7 +49,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
             FermionTypes.WalletRole.Assistant
         );
 
-        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, TokenState.CheckedIn);
+        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
@@ -91,7 +90,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
 
-        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, TokenState.CheckedOut);
+        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedOut);
     }
 
     /**

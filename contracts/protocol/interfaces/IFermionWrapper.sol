@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { FermionTypes } from "../domain/Types.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
-import { TokenState } from "../clients/Common.sol";
 
 /**
  * @title FermionWrapper interface
@@ -70,5 +70,5 @@ interface IFermionWrapper is IERC721 {
      *
      * @param _tokenId The token id.
      */
-    function pushToNextTokenState(uint256 _tokenId, TokenState _newState) external;
+    function pushToNextTokenState(uint256 _tokenId, FermionTypes.TokenState _newState) external;
 }

@@ -61,6 +61,8 @@ describe("FermionFNFT", function () {
       expect(await fermionWrapper.supportsInterface(ERC165InterfaceID)).to.be.true;
       expect(await fermionWrapper.supportsInterface(ERC721InterfaceID)).to.be.true;
       expect(await fermionWrapper.supportsInterface(FermionWrapperInterfaceID)).to.be.true;
+
+      await fermionWrapper.liquidSupply();
     });
   });
 

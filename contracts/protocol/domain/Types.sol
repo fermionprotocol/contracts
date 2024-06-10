@@ -44,6 +44,22 @@ contract FermionTypes {
         Verification
     }
 
+    enum AuctionState {
+        NotStarted,
+        Ongoing,
+        Finalized
+    }
+
+    enum TokenState {
+        Inexistent,
+        Wrapped,
+        Unverified,
+        Verified,
+        CheckedIn,
+        CheckedOut,
+        Burned
+    }
+
     struct EntityData {
         address admin;
         uint256 roles;
@@ -73,5 +89,39 @@ contract FermionTypes {
         CheckoutRequestStatus status;
         address buyer;
         uint256 taxAmount;
+    }
+
+    struct AuctionDetails {
+        uint256 timer;
+        uint256 maxBid;
+        address maxBidder;
+        uint256 lockedFractions;
+        uint256 lockedBidAmount;
+        AuctionState state;
+    }
+
+    struct Votes {
+        uint256 total;
+        mapping(address => uint256) individual;
+    }
+
+    struct BuyoutAuctionStorage {
+        uint256 nftCount; // number of fractionalised NFTs
+        address exchangeToken;
+        BuyoutAuctionParameters auctionParameters;
+        mapping(uint256 => bool) isFractionalised; // tokenId -> bool
+        mapping(uint256 => AuctionDetails) auctionDetails; // tokenId -> AuctionDetails
+        mapping(uint256 => Votes[]) votes; // tokenId -> Votes
+        uint256 unrestricedRedeemableSupply;
+        uint256 unrestricedRedeemableAmount;
+        uint256 lockedRedeemableSupply;
+        mapping(uint256 => uint256[]) lockedProceeds; // tokenId -> auction index -> amount; locked for users that voted to start
+    }
+
+    struct BuyoutAuctionParameters {
+        uint256 exitPrice;
+        uint256 duration; // in seconds; if zero, the default value is used
+        uint256 unlockThreshold; // in percents; if zero, the default value is used
+        uint256 topBidLockTime; // in seconds; if zero, the default value is used
     }
 }

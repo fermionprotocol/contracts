@@ -7,6 +7,7 @@ interface FermionErrors {
     // General errors
     error InvalidAddress();
     error ArrayLengthMismatch(uint256 expectedLength, uint256 actualLength);
+    error AccessDenied(address caller);
 
     // Initialization errors
     error DirectInitializationNotAllowed();
@@ -64,4 +65,25 @@ interface FermionErrors {
     error InvalidSignature();
     error SignerAndSignatureDoNotMatch();
     error FunctionCallFailed();
+
+    // Fractionalisation errors
+    error InvalidLength();
+    error InvalidFractionsAmount(uint256 amount, uint256 min, uint256 max);
+    error InvalidExitPrice(uint256 amount);
+    error AlreadyFractionalized(uint256 tokenId);
+    error InvalidBid(uint256 tokenId, uint256 minimalBid, uint256 bid);
+    error AuctionEnded(uint256 tokenId, uint256 endedAt);
+    error AuctionNotStarted(uint256 tokenId);
+    error AuctionOngoing(uint256 tokenId, uint256 validUntil);
+    error AuctionFinalized(uint256 tokenId);
+    error NotMaxBidder(uint256 tokenId, address caller, address winner);
+    error AlreadyRedeemed(uint256 tokenId);
+    error NoFractions();
+    error InvalidValue(uint256 expected, uint256 actual);
+    error BidRemovalNotAllowed(uint256 tokenId);
+    error NoBids(uint256 tokenId);
+    error NotEnoughLockedVotes(uint256 tokenId, uint256 lockedVotes, uint256 requestedVotes);
+    error InitialFractionalisationOnly();
+    error MissingFractionalisation();
+    error InvalidAmount();
 }

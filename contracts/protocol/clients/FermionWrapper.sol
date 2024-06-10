@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { Common, TokenState } from "./Common.sol";
+import { FermionTypes } from "../domain/Types.sol";
+import { Common } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -95,9 +96,9 @@ contract FermionWrapper is SeaportWrapper {
      * @param _tokenId The token id.
      */
     function unwrap(uint256 _tokenId) internal {
-        Common.checkStateAndCaller(_tokenId, TokenState.Wrapped, BP_PRICE_DISCOVERY);
+        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Wrapped, BP_PRICE_DISCOVERY);
 
-        Common.changeTokenState(_tokenId, TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
+        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
 
         // transfer Boson Voucher to Fermion protocol. Not using safeTransferFrom since we are sure Fermion Protocol can handle the voucher
         IERC721(voucherAddress).transferFrom(address(this), fermionProtocol, _tokenId);
@@ -146,7 +147,7 @@ contract FermionWrapper is SeaportWrapper {
 
             // Mint to the specified address
             _safeMint(_to, tokenId);
-            Common.changeTokenState(tokenId, TokenState.Wrapped);
+            Common.changeTokenState(tokenId, FermionTypes.TokenState.Wrapped);
         }
         wrapOpenSea();
     }

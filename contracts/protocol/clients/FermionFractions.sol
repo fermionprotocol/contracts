@@ -1,177 +1,220 @@
 // SPDX-License-Identifier: MIT
-// OpenZeppelin Contracts (last updated v5.0.0) (token/ERC20/ERC20.sol)
 
 pragma solidity ^0.8.20;
 
-import { HUNDRED_PERCENT, AUCTION_END_BUFFER, MINIMAL_BID_INCREMENT } from "../domain/Constants.sol";
+import { HUNDRED_PERCENT, AUCTION_END_BUFFER, MINIMAL_BID_INCREMENT, MIN_FRACTIONS, MAX_FRACTIONS, TOP_BID_LOCK_TIME, AUCTION_DURATION, UNLOCK_THRESHOLD } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { FermionTypes } from "../domain/Types.sol";
 import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
-import { Common, TokenState, InvalidStateOrCaller } from "./Common.sol";
+import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import { FundsLib } from "../libs/FundsLib.sol";
+import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
  */
-abstract contract FermionFractions is FermionFractionsERC20Base, FermionFNFTBase {
-    using SafeERC20 for IERC20;
+abstract contract FermionFractions is
+    FermionFractionsERC20Base,
+    FermionFNFTBase,
+    FermionErrors,
+    IFermionFractionsEvents
+{
+    // keccak256(abi.encode(uint256(keccak256("fermion.buyout.auction.storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant BuyoutAuctionStorageLocation =
+        0x224d6815573209d133aab26f2f52964556d2c06abbb82d0961460cd2e673cd00;
 
-    bytes32 private constant BuyoutAuctionStorageLocation = keccak256("fermion.buyout.storage"); // ToDo: pre-calculate and store the slot
-
-    function _getBuyoutAuctionStorage() private pure returns (BuyoutAuctionStorage storage $) {
-        bytes32 position = BuyoutAuctionStorageLocation;
+    function _getBuyoutAuctionStorage() private pure returns (FermionTypes.BuyoutAuctionStorage storage $) {
         assembly {
-            $.slot := position
+            $.slot := BuyoutAuctionStorageLocation
         }
     }
 
-    function balanceOf(
-        address owner
-    ) public view virtual override(ERC721, FermionFractionsERC20Base) returns (uint256) {
-        return FermionFractionsERC20Base.balanceOf(owner);
-    }
-
-    error InvalidFractionsAmount(uint256 amount);
-    error InvalidExitPrice(uint256 amount);
-    error AlreadyFractionalized(uint256 tokenId, uint256 exitPrice);
-    error InvalidBid(uint256 tokenId, uint256 minimalBid, uint256 bid);
-    error AuctionEnded(uint256 tokenId, uint256 endedAt);
-    error AuctionNotStarted(uint256 tokenId);
-    error AuctionOngoing(uint256 tokenId, uint256 validUntil);
-    error NotMaxBidder(uint256 tokenId, address caller, address winner);
-    error AlreadyRedeemed(uint256 tokenId);
-    error NoFractions();
-    error InvalidValue(uint256 expected, uint256 actual);
-    error BidRemovalNotAllowed(uint256 tokenId);
-    error NoBids(uint256 tokenId);
-    error NotEnoughLockedVotes(uint256 tokenId, uint256 lockedVotes, uint256 requestedVotes);
-
-    event Bid(address indexed from, uint256 newPrice, uint256 fractionsCount, uint256 bidAmount);
-    event Redeemed(uint256 indexed tokenId, address indexed from);
-    event Claimed(address indexed from, uint256 fractionsBurned, uint256 amountClaimed);
-
-    uint256 internal constant MIN_FRACTIONS = 1e6;
-    uint256 internal constant MAX_FRACTIONS = 1e12;
-    uint256 internal constant TOP_BID_LOCK_TIME = 5 days;
-    uint256 internal constant AUCTION_DURATION = 5 days;
-    uint256 internal constant UNLOCK_THRESHOLD = 50_00; // 50%
-
-    struct AuctionDetails {
-        uint256 timer;
-        uint256 maxBid;
-        address maxBidder;
-        uint256 lockedFractions;
-        uint256 lockedBidAmount;
-        bool started;
-        bool redeemed;
-    }
-
-    struct Votes {
-        uint256 total;
-        mapping(address => uint256) individual;
-    }
-
-    struct BuyoutAuctionStorage {
-        uint256 nftCount; // number of fractionalised NFTs
-        uint256 exitPrice;
-        address exchangeToken;
-        mapping(uint256 => AuctionDetails) auctionDetails;
-        mapping(uint256 => Votes) votes;
-    }
-
-    /////////// fractionalisation ///////////
-    function mintFractions(uint256 _tokenId, uint256 _amount, uint256 _exitPrice) public virtual {
-        // Is this done automatically after the check-in? Or do owner need to do it?
-        // Do we make fraction amount constant? What if there are multiple items in collection?
-        // ToDo: if other tokens already fractinalised, the amount must mathch totalSupply/nOf fractionalised tokens
-
-        if (_exitPrice == 0) {
-            revert InvalidExitPrice(_exitPrice);
+    /**
+     * @notice Locks the F-NFTs and mints the fractions. Sets the auction parameters and custodian vault parameters.
+     * This function is called when the first NFT is fractionalised.
+     * If some NFTs are already fractionalised, use `mintAdditionalFractions(uint256 _tokenId, uint256 _amount)` instead.
+     *
+     * Reverts if:
+     * - Number of tokens to fractionalise is zero
+     * - Other tokens are fractionalised already
+     * - Exit price is zero
+     * - Fractions amount is not in the range [MIN_FRACTIONS, MAX_FRACTIONS]
+     * - Token state is not Verified
+     * - Token has been fractionalised already
+     * - Caller is neither approved to transfer the NFTs nor is the fermion protocol
+     *
+     * @param _firstTokenId The starting token ID
+     * @param _length The number of tokens to fractionalise
+     * @param _fractionsAmount The number of fractions to mint for each NFT
+     * @param _buyoutAuctionParameters The buyout auction parameters
+     */
+    function mintFractions(
+        uint256 _firstTokenId,
+        uint256 _length,
+        uint256 _fractionsAmount,
+        FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters
+    ) external {
+        if (_length == 0) {
+            revert InvalidLength();
         }
 
-        TokenState tokenState = Common._getFermionCommonStorage().tokenState[_tokenId];
-        if (tokenState != TokenState.Verified) {
-            revert InvalidStateOrCaller(_tokenId, _msgSender(), tokenState);
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        if ($.nftCount > 0) {
+            // if other tokens are fractionalised already, use `mintFractions(uint256 _firstTokenId, uint256 _length)` instead
+            revert InitialFractionalisationOnly();
         }
 
-        if (_amount < MIN_FRACTIONS || _amount > MAX_FRACTIONS) {
-            revert InvalidFractionsAmount(_amount);
+        if (_buyoutAuctionParameters.exitPrice == 0) {
+            revert InvalidExitPrice(_buyoutAuctionParameters.exitPrice);
         }
 
-        BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        uint256 exitPrice = $.exitPrice;
-        if (exitPrice > 0) {
-            revert AlreadyFractionalized(_tokenId, exitPrice);
+        if (_fractionsAmount < MIN_FRACTIONS || _fractionsAmount > MAX_FRACTIONS) {
+            revert InvalidFractionsAmount(_fractionsAmount, MIN_FRACTIONS, MAX_FRACTIONS);
         }
 
-        address tokenOwner = ownerOf(_tokenId);
-        ERC721.transferFrom(tokenOwner, address(this), _tokenId); // ToDO: override this if protocol is calling
+        lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 
-        $.exitPrice = _exitPrice;
-        // set the token state to minted
-        _mintFractions(tokenOwner, _amount);
+        // set the default values if not provided
+        if (_buyoutAuctionParameters.duration == 0) _buyoutAuctionParameters.duration = AUCTION_DURATION;
+        if (_buyoutAuctionParameters.unlockThreshold == 0) _buyoutAuctionParameters.unlockThreshold = UNLOCK_THRESHOLD;
+        if (_buyoutAuctionParameters.topBidLockTime == 0) _buyoutAuctionParameters.topBidLockTime = TOP_BID_LOCK_TIME;
 
-        $.nftCount++;
+        $.auctionParameters = _buyoutAuctionParameters;
+
+        // ToDo: call the protocol to setup the vault
     }
 
-    function mintAdditionalFractions(uint256 _tokenId, uint256 _amount) public virtual {
-        Common.checkStateAndCaller(_tokenId, TokenState.Verified, fermionProtocol);
+    /**
+     * @notice Locks the F-NFTs and mints the fractions. The number of fractions matches the number of fractions for existing NFTs.
+     * This function is called when additional NFTs are fractionalised.
+     *
+     * Reverts if:
+     * - Number of tokens to fractionalise is zero
+     * - No tokens are fractionalised already
+     * - Token state is not Verified
+     * - Token has been fractionalised already
+     * - Caller is neither approved to transfer the NFTs nor is the fermion protocol
+     *
+     * @param _firstTokenId The starting token ID
+     * @param _length The number of tokens to fractionalise
+     */
+    function mintFractions(uint256 _firstTokenId, uint256 _length) external {
+        if (_length == 0) {
+            revert InvalidLength();
+        }
 
-        // set the token state to minted
-        _mintFractions(fermionProtocol, _amount);
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        uint256 nftCount = $.nftCount;
+        if (nftCount == 0) {
+            revert MissingFractionalisation();
+        }
+
+        uint256 fractionsAmount = liquidSupply() / nftCount;
+
+        lockNFTsAndMintFractions(_firstTokenId, _length, fractionsAmount, $);
+
+        // ToDo: call the protocol to update the vault
     }
 
-    /////////// buyout aution ///////////
-    function startAuction(uint256 _tokenId) internal virtual {
-        AuctionDetails storage auction = _getBuyoutAuctionStorage().auctionDetails[_tokenId];
-        auction.started = true;
-        auction.timer = block.timestamp + AUCTION_DURATION;
-    }
-
-    // used only when the price is below the exit price
+    /**
+     * @notice A fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.
+     * They need to lock their fractions to vote. The fractions can be unlocked before the auction starts.
+     * The fractions can be used to bid in the auction.
+     * The locked votes guarantee to get the proceeds from the auction for the specific token.
+     * The auction is started when the total number of locked fractions reaches the unlock threshold.
+     *
+     * Emits a Voted event if successful.
+     * Emits an AuctionStarted event if the auction is started.
+     *
+     * Reverts if:
+     * - No bids are placed yet
+     * - The auction is already ongoing
+     * - The number of fractions to vote is zero
+     * - The caller does not have enough fractions to vote
+     *
+     * @param _tokenId The token Id
+     * @param _fractionAmount The number of tokens to use to vote
+     */
     function voteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
-        BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        if (_fractionAmount == 0) revert InvalidAmount();
+
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
 
         if (auction.maxBid == 0) revert NoBids(_tokenId);
-        if (auction.started) revert AuctionOngoing(_tokenId, auction.timer);
+        if (auction.state >= FermionTypes.AuctionState.Ongoing) revert AuctionOngoing(_tokenId, auction.timer);
+
+        uint256 fractionsPerToken = liquidSupply() / $.nftCount;
+
+        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
+        uint256 availableFractions = fractionsPerToken - votes.total;
+
+        if (_fractionAmount > availableFractions) _fractionAmount = availableFractions;
 
         address msgSender = _msgSender();
         _transferFractions(msgSender, address(this), _fractionAmount);
 
-        Votes storage votes = $.votes[_tokenId];
         votes.individual[msgSender] += _fractionAmount;
         votes.total += _fractionAmount;
 
-        if (votes.total * $.nftCount > (totalSupply() * UNLOCK_THRESHOLD) / HUNDRED_PERCENT) {
+        if (votes.total > (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
             startAuction(_tokenId);
         }
+
+        emit Voted(msgSender, _tokenId, _fractionAmount);
     }
 
+    /**
+     * @notice Remove the vote to start the auction for a specific token. See `voteToStartAuction` for more details.
+     *
+     * Reverts if:
+     * - The number of fractions to vote is zero
+     * - The auction is already ongoing
+     * - The caller tries to unlock more fractions than they have voted
+     *
+     * @param _tokenId The token Id
+     * @param _fractionAmount The number of tokens to use to vote
+     */
     function removeVoteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
-        BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        if (_fractionAmount == 0) revert InvalidAmount();
 
-        if (auction.started) revert AuctionOngoing(_tokenId, auction.timer);
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
 
-        Votes storage votes = $.votes[_tokenId];
+        if (auction.state >= FermionTypes.AuctionState.Ongoing) revert AuctionOngoing(_tokenId, auction.timer);
+
+        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
         address msgSender = _msgSender();
         if (_fractionAmount > votes.individual[msgSender]) {
-            // ToDo: store mapping storage
             revert NotEnoughLockedVotes(_tokenId, _fractionAmount, votes.individual[msgSender]);
         }
         _transferFractions(address(this), msgSender, _fractionAmount);
 
         votes.individual[msgSender] -= _fractionAmount;
         votes.total -= _fractionAmount;
+
+        emit VoteRemoved(msgSender, _tokenId, _fractionAmount);
     }
 
-    // function bid(uint256 _newFractionPrice) external payable inAuction {
+    /**
+     * @notice Participate in the auction for a specific token.
+     *
+     * Emits a Bid event if successful.
+     *
+     * Reverts if:
+     * - The price is less than a minimal increment above the existing bid
+     * - The auction has ended
+     * - The caller does not pay the price
+     *
+     * @param _tokenId The token Id
+     * @param _price The bidding price
+     */
     function bid(uint256 _tokenId, uint256 _price) external payable {
-        BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        FermionTypes.BuyoutAuctionParameters storage auctionParameters = $.auctionParameters;
 
         uint256 lastBid = auction.maxBid;
         uint256 minimalBid = (lastBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
@@ -179,48 +222,38 @@ abstract contract FermionFractions is FermionFractionsERC20Base, FermionFNFTBase
             revert InvalidBid(_tokenId, _price, minimalBid);
         }
 
-        if (auction.started) {
+        if (auction.state >= FermionTypes.AuctionState.Ongoing) {
             if (auction.timer > block.timestamp) revert AuctionEnded(_tokenId, auction.timer);
             if (auction.timer < block.timestamp + AUCTION_END_BUFFER)
                 auction.timer = block.timestamp + AUCTION_END_BUFFER;
         } else {
-            if (_price > $.exitPrice && $.exitPrice > 0) {
+            if (_price > auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
                 // If price is above the exit price, the cutoff date is set
                 startAuction(_tokenId);
             } else {
                 // reset ticker for Unbidding
-                auction.timer = block.timestamp + TOP_BID_LOCK_TIME;
+                auction.timer = block.timestamp + auctionParameters.topBidLockTime;
             }
         }
 
+        // Return to the previous bidder the fractions and the bid
+        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
         address exchangeToken = $.exchangeToken;
         {
-            address bidder = auction.maxBidder;
-            uint256 lockedFractions = auction.lockedFractions;
-
-            // transfer to previus bidder if they used some of the fractions
-            if (lockedFractions > 0) _transfer(address(this), bidder, lockedFractions);
-            _safeTransfer(exchangeToken, bidder, lastBid);
+            payOutLastBidder(auction, votes, exchangeToken);
         }
 
-        Votes storage votes = $.votes[_tokenId];
         address msgSender = _msgSender();
         uint256 lockedIndividualVotes = votes.individual[msgSender];
         uint256 bidderFractions = balanceOf(msgSender) + lockedIndividualVotes;
 
-        if (lockedIndividualVotes > 0) {
-            votes.total -= lockedIndividualVotes;
-            votes.individual[msgSender] = 0;
-        }
-
-        uint256 allFractions = totalSupply();
         uint256 bidAmount;
-        uint256 nftCount = $.nftCount;
-        if (bidderFractions * nftCount > allFractions) {
+        uint256 fractionsPerToken = liquidSupply() / $.nftCount;
+        if (bidderFractions > fractionsPerToken) {
             // bidder has enough fractions to claim a full NFT without paying anything. Does a price matter in this case?
-            bidderFractions = allFractions / nftCount;
+            bidderFractions = fractionsPerToken;
         } else {
-            bidAmount = ((allFractions - bidderFractions * nftCount) * _price) / allFractions;
+            bidAmount = ((fractionsPerToken - bidderFractions) * _price) / fractionsPerToken;
         }
 
         auction.maxBidder = msgSender;
@@ -228,17 +261,29 @@ abstract contract FermionFractions is FermionFractionsERC20Base, FermionFNFTBase
         auction.maxBid = _price;
 
         if (bidderFractions > 0) _transfer(msgSender, address(this), bidderFractions);
-        _safeTransferFrom(exchangeToken, payable(msgSender), msg.value, payable(address(this)), bidAmount);
+        FundsLib.validateIncomingPayment(exchangeToken, bidAmount);
 
         auction.lockedBidAmount = bidAmount;
         emit Bid(msgSender, _price, bidderFractions, bidAmount);
     }
 
+    /**
+     * @notice Remove a bid from the auction. This is possible only if the auction has not started yet.
+     *
+     * Emits a Bid event with zero arguments if successful.
+     *
+     * Reverts if:
+     * - The auction has started
+     * - The auction has not started yet, but the bid locktime has not passed yet
+     * - The caller is not the max bidder
+     *
+     * @param _tokenId The token Id
+     */
     function removeBid(uint256 _tokenId) external {
-        BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
 
-        if (auction.started || auction.timer > block.timestamp) {
+        if (auction.state >= FermionTypes.AuctionState.Ongoing || auction.timer > block.timestamp) {
             revert BidRemovalNotAllowed(_tokenId);
         }
 
@@ -248,23 +293,24 @@ abstract contract FermionFractions is FermionFractionsERC20Base, FermionFNFTBase
         }
 
         // auction has not started yet, and the timeout passed
-        uint256 lockedFractions = auction.lockedFractions;
-        if (lockedFractions > 0) _burn(address(this), lockedFractions);
-        uint256 bidAmount = auction.lockedBidAmount;
-        _safeTransfer($.exchangeToken, msgSender, bidAmount);
+        payOutLastBidder(auction, getLastVotes(_tokenId, $), $.exchangeToken);
 
         emit Bid(address(0), 0, 0, 0);
     }
 
+    /**
+     * @notice Claim the F-NFT after the auction has ended.
+     *
+     * Emits a Redeemed event if successful.
+     *
+     * Reverts if:
+     * - The auction has not started yet or is still ongoing
+     * - The caller is not the max bidder
+     *
+     * @param _tokenId The token Id
+     */
     function redeem(uint256 _tokenId) external {
-        BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        AuctionDetails storage auction = $.auctionDetails[_tokenId];
-
-        if (auction.started) {
-            if (auction.timer <= block.timestamp) revert AuctionOngoing(_tokenId, auction.timer);
-        } else {
-            revert AuctionNotStarted(_tokenId);
-        }
+        FermionTypes.AuctionDetails storage auction = finalizeAuction(_tokenId);
 
         address msgSender = _msgSender();
 
@@ -272,89 +318,286 @@ abstract contract FermionFractions is FermionFractionsERC20Base, FermionFNFTBase
             revert NotMaxBidder(_tokenId, msgSender, auction.maxBidder);
         }
 
-        if (auction.redeemed) revert AlreadyRedeemed(_tokenId);
-        auction.redeemed = true;
         uint256 lockedFractions = auction.lockedFractions;
+
+        // Deleting the auction has two effects:
+        // 1. It prevents the token to be redeemed again
+        // 2. Allows the token to be fractionalized again
+        delete _getBuyoutAuctionStorage().auctionDetails[_tokenId];
+
         if (lockedFractions > 0) _burn(address(this), lockedFractions);
-        _safeTransfer(address(this), msgSender, _tokenId);
-        $.nftCount--;
+        ERC721._safeTransfer(address(this), msgSender, _tokenId);
+
         emit Redeemed(_tokenId, msgSender);
     }
 
-    // claim proceeds of a specific auction (possible only if some other items are stil fractionalised)
-    function claim(uint256 _tokenId) external {
-        BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        AuctionDetails storage auction = $.auctionDetails[_tokenId];
+    /**
+     * @notice Claim the specific auction proceeds if the user has voted to start the auction.
+     *
+     * Emits a Claimed event if successful.
+     *
+     * Reverts if:
+     * - The auction has not started yet or is still ongoing
+     * - The caller has no fractions locked
+     * - The caller has no less fractions locked than the amount to claim
+     *
+     * @param _tokenId The token Id
+     * @param _auctionIndex The auction index (if multiple auctions for the same F-NFT took place)
+     * @param _additionalFractions Number of fractions to exchange for auction proceeds (in addition to the locked fractions)
+     */
+    function claimWithLockedFractions(uint256 _tokenId, uint256 _auctionIndex, uint256 _additionalFractions) external {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        finalizeAuction(_tokenId);
 
-        if (auction.started) {
-            if (auction.timer <= block.timestamp) revert AuctionOngoing(_tokenId, auction.timer);
-        } else {
-            revert AuctionNotStarted(_tokenId);
-        }
-
-        Votes storage votes = $.votes[_tokenId];
+        FermionTypes.Votes storage votes = $.votes[_tokenId][_auctionIndex];
         address msgSender = _msgSender();
         uint256 lockedIndividualVotes = votes.individual[msgSender];
-        uint256 bidderFractions = balanceOf(msgSender) + lockedIndividualVotes;
-
-        // ToDo: max available fractions -> reduce for votes[_tokenId]
-
-        if (lockedIndividualVotes > 0) {
-            votes.total -= lockedIndividualVotes;
-            votes.individual[msgSender] = 0;
-        }
-
-        if (bidderFractions == 0) {
+        if (lockedIndividualVotes + _additionalFractions == 0) {
             revert NoFractions();
         }
 
-        uint256 allFractions = totalSupply();
         uint256 claimAmount;
-        uint256 nftCount = $.nftCount;
-        if (bidderFractions * nftCount > allFractions) {
-            // bidder has enough fractions to claim a full NFT without paying anything. Does a price matter in this case?
-            bidderFractions = allFractions / nftCount;
-            claimAmount = auction.maxBid;
-        } else {
-            claimAmount = ((bidderFractions * nftCount) * auction.maxBid) / allFractions;
+        if (lockedIndividualVotes > 0) {
+            votes.individual[msgSender] = 0;
+
+            uint256 lockedAmount = $.lockedProceeds[_tokenId][_auctionIndex];
+            claimAmount = (lockedAmount * lockedIndividualVotes) / votes.total;
+
+            $.lockedProceeds[_tokenId][_auctionIndex] -= claimAmount;
+            votes.total -= lockedIndividualVotes;
+
+            _burn(address(this), lockedIndividualVotes);
         }
 
-        _burn(msgSender, bidderFractions);
-        _safeTransfer($.exchangeToken, msgSender, claimAmount);
-        emit Claimed(msgSender, bidderFractions, claimAmount);
-    }
-
-    function _safeTransfer(address _token, address payable _to, uint256 _amount) internal {
-        // ToDo: if fails, make it available for withdraw
-
-        if (_token == address(0)) {
-            (bool success, bytes memory errorMessage) = _to.call{ value: _amount }("");
-            if (!success) revert FermionErrors.TokenTransferFailed(_to, _amount, errorMessage);
-        } else {
-            IERC20(_token).safeTransfer(_to, _amount);
+        if (_additionalFractions > 0) {
+            (uint256 additionalClaimAmount, uint256 burnedFractions) = burnUnrestrictedFractions(
+                msgSender,
+                _additionalFractions,
+                $
+            );
+            _additionalFractions = burnedFractions;
+            claimAmount += additionalClaimAmount;
         }
+
+        FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        emit Claimed(msgSender, lockedIndividualVotes + _additionalFractions, claimAmount);
     }
 
-    function _safeTransferFrom(
-        address _token,
-        address payable _from,
-        uint256 _value,
-        address payable _to,
-        uint256 _amount
+    /**
+     * @notice Claim the auction proceeds of all finalized auctions.
+     *
+     * Emits a Claimed event if successful.
+     *
+     * Reverts if:
+     * - The amount to claim is zero
+     * - The caller has less fractions available than the amount to claim
+     *
+     * @param _fractions Number of fractions to exchange for auction proceeds
+     */
+    function claim(uint256 _fractions) external {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        if (_fractions == 0) {
+            revert InvalidAmount();
+        }
+
+        address msgSender = _msgSender();
+        (uint256 claimAmount, uint256 burnedFractions) = burnUnrestrictedFractions(msgSender, _fractions, $);
+
+        FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        emit Claimed(msgSender, burnedFractions, claimAmount);
+    }
+
+    /**
+     * @notice Returns the number of fractions. Represents the ERC20 balanceOf method
+     *
+     * @param _owner The address to check
+     */
+    function balanceOf(
+        address _owner
+    ) public view virtual override(ERC721, FermionFractionsERC20Base) returns (uint256) {
+        return FermionFractionsERC20Base.balanceOf(_owner);
+    }
+
+    /**
+     * @notice Returns the liquid number of fractions. Represents fractions of F-NFTs that are fractionalised
+     */
+    function liquidSupply() public view virtual returns (uint256) {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        return totalSupply() - $.unrestricedRedeemableSupply - $.lockedRedeemableSupply;
+    }
+
+    /**
+     * @notice Locks the F-NFTs and mints the fractions.
+     *
+     * Reverts if:
+     * - Number of tokens to fractionalise is zero
+     * - No tokens are fractionalised already
+     * - Token state is not Verified
+     * - Token has been fractionalised already
+     * - Caller is neither approved to transfer the NFTs nor is the fermion protocol
+     *
+     * @param _firstTokenId The starting token ID
+     * @param _length The number of tokens to fractionalise
+     */
+    function lockNFTsAndMintFractions(
+        uint256 _firstTokenId,
+        uint256 _length,
+        uint256 _fractionsAmount,
+        FermionTypes.BuyoutAuctionStorage storage $
     ) internal {
-        if (_token == address(0)) {
-            if (_value != _amount) revert InvalidValue(_value, _amount);
-            if (_to != address(this)) _to.transfer(_amount);
-        } else {
-            if (_value != 0) revert InvalidValue(0, _value);
-            IERC20(_token).safeTransferFrom(_from, _to, _amount);
+        address tokenOwner = ownerOf(_firstTokenId); // all tokens must be owned by the same address
+        for (uint256 i = 0; i < _length; i++) {
+            uint256 tokenId = _firstTokenId + i;
+            FermionTypes.TokenState tokenState = Common._getFermionCommonStorage().tokenState[tokenId];
+            if (tokenState != FermionTypes.TokenState.Verified)
+                revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
+            if ($.isFractionalised[tokenId]) revert AlreadyFractionalized(tokenId);
+
+            if (_msgSender() == fermionProtocol) {
+                // forceful fractionalisation
+                // not caching Common._getERC721Storage(), since protocol will fractionalize 1 by 1
+                Common._getERC721Storage()._tokenApprovals[tokenId] = fermionProtocol;
+            }
+
+            ERC721.transferFrom(tokenOwner, address(this), tokenId);
         }
+
+        _mintFractions(tokenOwner, _length * _fractionsAmount);
+
+        $.nftCount += _length;
     }
 
-    function getFractionInfo() external view returns (uint256 exitPrice, uint256 nftCount, uint256 totalSupply) {
-        BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        exitPrice = $.exitPrice;
-        nftCount = $.nftCount;
-        totalSupply = _getERC20Storage()._totalSupply;
+    /**
+     * @notice Change auction state to Ongoing and store the auction end time.
+     *
+     * @param _tokenId The token ID
+     */
+    function startAuction(uint256 _tokenId) internal virtual {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        auction.state = FermionTypes.AuctionState.Ongoing;
+        auction.timer = block.timestamp + $.auctionParameters.duration;
+
+        emit AuctionStarted(_tokenId, auction.timer);
+    }
+
+    /**
+     * @notice Get the current votes for a specific token.
+     * If there are no votes, a new vote is created.
+     *
+     *
+     * @param _tokenId The token Id
+     * @param $ The storage
+     * @return votes The votes information
+     */
+    function getLastVotes(
+        uint256 _tokenId,
+        FermionTypes.BuyoutAuctionStorage storage $
+    ) internal returns (FermionTypes.Votes storage votes) {
+        FermionTypes.Votes[] storage votesList = $.votes[_tokenId];
+
+        if (votesList.length == 0) {
+            votesList.push();
+        }
+
+        return votesList[votesList.length - 1];
+    }
+
+    /**
+     * @notice Finalize the auction
+     *
+     * Reverts if:
+     * - The auction has not started yet or is still ongoing
+     *
+     * @param _tokenId The token Id
+     * @return auction The auction details
+     */
+    function finalizeAuction(uint256 _tokenId) internal returns (FermionTypes.AuctionDetails storage auction) {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        auction = $.auctionDetails[_tokenId];
+
+        FermionTypes.AuctionState state = auction.state;
+        if (state == FermionTypes.AuctionState.Finalized) {
+            return auction;
+        }
+
+        if (state == FermionTypes.AuctionState.NotStarted) {
+            revert AuctionNotStarted(_tokenId);
+        }
+        if (auction.timer <= block.timestamp) revert AuctionOngoing(_tokenId, auction.timer);
+
+        uint256 fractionsPerToken = liquidSupply() / $.nftCount;
+
+        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
+        address maxBidder = auction.maxBidder;
+        uint256 winnersLockedVotes = votes.individual[maxBidder];
+        if (winnersLockedVotes > 0) votes.individual[maxBidder] = 0;
+        uint256 auctionProceeds = auction.maxBid;
+        uint256 lockedVotes = votes.total - winnersLockedVotes;
+        uint256 lockedAmount = (lockedVotes * auctionProceeds) / fractionsPerToken;
+
+        $.unrestricedRedeemableSupply += fractionsPerToken - lockedVotes;
+        $.unrestricedRedeemableAmount += auctionProceeds - lockedAmount;
+        $.lockedRedeemableSupply += lockedVotes;
+        $.lockedProceeds[_tokenId].push(lockedAmount);
+
+        $.nftCount--;
+        auction.state = FermionTypes.AuctionState.Finalized;
+
+        $.votes[_tokenId].push();
+
+        // ToDo: get unused amount from the custodian vault
+    }
+
+    /**
+     * @notice Calculate the amount to claim and burn the fractions.
+     *
+     * Reverts if:
+     * - The caller has less fractions available than the amount to claim
+     *
+     * @param _from The address to burn the fractions from
+     * @param _fractions Number of fractions to exchange for auction proceeds
+     * @param $ The storage
+     * @return claimAmount The amount to claim
+     * @return burnedFractions The number of burned fractions
+     */
+    function burnUnrestrictedFractions(
+        address _from,
+        uint256 _fractions,
+        FermionTypes.BuyoutAuctionStorage storage $
+    ) internal returns (uint256 claimAmount, uint256 burnedFractions) {
+        uint256 availableSupply = $.unrestricedRedeemableSupply;
+        burnedFractions = _fractions;
+        if (burnedFractions > availableSupply) {
+            burnedFractions = availableSupply;
+        }
+
+        claimAmount = ($.unrestricedRedeemableAmount * burnedFractions) / availableSupply;
+        $.unrestricedRedeemableSupply -= burnedFractions;
+        $.unrestricedRedeemableAmount -= claimAmount;
+
+        _burn(_from, burnedFractions);
+    }
+
+    /**
+     * @notice Pays out the last bidder. Used when the last bid is outbid or withdrawn
+     *
+     *
+     * @param _auction The auction details
+     * @param _votes The votes for the auction
+     * @param _exchangeToken The exchange token
+     */
+    function payOutLastBidder(
+        FermionTypes.AuctionDetails storage _auction,
+        FermionTypes.Votes storage _votes,
+        address _exchangeToken
+    ) internal {
+        address bidder = _auction.maxBidder;
+        uint256 lockedIndividualVotes = _votes.individual[bidder];
+        uint256 lockedFractions = _auction.lockedFractions - lockedIndividualVotes;
+
+        // transfer to previus bidder if they used some of the fractions
+        if (lockedFractions > 0) _transfer(address(this), bidder, lockedFractions);
+        FundsLib.transferFundsFromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
     }
 }

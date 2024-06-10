@@ -6,3 +6,10 @@ uint256 constant BOSON_DR_ID_OFFSET = 2; // Boson DR id is 2 higher than the sel
 uint256 constant HUNDRED_PERCENT = 100_00;
 uint256 constant AUCTION_END_BUFFER = 15 minutes;
 uint256 constant MINIMAL_BID_INCREMENT = 1_00; // 1%
+
+// Fractionalization
+uint256 constant MIN_FRACTIONS = 1e18;
+uint256 constant MAX_FRACTIONS = 1e64;
+uint256 constant TOP_BID_LOCK_TIME = 5 days;
+uint256 constant AUCTION_DURATION = 5 days;
+uint256 constant UNLOCK_THRESHOLD = 50_00; // 50%
