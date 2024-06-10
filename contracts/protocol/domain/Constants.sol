@@ -9,7 +9,7 @@ uint256 constant MINIMAL_BID_INCREMENT = 1_00; // 1%
 
 // Fractionalization
 uint256 constant MIN_FRACTIONS = 1e18;
-uint256 constant MAX_FRACTIONS = 1e64;
-uint256 constant TOP_BID_LOCK_TIME = 5 days;
+uint256 constant MAX_FRACTIONS = 1 << 127;
+uint256 constant TOP_BID_LOCK_TIME = 3 days;
 uint256 constant AUCTION_DURATION = 5 days;
 uint256 constant UNLOCK_THRESHOLD = 50_00; // 50%

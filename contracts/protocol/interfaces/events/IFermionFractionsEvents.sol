@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { FermionTypes } from "../../domain/Types.sol";
+
 /**
  * @title IFermionFractionsEvents
  *
@@ -13,4 +15,6 @@ interface IFermionFractionsEvents {
     event Voted(address indexed from, uint256 indexed tokenId, uint256 fractionAmount);
     event VoteRemoved(address indexed from, uint256 indexed tokenId, uint256 fractionAmount);
     event AuctionStarted(uint256 indexed tokenId, uint256 endTime);
+    event Fractionalised(uint256 indexed tokenId, uint256 fractionsCount);
+    event FracionsSetup(uint256 initialFractionsAmount, FermionTypes.BuyoutAuctionParameters buyoutAuctionParameters);
 }

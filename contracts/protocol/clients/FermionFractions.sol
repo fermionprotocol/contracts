@@ -36,6 +36,8 @@ abstract contract FermionFractions is
      * This function is called when the first NFT is fractionalised.
      * If some NFTs are already fractionalised, use `mintAdditionalFractions(uint256 _tokenId, uint256 _amount)` instead.
      *
+     * Emits Fractionalised event if successful.
+     *
      * Reverts if:
      * - Number of tokens to fractionalise is zero
      * - Other tokens are fractionalised already
@@ -70,6 +72,10 @@ abstract contract FermionFractions is
             revert InvalidExitPrice(_buyoutAuctionParameters.exitPrice);
         }
 
+        if (_buyoutAuctionParameters.unlockThreshold > HUNDRED_PERCENT) {
+            revert InvalidPercentage(_buyoutAuctionParameters.unlockThreshold);
+        }
+
         if (_fractionsAmount < MIN_FRACTIONS || _fractionsAmount > MAX_FRACTIONS) {
             revert InvalidFractionsAmount(_fractionsAmount, MIN_FRACTIONS, MAX_FRACTIONS);
         }
@@ -82,6 +88,8 @@ abstract contract FermionFractions is
         if (_buyoutAuctionParameters.topBidLockTime == 0) _buyoutAuctionParameters.topBidLockTime = TOP_BID_LOCK_TIME;
 
         $.auctionParameters = _buyoutAuctionParameters;
+
+        emit FracionsSetup(_fractionsAmount, _buyoutAuctionParameters);
 
         // ToDo: call the protocol to setup the vault
     }
@@ -427,6 +435,13 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Returns the buyout auction parameters
+     */
+    function getBuyoutAuctionParameters() external view returns (FermionTypes.BuyoutAuctionParameters memory) {
+        return _getBuyoutAuctionStorage().auctionParameters;
+    }
+
+    /**
      * @notice Locks the F-NFTs and mints the fractions.
      *
      * Reverts if:
@@ -460,6 +475,8 @@ abstract contract FermionFractions is
             }
 
             ERC721.transferFrom(tokenOwner, address(this), tokenId);
+
+            emit Fractionalised(tokenId, _fractionsAmount);
         }
 
         _mintFractions(tokenOwner, _length * _fractionsAmount);
@@ -545,6 +562,12 @@ abstract contract FermionFractions is
         auction.state = FermionTypes.AuctionState.Finalized;
 
         $.votes[_tokenId].push();
+        $.isFractionalised[_tokenId] = false;
+
+        if ($.nftCount == 0) {
+            // allow fractionalisation with new parameters
+            delete $.auctionParameters;
+        }
 
         // ToDo: get unused amount from the custodian vault
     }
