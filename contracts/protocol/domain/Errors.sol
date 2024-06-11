@@ -82,7 +82,7 @@ interface FermionErrors {
     error NoFractions();
     error InvalidValue(uint256 expected, uint256 actual);
     error BidRemovalNotAllowed(uint256 tokenId);
-    error NoBids(uint256 tokenId);
+    error MaxBidderCannotVote(uint256 tokenId);
     error NotEnoughLockedVotes(uint256 tokenId, uint256 lockedVotes, uint256 requestedVotes);
     error InitialFractionalisationOnly();
     error MissingFractionalisation();

@@ -7,6 +7,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { AuctionState, TokenState } from "../utils/enums";
 import {
   AUCTION_END_BUFFER,
+  MINIMAL_BID_INCREMENT,
   MIN_FRACTIONS,
   MAX_FRACTIONS,
   TOP_BID_LOCK_TIME,
@@ -1139,6 +1140,60 @@ describe("FermionFNFT - fractionalisation tests", function () {
       });
     });
 
-    context("Revert reasons", function () {});
+    context("Revert reasons", function () {
+      const fractions = 0n;
+
+      it("The bid is under minimal bid", async function () {
+        const bidAmount = exitPrice + parseEther("0.1");
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
+
+        const minimalBid = (bidAmount * (10000n + MINIMAL_BID_INCREMENT)) / 10000n;
+        const bidAmount2 = minimalBid - 1n;
+        await mockExchangeToken.connect(bidders[1]).approve(await fermionFNFTProxy.getAddress(), bidAmount2);
+
+        await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount2, fractions))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidBid")
+          .withArgs(startTokenId, bidAmount2, minimalBid);
+      });
+
+      it("Auction ended", async function () {
+        const bidAmount = exitPrice + parseEther("0.1");
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
+
+        const blockTimeStamp = (await tx.getBlock()).timestamp;
+        const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+
+        await setNextBlockTimestamp(String(auctionEnd + 1n));
+
+        const bidAmount2 = bidAmount + parseEther("0.1");
+        await mockExchangeToken.connect(bidders[1]).approve(await fermionFNFTProxy.getAddress(), bidAmount2);
+
+        await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount2, fractions))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "AuctionEnded")
+          .withArgs(startTokenId, auctionEnd);
+      });
+
+      it("Bidder does not have enough fractions", async function () {
+        const bidAmount = exitPrice + parseEther("0.1");
+        const fractions = (fractionsPerToken * 20n) / 100n; // 20% of bid paid with fractions
+        await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, fractions);
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+
+        await expect(fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions + 1n))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "ERC20InsufficientBalance")
+          .withArgs(bidders[0].address, fractions, fractions + 1n);
+      });
+
+      it("Bidder does not have pay enough fractions", async function () {
+        const bidAmount = exitPrice + parseEther("0.1");
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount - 1n);
+
+        await expect(fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "ERC20InsufficientAllowance")
+          .withArgs(await fermionFNFTProxy.getAddress(), bidAmount - 1n, bidAmount);
+      });
+    });
   });
 });

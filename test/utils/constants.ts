@@ -4,3 +4,4 @@ export const TOP_BID_LOCK_TIME = 3n * 24n * 60n * 60n; // three days
 export const AUCTION_DURATION = 5n * 24n * 60n * 60n; // five days
 export const UNLOCK_THRESHOLD = 5000n; // 50%
 export const AUCTION_END_BUFFER = 15n * 60n; // 15 minutes
+export const MINIMAL_BID_INCREMENT = 1000n; // 10%

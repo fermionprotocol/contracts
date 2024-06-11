@@ -146,7 +146,7 @@ abstract contract FermionFractions is
      * Emits an AuctionStarted event if the auction is started.
      *
      * Reverts if:
-     * - No bids are placed yet
+     * - The caller is the current max bidder
      * - The auction is already ongoing
      * - The number of fractions to vote is zero
      * - The caller does not have enough fractions to vote
@@ -160,7 +160,8 @@ abstract contract FermionFractions is
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
 
-        if (auction.maxBid == 0) revert NoBids(_tokenId);
+        address msgSender = _msgSender();
+        if (auction.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
         if (auction.state >= FermionTypes.AuctionState.Ongoing) revert AuctionOngoing(_tokenId, auction.timer);
 
         uint256 fractionsPerToken = liquidSupply() / $.nftCount;
@@ -170,7 +171,6 @@ abstract contract FermionFractions is
 
         if (_fractionAmount > availableFractions) _fractionAmount = availableFractions;
 
-        address msgSender = _msgSender();
         _transferFractions(msgSender, address(this), _fractionAmount);
 
         votes.individual[msgSender] += _fractionAmount;
