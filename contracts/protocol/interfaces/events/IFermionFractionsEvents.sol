@@ -18,8 +18,8 @@ interface IFermionFractionsEvents {
     );
     event Redeemed(uint256 indexed tokenId, address indexed from);
     event Claimed(address indexed from, uint256 fractionsBurned, uint256 amountClaimed);
-    event Voted(address indexed from, uint256 indexed tokenId, uint256 fractionAmount);
-    event VoteRemoved(address indexed from, uint256 indexed tokenId, uint256 fractionAmount);
+    event Voted(uint256 indexed tokenId, address indexed from, uint256 fractionAmount);
+    event VoteRemoved(uint256 indexed tokenId, address indexed from, uint256 fractionAmount);
     event AuctionStarted(uint256 indexed tokenId, uint256 endTime);
     event Fractionalised(uint256 indexed tokenId, uint256 fractionsCount);
     event FractionsSetup(uint256 initialFractionsAmount, FermionTypes.BuyoutAuctionParameters buyoutAuctionParameters);

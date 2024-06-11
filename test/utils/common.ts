@@ -182,3 +182,7 @@ export async function setNextBlockTimestamp(timestamp: string | number | BigNumb
   // when testing static call, a block must be mined to get the correct timestamp
   if (mine) await ethers.provider.send("evm_mine", []);
 }
+
+export function applyPercentage(amount: BigNumberish, percentage: BigNumberish | number) {
+  return (BigInt(amount) * BigInt(percentage)) / 10000n;
+}

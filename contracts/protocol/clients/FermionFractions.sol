@@ -182,7 +182,7 @@ abstract contract FermionFractions is
             startAuction(_tokenId);
         }
 
-        emit Voted(msgSender, _tokenId, _fractionAmount);
+        emit Voted(_tokenId, msgSender, _fractionAmount);
     }
 
     /**
@@ -214,7 +214,7 @@ abstract contract FermionFractions is
         votes.individual[msgSender] -= _fractionAmount;
         votes.total -= _fractionAmount;
 
-        emit VoteRemoved(msgSender, _tokenId, _fractionAmount);
+        emit VoteRemoved(_tokenId, msgSender, _fractionAmount);
     }
 
     /**
@@ -467,6 +467,37 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Returns the votes for a specific token
+     *
+     * @param _tokenId The token Id
+     * @return totalVotes The total number of votes
+     * @return threshold The threshold to start the auction
+     * @return availableFractions The number of fractions available to vote
+     */
+    function getVotes(
+        uint256 _tokenId
+    ) external view returns (uint256 totalVotes, uint256 threshold, uint256 availableFractions) {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+
+        uint256 fractionsPerToken = liquidSupply() / $.nftCount;
+
+        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
+        totalVotes = votes.total;
+        availableFractions = fractionsPerToken - totalVotes;
+        threshold = (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT;
+    }
+
+    /**
+     * @notice Returns the locked votes for a specific token
+     *
+     * @param _tokenId The token Id
+     * @return lockedVotes The locked votes
+     */
+    function getIndividualLockedVotes(uint256 _tokenId, address _voter) external view returns (uint256 lockedVotes) {
+        return getLastVotes(_tokenId, _getBuyoutAuctionStorage()).individual[_voter];
+    }
+
+    /**
      * @notice Locks the F-NFTs and mints the fractions.
      *
      * Reverts if:
@@ -500,6 +531,7 @@ abstract contract FermionFractions is
 
             ERC721.transferFrom(tokenOwner, address(this), tokenId);
             $.isFractionalised[tokenId] = true;
+            $.votes[tokenId].push();
 
             emit Fractionalised(tokenId, _fractionsAmount);
         }
@@ -535,12 +567,8 @@ abstract contract FermionFractions is
     function getLastVotes(
         uint256 _tokenId,
         FermionTypes.BuyoutAuctionStorage storage $
-    ) internal returns (FermionTypes.Votes storage votes) {
+    ) internal view returns (FermionTypes.Votes storage votes) {
         FermionTypes.Votes[] storage votesList = $.votes[_tokenId];
-
-        if (votesList.length == 0) {
-            votesList.push();
-        }
 
         return votesList[votesList.length - 1];
     }
@@ -585,8 +613,6 @@ abstract contract FermionFractions is
 
         $.nftCount--;
         auction.state = FermionTypes.AuctionState.Finalized;
-
-        $.votes[_tokenId].push();
 
         $.isFractionalised[_tokenId] = false;
         if ($.nftCount == 0) {
