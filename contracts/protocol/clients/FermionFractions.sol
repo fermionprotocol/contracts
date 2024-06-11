@@ -160,6 +160,8 @@ abstract contract FermionFractions is
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
 
+        if (!$.isFractionalised[_tokenId]) revert TokenNotFractionalised(_tokenId);
+
         address msgSender = _msgSender();
         if (auction.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
         if (auction.state >= FermionTypes.AuctionState.Ongoing) revert AuctionOngoing(_tokenId, auction.timer);
@@ -233,6 +235,8 @@ abstract contract FermionFractions is
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
         FermionTypes.BuyoutAuctionParameters storage auctionParameters = $.auctionParameters;
+
+        if (!$.isFractionalised[_tokenId]) revert TokenNotFractionalised(_tokenId);
 
         uint256 minimalBid = (auction.maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
         if (_price < minimalBid) {
@@ -495,6 +499,7 @@ abstract contract FermionFractions is
             }
 
             ERC721.transferFrom(tokenOwner, address(this), tokenId);
+            $.isFractionalised[tokenId] = true;
 
             emit Fractionalised(tokenId, _fractionsAmount);
         }
@@ -583,6 +588,7 @@ abstract contract FermionFractions is
 
         $.votes[_tokenId].push();
 
+        $.isFractionalised[_tokenId] = false;
         if ($.nftCount == 0) {
             // allow fractionalisation with new parameters
             delete $.auctionParameters;

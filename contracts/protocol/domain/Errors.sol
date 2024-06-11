@@ -87,4 +87,5 @@ interface FermionErrors {
     error InitialFractionalisationOnly();
     error MissingFractionalisation();
     error InvalidAmount();
+    error TokenNotFractionalised(uint256 tokenId);
 }

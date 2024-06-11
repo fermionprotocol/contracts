@@ -1185,6 +1185,15 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .to.be.revertedWithCustomError(fermionFNFTProxy, "ERC20InsufficientAllowance")
           .withArgs(await fermionFNFTProxy.getAddress(), bidAmount - 1n, bidAmount);
       });
+
+      it("Token is not fractionalised", async function () {
+        const bidAmount = exitPrice + parseEther("0.1");
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+
+        await expect(fermionFNFTProxy.connect(bidders[0]).bid(startTokenId + 1n, bidAmount, fractions))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "TokenNotFractionalised")
+          .withArgs(startTokenId + 1n);
+      });
     });
   });
 

@@ -109,6 +109,7 @@ contract FermionTypes {
         uint256 nftCount; // number of fractionalised NFTs
         address exchangeToken;
         BuyoutAuctionParameters auctionParameters;
+        mapping(uint256 => bool) isFractionalised; // tokenId -> fractionalised
         mapping(uint256 => AuctionDetails) auctionDetails; // tokenId -> AuctionDetails
         mapping(uint256 => Votes[]) votes; // tokenId -> Votes
         uint256 unrestricedRedeemableSupply;
