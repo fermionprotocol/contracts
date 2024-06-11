@@ -190,6 +190,7 @@ abstract contract FermionFractions is
      *
      * Reverts if:
      * - The number of fractions to vote is zero
+     * - The caller is the current max bidder
      * - The auction is already ongoing
      * - The caller tries to unlock more fractions than they have voted
      *
@@ -202,10 +203,11 @@ abstract contract FermionFractions is
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
 
+        address msgSender = _msgSender();
+        if (auction.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
         if (auction.state >= FermionTypes.AuctionState.Ongoing) revert AuctionOngoing(_tokenId, auction.timer);
 
         FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
-        address msgSender = _msgSender();
         if (_fractionAmount > votes.individual[msgSender]) {
             revert NotEnoughLockedVotes(_tokenId, _fractionAmount, votes.individual[msgSender]);
         }
@@ -594,7 +596,7 @@ abstract contract FermionFractions is
         if (state == FermionTypes.AuctionState.NotStarted) {
             revert AuctionNotStarted(_tokenId);
         }
-        if (auction.timer <= block.timestamp) revert AuctionOngoing(_tokenId, auction.timer);
+        if (block.timestamp <= auction.timer) revert AuctionOngoing(_tokenId, auction.timer);
 
         uint256 fractionsPerToken = liquidSupply() / $.nftCount;
 
@@ -641,6 +643,8 @@ abstract contract FermionFractions is
         FermionTypes.BuyoutAuctionStorage storage $
     ) internal returns (uint256 claimAmount, uint256 burnedFractions) {
         uint256 availableSupply = $.unrestricedRedeemableSupply;
+        if (availableSupply == 0) revert NoFractions();
+
         burnedFractions = _fractions;
         if (burnedFractions > availableSupply) {
             burnedFractions = availableSupply;
