@@ -9,7 +9,13 @@ import { FermionTypes } from "../../domain/Types.sol";
  * @notice Defines events related fractions and buyout auctions.
  */
 interface IFermionFractionsEvents {
-    event Bid(address indexed from, uint256 newPrice, uint256 fractionsCount, uint256 bidAmount);
+    event Bid(
+        uint256 indexed tokenId,
+        address indexed from,
+        uint256 newPrice,
+        uint256 fractionsCount,
+        uint256 bidAmount
+    );
     event Redeemed(uint256 indexed tokenId, address indexed from);
     event Claimed(address indexed from, uint256 fractionsBurned, uint256 amountClaimed);
     event Voted(address indexed from, uint256 indexed tokenId, uint256 fractionAmount);

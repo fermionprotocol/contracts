@@ -173,3 +173,12 @@ export function verifySellerAssistantRoleClosure(
       .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
   };
 }
+
+export async function setNextBlockTimestamp(timestamp: string | number | BigNumberish, mine = false) {
+  if (typeof timestamp == "string" && timestamp.startsWith("0x0") && timestamp.length > 3)
+    timestamp = "0x" + timestamp.substring(3);
+  await ethers.provider.send("evm_setNextBlockTimestamp", [timestamp]);
+
+  // when testing static call, a block must be mined to get the correct timestamp
+  if (mine) await ethers.provider.send("evm_mine", []);
+}

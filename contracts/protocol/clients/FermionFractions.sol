@@ -32,6 +32,15 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Initializes the contract
+     *
+     * @param _exchangeToken The address of the exchange token
+     */
+    function intializeFractions(address _exchangeToken) internal virtual {
+        _getBuyoutAuctionStorage().exchangeToken = _exchangeToken;
+    }
+
+    /**
      * @notice Locks the F-NFTs and mints the fractions. Sets the auction parameters and custodian vault parameters.
      * This function is called when the first NFT is fractionalised.
      * If some NFTs are already fractionalised, use `mintAdditionalFractions(uint256 _tokenId, uint256 _amount)` instead.
@@ -218,20 +227,20 @@ abstract contract FermionFractions is
      *
      * @param _tokenId The token Id
      * @param _price The bidding price
+     * @param _fractions The number of fractions to use for the bid
      */
-    function bid(uint256 _tokenId, uint256 _price) external payable {
+    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
         FermionTypes.BuyoutAuctionParameters storage auctionParameters = $.auctionParameters;
 
-        uint256 lastBid = auction.maxBid;
-        uint256 minimalBid = (lastBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
+        uint256 minimalBid = (auction.maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
         if (_price < minimalBid) {
             revert InvalidBid(_tokenId, _price, minimalBid);
         }
 
         if (auction.state >= FermionTypes.AuctionState.Ongoing) {
-            if (auction.timer > block.timestamp) revert AuctionEnded(_tokenId, auction.timer);
+            if (block.timestamp > auction.timer) revert AuctionEnded(_tokenId, auction.timer);
             if (auction.timer < block.timestamp + AUCTION_END_BUFFER)
                 auction.timer = block.timestamp + AUCTION_END_BUFFER;
         } else {
@@ -253,7 +262,7 @@ abstract contract FermionFractions is
 
         address msgSender = _msgSender();
         uint256 lockedIndividualVotes = votes.individual[msgSender];
-        uint256 bidderFractions = balanceOf(msgSender) + lockedIndividualVotes;
+        uint256 bidderFractions = _fractions + lockedIndividualVotes;
 
         uint256 bidAmount;
         uint256 fractionsPerToken = liquidSupply() / $.nftCount;
@@ -268,11 +277,11 @@ abstract contract FermionFractions is
         auction.lockedFractions = bidderFractions;
         auction.maxBid = _price;
 
-        if (bidderFractions > 0) _transfer(msgSender, address(this), bidderFractions);
+        if (_fractions > 0) _transferFractions(msgSender, address(this), bidderFractions - lockedIndividualVotes);
         FundsLib.validateIncomingPayment(exchangeToken, bidAmount);
 
         auction.lockedBidAmount = bidAmount;
-        emit Bid(msgSender, _price, bidderFractions, bidAmount);
+        emit Bid(_tokenId, msgSender, _price, bidderFractions, bidAmount);
     }
 
     /**
@@ -303,7 +312,7 @@ abstract contract FermionFractions is
         // auction has not started yet, and the timeout passed
         payOutLastBidder(auction, getLastVotes(_tokenId, $), $.exchangeToken);
 
-        emit Bid(address(0), 0, 0, 0);
+        emit Bid(0, address(0), 0, 0, 0);
     }
 
     /**
@@ -439,6 +448,16 @@ abstract contract FermionFractions is
      */
     function getBuyoutAuctionParameters() external view returns (FermionTypes.BuyoutAuctionParameters memory) {
         return _getBuyoutAuctionStorage().auctionParameters;
+    }
+
+    /**
+     * @notice Returns the auction details
+     *
+     * @param _tokenId The token Id
+     * @return auction The auction details
+     */
+    function getAuctionDetails(uint256 _tokenId) external view returns (FermionTypes.AuctionDetails memory) {
+        return _getBuyoutAuctionStorage().auctionDetails[_tokenId];
     }
 
     /**
@@ -614,11 +633,13 @@ abstract contract FermionFractions is
         address _exchangeToken
     ) internal {
         address bidder = _auction.maxBidder;
+        if (bidder == address(0)) return; // no previous bidder
+
         uint256 lockedIndividualVotes = _votes.individual[bidder];
         uint256 lockedFractions = _auction.lockedFractions - lockedIndividualVotes;
 
         // transfer to previus bidder if they used some of the fractions
-        if (lockedFractions > 0) _transfer(address(this), bidder, lockedFractions);
+        if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
         FundsLib.transferFundsFromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
     }
 }

@@ -50,7 +50,7 @@ describe("FermionFNFT - wrapper tests", function () {
 
   context("initialize", function () {
     it("Initialization via proxy sets the new owner", async function () {
-      await expect(fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address))
+      await expect(fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress))
         .to.emit(fermionWrapperProxy, "OwnershipTransferred")
         .withArgs(ZeroAddress, wrapperContractOwner.address);
 
@@ -60,15 +60,15 @@ describe("FermionFNFT - wrapper tests", function () {
     context("Revert reasons", function () {
       it("Direct initialization fails", async function () {
         await expect(
-          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address),
+          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress),
         ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
 
       it("Second initialization via proxy fails", async function () {
-        await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address);
+        await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress);
 
         await expect(
-          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address),
+          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress),
         ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
     });
@@ -76,7 +76,7 @@ describe("FermionFNFT - wrapper tests", function () {
 
   context("transferOwnership", function () {
     beforeEach(async function () {
-      await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address);
+      await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress);
     });
 
     it("Initialization caller can transfer the ownership", async function () {
@@ -115,7 +115,7 @@ describe("FermionFNFT - wrapper tests", function () {
     beforeEach(async function () {
       await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
 
-      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address);
+      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address, ZeroAddress);
 
       seller = wallets[3];
     });
@@ -166,7 +166,7 @@ describe("FermionFNFT - wrapper tests", function () {
       seller = wallets[3];
 
       await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
-      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address);
+      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address, ZeroAddress);
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
       await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
     });

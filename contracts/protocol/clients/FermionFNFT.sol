@@ -16,6 +16,8 @@ import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable
  *
  */
 contract FermionFNFT is FermionFractions, FermionWrapper {
+    address private immutable THIS_CONTRACT = address(this);
+
     constructor(
         address _bosonPriceDiscovery,
         SeaportConfig memory _seaportConfig
@@ -29,12 +31,18 @@ contract FermionFNFT is FermionFractions, FermionWrapper {
      *
      * @param _voucherAddress The address of the Boson Voucher contract
      * @param _owner The address of the owner
+     * @param _exchangeToken The address of the exchange token
      */
-    function initialize(address _voucherAddress, address _owner) external initializer {
+    function initialize(address _voucherAddress, address _owner, address _exchangeToken) external initializer {
+        if (address(this) == THIS_CONTRACT) {
+            revert InvalidInitialization();
+        }
+
         fermionProtocol = msg.sender;
         voucherAddress = _voucherAddress;
 
         initializeWrapper(_owner);
+        intializeFractions(_exchangeToken);
     }
 
     /**

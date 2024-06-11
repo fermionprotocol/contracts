@@ -19,8 +19,9 @@ interface IFermionWrapper is IERC721 {
      *
      * @param _voucherAddress The address of the Boson Voucher contract
      * @param _owner The address of the owner
+     * @param _exchangeToken The address of the exchange token
      */
-    function initialize(address _voucherAddress, address _owner) external;
+    function initialize(address _voucherAddress, address _owner, address _exchangeToken) external;
     /**
      * @notice Wraps the vouchers, transfer true vouchers to this contract and mint wrapped vouchers
      *

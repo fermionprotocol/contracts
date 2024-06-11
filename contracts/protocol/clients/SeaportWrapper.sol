@@ -32,8 +32,6 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
     address private immutable OS_CONDUIT;
     bytes32 private immutable OS_CONDUIT_KEY;
 
-    address private immutable THIS_CONTRACT = address(this);
-
     /**
      * @notice Constructor
      *
@@ -52,15 +50,9 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
     /**
      * @notice Initializes the contract
      *
-     * Reverts if:
-     * - Contract is already initialized
-     *
      * @param _owner The address of the owner
      */
     function initialize(address _owner) internal virtual {
-        if (address(this) == THIS_CONTRACT) {
-            revert InvalidInitialization();
-        }
         __Ownable_init(_owner);
     }
 

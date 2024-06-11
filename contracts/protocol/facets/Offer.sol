@@ -460,8 +460,9 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         // deployment: ~80k more per deployment. But the next calls should be cheaper.
         // address wrapperAddress = address(new BeaconProxy{salt: bytes32(_startingNFTId)}(ps.wrapperBeacon, ""));
 
+        address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
         FermionStorage.protocolLookups().wrapperAddress[_offerId] = wrapperAddress;
-        IFermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender);
+        IFermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken);
 
         // wrap NFTs
         _bosonVoucher.setApprovalForAll(wrapperAddress, true);
