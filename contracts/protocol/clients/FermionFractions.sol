@@ -312,6 +312,8 @@ abstract contract FermionFractions is
         // auction has not started yet, and the timeout passed
         payOutLastBidder(auction, getLastVotes(_tokenId, $), $.exchangeToken);
 
+        delete $.auctionDetails[_tokenId];
+
         emit Bid(0, address(0), 0, 0, 0);
     }
 
