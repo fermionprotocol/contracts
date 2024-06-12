@@ -71,6 +71,8 @@ library FermionStorage {
         mapping(uint256 => FermionTypes.CustodianFee) vault;
         // token id => fraction auction details
         mapping(uint256 => FermionTypes.FractionAuction) fractionAuction;
+        // offer id => custodianVaultParameters
+        mapping(uint256 => FermionTypes.CustodianVaultParameters) custodianVaultParameters;
     }
 
     // Storage related to Meta Transactions

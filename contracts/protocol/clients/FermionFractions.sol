@@ -12,6 +12,7 @@ import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable
 import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
+import { IFermionCustody } from "../interfaces/IFermionCustody.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -62,12 +63,14 @@ abstract contract FermionFractions is
      * @param _length The number of tokens to fractionalise
      * @param _fractionsAmount The number of fractions to mint for each NFT
      * @param _buyoutAuctionParameters The buyout auction parameters
+     * @param _custodianVaultParameters The custodian vault parameters
      */
     function mintFractions(
         uint256 _firstTokenId,
         uint256 _length,
         uint256 _fractionsAmount,
-        FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters
+        FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
+        FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters
     ) external {
         if (_length == 0) {
             revert InvalidLength();
@@ -102,7 +105,13 @@ abstract contract FermionFractions is
 
         emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters);
 
-        // ToDo: call the protocol to setup the vault
+        if (_msgSender() != fermionProtocol) {
+            IFermionCustody(fermionProtocol).setupCustodianOfferVault(
+                _firstTokenId,
+                _length,
+                _custodianVaultParameters
+            );
+        }
     }
 
     /**
@@ -134,7 +143,9 @@ abstract contract FermionFractions is
 
         lockNFTsAndMintFractions(_firstTokenId, _length, fractionsAmount, $);
 
-        // ToDo: call the protocol to update the vault
+        if (_msgSender() != fermionProtocol) {
+            IFermionCustody(fermionProtocol).addItemToCustodianOfferVault(_firstTokenId, _length);
+        }
     }
 
     /**
@@ -691,13 +702,17 @@ abstract contract FermionFractions is
         }
         if (block.timestamp <= auctionDetails.timer) revert AuctionOngoing(_tokenId, auctionDetails.timer);
 
+        uint256 releasedFromCustodianVault = IFermionCustody(fermionProtocol).removeItemFromCustodianOfferVault(
+            _tokenId
+        );
+
         uint256 fractionsPerToken = liquidSupply() / $.nftCount;
 
         FermionTypes.Votes storage votes = auction.votes;
         address maxBidder = auctionDetails.maxBidder;
         uint256 winnersLockedVotes = votes.individual[maxBidder];
         if (winnersLockedVotes > 0) votes.individual[maxBidder] = 0;
-        uint256 auctionProceeds = auctionDetails.maxBid;
+        uint256 auctionProceeds = auctionDetails.maxBid + releasedFromCustodianVault;
         uint256 lockedVotes = votes.total - winnersLockedVotes;
         uint256 lockedAmount = (lockedVotes * auctionProceeds) / fractionsPerToken;
 
@@ -714,8 +729,6 @@ abstract contract FermionFractions is
             // allow fractionalisation with new parameters
             delete $.auctionParameters;
         }
-
-        // ToDo: get unused amount from the custodian vault
     }
 
     /**
