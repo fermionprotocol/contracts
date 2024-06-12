@@ -88,4 +88,5 @@ interface FermionErrors {
     error MissingFractionalisation();
     error InvalidAmount();
     error TokenNotFractionalised(uint256 tokenId);
+    error InvalidAuctionIndex(uint256 auctionIndex, uint256 maxAuctionIndex);
 }

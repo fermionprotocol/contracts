@@ -158,17 +158,19 @@ abstract contract FermionFractions is
         if (_fractionAmount == 0) revert InvalidAmount();
 
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
         if (!$.isFractionalised[_tokenId]) revert TokenNotFractionalised(_tokenId);
 
         address msgSender = _msgSender();
-        if (auction.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
-        if (auction.state >= FermionTypes.AuctionState.Ongoing) revert AuctionOngoing(_tokenId, auction.timer);
+        if (auctionDetails.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
+        if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing)
+            revert AuctionOngoing(_tokenId, auctionDetails.timer);
 
         uint256 fractionsPerToken = liquidSupply() / $.nftCount;
 
-        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
+        FermionTypes.Votes storage votes = auction.votes;
         uint256 availableFractions = fractionsPerToken - votes.total;
 
         if (_fractionAmount > availableFractions) _fractionAmount = availableFractions;
@@ -201,13 +203,15 @@ abstract contract FermionFractions is
         if (_fractionAmount == 0) revert InvalidAmount();
 
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
         address msgSender = _msgSender();
-        if (auction.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
-        if (auction.state >= FermionTypes.AuctionState.Ongoing) revert AuctionOngoing(_tokenId, auction.timer);
+        if (auctionDetails.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
+        if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing)
+            revert AuctionOngoing(_tokenId, auctionDetails.timer);
 
-        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
+        FermionTypes.Votes storage votes = auction.votes;
         if (_fractionAmount > votes.individual[msgSender]) {
             revert NotEnoughLockedVotes(_tokenId, _fractionAmount, votes.individual[msgSender]);
         }
@@ -235,35 +239,38 @@ abstract contract FermionFractions is
      */
     function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
-        FermionTypes.BuyoutAuctionParameters storage auctionParameters = $.auctionParameters;
+        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
         if (!$.isFractionalised[_tokenId]) revert TokenNotFractionalised(_tokenId);
 
-        uint256 minimalBid = (auction.maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
+        uint256 minimalBid = (auctionDetails.maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
         if (_price < minimalBid) {
             revert InvalidBid(_tokenId, _price, minimalBid);
         }
 
-        if (auction.state >= FermionTypes.AuctionState.Ongoing) {
-            if (block.timestamp > auction.timer) revert AuctionEnded(_tokenId, auction.timer);
-            if (auction.timer < block.timestamp + AUCTION_END_BUFFER)
-                auction.timer = block.timestamp + AUCTION_END_BUFFER;
-        } else {
-            if (_price > auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
-                // If price is above the exit price, the cutoff date is set
-                startAuction(_tokenId);
+        {
+            FermionTypes.BuyoutAuctionParameters storage auctionParameters = $.auctionParameters;
+            if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing) {
+                if (block.timestamp > auctionDetails.timer) revert AuctionEnded(_tokenId, auctionDetails.timer);
+                if (auctionDetails.timer < block.timestamp + AUCTION_END_BUFFER)
+                    auctionDetails.timer = block.timestamp + AUCTION_END_BUFFER;
             } else {
-                // reset ticker for Unbidding
-                auction.timer = block.timestamp + auctionParameters.topBidLockTime;
+                if (_price > auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
+                    // If price is above the exit price, the cutoff date is set
+                    startAuction(_tokenId);
+                } else {
+                    // reset ticker for Unbidding
+                    auctionDetails.timer = block.timestamp + auctionParameters.topBidLockTime;
+                }
             }
         }
 
         // Return to the previous bidder the fractions and the bid
-        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
+        FermionTypes.Votes storage votes = auction.votes;
         address exchangeToken = $.exchangeToken;
         {
-            payOutLastBidder(auction, votes, exchangeToken);
+            payOutLastBidder(auctionDetails, votes, exchangeToken);
         }
 
         address msgSender = _msgSender();
@@ -279,14 +286,14 @@ abstract contract FermionFractions is
             bidAmount = ((fractionsPerToken - bidderFractions) * _price) / fractionsPerToken;
         }
 
-        auction.maxBidder = msgSender;
-        auction.lockedFractions = bidderFractions;
-        auction.maxBid = _price;
+        auctionDetails.maxBidder = msgSender;
+        auctionDetails.lockedFractions = bidderFractions;
+        auctionDetails.maxBid = _price;
 
         if (_fractions > 0) _transferFractions(msgSender, address(this), bidderFractions - lockedIndividualVotes);
         FundsLib.validateIncomingPayment(exchangeToken, bidAmount);
 
-        auction.lockedBidAmount = bidAmount;
+        auctionDetails.lockedBidAmount = bidAmount;
         emit Bid(_tokenId, msgSender, _price, bidderFractions, bidAmount);
     }
 
@@ -304,21 +311,22 @@ abstract contract FermionFractions is
      */
     function removeBid(uint256 _tokenId) external {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
+        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
-        if (auction.state >= FermionTypes.AuctionState.Ongoing || auction.timer > block.timestamp) {
+        if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing || auctionDetails.timer > block.timestamp) {
             revert BidRemovalNotAllowed(_tokenId);
         }
 
         address msgSender = _msgSender();
-        if (msgSender != auction.maxBidder) {
-            revert NotMaxBidder(_tokenId, msgSender, auction.maxBidder);
+        if (msgSender != auctionDetails.maxBidder) {
+            revert NotMaxBidder(_tokenId, msgSender, auctionDetails.maxBidder);
         }
 
         // auction has not started yet, and the timeout passed
-        payOutLastBidder(auction, getLastVotes(_tokenId, $), $.exchangeToken);
+        payOutLastBidder(auctionDetails, auction.votes, $.exchangeToken);
 
-        delete $.auctionDetails[_tokenId];
+        delete auction.details;
 
         emit Bid(0, address(0), 0, 0, 0);
     }
@@ -343,12 +351,10 @@ abstract contract FermionFractions is
             revert NotMaxBidder(_tokenId, msgSender, auction.maxBidder);
         }
 
-        uint256 lockedFractions = auction.lockedFractions;
+        if (auction.state == FermionTypes.AuctionState.Redeemed) revert AlreadyRedeemed(_tokenId);
+        auction.state = FermionTypes.AuctionState.Redeemed;
 
-        // Deleting the auction has two effects:
-        // 1. It prevents the token to be redeemed again
-        // 2. Allows the token to be fractionalized again
-        delete _getBuyoutAuctionStorage().auctionDetails[_tokenId];
+        uint256 lockedFractions = auction.lockedFractions;
 
         if (lockedFractions > 0) _burn(address(this), lockedFractions);
         ERC721._safeTransfer(address(this), msgSender, _tokenId);
@@ -372,9 +378,15 @@ abstract contract FermionFractions is
      */
     function claimWithLockedFractions(uint256 _tokenId, uint256 _auctionIndex, uint256 _additionalFractions) external {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        finalizeAuction(_tokenId);
+        FermionTypes.Auction[] storage auctionList = $.auctions[_tokenId];
+        uint256 numberOfAuctions = auctionList.length; // it can be greater than one if the item was fractionalized multiple times
+        if (numberOfAuctions == _auctionIndex + 1) {
+            finalizeAuction(_tokenId);
+        } else if (_auctionIndex >= numberOfAuctions) {
+            revert InvalidAuctionIndex(_auctionIndex, numberOfAuctions);
+        }
 
-        FermionTypes.Votes storage votes = $.votes[_tokenId][_auctionIndex];
+        FermionTypes.Votes storage votes = auctionList[_auctionIndex].votes;
         address msgSender = _msgSender();
         uint256 lockedIndividualVotes = votes.individual[msgSender];
         if (lockedIndividualVotes + _additionalFractions == 0) {
@@ -410,6 +422,8 @@ abstract contract FermionFractions is
 
     /**
      * @notice Claim the auction proceeds of all finalized auctions.
+     * This withdraws only the proceeds of already finalized auctions.
+     * To finalize an auction, one must call either `redeem`, `finalizeAndClaim` or `finalizeAuction` or `claimWithLockedFractions`.
      *
      * Emits a Claimed event if successful.
      *
@@ -419,7 +433,7 @@ abstract contract FermionFractions is
      *
      * @param _fractions Number of fractions to exchange for auction proceeds
      */
-    function claim(uint256 _fractions) external {
+    function claim(uint256 _fractions) public {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         if (_fractions == 0) {
             revert InvalidAmount();
@@ -430,6 +444,23 @@ abstract contract FermionFractions is
 
         FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), claimAmount);
         emit Claimed(msgSender, burnedFractions, claimAmount);
+    }
+
+    /**
+     * @notice Finalize the auction for tokenId and claim the auction proceeds of all finalized auctions.
+     * Use this if some auction ended, but was not finalized yet.
+     *
+     * Emits a Claimed event if successful.
+     *
+     * Reverts if:
+     * - The amount to claim is zero
+     * - The caller has less fractions available than the amount to claim
+     *
+     * @param _fractions Number of fractions to exchange for auction proceeds
+     */
+    function finalizeAndClaim(uint256 _tokenId, uint256 _fractions) external {
+        finalizeAuction(_tokenId);
+        claim(_fractions);
     }
 
     /**
@@ -465,7 +496,9 @@ abstract contract FermionFractions is
      * @return auction The auction details
      */
     function getAuctionDetails(uint256 _tokenId) external view returns (FermionTypes.AuctionDetails memory) {
-        return _getBuyoutAuctionStorage().auctionDetails[_tokenId];
+        // ToDO add index
+
+        return getLastAuction(_tokenId, _getBuyoutAuctionStorage()).details;
     }
 
     /**
@@ -483,7 +516,7 @@ abstract contract FermionFractions is
 
         uint256 fractionsPerToken = liquidSupply() / $.nftCount;
 
-        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
+        FermionTypes.Votes storage votes = getLastAuction(_tokenId, $).votes;
         totalVotes = votes.total;
         availableFractions = fractionsPerToken - totalVotes;
         threshold = (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT;
@@ -496,7 +529,7 @@ abstract contract FermionFractions is
      * @return lockedVotes The locked votes
      */
     function getIndividualLockedVotes(uint256 _tokenId, address _voter) external view returns (uint256 lockedVotes) {
-        return getLastVotes(_tokenId, _getBuyoutAuctionStorage()).individual[_voter];
+        return getLastAuction(_tokenId, _getBuyoutAuctionStorage()).votes.individual[_voter];
     }
 
     /**
@@ -533,7 +566,7 @@ abstract contract FermionFractions is
 
             ERC721.transferFrom(tokenOwner, address(this), tokenId);
             $.isFractionalised[tokenId] = true;
-            $.votes[tokenId].push();
+            $.auctions[tokenId].push();
 
             emit Fractionalised(tokenId, _fractionsAmount);
         }
@@ -550,29 +583,27 @@ abstract contract FermionFractions is
      */
     function startAuction(uint256 _tokenId) internal virtual {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        FermionTypes.AuctionDetails storage auction = $.auctionDetails[_tokenId];
-        auction.state = FermionTypes.AuctionState.Ongoing;
-        auction.timer = block.timestamp + $.auctionParameters.duration;
+        FermionTypes.AuctionDetails storage auctionDetails = getLastAuction(_tokenId, $).details;
+        auctionDetails.state = FermionTypes.AuctionState.Ongoing;
+        auctionDetails.timer = block.timestamp + $.auctionParameters.duration;
 
-        emit AuctionStarted(_tokenId, auction.timer);
+        emit AuctionStarted(_tokenId, auctionDetails.timer);
     }
 
     /**
-     * @notice Get the current votes for a specific token.
-     * If there are no votes, a new vote is created.
-     *
+     * @notice Get the current auction details and votes for a specific token.
      *
      * @param _tokenId The token Id
      * @param $ The storage
-     * @return votes The votes information
+     * @return auction The auction details and votes
      */
-    function getLastVotes(
+    function getLastAuction(
         uint256 _tokenId,
         FermionTypes.BuyoutAuctionStorage storage $
-    ) internal view returns (FermionTypes.Votes storage votes) {
-        FermionTypes.Votes[] storage votesList = $.votes[_tokenId];
-
-        return votesList[votesList.length - 1];
+    ) internal view returns (FermionTypes.Auction storage auction) {
+        FermionTypes.Auction[] storage auctions = $.auctions[_tokenId];
+        if (auctions.length == 0) revert TokenNotFractionalised(_tokenId);
+        return auctions[auctions.length - 1];
     }
 
     /**
@@ -582,29 +613,30 @@ abstract contract FermionFractions is
      * - The auction has not started yet or is still ongoing
      *
      * @param _tokenId The token Id
-     * @return auction The auction details
+     * @return auctionDetails The auction details
      */
-    function finalizeAuction(uint256 _tokenId) internal returns (FermionTypes.AuctionDetails storage auction) {
+    function finalizeAuction(uint256 _tokenId) internal returns (FermionTypes.AuctionDetails storage auctionDetails) {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        auction = $.auctionDetails[_tokenId];
+        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        auctionDetails = auction.details;
 
-        FermionTypes.AuctionState state = auction.state;
-        if (state == FermionTypes.AuctionState.Finalized) {
-            return auction;
+        FermionTypes.AuctionState state = auctionDetails.state;
+        if (state >= FermionTypes.AuctionState.Finalized) {
+            return auctionDetails;
         }
 
         if (state == FermionTypes.AuctionState.NotStarted) {
             revert AuctionNotStarted(_tokenId);
         }
-        if (block.timestamp <= auction.timer) revert AuctionOngoing(_tokenId, auction.timer);
+        if (block.timestamp <= auctionDetails.timer) revert AuctionOngoing(_tokenId, auctionDetails.timer);
 
         uint256 fractionsPerToken = liquidSupply() / $.nftCount;
 
-        FermionTypes.Votes storage votes = getLastVotes(_tokenId, $);
-        address maxBidder = auction.maxBidder;
+        FermionTypes.Votes storage votes = auction.votes;
+        address maxBidder = auctionDetails.maxBidder;
         uint256 winnersLockedVotes = votes.individual[maxBidder];
         if (winnersLockedVotes > 0) votes.individual[maxBidder] = 0;
-        uint256 auctionProceeds = auction.maxBid;
+        uint256 auctionProceeds = auctionDetails.maxBid;
         uint256 lockedVotes = votes.total - winnersLockedVotes;
         uint256 lockedAmount = (lockedVotes * auctionProceeds) / fractionsPerToken;
 
@@ -614,7 +646,7 @@ abstract contract FermionFractions is
         $.lockedProceeds[_tokenId].push(lockedAmount);
 
         $.nftCount--;
-        auction.state = FermionTypes.AuctionState.Finalized;
+        auctionDetails.state = FermionTypes.AuctionState.Finalized;
 
         $.isFractionalised[_tokenId] = false;
         if ($.nftCount == 0) {

@@ -47,7 +47,8 @@ contract FermionTypes {
     enum AuctionState {
         NotStarted,
         Ongoing,
-        Finalized
+        Finalized,
+        Redeemed
     }
 
     enum TokenState {
@@ -110,8 +111,7 @@ contract FermionTypes {
         address exchangeToken;
         BuyoutAuctionParameters auctionParameters;
         mapping(uint256 => bool) isFractionalised; // tokenId -> fractionalised
-        mapping(uint256 => AuctionDetails) auctionDetails; // tokenId -> AuctionDetails
-        mapping(uint256 => Votes[]) votes; // tokenId -> Votes
+        mapping(uint256 => Auction[]) auctions; // tokenId -> Auction
         uint256 unrestricedRedeemableSupply;
         uint256 unrestricedRedeemableAmount;
         uint256 lockedRedeemableSupply;
@@ -123,5 +123,10 @@ contract FermionTypes {
         uint256 duration; // in seconds; if zero, the default value is used
         uint256 unlockThreshold; // in percents; if zero, the default value is used
         uint256 topBidLockTime; // in seconds; if zero, the default value is used
+    }
+
+    struct Auction {
+        AuctionDetails details;
+        Votes votes;
     }
 }

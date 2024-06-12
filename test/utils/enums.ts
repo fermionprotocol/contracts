@@ -51,6 +51,7 @@ export enum AuctionState {
   NotStarted,
   Ongoing,
   Finalized,
+  Redeemed,
 }
 
 export function enumIterator(enumObject: any) {
