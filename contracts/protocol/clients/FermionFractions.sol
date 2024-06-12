@@ -500,6 +500,26 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Returns the auction details for pas auctions
+     *
+     * @param _tokenId The token Id
+     * @param _auctionIndex The auction index (if there are multiple auctions for the same F-NFT)
+     * @return auction The auction details
+     */
+    function getPastAuctionDetails(
+        uint256 _tokenId,
+        uint256 _auctionIndex
+    ) external view returns (FermionTypes.AuctionDetails memory) {
+        FermionTypes.Auction[] storage auctionList = _getBuyoutAuctionStorage().auctions[_tokenId];
+        uint256 numberOfAuctions = auctionList.length; // it can be greater than one if the item was fractionalized multiple times
+        if (_auctionIndex >= numberOfAuctions) {
+            revert InvalidAuctionIndex(_auctionIndex, numberOfAuctions);
+        }
+
+        return auctionList[_auctionIndex].details;
+    }
+
+    /**
      * @notice Returns the votes for a specific token
      *
      * @param _tokenId The token Id
