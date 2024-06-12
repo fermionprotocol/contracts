@@ -55,7 +55,7 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address exchangeToken = offer.exchangeToken;
         uint256 sellerDeposit = offer.sellerDeposit;
-        uint256 offerPrice = pl.offerPrice[offerId];
+        uint256 offerPrice = pl.itemPrice[_tokenId];
 
         {
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;

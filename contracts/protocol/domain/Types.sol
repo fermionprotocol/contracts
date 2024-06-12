@@ -81,11 +81,17 @@ contract FermionTypes {
         uint256 verifierId;
         uint256 verifierFee;
         uint256 custodianId;
+        CustodianFee custodianFee;
         uint256 facilitatorId;
         uint256 facilitatorFeePercent;
         address exchangeToken;
         string metadataURI;
         string metadataHash;
+    }
+
+    struct CustodianFee {
+        uint256 amount;
+        uint256 period;
     }
 
     struct CheckoutRequest {
@@ -94,6 +100,23 @@ contract FermionTypes {
         uint256 taxAmount;
     }
 
+    struct CustodianVaultParameters {
+        uint256 partialAuctionThreshold;
+        uint256 partialAuctionDuration;
+        uint256 liquidationThreshold;
+        uint256 newFractionsPerAuction;
+    }
+
+    struct FractionAuction {
+        uint256 lastPrice;
+        uint256 endTime;
+        uint256 availableFractions;
+        uint256 maxBid;
+        uint256 bidderId;
+        uint256 targetPrice;
+    }
+
+    // Fermion F-NFT, buyout auction
     struct AuctionDetails {
         uint256 timer;
         uint256 maxBid;

@@ -11,6 +11,7 @@ import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
+import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -19,7 +20,8 @@ abstract contract FermionFractions is
     FermionFractionsERC20Base,
     FermionFNFTBase,
     FermionErrors,
-    IFermionFractionsEvents
+    IFermionFractionsEvents,
+    IFermionFractions
 {
     // keccak256(abi.encode(uint256(keccak256("fermion.buyout.auction.storage")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant BuyoutAuctionStorageLocation =
@@ -133,6 +135,24 @@ abstract contract FermionFractions is
         lockNFTsAndMintFractions(_firstTokenId, _length, fractionsAmount, $);
 
         // ToDo: call the protocol to update the vault
+    }
+
+    /**
+     * @notice Mints additional fractions to be sold in the partial auction to fill the custodian vault.
+     *
+     * Reverts if:
+     * - The caller is not the fermion protocol
+     *
+     * N.B. The protocol is trusted to mint the correct number of fractions
+     *
+     * @param _amount The number of fractions to mint
+     */
+    function mintAdditionalFractions(uint256 _amount) external {
+        if (msg.sender != fermionProtocol) {
+            revert AccessDenied(msg.sender);
+        }
+
+        _mintFractions(fermionProtocol, _amount);
     }
 
     /**
@@ -476,6 +496,21 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @dev See {IERC20-transfer}.
+     *
+     * Requirements:
+     *
+     * - `to` cannot be the zero address.
+     * - the caller must have a balance of at least `value`.
+     */
+    function transfer(
+        address to,
+        uint256 value
+    ) public virtual override(FermionFractionsERC20Base, IFermionFractions) returns (bool) {
+        return FermionFractionsERC20Base.transfer(to, value);
+    }
+
+    /**
      * @notice Returns the liquid number of fractions. Represents fractions of F-NFTs that are fractionalised
      */
     function liquidSupply() public view virtual returns (uint256) {
@@ -549,6 +584,13 @@ abstract contract FermionFractions is
      */
     function getIndividualLockedVotes(uint256 _tokenId, address _voter) external view returns (uint256 lockedVotes) {
         return getLastAuction(_tokenId, _getBuyoutAuctionStorage()).votes.individual[_voter];
+    }
+
+    function getFractionInfo() external view returns (uint256 exitPrice, uint256 nftCount, uint256 totalSupply) {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        exitPrice = $.auctionParameters.exitPrice;
+        nftCount = $.nftCount;
+        totalSupply = _getERC20Storage()._totalSupply;
     }
 
     /**

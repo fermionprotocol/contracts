@@ -53,6 +53,8 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
+        setupCustodianVault(_tokenId, offer.custodianFee);
+
         emit CheckedIn(custodianId, _tokenId);
     }
 
@@ -86,6 +88,8 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
             FermionTypes.EntityRole.Custodian,
             FermionTypes.WalletRole.Assistant
         );
+
+        closeCustodianVault(_tokenId, custodianId, offer.exchangeToken);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
@@ -243,5 +247,36 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
             revert InvalidCheckoutRequestStatus(_tokenId, _expectedStatus, checkoutRequest.status);
 
         return checkoutRequest;
+    }
+
+    /**
+     * @notice Creates a custodian vault for a tokenId
+     * The amount for first period is encumbered (it is available in the protocol since the verification time).
+     *
+     * @param _tokenId - the token ID
+     * @param _custodianFee - the custodian fee details (amount and period)
+     */
+    function setupCustodianVault(uint256 _tokenId, FermionTypes.CustodianFee storage _custodianFee) internal {
+        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenId];
+
+        vault.amount = _custodianFee.amount;
+        vault.period = block.timestamp + _custodianFee.period; // end of next period
+    }
+
+    /**
+     * @notice Closes the custodian vault for a tokenId and releses the amount to the custodian
+     *
+     * Emits an AvailableFundsIncreased event if successful.
+     *
+     * @param _tokenId - the token ID
+     * @param _custodianId - the custodian ID
+     * @param _exchangeToken - the exchange token
+     */
+    function closeCustodianVault(uint256 _tokenId, uint256 _custodianId, address _exchangeToken) internal {
+        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenId];
+
+        FundsLib.increaseAvailableFunds(_custodianId, _exchangeToken, vault.amount);
+
+        vault.period = 0;
     }
 }

@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
-
+import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
@@ -117,6 +117,13 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
 
     function balanceOfERC721(address owner) public view virtual returns (uint256) {
         return ERC721.balanceOf(owner);
+    }
+
+    function transfer(
+        address to,
+        uint256 value
+    ) public virtual override(IFermionFractions, FermionFractions) returns (bool) {
+        return FermionFractions.transfer(to, value);
     }
 
     function transferFrom(address from, address to, uint256 tokenIdOrValue) public virtual override(IERC721, ERC721) {
