@@ -44,19 +44,19 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      *
      * Reverts if:
      * - Offer region is paused
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - Invalid verifier or custodian ID is provided
      *
      * @param _offer Offer to list
      */
     function createOffer(FermionTypes.Offer calldata _offer) external notPaused(FermionTypes.PausableRegion.Offer) {
-        // Caller must be the seller's assistant
-        EntityLib.validateWalletRole(
-            _offer.sellerId,
-            msgSender(),
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        if (
+            _offer.sellerId != _offer.facilitatorId &&
+            !FermionStorage.protocolLookups().isSellersFacilitator[_offer.sellerId][_offer.facilitatorId]
+        ) {
+            revert FermionErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
+        }
+        EntityLib.validateSellerAssistantOrFacilitator(_offer.sellerId, _offer.facilitatorId);
 
         // Validate verifier and custodian IDs
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
@@ -70,6 +70,11 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
             pe.entityData[_offer.custodianId].roles,
             FermionTypes.EntityRole.Custodian
         );
+
+        // Fermion offer parameter validation
+        if (_offer.facilitatorFeePercent > HUNDRED_PERCENT) {
+            revert FermionErrors.InvalidPercentage(_offer.facilitatorFeePercent);
+        }
 
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
@@ -107,7 +112,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         );
 
         // Store fermion offer properties
-        FermionStorage.protocolEntities().offer[bosonOfferId] = _offer;
+        pe.offer[bosonOfferId] = _offer;
 
         emit OfferCreated(_offer.sellerId, _offer.verifierId, _offer.custodianId, _offer, bosonOfferId);
     }
@@ -121,7 +126,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      *
      * Reverts if:
      * - Offer region is paused
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      *
      * @param _offerId - the offer ID
      * @param _quantity - the number of NFTs to mint
@@ -141,7 +146,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      *
      * Reverts if:
      * - Offer region is paused
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - If seller deposit is non zero and there are not enough funds to cover it
      * - The caller does not provide the verification fee
      *
@@ -159,7 +164,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      * @notice Unwraps F-NFT, uses seaport to sell the NFT
      * Reverts if:
      * - Offer region is paused
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - If seller deposit is non zero and there are not enough funds to cover it
      * - The price is not high enough to cover the verification fee
      *
@@ -171,12 +176,12 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
     }
 
     /**
-     * @notice Unwraps F-NFT, uses seaport to sell the NFT
+     * @notice Unwraps F-NFT
      *
      * Emits VerificationInitiated event
      *
      * Reverts if:
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - If seller deposit is non zero and there are not enough funds to cover it
      * - It is self sale and the caller does not provide the verification fee
      * - It is a normal sale and the price is not high enough to cover the verification fee
@@ -191,18 +196,13 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         bool _selfSale
     ) internal notPaused(FermionTypes.PausableRegion.Offer) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-        address msgSender = msgSender();
 
-        // Check the caller is the seller's assistant
-        EntityLib.validateWalletRole(
-            offer.sellerId,
-            msgSender,
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        // Check the caller is the the seller's assistant
+        uint256 sellerId = offer.sellerId;
+        EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
 
         address exchangeToken = offer.exchangeToken;
-        handleBosonSellerDeposit(offer.sellerId, exchangeToken, offer.sellerDeposit);
+        handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address wrapperAddress = pl.wrapperAddress[offerId];
@@ -391,7 +391,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
      * Emits an NFTsMinted event
      *
      * Reverts if:
-     * - Caller is not the seller's assistant
+     * - Caller is not the seller's assistant or facilitator
      * - Not enough funds are sent to cover the seller deposit
      * - Deposit is in ERC20 and the caller sends native currency
      * - ERC20 token transfer fails
@@ -407,15 +407,9 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
             revert InvalidQuantity(_quantity);
         }
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-        address msgSender = msgSender();
 
-        // Check the caller is the seller's assistant
-        EntityLib.validateWalletRole(
-            offer.sellerId,
-            msgSender,
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant
-        );
+        // Check the caller is the the seller's assistant or facilitator
+        EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
 
         uint256 nextExchangeId = BOSON_PROTOCOL.getNextExchangeId();
         startingNFTId = nextExchangeId | (_offerId << 128);

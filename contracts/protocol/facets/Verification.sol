@@ -54,26 +54,35 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address exchangeToken = offer.exchangeToken;
-        uint256 totalAmount = offer.sellerDeposit + pl.offerPrice[offerId];
+        uint256 sellerDeposit = offer.sellerDeposit;
+        uint256 offerPrice = pl.offerPrice[offerId];
 
         {
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
             address[] memory tokenList = new address[](1);
             uint256[] memory amountList = new uint256[](1);
             tokenList[0] = exchangeToken;
-            amountList[0] = totalAmount;
+            amountList[0] = offerPrice + sellerDeposit;
             BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
         }
 
-        // pay the verifier
-        uint256 verifierFee = offer.verifierFee;
-        FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
+        uint256 remainder;
+        unchecked {
+            // pay the verifier
+            uint256 verifierFee = offer.verifierFee;
+            FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
+            remainder = offerPrice - verifierFee; // guaranteed to be positive
 
-        // fermion fee
-        uint256 fermionFee = 0; //ToDo
-        FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFee); // Protocol fees are stored in entity 0
+            // fermion fee
+            uint256 fermionFeeAmount = FundsLib.applyPercentage(remainder, 0); //ToDo
+            FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
+            remainder -= fermionFeeAmount;
 
-        uint256 remainder = totalAmount - verifierFee - fermionFee;
+            // pay the facilitator
+            uint256 facilitatorFeeAmount = FundsLib.applyPercentage(remainder, offer.facilitatorFeePercent);
+            FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
+            remainder = remainder - facilitatorFeeAmount + sellerDeposit;
+        }
 
         if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
             // transfer the remainder to the seller
