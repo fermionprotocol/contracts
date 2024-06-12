@@ -94,6 +94,17 @@ abstract contract FermionFractions is
             revert InvalidFractionsAmount(_fractionsAmount, MIN_FRACTIONS, MAX_FRACTIONS);
         }
 
+        if (
+            _custodianVaultParameters.newFractionsPerAuction < MIN_FRACTIONS ||
+            _custodianVaultParameters.newFractionsPerAuction > MAX_FRACTIONS
+        ) {
+            revert InvalidFractionsAmount(
+                _custodianVaultParameters.newFractionsPerAuction,
+                MIN_FRACTIONS,
+                MAX_FRACTIONS
+            );
+        }
+
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 
         // set the default values if not provided

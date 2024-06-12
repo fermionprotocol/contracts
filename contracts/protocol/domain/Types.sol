@@ -108,12 +108,10 @@ contract FermionTypes {
     }
 
     struct FractionAuction {
-        uint256 lastPrice;
         uint256 endTime;
         uint256 availableFractions;
         uint256 maxBid;
         uint256 bidderId;
-        uint256 targetPrice;
     }
 
     // Fermion F-NFT, buyout auction

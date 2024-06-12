@@ -14,8 +14,4 @@ interface IFundsEvents {
         address indexed tokenAddress,
         uint256 amount
     );
-    event AuctionStarted(uint256 indexed tokenId, uint256 offeredFractions, uint256 targetPrice, uint256 auctionEnd);
-    event BidPlaced(uint256 indexed tokenId, address indexed bidder, uint256 bidderId, uint256 amount);
-    event AuctionFinished(uint256 indexed tokenId, address indexed winner, uint256 soldFractions, uint256 winningBid);
-    event VaultAmountUpdated(uint256 indexed tokenId, uint256 amount);
 }

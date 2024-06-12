@@ -56,8 +56,11 @@ interface FermionErrors {
     error NothingToWithdraw();
     error TokenTransferFailed(address to, uint256 amount, bytes errorMessage);
     error InsufficientAvailableFunds(uint256 availableFunds, uint256 requestedFunds);
+
+    // Custodian vault
     error InactiveVault(uint256 tokenId);
     error PeriodNotOver(uint256 tokenId, uint256 periodEnd);
+    error InvalidThresholds();
 
     // Pause handler
     error NotPaused();
