@@ -423,7 +423,7 @@ abstract contract FermionFractions is
     /**
      * @notice Claim the auction proceeds of all finalized auctions.
      * This withdraws only the proceeds of already finalized auctions.
-     * To finalize an auction, one must call either `redeem`, `finalizeAndClaim` or `finalizeAuction` or `claimWithLockedFractions`.
+     * To finalize an auction, one must call either `redeem`, `finalizeAndClaim` or `claimWithLockedFractions`.
      *
      * Emits a Claimed event if successful.
      *
@@ -496,8 +496,6 @@ abstract contract FermionFractions is
      * @return auction The auction details
      */
     function getAuctionDetails(uint256 _tokenId) external view returns (FermionTypes.AuctionDetails memory) {
-        // ToDO add index
-
         return getLastAuction(_tokenId, _getBuyoutAuctionStorage()).details;
     }
 
