@@ -4,7 +4,6 @@ pragma solidity 0.8.24;
 import { FermionTypes } from "../domain/Types.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
 import { OwnableUpgradeable as Ownable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -63,6 +62,8 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
     /**
      * @notice Prepares data to finalize the auction using Seaport
      *
+     * It ASSUMES that the buyer order mathes the buyer order from OpenSea. If this changes, the contract must be updated.
+     *
      * @param _tokenId The token id.
      * @param _buyerOrder The Seaport buyer order.
      */
@@ -73,14 +74,13 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
         address wrappedVoucherOwner = _ownerOf(_tokenId); // tokenId can be taken from buyer order
 
         uint256 _price = _buyerOrder.parameters.offer[0].startAmount;
-        uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount; // toDo: make check that this is the fee
+        uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount;
         reducedPrice = _price - _openSeaFee;
 
         exchangeToken = _buyerOrder.parameters.offer[0].token;
 
         // prepare match advanced order. Can this be optimized with some simpler order?
         // caller must supply buyers signed order (_buyerOrder)
-        // ToDo: verify that buyerOrder matches the expected format
         SeaportTypes.OfferItem[] memory offer = new SeaportTypes.OfferItem[](1);
         offer[0] = SeaportTypes.OfferItem({
             itemType: SeaportTypes.ItemType.ERC721,
@@ -97,19 +97,19 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
             identifierOrCriteria: 0,
             startAmount: reducedPrice,
             endAmount: reducedPrice,
-            recipient: payable(BP_PRICE_DISCOVERY) // can this be BP_PRICE_DISCOVERY? (reduce one transfer)
+            recipient: payable(BP_PRICE_DISCOVERY)
         });
 
         SeaportTypes.AdvancedOrder memory wrapperOrder = SeaportTypes.AdvancedOrder({
             parameters: SeaportTypes.OrderParameters({
                 offerer: address(this),
-                zone: address(0), // ToDo: is 0 ok, or do we need _buyerOrder.parameters.zone, or sth buyer can't influence
+                zone: address(0),
                 offer: offer,
                 consideration: consideration,
                 orderType: SeaportTypes.OrderType.FULL_OPEN,
                 startTime: _buyerOrder.parameters.startTime,
                 endTime: _buyerOrder.parameters.endTime,
-                zoneHash: bytes32(0), // ToDo: is 0 ok, or do we need, or do we need _buyerOrder.parameters.zoneHash, or sth buyer can't influence
+                zoneHash: bytes32(0),
                 salt: 0,
                 conduitKey: OS_CONDUIT_KEY,
                 totalOriginalConsiderationItems: 1

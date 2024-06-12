@@ -12,17 +12,6 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  */
 interface IFermionWrapper is IERC721 {
     /**
-     * @notice Initializes the contract
-     *
-     * Reverts if:
-     * - Contract is already initialized
-     *
-     * @param _voucherAddress The address of the Boson Voucher contract
-     * @param _owner The address of the owner
-     * @param _exchangeToken The address of the exchange token
-     */
-    function initialize(address _voucherAddress, address _owner, address _exchangeToken) external;
-    /**
      * @notice Wraps the vouchers, transfer true vouchers to this contract and mint wrapped vouchers
      *
      * Reverts if:
@@ -48,28 +37,4 @@ interface IFermionWrapper is IERC721 {
      * @param _tokenId The token id.
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external;
-
-    /**
-     * @notice Burns the token and returns the voucher owner
-     *
-     * Reverts if:
-     * - Caller is not the Fermion Protocol
-     * - Token is not in the Unverified state
-     *
-     * @param _tokenId The token id.
-     */
-    function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner);
-
-    /**
-     * @notice Pushes the F-NFT from unverified to verified
-     *
-     * Reverts if:
-     * - Caller is not the Fermion Protocol
-     * - The new token state is not consecutive to the current state
-     *
-     * N.B. Not checking if the new state is valid, since the caller is the Fermion Protocol, which is trusted
-     *
-     * @param _tokenId The token id.
-     */
-    function pushToNextTokenState(uint256 _tokenId, FermionTypes.TokenState _newState) external;
 }

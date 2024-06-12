@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import { FermionTypes } from "../domain/Types.sol";
 import { Common } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
+import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -18,7 +19,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-contract FermionWrapper is SeaportWrapper {
+contract FermionWrapper is SeaportWrapper, IFermionWrapper {
     using SafeERC20 for IERC20;
 
     /**
@@ -65,12 +66,13 @@ contract FermionWrapper is SeaportWrapper {
     function unwrap(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
         unwrap(_tokenId);
 
-        (uint256 price, address _exchangeToken) = finalizeAuction(_tokenId, _buyerOrder);
+        (, address _exchangeToken) = finalizeAuction(_tokenId, _buyerOrder);
 
         // Transfer token to protocol
-        if (price > 0) {
-            IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
-        }
+        // N.B. currently price is always 0. This is a placeholder for future use, when other PD mechanisms will be supported
+        // if (price > 0) {
+        //     IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
+        // }
 
         Common._getFermionCommonStorage().exchangeToken = _exchangeToken;
     }
@@ -127,7 +129,7 @@ contract FermionWrapper is SeaportWrapper {
             return (0, address(0));
         }
 
-        return finalizeOpenSeaAuction(_tokenId, _buyerOrder); // make delegatcall instead
+        return finalizeOpenSeaAuction(_tokenId, _buyerOrder);
     }
 
     /**

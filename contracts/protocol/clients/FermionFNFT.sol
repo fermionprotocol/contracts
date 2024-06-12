@@ -3,19 +3,22 @@ pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { Common } from "./Common.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 /**
  * @title Fermion F-NFT contract
  * @notice Wrapping, unwrapping, fractionalisation, buyout auction and claiming of Boson Vouchers
  *
  */
-contract FermionFNFT is FermionFractions, FermionWrapper {
+contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
     address private immutable THIS_CONTRACT = address(this);
 
     constructor(
@@ -51,7 +54,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper {
      * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
      * to learn more about how these ids are created.
      */
-    function supportsInterface(bytes4 _interfaceId) public view virtual override returns (bool) {
+    function supportsInterface(bytes4 _interfaceId) public view virtual override(ERC721, IERC165) returns (bool) {
         return super.supportsInterface(_interfaceId) || _interfaceId == type(IFermionWrapper).interfaceId;
     }
 
@@ -103,7 +106,9 @@ contract FermionFNFT is FermionFractions, FermionWrapper {
     }
 
     ///////// overrrides ///////////
-    function balanceOf(address owner) public view virtual override(ERC721, FermionFractions) returns (uint256) {
+    function balanceOf(
+        address owner
+    ) public view virtual override(IERC721, ERC721, FermionFractions) returns (uint256) {
         return FermionFractions.balanceOf(owner);
     }
 
@@ -111,24 +116,24 @@ contract FermionFNFT is FermionFractions, FermionWrapper {
         return ERC721.balanceOf(owner);
     }
 
-    function transferFrom(address from, address to, uint256 tokenIdOrValue) public virtual override(ERC721) {
+    function transferFrom(address from, address to, uint256 tokenIdOrValue) public virtual override(IERC721, ERC721) {
         if (tokenIdOrValue > type(uint128).max) {
             ERC721.transferFrom(from, to, tokenIdOrValue);
         } else {
             bool success = transferFractionsFrom(from, to, tokenIdOrValue);
             assembly {
-                return(mload(success), 32)
+                return(success, 32)
             }
         }
     }
 
-    function approve(address to, uint256 tokenIdOrBalance) public virtual override(ERC721) {
+    function approve(address to, uint256 tokenIdOrBalance) public virtual override(IERC721, ERC721) {
         if (tokenIdOrBalance > type(uint128).max) {
             ERC721.approve(to, tokenIdOrBalance);
         } else {
             bool success = approveFractions(to, tokenIdOrBalance);
             assembly {
-                return(mload(success), 32)
+                return(success, 32)
             }
         }
     }

@@ -1,0 +1,48 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+pragma solidity 0.8.24;
+
+import { FermionTypes } from "../domain/Types.sol";
+import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+
+/**
+ * @title FermionWrapper interface
+ *
+ * A set of methods to interact with the FermionWrapper contract.
+ */
+interface IFermionFNFT is IFermionWrapper {
+    /**
+     * @notice Initializes the contract
+     *
+     * Reverts if:
+     * - Contract is already initialized
+     *
+     * @param _voucherAddress The address of the Boson Voucher contract
+     * @param _owner The address of the owner
+     * @param _exchangeToken The address of the exchange token
+     */
+    function initialize(address _voucherAddress, address _owner, address _exchangeToken) external;
+
+    /**
+     * @notice Burns the token and returns the voucher owner
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     * - Token is not in the Unverified state
+     *
+     * @param _tokenId The token id.
+     */
+    function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner);
+
+    /**
+     * @notice Pushes the F-NFT from unverified to verified
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     * - The new token state is not consecutive to the current state
+     *
+     * N.B. Not checking if the new state is valid, since the caller is the Fermion Protocol, which is trusted
+     *
+     * @param _tokenId The token id.
+     */
+    function pushToNextTokenState(uint256 _tokenId, FermionTypes.TokenState _newState) external;
+}
