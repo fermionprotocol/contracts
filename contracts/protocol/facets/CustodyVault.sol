@@ -97,8 +97,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         {
             FermionTypes.CustodianFee storage custodianFee = offer.custodianFee;
             uint256 vaultBalance = offerVault.amount;
-            uint256 nftCount = pl.custodianVaultItems[offerId];
-            uint256 itemBalance = vaultBalance / nftCount;
+            uint256 itemCount = pl.custodianVaultItems[offerId];
+            uint256 itemBalance = vaultBalance / itemCount;
             uint256 lastReleased = offerVault.period;
 
             uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee.amount) / custodianFee.period;
@@ -114,7 +114,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                 offerVault.amount -= itemBalance;
             }
 
-            if (nftCount == 1) {
+            if (itemCount == 1) {
                 // closing the offer vault
                 offerVault.period = 0;
             }
@@ -192,40 +192,48 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         notPaused(FermionTypes.PausableRegion.CustodyVault)
         returns (uint256 amountToRelease, address exchangeToken)
     {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         bool isOfferVault = _tokenOrOfferId < (1 << 128);
         FermionTypes.Offer storage offer;
         uint256 offerId;
-        if (isOfferVault) {
-            offer = FermionStorage.protocolEntities().offer[_tokenOrOfferId];
-            offerId = _tokenOrOfferId;
-        } else {
-            (offerId, offer) = FermionStorage.getOfferFromTokenId(_tokenOrOfferId);
-        }
-
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionTypes.CustodianFee storage vault = pl.vault[_tokenOrOfferId];
-        FermionTypes.CustodianFee memory custodianFee = offer.custodianFee;
-
         uint256 numberOfPeriods;
-        {
-            uint256 lastReleased = vault.period;
-            if (lastReleased == 0) revert InactiveVault(_tokenOrOfferId);
-
-            if (block.timestamp < lastReleased + custodianFee.period)
-                revert PeriodNotOver(_tokenOrOfferId, lastReleased + custodianFee.period);
-
-            numberOfPeriods = (block.timestamp - lastReleased) / custodianFee.period;
-            amountToRelease = custodianFee.amount * numberOfPeriods;
-        }
-
+        FermionTypes.CustodianFee storage vault;
+        FermionTypes.CustodianFee memory custodianFee;
         uint256 coveredPeriods;
-        uint256 vaultAmount = vault.amount;
-        if (vaultAmount < amountToRelease) {
-            // release the maximum possible. The vault amount should fall below the threshold and auction should be started
-            coveredPeriods = vaultAmount / custodianFee.amount;
-            amountToRelease = coveredPeriods * custodianFee.amount;
-        } else {
-            coveredPeriods = numberOfPeriods;
+        
+        {
+            uint256 itemCount;
+            if (isOfferVault) {
+                offer = FermionStorage.protocolEntities().offer[_tokenOrOfferId];
+                offerId = _tokenOrOfferId;
+                itemCount = pl.custodianVaultItems[offerId];
+            } else {
+                (offerId, offer) = FermionStorage.getOfferFromTokenId(_tokenOrOfferId);
+                itemCount = 1;
+            }
+
+            vault = pl.vault[_tokenOrOfferId];
+            custodianFee = offer.custodianFee;
+
+            {
+                uint256 lastReleased = vault.period;
+                if (lastReleased == 0) revert InactiveVault(_tokenOrOfferId);
+
+                if (block.timestamp < lastReleased + custodianFee.period)
+                    revert PeriodNotOver(_tokenOrOfferId, lastReleased + custodianFee.period);
+
+                numberOfPeriods = (block.timestamp - lastReleased) / custodianFee.period;
+                amountToRelease = custodianFee.amount * numberOfPeriods * itemCount;
+            }
+            
+            uint256 vaultAmount = vault.amount;
+            if (vaultAmount < amountToRelease) {
+                // release the maximum possible. The vault amount should fall below the threshold and auction should be started
+                coveredPeriods = vaultAmount / (itemCount * custodianFee.amount);
+                amountToRelease = coveredPeriods * custodianFee.amount*itemCount;
+            } else {
+                coveredPeriods = numberOfPeriods;
+            }
         }
 
         vault.period += coveredPeriods * custodianFee.period;
@@ -233,11 +241,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         exchangeToken = offer.exchangeToken;
 
-        console.log("before releasing");
-        console.log("amount", amountToRelease);
         FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, amountToRelease);
 
-        console.log("after releasing");
         if (
             coveredPeriods < numberOfPeriods ||
             (isOfferVault &&
