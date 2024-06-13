@@ -4,6 +4,7 @@ import {
   deployMockTokens,
   deriveTokenId,
   verifySellerAssistantRoleClosure,
+  setNextBlockTimestamp,
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
@@ -30,7 +31,7 @@ describe("CustodyVault", function () {
     fundsFacet: Contract,
     pauseFacet: Contract,
     custodyVaultFacet: Contract;
-  let mockToken: Contract;
+  let mockToken: Contract, mockTokenAddress: string;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
   let wallets: HardhatEthersSigner[];
@@ -76,6 +77,7 @@ describe("CustodyVault", function () {
     [mockToken] = await deployMockTokens(["ERC20"]);
     mockToken = mockToken.connect(defaultSigner);
     await mockToken.mint(defaultSigner.address, parseEther("1000"));
+    mockTokenAddress = await mockToken.getAddress();
 
     await offerFacet.addSupportedToken(await mockToken.getAddress());
 
@@ -103,7 +105,7 @@ describe("CustodyVault", function () {
     await offerFacet.createOffer({ ...fermionOffer, verifierId: "1", custodianId: "1", verifierFee: "0" });
 
     // Mint and wrap some NFTs
-    const quantity = "10";
+    const quantity = "1";
     await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity); // offerId = 2; exchangeId = 1
     await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
     await offerFacet.mintAndWrapNFTs(offerIdSelfCustody, "2"); // offerId = 3; exchangeId = 3
@@ -306,6 +308,158 @@ describe("CustodyVault", function () {
         await expect(
           custodyVaultFacet.topUpCustodianVault(exchange.tokenId, topUpAmount, { value: topUpAmount }),
         ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+      });
+    });
+  });
+
+  context.only("Single F-NFT owner (non-fractionalized)", function () {
+    context("releaseFundsFromVault", function () {
+      const topUpAmount = custodianFee.amount * 5n; // pre pay for 5 periods
+      let vaultCreationTimestamp: bigint;
+
+      beforeEach(async function () {
+        const tx = await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        vaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
+
+        await mockToken.approve(fermionProtocolAddress, topUpAmount);
+        await custodyVaultFacet.topUpCustodianVault(exchange.tokenId, topUpAmount);
+      });
+
+      it("After the period is over, the funds can be released to custodian", async function () {
+        await setNextBlockTimestamp(String(vaultCreationTimestamp + custodianFee.period + 100n));
+
+        const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+        const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
+        const tx = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+
+        await expect(tx)
+          .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
+          .withArgs(exchange.tokenId, topUpAmount - custodianFee.amount);
+        await expect(tx)
+          .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+          .withArgs(custodianId, mockTokenAddress, custodianFee.amount);
+
+        const expectedCustodianVault = {
+          amount: topUpAmount - custodianFee.amount,
+          period: vaultCreationTimestamp + custodianFee.period,
+        };
+
+        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(
+          Object.values(expectedCustodianVault),
+        );
+        expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance); // releasing should not change protocol balance
+        expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+          custodianAvailableFunds + custodianFee.amount,
+        );
+
+        // Wait another period to release the funds again
+        await setNextBlockTimestamp(String(vaultCreationTimestamp + 2n * custodianFee.period + 150n));
+
+        const tx2 = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+
+        await expect(tx2)
+          .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
+          .withArgs(exchange.tokenId, topUpAmount - 2n * custodianFee.amount);
+        await expect(tx2)
+          .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+          .withArgs(custodianId, mockTokenAddress, custodianFee.amount);
+
+        const expectedCustodianVault2 = {
+          amount: topUpAmount - 2n * custodianFee.amount,
+          period: vaultCreationTimestamp + 2n * custodianFee.period,
+        };
+
+        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(
+          Object.values(expectedCustodianVault2),
+        );
+        expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance); // releasing should not change protocol balance
+        expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+          custodianAvailableFunds + 2n * custodianFee.amount,
+        );
+      });
+
+      it("Payout for multiple periods in bulk", async function () {
+        const payoutPeriods = 3n;
+        await setNextBlockTimestamp(String(vaultCreationTimestamp + payoutPeriods * custodianFee.period + 200n));
+
+        const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+        const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
+        const tx = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+
+        await expect(tx)
+          .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
+          .withArgs(exchange.tokenId, topUpAmount - payoutPeriods * custodianFee.amount);
+        await expect(tx)
+          .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+          .withArgs(custodianId, mockTokenAddress, payoutPeriods * custodianFee.amount);
+
+        const expectedCustodianVault = {
+          amount: topUpAmount - payoutPeriods * custodianFee.amount,
+          period: vaultCreationTimestamp + payoutPeriods * custodianFee.period,
+        };
+
+        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(
+          Object.values(expectedCustodianVault),
+        );
+        expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance); // releasing should not change protocol balance
+        expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+          custodianAvailableFunds + payoutPeriods * custodianFee.amount,
+        );
+      });
+
+      context("Insufficient balance start partial auction", function () {});
+
+      context("Revert reasons", function () {
+        it("Custody region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.CustodyVault]);
+
+          await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.CustodyVault);
+        });
+
+        it("Vault does not exist/is inactive", async function () {
+          // existing token id but not checked in
+          await expect(custodyVaultFacet.releaseFundsFromVault(exchangeSelfSale.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
+            .withArgs(exchangeSelfSale.tokenId);
+
+          // invalid token id
+          await expect(custodyVaultFacet.releaseFundsFromVault(0n))
+            .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
+            .withArgs(0n);
+
+          await expect(custodyVaultFacet.releaseFundsFromVault(1000n))
+            .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
+            .withArgs(1000n);
+        });
+
+        it("Period not over yer", async function () {
+          await setNextBlockTimestamp(String(vaultCreationTimestamp + custodianFee.period - 1n));
+
+          await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "PeriodNotOver")
+            .withArgs(exchange.tokenId, vaultCreationTimestamp + custodianFee.period);
+
+          await setNextBlockTimestamp(String(vaultCreationTimestamp + custodianFee.period + 1n));
+          await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+
+          await setNextBlockTimestamp(String(vaultCreationTimestamp + 2n * custodianFee.period - 1n));
+
+          await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "PeriodNotOver")
+            .withArgs(exchange.tokenId, vaultCreationTimestamp + 2n * custodianFee.period);
+
+          await setNextBlockTimestamp(String(vaultCreationTimestamp + 4n * custodianFee.period + 1n));
+          await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+
+          await setNextBlockTimestamp(String(vaultCreationTimestamp + 5n * custodianFee.period - 1n));
+          await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
+            .to.be.revertedWithCustomError(fermionErrors, "PeriodNotOver")
+            .withArgs(exchange.tokenId, vaultCreationTimestamp + 5n * custodianFee.period);
+        });
       });
     });
   });

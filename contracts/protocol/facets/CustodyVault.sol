@@ -260,6 +260,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         ) {
             startFractionalAuction(offerId, _tokenOrOfferId, isOfferVault, custodianFee);
         }
+
+        emit VaultBalanceUpdated(_tokenOrOfferId, vault.amount);
     }
 
     /**
