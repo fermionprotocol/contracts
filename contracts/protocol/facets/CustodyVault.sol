@@ -199,7 +199,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         FermionTypes.CustodianFee storage vault;
         FermionTypes.CustodianFee memory custodianFee;
         uint256 coveredPeriods;
-        
+
         {
             uint256 itemCount;
             if (isOfferVault) {
@@ -224,12 +224,12 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                 numberOfPeriods = (block.timestamp - lastReleased) / custodianFee.period;
                 amountToRelease = custodianFee.amount * numberOfPeriods * itemCount;
             }
-            
+
             uint256 vaultAmount = vault.amount;
             if (vaultAmount < amountToRelease) {
                 // release the maximum possible. The vault amount should fall below the threshold and auction should be started
                 coveredPeriods = vaultAmount / (itemCount * custodianFee.amount);
-                amountToRelease = coveredPeriods * custodianFee.amount*itemCount;
+                amountToRelease = coveredPeriods * custodianFee.amount * itemCount;
             } else {
                 coveredPeriods = numberOfPeriods;
             }
@@ -255,50 +255,6 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
     }
 
     /**
-     * @notice Releases the funds from the vault and withdraw it to custodian.
-     * If the vault amount falls below the custodian fee for a single period, a fractional auction is started.
-     *
-     * Emits VaultBalanceUpdated, AvailableFundsIncreased and FundsWithdrawn events if successful.
-     *
-     * Reverts if:
-     * - Custody region is paused
-     * - Funds region is paused
-     * - Vault is not active
-     * - Payment period is not over
-     * - Caller is not the custodian
-     * - Treasury wallet is not associated with the entity id
-     * - There is nothing to withdraw
-     * - Transfer of funds is not successful
-     *
-     * @param _tokenOrOfferId - token ID associated with the vault
-     */
-    function releaseFundsFromVaultAndWithdraw(
-        uint256 _custodianId,
-        address payable _treasury,
-        uint256 _tokenOrOfferId
-    ) external {
-        (uint256 amountToRelease, address exchangeToken) = releaseFundsFromVault(_tokenOrOfferId);
-        // ToDo: consider checking if the vault belongs to the custodian (not a security issue, just to prevent mistakes)
-
-        address[] memory tokenList = new address[](1);
-        uint256[] memory amountList = new uint256[](1);
-        tokenList[0] = exchangeToken;
-        amountList[0] = amountToRelease;
-
-        // FundsLib.withdrawFunds(_custodianId, _treasury, tokenList, amountList);
-        LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
-        // bytes4 functionSelector = bytes4(keccak256("myFunction(uint256)"));
-        // bytes4 functionSelector = FundsFacet.withdrawFunds.selector;
-        // get facet address of function
-        address facet = ds.facetAddressAndSelectorPosition[FundsFacet.withdrawFunds.selector].facetAddress;
-        bytes memory myFunctionCall = abi.encodeCall(
-            FundsFacet.withdrawFunds,
-            (_custodianId, _treasury, tokenList, amountList)
-        );
-        (bool success, bytes memory result) = address(facet).delegatecall(myFunctionCall);
-    }
-
-    /**
      * @notice Places a bid in the fractional auction.
      * If the bid is successful, the funds are locked in the protocol until the auction ends or the bid is outbid.
      * When a bid is outbid, the funds are released to the previous bidder. They need to withdraw them by calling `withdrawFunds`.
@@ -314,7 +270,10 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * @param _offerId - token ID associated with the vault
      * @param _bidAmount - amount to bid
      */
-    function bid(uint256 _offerId, uint256 _bidAmount) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
+    function bid(
+        uint256 _offerId,
+        uint256 _bidAmount
+    ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
@@ -334,7 +293,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         // release funds to the previous bidder
         FundsLib.increaseAvailableFunds(fractionAuction.bidderId, exchangeToken, previousBid);
-        
+
         address msgSender = msgSender();
         uint256 bidderId = EntityLib.getOrCreateBuyerId(msgSender, pl);
 
@@ -473,7 +432,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      *
      * @param _tokenOrOfferId - the offer ID associated with the vault
      * @return vault - the custodian vault details
-    * @return items - the number of items in the vault
+     * @return items - the number of items in the vault
      */
     function getCustodianVault(
         uint256 _tokenOrOfferId

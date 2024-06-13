@@ -3,22 +3,14 @@ import {
   applyPercentage,
   deployFermionProtocolFixture,
   deployMockTokens,
-  deriveTokenId,
   verifySellerAssistantRoleClosure,
   setNextBlockTimestamp,
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroAddress, ZeroHash } from "ethers";
+import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import {
-  EntityRole,
-  CheckoutRequestStatus,
-  PausableRegion,
-  TokenState,
-  VerificationStatus,
-  WalletRole,
-} from "../utils/enums";
+import { EntityRole, PausableRegion, VerificationStatus } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import {
@@ -26,14 +18,11 @@ import {
   MINIMAL_BID_INCREMENT,
   DEFAULT_FRACTION_AMOUNT,
   PARTIAL_THRESHOLD_MULTIPLIER,
-  LIQUIDATION_THRESHOLD_MULTIPLIER,
   PARTIAL_AUCTION_DURATION_DIVISOR,
   AUCTION_DURATION,
   UNLOCK_THRESHOLD,
   TOP_BID_LOCK_TIME,
 } from "../utils/constants";
-import { mock } from "node:test";
-import { time } from "console";
 
 const { parseEther } = ethers;
 
@@ -55,7 +44,7 @@ describe("CustodyVault", function () {
   let buyer: HardhatEthersSigner;
   let bidder: HardhatEthersSigner;
   let seaportAddress: string;
-  let wrapper: Contract, wrapperSelfSale: Contract, wrapperSelfCustody: Contract;
+  let wrapper: Contract;
   const offerId = "1";
   const sellerId = "1";
   const verifierId = "2";
@@ -69,7 +58,6 @@ describe("CustodyVault", function () {
     period: 30n * 24n * 60n * 60n, // 30 days
   };
   const exchange = { tokenId: "", custodianId: "", price: 0n };
-  let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
 
   async function setupCustodyTest() {
     // Create three entities
@@ -1636,7 +1624,6 @@ describe("CustodyVault", function () {
 
       context("topUpCustodianVault", function () {
         const topUpAmount = parseEther("0.01");
-        const itemCount = 1n;
 
         it("Anyone can top-up the vault", async function () {
           const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
@@ -2641,9 +2628,12 @@ describe("CustodyVault", function () {
     });
   });
 
-  context.skip("checkOut", function () {
+  context("checkOut", function () {
     it("After checkout any vault is closed", async function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+      const vaultBalance = parseEther("1.23");
+      await mockToken.approve(fermionProtocolAddress, vaultBalance);
+      await custodyVaultFacet.topUpCustodianVault(exchange.tokenId, vaultBalance);
       await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
       await custodyFacet.clearCheckoutRequest(exchange.tokenId);
@@ -2651,19 +2641,24 @@ describe("CustodyVault", function () {
       const tx = await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 
       // Events
-      // Fermion
-      await expect(tx).to.emit(custodyFacet, "CheckedOut").withArgs(exchange.custodianId, exchange.tokenId);
-
-      // Wrapper
-      await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.CheckedOut);
-      await expect(tx).to.emit(wrapper, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, exchange.tokenId);
+      await expect(tx).to.emit(custodyFacet, "VaultBalanceUpdated").withArgs(exchange.tokenId, 0n);
+      await expect(tx)
+        .to.emit(fundsFacet, "AvailableFundsIncreased")
+        .withArgs(custodianId, mockTokenAddress, vaultBalance);
 
       // State
-      // Wrapper
-      expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.CheckedOut);
-      await expect(wrapper.ownerOf(exchange.tokenId))
-        .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
-        .withArgs(exchange.tokenId);
+      const expectedItemVault = {
+        amount: 0n,
+        period: 0n,
+      };
+      const itemCount = 0n;
+
+      expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+        Object.values(expectedItemVault),
+        itemCount,
+      ]);
+
+      expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(vaultBalance);
     });
   });
 });

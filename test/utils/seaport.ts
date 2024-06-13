@@ -39,7 +39,12 @@ export function createBuyerAdvancedOrderClosure(
   mockToken: Contract,
   offerFacet: Contract,
 ) {
-  return async function (buyer: HardhatEthersSigner, offerId: string, exchangeId: string | BigNumberish, collectionSalt = "") {
+  return async function (
+    buyer: HardhatEthersSigner,
+    offerId: string,
+    exchangeId: string | BigNumberish,
+    collectionSalt = "",
+  ) {
     const fullPrice = parseEther("1");
     const openSeaFee = (fullPrice * 2n) / 100n;
     const openSea = wallets[5]; // a mock OS address

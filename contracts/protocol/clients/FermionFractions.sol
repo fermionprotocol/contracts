@@ -648,7 +648,6 @@ abstract contract FermionFractions is
                 revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
 
             if (_msgSender() == fermionProtocol) {
-
                 // forceful fractionalisation
                 // not caching Common._getERC721Storage(), since protocol will fractionalize 1 by 1
                 Common._getERC721Storage()._tokenApprovals[tokenId] = fermionProtocol;
