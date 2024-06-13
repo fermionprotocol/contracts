@@ -106,8 +106,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                 // This happens if the vault balance fell below auction threshold and the forceful fractionalisation did not happen
                 // The custodian gets everything that's in the vault, but they missed the chance to get the custodian fee via fractionalisation
                 custodianPayoff = itemBalance;
-                FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
             }
+            FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
 
             unchecked {
                 released = itemBalance - custodianPayoff;
@@ -118,7 +118,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                 // closing the offer vault
                 offerVault.period = 0;
             }
-            pl.custodianVaultItems[offerId];
+            pl.custodianVaultItems[offerId]--;
         }
 
         // setup back the individual custodian vault
@@ -509,12 +509,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
     ) internal notPaused(FermionTypes.PausableRegion.CustodyVault) {
         // Only F-NFT contract can call it
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        (uint256 offerId) = CustodyLib.addItemToCustodianOfferVault(
-            _firstTokenId,
-            _length,
-            _checkCaller,
-            pl
-        );
+        uint256 offerId = CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, _checkCaller, pl);
 
         if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
             revert InvalidThresholds();

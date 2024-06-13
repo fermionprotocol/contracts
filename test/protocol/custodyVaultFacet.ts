@@ -1614,6 +1614,309 @@ describe("CustodyVault", function () {
       });
     });
 
+    context("removeItemFromCustodianOfferVault", function () {
+      const tokenCount = 3n;
+      let bidder: HardhatEthersSigner;
+
+      beforeEach(async function () {
+        const tokenId2 = BigInt(exchange.tokenId) + 1n;
+        const tokenId3 = BigInt(exchange.tokenId) + 2n;
+        await custodyFacet.connect(custodian).checkIn(tokenId2);
+        await custodyFacet.connect(custodian).checkIn(tokenId3);
+
+        const tx = await wrapper
+          .connect(buyer)
+          .mintFractions(exchange.tokenId, tokenCount, fractionsPerToken, auctionParameters, custodianVaultParameters);
+        offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
+
+        // buyoutAuction for the first item
+        bidder = wallets[7];
+        const bidAmount = auctionParameters.exitPrice + parseEther("0.1");
+        const usedFractions = 0;
+        await mockToken.mint(bidder.address, parseEther("1000"));
+        await mockToken.connect(bidder).approve(await wrapper.getAddress(), bidAmount);
+        const tx2 = await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
+        const blockTimeStamp = (await tx2.getBlock()).timestamp;
+        const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+        await setNextBlockTimestamp(String(auctionEnd + 1n));
+      });
+
+      context("Not last offer item", function () {
+        it("Offer vault is empty", async function () {
+          const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
+          const transferTime = BigInt((await tx.getBlock()).timestamp);
+
+          // offer vault remains, just number of items is increased
+          const expectedOfferVault = {
+            amount: 0n,
+            period: offerVaultCreationTimestamp,
+          };
+          let itemCount = 2n;
+
+          expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+            Object.values(expectedOfferVault),
+            itemCount,
+          ]);
+
+          // item vault is open
+          const expectedItemVault = {
+            amount: 0n,
+            period: transferTime,
+          };
+          itemCount = 1n;
+
+          expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+            Object.values(expectedItemVault),
+            itemCount,
+          ]);
+          expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(0n);
+        });
+
+        context("Offer vault is not empty", function () {
+          const paymentPeriods = 5n;
+          const vaultAmount = custodianFee.amount * paymentPeriods * tokenCount; // pre pay for 5 periods
+
+          beforeEach(async function () {
+            await mockToken.approve(fermionProtocolAddress, vaultAmount);
+            await custodyVaultFacet.topUpCustodianVault(offerId, vaultAmount);
+          });
+
+          it("Enough to cover past fee", async function () {
+            const transferTime = offerVaultCreationTimestamp + (custodianFee.period * 3n) / 2n;
+            const custodianPayoff = (custodianFee.amount * 3n) / 2n;
+            await setNextBlockTimestamp(String(transferTime));
+
+            const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
+
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, custodianPayoff);
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
+              .withArgs(offerId, vaultAmount - vaultAmount / tokenCount);
+
+            // offer vault remains, just number of items is increased and amount increases
+            const expectedOfferVault = {
+              amount: vaultAmount - vaultAmount / tokenCount,
+              period: offerVaultCreationTimestamp,
+            };
+            let itemCount = 2n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is opened
+            const expectedItemVault = {
+              amount: 0n,
+              period: transferTime,
+            };
+            itemCount = 1n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(custodianPayoff);
+          });
+
+          it("Not enough to cover past fee", async function () {
+            const transferTime = offerVaultCreationTimestamp + paymentPeriods * custodianFee.period + 100n;
+
+            await setNextBlockTimestamp(String(transferTime));
+
+            const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
+
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, custodianFee.amount * paymentPeriods);
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
+              .withArgs(offerId, vaultAmount - custodianFee.amount * paymentPeriods);
+
+            // offer vault remains, just number of items is increased
+            const expectedOfferVault = {
+              amount: vaultAmount - custodianFee.amount * paymentPeriods,
+              period: offerVaultCreationTimestamp,
+            };
+            let itemCount = 2n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is open
+            const expectedItemVault = {
+              amount: 0n,
+              period: transferTime,
+            };
+            itemCount = 1n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              paymentPeriods * custodianFee.amount,
+            );
+          });
+        });
+      });
+
+      context("Last item in vault", function () {
+        const tokenCount = 2n;
+        let tokenId2: bigint;
+        let tokenId3: bigint;
+
+        beforeEach(async function () {
+          tokenId2 = BigInt(exchange.tokenId) + 1n;
+          tokenId3 = BigInt(exchange.tokenId) + 2n;
+
+          const bidAmount = auctionParameters.exitPrice + parseEther("0.1");
+          const usedFractions = 0;
+          await mockToken.mint(bidder.address, parseEther("1000"));
+          await mockToken.connect(bidder).approve(await wrapper.getAddress(), 2n * bidAmount);
+          await wrapper.connect(bidder).bid(tokenId2, bidAmount, usedFractions);
+          const tx2 = await wrapper.connect(bidder).bid(tokenId3, bidAmount, usedFractions);
+
+          const blockTimeStamp = (await tx2.getBlock()).timestamp;
+          const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+          await setNextBlockTimestamp(String(auctionEnd + 1n));
+        });
+
+        it("Offer vault is empty", async function () {
+          await wrapper.connect(bidder).redeem(tokenId2);
+          await wrapper.connect(bidder).redeem(tokenId3);
+          const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
+          const transferTime = BigInt((await tx.getBlock()).timestamp);
+
+          // offer vault get closed
+          const expectedOfferVault = {
+            amount: 0n,
+            period: 0n,
+          };
+          let itemCount = 0n;
+
+          expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+            Object.values(expectedOfferVault),
+            itemCount,
+          ]);
+
+          // item vault is open
+          const expectedItemVault = {
+            amount: 0n,
+            period: transferTime,
+          };
+          itemCount = 1n;
+
+          expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+            Object.values(expectedItemVault),
+            itemCount,
+          ]);
+          expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(0n);
+        });
+
+        context("Offer vault is not empty", function () {
+          const paymentPeriods = 5n;
+          const vaultAmount = custodianFee.amount * paymentPeriods * tokenCount; // pre pay for 5 periods
+
+          beforeEach(async function () {
+            await mockToken.approve(fermionProtocolAddress, vaultAmount);
+            await custodyVaultFacet.topUpCustodianVault(offerId, vaultAmount);
+          });
+
+          it("Enough to cover past fee", async function () {
+            await wrapper.connect(bidder).redeem(tokenId2);
+            await wrapper.connect(bidder).redeem(tokenId3);
+            const transferTime = offerVaultCreationTimestamp + (custodianFee.period * 3n) / 2n;
+            const custodianPayoff = (custodianFee.amount * 3n) / 2n;
+            await setNextBlockTimestamp(String(transferTime));
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+            const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
+
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, custodianPayoff);
+            await expect(tx).to.emit(custodyVaultFacet, "VaultBalanceUpdated").withArgs(offerId, 0n);
+
+            // offer vault get closed
+            const expectedOfferVault = {
+              amount: 0n,
+              period: 0n,
+            };
+            let itemCount = 0n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is open
+            const expectedItemVault = {
+              amount: 0n,
+              period: transferTime,
+            };
+            itemCount = 1n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + custodianPayoff,
+            );
+          });
+
+          it("Not enough to cover past fee", async function () {
+            let transferTime = offerVaultCreationTimestamp + paymentPeriods * custodianFee.period + 100n;
+
+            await setNextBlockTimestamp(String(transferTime));
+            await wrapper.connect(bidder).redeem(tokenId2);
+            await wrapper.connect(bidder).redeem(tokenId3);
+
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+            const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
+            transferTime = BigInt((await tx.getBlock()).timestamp);
+
+            const remainderInVault = vaultAmount - (2n * vaultAmount) / 3n;
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, remainderInVault);
+            await expect(tx).to.emit(custodyVaultFacet, "VaultBalanceUpdated").withArgs(offerId, 0n);
+
+            // offer vault remains, just number of items is increased
+            const expectedOfferVault = {
+              amount: 0n,
+              period: 0n,
+            };
+            let itemCount = 0n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is open
+            const expectedItemVault = {
+              amount: 0n,
+              period: transferTime,
+            };
+            itemCount = 1n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + remainderInVault,
+            );
+          });
+        });
+      });
+    });
+
     context.skip("releaseFundsFromVault", function () {
       const topUpAmount = custodianFee.amount * 5n; // pre pay for 5 periods
 
