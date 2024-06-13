@@ -100,8 +100,20 @@ describe("FermionFNFT", function () {
         unlockThreshold: 0n,
         topBidLockTime: 0n,
       };
+      const custodianFee = {
+        amount: parseEther("0.05"),
+        period: 30n * 24n * 60n * 60n, // 30 days
+      };
+      const custodianVaultParameters = {
+        partialAuctionThreshold: custodianFee.amount * 15n,
+        partialAuctionDuration: custodianFee.period / 2n,
+        liquidationThreshold: custodianFee.amount * 2n,
+        newFractionsPerAuction: 0n,
+      };
 
-      await fermionFNFTProxy.connect(seller).mintFractions(startTokenId, 1, fractionsAmount, auctionParameters);
+      await fermionFNFTProxy
+        .connect(seller)
+        .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters);
 
       const approvedWallet = wallets[4];
 
@@ -131,8 +143,20 @@ describe("FermionFNFT", function () {
         unlockThreshold: 0n,
         topBidLockTime: 0n,
       };
+      const custodianFee = {
+        amount: parseEther("0.05"),
+        period: 30n * 24n * 60n * 60n, // 30 days
+      };
+      const custodianVaultParameters = {
+        partialAuctionThreshold: custodianFee.amount * 15n,
+        partialAuctionDuration: custodianFee.period / 2n,
+        liquidationThreshold: custodianFee.amount * 2n,
+        newFractionsPerAuction: 0n,
+      };
 
-      await fermionFNFTProxy.connect(seller).mintFractions(startTokenId, 1, fractionsAmount, auctionParameters);
+      await fermionFNFTProxy
+        .connect(seller)
+        .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters);
 
       // Approve to 0 address
       await expect(fermionFNFTProxy.connect(seller).approve(ZeroAddress, fractionsAmount))

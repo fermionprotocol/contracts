@@ -3,7 +3,6 @@ import {
   applyPercentage,
   deployFermionProtocolFixture,
   deployMockTokens,
-  verifySellerAssistantRoleClosure,
   setNextBlockTimestamp,
 } from "../utils/common";
 import { expect } from "chai";
@@ -157,8 +156,6 @@ describe("CustodyVault", function () {
     } = await loadFixture(deployFermionProtocolFixture));
 
     await loadFixture(setupCustodyTest);
-
-    verifySellerAssistantRole = verifySellerAssistantRoleClosure(custodyFacet, wallets, entityFacet, fermionErrors);
   });
 
   afterEach(async function () {
