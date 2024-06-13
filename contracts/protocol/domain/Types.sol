@@ -41,6 +41,7 @@ contract FermionTypes {
         Funds,
         Offer,
         Custody,
+        CustodyVault,
         Verification
     }
 

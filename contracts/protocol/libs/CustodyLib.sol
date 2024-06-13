@@ -18,12 +18,10 @@ library CustodyLib {
      * The amount for first period is encumbered (it is available in the protocol since the verification time).
      *
      * @param _tokenId - the token ID
-     * @param _custodianFee - the custodian fee details (amount and period)
      */
-    function setupCustodianItemVault(uint256 _tokenId, FermionTypes.CustodianFee storage _custodianFee) internal {
+    function setupCustodianItemVault(uint256 _tokenId) internal {
         FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenId];
 
-        vault.amount = _custodianFee.amount;
         vault.period = block.timestamp; // period is the time when the vault was created and then reset whenever the funds are released
     }
 

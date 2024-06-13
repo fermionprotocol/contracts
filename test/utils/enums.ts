@@ -44,6 +44,7 @@ export enum PausableRegion {
   Funds,
   Offer,
   Custody,
+  CustodyVault,
   Verification,
 }
 

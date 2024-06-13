@@ -16,16 +16,16 @@ import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
 import { FundsFacet } from "./Funds.sol";
 
 /**
- * @title CustodyVault
+ * @title CustodyVaultFacet
  *
  * @notice Handles Custody Vaults and partial auctions.
  */
-contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
+contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
     uint256 private constant DEFAULT_FRACTION_AMOUNT = 1e6;
     uint256 private constant PARTIAL_THRESHOLD_MULTIPLIER = 12;
     uint256 private constant LIQUIDATION_THRESHOLD_MULTIPLIER = 3;
     uint256 private constant PARTIAL_AUCTION_DURATION_DIVISOR = 4;
-    
+
     /**
      * @notice When the first NFT is fractionalised, the custodian offer vault is setup.
      * The items' vaults are temporarily closed. If their balance was not zero, the custodian fee, proportional to the passed service time,
@@ -36,6 +36,7 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * Emits an VaultBalanceUpdated events
      *
      * Reverts if:
+     * - Custody region is paused
      * - Caller is not the F-NFT contract owning the token
      *
      * @param _firstTokenId - the lowest token ID to add to the vault
@@ -46,7 +47,7 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
         uint256 _firstTokenId,
         uint256 _length,
         FermionTypes.CustodianVaultParameters memory _custodianVaultParameters
-    ) public {
+    ) public notPaused(FermionTypes.PausableRegion.CustodyVault) {
         // Only F-NFT contract can call it
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         (uint256 offerId, uint256 amountToTransfer) = CustodyLib.addItemToCustodianOfferVault(
@@ -75,12 +76,16 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * Only the F-NFT contract can call this function. The F-NFT contract is trusted to call this function only when additional fractionalisations happen.
      *
      * Reverts if:
+     * - Custody region is paused
      * - Caller is not the F-NFT contract owning the token
      *
      * @param _firstTokenId - the lowest token ID to add to the vault
      * @param _length - the number of tokens to add to the vault
      */
-    function addItemToCustodianOfferVault(uint256 _firstTokenId, uint256 _length) public {
+    function addItemToCustodianOfferVault(
+        uint256 _firstTokenId,
+        uint256 _length
+    ) public notPaused(FermionTypes.PausableRegion.CustodyVault) {
         CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, FermionStorage.protocolLookups());
     }
 
@@ -92,11 +97,14 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * Only the F-NFT contract can call this function. The F-NFT contract is trusted to call this function only when buyout auction is finalized.
      *
      * Reverts if:
+     * - Custody region is paused
      * - Caller is not the F-NFT contract owning the token
      *
      * @param _tokenId - the token id to remove from the vault
      */
-    function removeItemFromCustodianOfferVault(uint256 _tokenId) external returns (uint256 released) {
+    function removeItemFromCustodianOfferVault(
+        uint256 _tokenId
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) returns (uint256 released) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         // Only F-NFT contract can call it
         uint256 offerId;
@@ -107,36 +115,37 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
 
         // trust the F-NFT contract that the token was added to offer vault at some point, i.e. it was fractionalised
         FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
-        // offerVault.period = block.timestamp;
-
-        FermionTypes.CustodianFee storage custodianFee = offer.custodianFee;
-        uint256 vaultBalance = offerVault.amount;
-        uint256 nftCount = pl.custodianVaultItems[offerId];
-        uint256 itemBalance = vaultBalance / nftCount;
-        uint256 lastReleased = offerVault.period;
 
         address exchangeToken = offer.exchangeToken;
-        uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee.amount) / custodianFee.period;
-        if (custodianPayoff > itemBalance) {
-            // This happens if the vault balance fell below auction threshold and the forceful fractionalisation did not happen
-            // The custodian gets everything that's in the vault, but they missed the chance to get the custodian fee via fractionalisation
-            custodianPayoff = itemBalance;
-            FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
-        }
+        {
+            FermionTypes.CustodianFee storage custodianFee = offer.custodianFee;
+            uint256 vaultBalance = offerVault.amount;
+            uint256 nftCount = pl.custodianVaultItems[offerId];
+            uint256 itemBalance = vaultBalance / nftCount;
+            uint256 lastReleased = offerVault.period;
 
-        unchecked {
-            released = itemBalance - custodianPayoff;
-            offerVault.amount -= itemBalance;
-        }
+            uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee.amount) / custodianFee.period;
+            if (custodianPayoff > itemBalance) {
+                // This happens if the vault balance fell below auction threshold and the forceful fractionalisation did not happen
+                // The custodian gets everything that's in the vault, but they missed the chance to get the custodian fee via fractionalisation
+                custodianPayoff = itemBalance;
+                FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
+            }
 
-        if (nftCount == 1) {
-            // closing the offer vault
-            offerVault.period = 0;
+            unchecked {
+                released = itemBalance - custodianPayoff;
+                offerVault.amount -= itemBalance;
+            }
+
+            if (nftCount == 1) {
+                // closing the offer vault
+                offerVault.period = 0;
+            }
+            pl.custodianVaultItems[offerId];
         }
-        pl.custodianVaultItems[offerId];
 
         // setup back the individual custodian vault
-        CustodyLib.setupCustodianItemVault(_tokenId, custodianFee);
+        CustodyLib.setupCustodianItemVault(_tokenId);
 
         emit VaultBalanceUpdated(offerId, offerVault.amount);
 
@@ -149,6 +158,7 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * Emits VaultBalanceUpdated event if successful.
      *
      * Reverts if:
+     * - Custody region is paused
      * - Amount to deposit is zero
      * - Vault is not active
      * - Exchange token is native token and caller does not send enough
@@ -160,7 +170,10 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * @param _tokenId - token ID associated with the vault
      * @param _amount - amount to be credited
      */
-    function topUpCustodianVault(uint256 _tokenId, uint256 _amount) external payable {
+    function topUpCustodianVault(
+        uint256 _tokenId,
+        uint256 _amount
+    ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
         if (_amount == 0) revert ZeroDepositNotAllowed();
 
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
@@ -184,6 +197,7 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * Emits VaultBalanceUpdated and AvailableFundsIncreased events if successful.
      *
      * Reverts if:
+     * - Custody region is paused
      * - Vault is not active
      * - Payment period is not over
      *
@@ -191,7 +205,11 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      */
     function releaseFundsFromVault(
         uint256 _tokenOrOfferId
-    ) public returns (uint256 amountToRelease, address exchangeToken) {
+    )
+        public
+        notPaused(FermionTypes.PausableRegion.CustodyVault)
+        returns (uint256 amountToRelease, address exchangeToken)
+    {
         bool isOfferVault = _tokenOrOfferId < (1 << 128);
         FermionTypes.Offer storage offer;
         uint256 offerId;
@@ -204,20 +222,22 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CustodianFee storage vault = pl.vault[_tokenOrOfferId];
-        uint256 lastReleased = vault.period;
-        if (lastReleased == 0) revert InactiveVault(_tokenOrOfferId);
-
         FermionTypes.CustodianFee memory custodianFee = offer.custodianFee;
 
-        uint256 vaultAmount = vault.amount;
+        uint256 numberOfPeriods;
+        {
+            uint256 lastReleased = vault.period;
+            if (lastReleased == 0) revert InactiveVault(_tokenOrOfferId);
 
-        if (block.timestamp < lastReleased + custodianFee.period)
-            revert PeriodNotOver(_tokenOrOfferId, lastReleased + custodianFee.period);
+            if (block.timestamp < lastReleased + custodianFee.period)
+                revert PeriodNotOver(_tokenOrOfferId, lastReleased + custodianFee.period);
 
-        uint256 numberOfPeriods = (block.timestamp - lastReleased) / custodianFee.period;
-        amountToRelease = custodianFee.amount * numberOfPeriods;
+            numberOfPeriods = (block.timestamp - lastReleased) / custodianFee.period;
+            amountToRelease = custodianFee.amount * numberOfPeriods;
+        }
+
         uint256 coveredPeriods;
-
+        uint256 vaultAmount = vault.amount;
         if (vaultAmount < amountToRelease) {
             // release the maximum possible. The vault amount should fall below the threshold and auction should be started
             coveredPeriods = vaultAmount / custodianFee.amount;
@@ -249,6 +269,8 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * Emits VaultBalanceUpdated, AvailableFundsIncreased and FundsWithdrawn events if successful.
      *
      * Reverts if:
+     * - Custody region is paused
+     * - Funds region is paused
      * - Vault is not active
      * - Payment period is not over
      * - Caller is not the custodian
@@ -292,6 +314,7 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * Emits BidPlaced event if successful.
      *
      * Reverts if:
+     * - Custody region is paused
      * - Auction is not available
      * - Bid is too low
      * - Caller does not provide enough funds
@@ -299,7 +322,7 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * @param _offerId - token ID associated with the vault
      * @param _bidAmount - amount to bid
      */
-    function bid(uint256 _offerId, uint256 _bidAmount) external {
+    function bid(uint256 _offerId, uint256 _bidAmount) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
@@ -339,6 +362,7 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      * Emits AuctionFinished event if successful.
      *
      * Reverts if:
+     * - Custody region is paused
      * - Auction is not available
      * - Auction is still ongoing
      * - Bid is too low
@@ -346,7 +370,7 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
      *
      * @param _offerId - offer ID associated with the vault
      */
-    function endAuction(uint256 _offerId) external {
+    function endAuction(uint256 _offerId) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
@@ -453,5 +477,9 @@ contract CustodyVault is Context, FermionErrors, Access, ICustodyEvents {
         fractionAuction.availableFractions = fractionsToIssue;
 
         emit AuctionStarted(_offerId, fractionsToIssue, auctionEnd);
+    }
+
+    function getCustodianVault(uint256 _tokenOrOfferId) external view returns (FermionTypes.CustodianFee memory) {
+        return FermionStorage.protocolLookups().vault[_tokenOrOfferId];
     }
 }
