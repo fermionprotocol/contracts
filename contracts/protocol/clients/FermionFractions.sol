@@ -651,8 +651,8 @@ abstract contract FermionFractions is
             FermionTypes.TokenState tokenState = Common._getFermionCommonStorage().tokenState[tokenId];
 
             console.log("state check");
-                if (tokenState != FermionTypes.TokenState.CheckedIn)
-                    revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
+            if (tokenState != FermionTypes.TokenState.CheckedIn)
+                revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
 
             if (_msgSender() == fermionProtocol) {
                 console.log("we are fermion");
@@ -660,8 +660,8 @@ abstract contract FermionFractions is
                 // forceful fractionalisation
                 // not caching Common._getERC721Storage(), since protocol will fractionalize 1 by 1
                 Common._getERC721Storage()._tokenApprovals[tokenId] = fermionProtocol;
-            } 
-            
+            }
+
             console.log("before erc721 transfer");
             ERC721.transferFrom(tokenOwner, address(this), tokenId);
             $.isFractionalised[tokenId] = true;

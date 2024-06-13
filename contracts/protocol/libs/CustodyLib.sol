@@ -61,7 +61,7 @@ library CustodyLib {
         uint256 _length,
         bool _checkCaller,
         FermionStorage.ProtocolLookups storage pl
-    ) internal returns (uint256 offerId, uint256 amountToTransfer) {
+    ) internal returns (uint256 offerId) {
         // not testing the checkout request status. After confirming that the called is the FNFT address, we know
         // that fractionalisation can happen only if the item was checked-in
         FermionTypes.Offer storage offer;
@@ -71,6 +71,7 @@ library CustodyLib {
         uint256 custodianId = offer.custodianId;
         address exchangeToken = offer.exchangeToken;
         FermionTypes.CustodianFee memory custodianFee = offer.custodianFee;
+        uint256 amountToTransfer;
         for (uint256 i = 0; i < _length; i++) {
             // temporary close individual vaults and transfer the amount for unused periods to the offer vault
             uint256 tokenId = _firstTokenId + i;
@@ -95,5 +96,11 @@ library CustodyLib {
             closeCustodianItemVault(tokenId, custodianId, exchangeToken);
         }
         pl.custodianVaultItems[offerId] += _length;
+
+        FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
+        if (offerVault.period == 0) offerVault.period = block.timestamp;
+        offerVault.amount += amountToTransfer;
+
+        emit ICustodyEvents.VaultBalanceUpdated(offerId, offerVault.amount);
     }
 }

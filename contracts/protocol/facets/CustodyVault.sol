@@ -144,26 +144,31 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * - Calling transferFrom on token fails for some reason (e.g. protocol is not approved to transfer)
      * - Received token amount differs from the expected value
      *
-     * @param _tokenId - token ID associated with the vault
+     * @param _tokenOrOfferId - token ID associated with the vault
      * @param _amount - amount to be credited
      */
     function topUpCustodianVault(
-        uint256 _tokenId,
+        uint256 _tokenOrOfferId,
         uint256 _amount
     ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
         if (_amount == 0) revert ZeroDepositNotAllowed();
 
-        (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        FermionTypes.Offer storage offer;
+        bool isOfferVault = _tokenOrOfferId < (1 << 128);
+        if (isOfferVault) {
+            offer = FermionStorage.protocolEntities().offer[_tokenOrOfferId];
+        } else {
+            (, offer) = FermionStorage.getOfferFromTokenId(_tokenOrOfferId);
+        }
+        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenOrOfferId];
 
-        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenId];
-
-        if (vault.period == 0) revert InactiveVault(_tokenId);
+        if (vault.period == 0) revert InactiveVault(_tokenOrOfferId);
 
         FundsLib.validateIncomingPayment(offer.exchangeToken, _amount);
 
         vault.amount += _amount;
 
-        emit VaultBalanceUpdated(_tokenId, vault.amount);
+        emit VaultBalanceUpdated(_tokenOrOfferId, vault.amount);
     }
 
     /**
@@ -406,7 +411,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
-console.log("offerod",_offerId);
+        console.log("offerod", _offerId);
         FermionTypes.CustodianVaultParameters storage vaultParameters = pl.custodianVaultParameters[_offerId];
 
         console.log(fractionAuction.endTime);
@@ -504,7 +509,7 @@ console.log("offerod",_offerId);
     ) internal notPaused(FermionTypes.PausableRegion.CustodyVault) {
         // Only F-NFT contract can call it
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        (uint256 offerId, uint256 amountToTransfer) = CustodyLib.addItemToCustodianOfferVault(
+        (uint256 offerId) = CustodyLib.addItemToCustodianOfferVault(
             _firstTokenId,
             _length,
             _checkCaller,
@@ -517,11 +522,5 @@ console.log("offerod",_offerId);
         // no need to worry this gets overwritten. If `setupCustodianOfferVault` is called the second time with the same offer it
         // it means that all items from the collection were recombined, and new parameters can be set
         pl.custodianVaultParameters[offerId] = _custodianVaultParameters;
-
-        FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
-        offerVault.period = block.timestamp;
-        offerVault.amount += amountToTransfer;
-
-        emit VaultBalanceUpdated(offerId, offerVault.amount);
     }
 }
