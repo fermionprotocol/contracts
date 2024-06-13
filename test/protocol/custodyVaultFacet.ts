@@ -2377,8 +2377,6 @@ describe("CustodyVault", function () {
           await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted");
           const timestamp = BigInt((await tx.getBlock()).timestamp);
           auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
-
-          bidder = wallets[7];
         });
 
         it("Place a bid", async function () {
@@ -2533,6 +2531,110 @@ describe("CustodyVault", function () {
             await expect(
               custodyVaultFacet.connect(bidder).bid(offerId, bidAmount, { value: bidAmount }),
             ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+          });
+        });
+      });
+
+      context("endAuction", function () {
+        const topUpAmount = custodianVaultParameters.partialAuctionThreshold * tokenCount;
+        let auctionEnd: bigint;
+        const bidAmount = custodianFee.amount;
+
+        beforeEach(async function () {
+          await mockToken.approve(fermionProtocolAddress, topUpAmount);
+          await custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount);
+          await setNextBlockTimestamp(String(offerVaultCreationTimestamp + custodianFee.period + 200n));
+          const tx = await custodyVaultFacet.releaseFundsFromVault(offerId);
+          await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted");
+          const timestamp = BigInt((await tx.getBlock()).timestamp);
+          auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
+
+          await mockToken.connect(bidder).approve(fermionProtocolAddress, bidAmount);
+          await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
+        });
+
+        it("End the auction", async function () {
+          const [custodianVault] = await custodyVaultFacet.getCustodianVault(offerId);
+          const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+
+          await setNextBlockTimestamp(String(auctionEnd + 1n));
+          const tx = await custodyVaultFacet.endAuction(offerId);
+
+          await expect(tx)
+            .to.emit(custodyVaultFacet, "AuctionFinished")
+            .withArgs(offerId, bidder.address, custodianVaultParameters.newFractionsPerAuction * tokenCount, bidAmount);
+          await expect(tx)
+            .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
+            .withArgs(offerId, custodianVault.amount + bidAmount);
+
+          expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance);
+          const expectedCustodianVault = {
+            amount: custodianVault.amount + bidAmount,
+            period: custodianVault.period,
+          };
+          expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+            Object.values(expectedCustodianVault),
+            tokenCount,
+          ]); // placing a bid does not change the vault
+
+          const expectedAuctionDetails = {
+            endTime: 0n,
+            availableFractions: 0n,
+            maxBid: 0n,
+            bidderId: 0n,
+          };
+          expect(await custodyVaultFacet.getPartialAuctionDetails(offerId)).to.eql(
+            Object.values(expectedAuctionDetails),
+          );
+        });
+
+        it("After it's finished, a new auction can be started next period", async function () {
+          await setNextBlockTimestamp(String(auctionEnd + 1n));
+          await custodyVaultFacet.endAuction(offerId);
+
+          await setNextBlockTimestamp(String(offerVaultCreationTimestamp + 2n * custodianFee.period + 200n));
+          const tx = await custodyVaultFacet.releaseFundsFromVault(offerId);
+          await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted");
+          const timestamp = BigInt((await tx.getBlock()).timestamp);
+          auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
+
+          const expectedAuctionDetails = {
+            endTime: auctionEnd,
+            availableFractions: custodianVaultParameters.newFractionsPerAuction * tokenCount,
+            maxBid: 0n,
+            bidderId: 0n,
+          };
+          expect(await custodyVaultFacet.getPartialAuctionDetails(offerId)).to.eql(
+            Object.values(expectedAuctionDetails),
+          );
+        });
+
+        context("Revert reasons", function () {
+          it("Custody region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.CustodyVault]);
+
+            await expect(custodyVaultFacet.endAuction(offerId))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.CustodyVault);
+          });
+
+          it("No auction for the vault", async function () {
+            // invalid offer id
+            await expect(custodyVaultFacet.endAuction(0n))
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionNotStarted")
+              .withArgs(0n);
+
+            await expect(custodyVaultFacet.endAuction(1000n))
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionNotStarted")
+              .withArgs(1000n);
+          });
+
+          it("Auction not ended", async function () {
+            await setNextBlockTimestamp(String(auctionEnd - 1n));
+
+            await expect(custodyVaultFacet.endAuction(offerId))
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionOngoing")
+              .withArgs(offerId, auctionEnd);
           });
         });
       });
