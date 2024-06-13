@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { HUNDRED_PERCENT, AUCTION_END_BUFFER, MINIMAL_BID_INCREMENT } from "../domain/Constants.sol";
+import { HUNDRED_PERCENT, AUCTION_END_BUFFER, MINIMAL_BID_INCREMENT, DEFAULT_FRACTION_AMOUNT, PARTIAL_THRESHOLD_MULTIPLIER, LIQUIDATION_THRESHOLD_MULTIPLIER, PARTIAL_AUCTION_DURATION_DIVISOR } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
@@ -14,6 +14,7 @@ import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
 import { FundsFacet } from "./Funds.sol";
+import "hardhat/console.sol";
 
 /**
  * @title CustodyVaultFacet
@@ -21,11 +22,6 @@ import { FundsFacet } from "./Funds.sol";
  * @notice Handles Custody Vaults and partial auctions.
  */
 contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
-    uint256 private constant DEFAULT_FRACTION_AMOUNT = 1e6;
-    uint256 private constant PARTIAL_THRESHOLD_MULTIPLIER = 12;
-    uint256 private constant LIQUIDATION_THRESHOLD_MULTIPLIER = 3;
-    uint256 private constant PARTIAL_AUCTION_DURATION_DIVISOR = 4;
-
     /**
      * @notice When the first NFT is fractionalised, the custodian offer vault is setup.
      * The items' vaults are temporarily closed. If their balance was not zero, the custodian fee, proportional to the passed service time,
@@ -47,27 +43,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         uint256 _firstTokenId,
         uint256 _length,
         FermionTypes.CustodianVaultParameters memory _custodianVaultParameters
-    ) public notPaused(FermionTypes.PausableRegion.CustodyVault) {
-        // Only F-NFT contract can call it
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        (uint256 offerId, uint256 amountToTransfer) = CustodyLib.addItemToCustodianOfferVault(
-            _firstTokenId,
-            _length,
-            pl
-        );
-
-        if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
-            revert InvalidThresholds();
-
-        // no need to worry this gets overwritten. If `setupCustodianOfferVault` is called the second time with the same offer it
-        // it means that all items from the collection were recombined, and new parameters can be set
-        pl.custodianVaultParameters[offerId] = _custodianVaultParameters;
-
-        FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
-        offerVault.period = block.timestamp;
-        offerVault.amount += amountToTransfer;
-
-        emit VaultBalanceUpdated(offerId, offerVault.amount);
+    ) external {
+        setupCustodianOfferVault(_firstTokenId, _length, true, _custodianVaultParameters);
     }
 
     /**
@@ -85,8 +62,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
     function addItemToCustodianOfferVault(
         uint256 _firstTokenId,
         uint256 _length
-    ) public notPaused(FermionTypes.PausableRegion.CustodyVault) {
-        CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, FermionStorage.protocolLookups());
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
+        CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, true, FermionStorage.protocolLookups());
     }
 
     /**
@@ -250,14 +227,19 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         vault.amount -= amountToRelease;
 
         exchangeToken = offer.exchangeToken;
+
+        console.log("before releasing");
+        console.log("amount", amountToRelease);
         FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, amountToRelease);
 
+        console.log("after releasing");
         if (
             coveredPeriods < numberOfPeriods ||
             (isOfferVault &&
                 vault.amount <
                 pl.custodianVaultItems[offerId] * pl.custodianVaultParameters[offerId].partialAuctionThreshold)
         ) {
+            console.log("start auction");
             startFractionalAuction(offerId, _tokenOrOfferId, isOfferVault, custodianFee);
         }
 
@@ -422,13 +404,14 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         FermionTypes.CustodianFee memory _custodianFee
     ) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_tokenOrOfferId];
+        FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
+console.log("offerod",_offerId);
         FermionTypes.CustodianVaultParameters storage vaultParameters = pl.custodianVaultParameters[_offerId];
 
+        console.log(fractionAuction.endTime);
+        console.log(block.timestamp);
         if (fractionAuction.endTime > block.timestamp) revert AuctionOngoing(_tokenOrOfferId, fractionAuction.endTime);
-        uint256 auctionEnd = block.timestamp + vaultParameters.partialAuctionDuration;
-        fractionAuction.endTime = auctionEnd;
 
         uint256 fractionsToIssue;
         uint256 itemsInVault = pl.custodianVaultItems[_offerId];
@@ -439,9 +422,10 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                 // vault exist already
                 IFermionFNFT(wrapperAddress).mintFractions(_tokenOrOfferId, 1);
 
-                addItemToCustodianOfferVault(_tokenOrOfferId, 1);
+                CustodyLib.addItemToCustodianOfferVault(_tokenOrOfferId, 1, false, pl);
             } else {
-                // no vault yet
+                console.log("before default fractionalisation");
+                // no vault yet. Use the default parameters
                 FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
                 _buyoutAuctionParameters.exitPrice = pl.itemPrice[_tokenOrOfferId];
                 uint256 partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * _custodianFee.amount;
@@ -451,7 +435,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                     .CustodianVaultParameters({
                         partialAuctionThreshold: partialAuctionThreshold,
                         partialAuctionDuration: _custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR,
-                        liquidationThreshold: LIQUIDATION_THRESHOLD_MULTIPLIER * _custodianFee.amount, // todo
+                        liquidationThreshold: LIQUIDATION_THRESHOLD_MULTIPLIER * _custodianFee.amount,
                         newFractionsPerAuction: newFractionsPerAuction
                     });
 
@@ -463,7 +447,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                     _custodianVaultParameters
                 );
 
-                setupCustodianOfferVault(_tokenOrOfferId, 1, _custodianVaultParameters);
+                console.log("after default fractionalisation");
+                setupCustodianOfferVault(_tokenOrOfferId, 1, false, _custodianVaultParameters);
             }
 
             _offerId = _tokenOrOfferId >> 128;
@@ -471,17 +456,72 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
             vaultParameters = pl.custodianVaultParameters[_offerId];
         }
 
+        uint256 auctionEnd = block.timestamp + vaultParameters.partialAuctionDuration; // if new vault was created, this vault parameters were updated
+        fractionAuction.endTime = auctionEnd;
         fractionsToIssue = itemsInVault * vaultParameters.newFractionsPerAuction;
 
+        console.log("before mint additional fractionalisation");
         // mint the factions to the protocol
         IFermionFNFT(wrapperAddress).mintAdditionalFractions(fractionsToIssue); /// <mint to the protocol
-
+        console.log("after mint additional fractionalisation");
         fractionAuction.availableFractions = fractionsToIssue;
 
         emit AuctionStarted(_offerId, fractionsToIssue, auctionEnd);
     }
 
-    function getCustodianVault(uint256 _tokenOrOfferId) external view returns (FermionTypes.CustodianFee memory) {
-        return FermionStorage.protocolLookups().vault[_tokenOrOfferId];
+    function getCustodianVault(
+        uint256 _tokenOrOfferId
+    ) external view returns (FermionTypes.CustodianFee memory vault, uint256 items) {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        vault = pl.vault[_tokenOrOfferId];
+        if (_tokenOrOfferId < (1 << 128)) {
+            items = pl.custodianVaultItems[_tokenOrOfferId];
+        } else {
+            items = vault.period > 0 ? 1 : 0;
+        }
+    }
+
+    /**
+     * @notice When the first NFT is fractionalised, the custodian offer vault is setup.
+     * The items' vaults are temporarily closed. If their balance was not zero, the custodian fee, proportional to the passed service time,
+     * is released to the custodian and the remaining amount is transferred to the offer vault.
+     *
+     * Emits an VaultBalanceUpdated events
+     *
+     * Reverts if:
+     * - Custody region is paused
+     * - Call is external and caller is not the F-NFT contract owning the token
+     *
+     * @param _firstTokenId - the lowest token ID to add to the vault
+     * @param _length - the number of tokens to add to the vault
+     * @param _custodianVaultParameters - the custodian vault parameters
+     */
+    function setupCustodianOfferVault(
+        uint256 _firstTokenId,
+        uint256 _length,
+        bool _checkCaller,
+        FermionTypes.CustodianVaultParameters memory _custodianVaultParameters
+    ) internal notPaused(FermionTypes.PausableRegion.CustodyVault) {
+        // Only F-NFT contract can call it
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        (uint256 offerId, uint256 amountToTransfer) = CustodyLib.addItemToCustodianOfferVault(
+            _firstTokenId,
+            _length,
+            _checkCaller,
+            pl
+        );
+
+        if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
+            revert InvalidThresholds();
+
+        // no need to worry this gets overwritten. If `setupCustodianOfferVault` is called the second time with the same offer it
+        // it means that all items from the collection were recombined, and new parameters can be set
+        pl.custodianVaultParameters[offerId] = _custodianVaultParameters;
+
+        FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
+        offerVault.period = block.timestamp;
+        offerVault.amount += amountToTransfer;
+
+        emit VaultBalanceUpdated(offerId, offerVault.amount);
     }
 }

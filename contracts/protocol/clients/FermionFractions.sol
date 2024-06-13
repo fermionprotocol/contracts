@@ -13,6 +13,7 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionCustody } from "../interfaces/IFermionCustody.sol";
+import "hardhat/console.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -72,6 +73,7 @@ abstract contract FermionFractions is
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
         FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters
     ) external {
+        console.log("mintFractions");
         if (_length == 0) {
             revert InvalidLength();
         }
@@ -105,6 +107,7 @@ abstract contract FermionFractions is
             );
         }
 
+        console.log("before lock");
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 
         // set the default values if not provided
@@ -117,6 +120,7 @@ abstract contract FermionFractions is
         emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters);
 
         if (_msgSender() != fermionProtocol) {
+            console.log("not calling back");
             IFermionCustody(fermionProtocol).setupCustodianOfferVault(
                 _firstTokenId,
                 _length,
@@ -162,6 +166,8 @@ abstract contract FermionFractions is
     /**
      * @notice Mints additional fractions to be sold in the partial auction to fill the custodian vault.
      *
+     * Emits AdditionalFractionsMinted event if successful.
+     *
      * Reverts if:
      * - The caller is not the fermion protocol
      *
@@ -175,6 +181,8 @@ abstract contract FermionFractions is
         }
 
         _mintFractions(fermionProtocol, _amount);
+
+        emit AdditionalFractionsMinted(_amount, liquidSupply());
     }
 
     /**
@@ -634,19 +642,27 @@ abstract contract FermionFractions is
         uint256 _fractionsAmount,
         FermionTypes.BuyoutAuctionStorage storage $
     ) internal {
+        console.logBytes32(bytes32(_firstTokenId));
+        console.log(_firstTokenId);
         address tokenOwner = ownerOf(_firstTokenId); // all tokens must be owned by the same address
+
         for (uint256 i = 0; i < _length; i++) {
             uint256 tokenId = _firstTokenId + i;
             FermionTypes.TokenState tokenState = Common._getFermionCommonStorage().tokenState[tokenId];
-            if (tokenState != FermionTypes.TokenState.Verified)
-                revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
 
+            console.log("state check");
             if (_msgSender() == fermionProtocol) {
+                console.log("we are fermion");
+                if (tokenState != FermionTypes.TokenState.CheckedIn)
+                    revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
                 // forceful fractionalisation
                 // not caching Common._getERC721Storage(), since protocol will fractionalize 1 by 1
                 Common._getERC721Storage()._tokenApprovals[tokenId] = fermionProtocol;
+            } else {
+                if (tokenState != FermionTypes.TokenState.Verified)
+                    revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
             }
-
+            console.log("before erc721 transfer");
             ERC721.transferFrom(tokenOwner, address(this), tokenId);
             $.isFractionalised[tokenId] = true;
             $.auctions[tokenId].push();

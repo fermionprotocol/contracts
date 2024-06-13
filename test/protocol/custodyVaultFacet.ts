@@ -1,5 +1,6 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
+  applyPercentage,
   deployFermionProtocolFixture,
   deployMockTokens,
   deriveTokenId,
@@ -20,6 +21,17 @@ import {
 } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
+import {
+  AUCTION_END_BUFFER,
+  MINIMAL_BID_INCREMENT,
+  DEFAULT_FRACTION_AMOUNT,
+  PARTIAL_THRESHOLD_MULTIPLIER,
+  LIQUIDATION_THRESHOLD_MULTIPLIER,
+  PARTIAL_AUCTION_DURATION_DIVISOR,
+  AUCTION_DURATION,
+  UNLOCK_THRESHOLD,
+  TOP_BID_LOCK_TIME,
+} from "../utils/constants";
 
 const { parseEther } = ethers;
 
@@ -41,6 +53,7 @@ describe("CustodyVault", function () {
   let buyer: HardhatEthersSigner;
   let seaportAddress: string;
   let wrapper: Contract, wrapperSelfSale: Contract, wrapperSelfCustody: Contract;
+  const offerId = "1";
   const sellerId = "1";
   const verifierId = "2";
   const custodianId = "3";
@@ -52,9 +65,7 @@ describe("CustodyVault", function () {
     amount: parseEther("0.05"),
     period: 30n * 24n * 60n * 60n, // 30 days
   };
-  const exchange = { tokenId: "", custodianId: "" };
-  const exchangeSelfSale = { tokenId: "", custodianId: "" };
-  const exchangeSelfCustody = { tokenId: "", custodianId: "" };
+  const exchange = { tokenId: "", custodianId: "", price: 0n };
   let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
 
   async function setupCustodyTest() {
@@ -97,65 +108,42 @@ describe("CustodyVault", function () {
     };
 
     // Make three offers one for normal sale, one of self sale and one for self custody
-    const offerId = "1"; // buyer != seller, custodian != seller
-    const offerIdSelfSale = "2"; // buyer = seller, custodian != seller
-    const offerIdSelfCustody = "3"; // buyer != seller, custodian = seller
     await offerFacet.connect(facilitator).createOffer({ ...fermionOffer, facilitatorId });
-    await offerFacet.createOffer({ ...fermionOffer, sellerDeposit: "0" });
-    await offerFacet.createOffer({ ...fermionOffer, verifierId: "1", custodianId: "1", verifierFee: "0" });
 
     // Mint and wrap some NFTs
-    const quantity = "1";
-    await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity); // offerId = 2; exchangeId = 1
+    const quantity = 3n;
     await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
-    await offerFacet.mintAndWrapNFTs(offerIdSelfCustody, "2"); // offerId = 3; exchangeId = 3
-    const exchangeIdSelf = "1";
-    const exchangeId = "2";
-    const exchangeIdSelfCustody = "3";
 
     // Unwrap some NFTs - normal sale and sale with self-custody
     buyer = wallets[6];
 
-    await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
-    const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
-    const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
-    await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+    await mockToken.approve(fermionProtocolAddress, quantity * sellerDeposit);
+    for (let i = 0n; i < quantity; i++) {
+      const exchangeId = i + 1n;
+      const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
+      const { buyerAdvancedOrder, tokenId, encumberedAmount } = await createBuyerAdvancedOrder(
+        buyer,
+        offerId,
+        exchangeId,
+        exchange.tokenId,
+      );
+      await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
 
-    const { buyerAdvancedOrder: buyerAdvancedOrderSelfCustody, tokenId: tokenIdSelfCustody } =
-      await createBuyerAdvancedOrder(buyer, offerIdSelfCustody, exchangeIdSelfCustody);
-    await offerFacet.unwrapNFT(tokenIdSelfCustody, buyerAdvancedOrderSelfCustody);
+      console.log(tokenId);
 
-    // unwrap to self
-    const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
-    const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-    const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
-    await mockToken.approve(fermionProtocolAddress, minimalPrice);
-    await offerFacet.unwrapNFTToSelf(tokenIdSelf);
+      // Submit verdicts
+      await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
 
-    exchange.tokenId = tokenId;
-    exchange.custodianId = custodianId;
-
-    // Self sale
-    exchangeSelfSale.tokenId = tokenIdSelf;
-    exchangeSelfSale.custodianId = custodianId;
-
-    // Self verification
-    exchangeSelfCustody.tokenId = tokenIdSelfCustody;
-    exchangeSelfCustody.custodianId = sellerId;
-
-    // Submit verdicts
-    await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
-    await verificationFacet.connect(verifier).submitVerdict(tokenIdSelf, VerificationStatus.Verified);
-    await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified);
+      if (i == 0n) {
+        const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+        exchange.tokenId = tokenId;
+        exchange.custodianId = custodianId;
+        exchange.price = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
+      }
+    }
 
     const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
-
-    const wrapperAddressSelfSale = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
-    wrapperSelfSale = await ethers.getContractAt("FermionFNFT", wrapperAddressSelfSale);
-
-    const wrapperAddressSelfCustody = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
-    wrapperSelfCustody = await ethers.getContractAt("FermionFNFT", wrapperAddressSelfCustody);
   }
 
   before(async function () {
@@ -194,14 +182,19 @@ describe("CustodyVault", function () {
         amount: 0n,
         period: BigInt(blockTimeStamp),
       };
+      const itemCount = 1n;
 
-      expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(Object.values(expectedCustodianVault));
+      expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+        Object.values(expectedCustodianVault),
+        itemCount,
+      ]);
     });
   });
 
   context("topUpCustodianVault", function () {
     const topUpAmount = parseEther("0.01");
     let vaultCreationTimestamp: bigint;
+    const itemCount = 1n;
 
     beforeEach(async function () {
       const tx = await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
@@ -221,7 +214,10 @@ describe("CustodyVault", function () {
         period: vaultCreationTimestamp,
       };
 
-      expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(Object.values(expectedCustodianVault));
+      expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+        Object.values(expectedCustodianVault),
+        itemCount,
+      ]);
       expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance + topUpAmount);
     });
 
@@ -243,7 +239,10 @@ describe("CustodyVault", function () {
         period: vaultCreationTimestamp,
       };
 
-      expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(Object.values(expectedCustodianVault));
+      expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+        Object.values(expectedCustodianVault),
+        itemCount,
+      ]);
       expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance + topUpAmount + topUpAmount2);
     });
 
@@ -266,9 +265,9 @@ describe("CustodyVault", function () {
 
       it("Vault does not exist/is inactive", async function () {
         // existing token id but not checked in
-        await expect(custodyVaultFacet.topUpCustodianVault(exchangeSelfSale.tokenId, topUpAmount))
+        await expect(custodyVaultFacet.topUpCustodianVault(exchange.tokenId + 1n, topUpAmount))
           .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
-          .withArgs(exchangeSelfSale.tokenId);
+          .withArgs(exchange.tokenId + 1n);
 
         // invalid token id
         await expect(custodyVaultFacet.topUpCustodianVault(0n, topUpAmount))
@@ -312,7 +311,8 @@ describe("CustodyVault", function () {
     });
   });
 
-  context.only("Single F-NFT owner (non-fractionalized)", function () {
+  context("Single F-NFT owner (non-fractionalized)", function () {
+    const itemCount = 1n;
     context("releaseFundsFromVault", function () {
       const topUpAmount = custodianFee.amount * 5n; // pre pay for 5 periods
       let vaultCreationTimestamp: bigint;
@@ -345,9 +345,10 @@ describe("CustodyVault", function () {
           period: vaultCreationTimestamp + custodianFee.period,
         };
 
-        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(
+        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
           Object.values(expectedCustodianVault),
-        );
+          itemCount,
+        ]);
         expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance); // releasing should not change protocol balance
         expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
           custodianAvailableFunds + custodianFee.amount,
@@ -370,9 +371,10 @@ describe("CustodyVault", function () {
           period: vaultCreationTimestamp + 2n * custodianFee.period,
         };
 
-        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(
+        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
           Object.values(expectedCustodianVault2),
-        );
+          itemCount,
+        ]);
         expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance); // releasing should not change protocol balance
         expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
           custodianAvailableFunds + 2n * custodianFee.amount,
@@ -400,16 +402,432 @@ describe("CustodyVault", function () {
           period: vaultCreationTimestamp + payoutPeriods * custodianFee.period,
         };
 
-        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql(
+        expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
           Object.values(expectedCustodianVault),
-        );
+          itemCount,
+        ]);
         expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance); // releasing should not change protocol balance
         expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
           custodianAvailableFunds + payoutPeriods * custodianFee.amount,
         );
       });
 
-      context("Insufficient balance start partial auction", function () {});
+      context("Insufficient balance start partial auction", function () {
+        context("First/single item from collection", function () {
+          it("Nothing to release", async function () {
+            const payoutPeriods = 5n; // empty the vault
+            await setNextBlockTimestamp(String(vaultCreationTimestamp + payoutPeriods * custodianFee.period + 200n));
+
+            const tx = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            await expect(tx).to.not.emit(custodyVaultFacet, "AuctionStarted");
+            const expectedCustodianVault = {
+              amount: 0n,
+              period: vaultCreationTimestamp + payoutPeriods * custodianFee.period,
+            };
+            let itemCount = 1n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedCustodianVault),
+              itemCount,
+            ]);
+
+            await setNextBlockTimestamp(
+              String(vaultCreationTimestamp + (payoutPeriods + 1n) * custodianFee.period + 200n),
+            );
+
+            const partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * custodianFee.amount;
+            const fractionsToIssue = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) / exchange.price;
+            const buyoutAuctionDefaultParameters = {
+              exitPrice: exchange.price,
+              duration: AUCTION_DURATION,
+              unlockThreshold: UNLOCK_THRESHOLD,
+              topBidLockTime: TOP_BID_LOCK_TIME,
+            };
+
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
+            const tx2 = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            const offerVaultCreationTimestamp = BigInt((await tx2.getBlock()).timestamp);
+            const auctionEnd = offerVaultCreationTimestamp + custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR;
+            await expect(tx2).to.not.emit(fundsFacet, "AvailableFundsIncreased");
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AuctionStarted")
+              .withArgs(offerId, fractionsToIssue, auctionEnd);
+            await expect(tx2)
+              .to.emit(wrapper, "FractionsSetup")
+              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters));
+            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT);
+            await expect(tx2)
+              .to.emit(wrapper, "AdditionalFractionsMinted")
+              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue);
+
+            // offer vault is created
+            const expectedOfferVault = {
+              amount: 0n,
+              period: offerVaultCreationTimestamp,
+            };
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is closed
+            const expectedItemVault = {
+              amount: 0n,
+              period: 0n,
+            };
+            itemCount = 0n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(custodianAvailableFunds);
+          });
+
+          it("Some periods can be covered, but not all, item vault balance is multiple of custodian fee", async function () {
+            const payoutPeriods = 5n; // empty the vault
+            await setNextBlockTimestamp(
+              String(vaultCreationTimestamp + (payoutPeriods + 1n) * custodianFee.period + 200n),
+            );
+
+            const partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * custodianFee.amount;
+            const fractionsToIssue = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) / exchange.price;
+            const buyoutAuctionDefaultParameters = {
+              exitPrice: exchange.price,
+              duration: AUCTION_DURATION,
+              unlockThreshold: UNLOCK_THRESHOLD,
+              topBidLockTime: TOP_BID_LOCK_TIME,
+            };
+
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
+            const tx2 = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            const offerVaultCreationTimestamp = BigInt((await tx2.getBlock()).timestamp);
+            const auctionEnd = offerVaultCreationTimestamp + custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR;
+            await expect(tx2)
+              .to.emit(fundsFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, payoutPeriods * custodianFee.amount);
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AuctionStarted")
+              .withArgs(offerId, fractionsToIssue, auctionEnd);
+            await expect(tx2)
+              .to.emit(wrapper, "FractionsSetup")
+              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters));
+            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT);
+            await expect(tx2)
+              .to.emit(wrapper, "AdditionalFractionsMinted")
+              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue);
+
+            // offer vault is created
+            const expectedOfferVault = {
+              amount: 0n,
+              period: offerVaultCreationTimestamp,
+            };
+            let itemCount = 1n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is closed
+            const expectedItemVault = {
+              amount: 0n,
+              period: 0n,
+            };
+            itemCount = 0n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + payoutPeriods * custodianFee.amount,
+            );
+          });
+
+          it("Some periods can be covered, but not all, some funds remain in vault,  item vault balance is not multiple of custodian fee", async function () {
+            const topUpAmount = custodianFee.amount / 2n; // half of the period
+            await mockToken.approve(fermionProtocolAddress, topUpAmount);
+            await custodyVaultFacet.topUpCustodianVault(exchange.tokenId, topUpAmount);
+
+            const payoutPeriods = 5n; // empty the vault
+            await setNextBlockTimestamp(
+              String(vaultCreationTimestamp + (payoutPeriods + 1n) * custodianFee.period + 200n),
+            );
+
+            const partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * custodianFee.amount;
+            const fractionsToIssue = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) / exchange.price;
+            const buyoutAuctionDefaultParameters = {
+              exitPrice: exchange.price,
+              duration: AUCTION_DURATION,
+              unlockThreshold: UNLOCK_THRESHOLD,
+              topBidLockTime: TOP_BID_LOCK_TIME,
+            };
+
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
+            const tx2 = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            const offerVaultCreationTimestamp = BigInt((await tx2.getBlock()).timestamp);
+            const auctionEnd = offerVaultCreationTimestamp + custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR;
+            await expect(tx2)
+              .to.emit(fundsFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, payoutPeriods * custodianFee.amount);
+            await expect(tx2)
+              .to.emit(fundsFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, topUpAmount); // the reminder is also released
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AuctionStarted")
+              .withArgs(offerId, fractionsToIssue, auctionEnd);
+            await expect(tx2)
+              .to.emit(wrapper, "FractionsSetup")
+              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters));
+            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT);
+            await expect(tx2)
+              .to.emit(wrapper, "AdditionalFractionsMinted")
+              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue);
+
+            // offer vault is created
+            const expectedOfferVault = {
+              amount: 0n,
+              period: offerVaultCreationTimestamp,
+            };
+            let itemCount = 1n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is closed
+            const expectedItemVault = {
+              amount: 0n,
+              period: 0n,
+            };
+            itemCount = 0n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + payoutPeriods * custodianFee.amount + topUpAmount,
+            );
+          });
+        });
+
+        context("Existing fractionalised F-NFT in collection", function () {
+          const fractionsPerToken = 5000n * 10n ** 18n;
+          const auctionParameters = {
+            exitPrice: parseEther("0.1"),
+            duration: 60n * 60n * 24n * 7n, // 1 week
+            unlockThreshold: 7500n, // 75%
+            topBidLockTime: 60n * 60n * 24n * 2n, // two days
+          };
+          let offerVaultCreationTimestamp: bigint;
+          const custodianVaultParameters = {
+            partialAuctionThreshold: custodianFee.amount * 15n,
+            partialAuctionDuration: custodianFee.period / 2n,
+            liquidationThreshold: custodianFee.amount * 2n,
+            newFractionsPerAuction: 0n,
+          };
+
+          before(async function () {
+            const expectedPrice = (exchange.price * 11n) / 10n;
+            custodianVaultParameters.newFractionsPerAuction =
+              (custodianFee.amount * 15n * fractionsPerToken) / expectedPrice;
+          });
+
+          beforeEach(async function () {
+            const tx = await wrapper
+              .connect(buyer)
+              .mintFractions(
+                BigInt(exchange.tokenId) + 1n,
+                1,
+                fractionsPerToken,
+                auctionParameters,
+                custodianVaultParameters,
+              );
+            offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
+          });
+
+          it("Nothing to release", async function () {
+            const payoutPeriods = 5n; // empty the vault
+            await setNextBlockTimestamp(String(vaultCreationTimestamp + payoutPeriods * custodianFee.period + 200n));
+
+            const tx = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            await expect(tx).to.not.emit(custodyVaultFacet, "AuctionStarted");
+            const expectedCustodianVault = {
+              amount: 0n,
+              period: vaultCreationTimestamp + payoutPeriods * custodianFee.period,
+            };
+            let itemCount = 1n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedCustodianVault),
+              itemCount,
+            ]);
+
+            await setNextBlockTimestamp(
+              String(vaultCreationTimestamp + (payoutPeriods + 1n) * custodianFee.period + 200n),
+            );
+
+            const fractionsToIssue = 2n * custodianVaultParameters.newFractionsPerAuction; // for the previously fractionalised token and the new one
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
+            const tx2 = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            const timestamp = BigInt((await tx2.getBlock()).timestamp);
+            const auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
+            await expect(tx2).to.not.emit(fundsFacet, "AvailableFundsIncreased");
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AuctionStarted")
+              .withArgs(offerId, fractionsToIssue, auctionEnd);
+            await expect(tx2).to.not.emit(wrapper, "FractionsSetup");
+            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, fractionsPerToken);
+            await expect(tx2)
+              .to.emit(wrapper, "AdditionalFractionsMinted")
+              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue);
+
+            // offer vault remains the same, just number of items is increased
+            const expectedOfferVault = {
+              amount: 0n,
+              period: offerVaultCreationTimestamp,
+            };
+            itemCount = 2n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is closed
+            const expectedItemVault = {
+              amount: 0n,
+              period: 0n,
+            };
+            itemCount = 0n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(custodianAvailableFunds);
+          });
+
+          it("Some periods can be covered, but not all, item vault balance is multiple of custodian fee", async function () {
+            const payoutPeriods = 5n; // empty the vault
+            await setNextBlockTimestamp(
+              String(vaultCreationTimestamp + (payoutPeriods + 1n) * custodianFee.period + 200n),
+            );
+
+            const fractionsToIssue = 2n * custodianVaultParameters.newFractionsPerAuction; // for the previously fractionalised token and the new one
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
+            const tx2 = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            const timestamp = BigInt((await tx2.getBlock()).timestamp);
+            const auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
+            await expect(tx2)
+              .to.emit(fundsFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, payoutPeriods * custodianFee.amount);
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AuctionStarted")
+              .withArgs(offerId, fractionsToIssue, auctionEnd);
+            await expect(tx2).to.not.emit(wrapper, "FractionsSetup");
+            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, fractionsPerToken);
+            await expect(tx2)
+              .to.emit(wrapper, "AdditionalFractionsMinted")
+              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue);
+
+            // offer vault remains the same, just number of items is increased
+            const expectedOfferVault = {
+              amount: 0n,
+              period: offerVaultCreationTimestamp,
+            };
+            let itemCount = 2n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is closed
+            const expectedItemVault = {
+              amount: 0n,
+              period: 0n,
+            };
+            itemCount = 0n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + payoutPeriods * custodianFee.amount,
+            );
+          });
+
+          it("Some periods can be covered, but not all, some funds remain in vault,  item vault balance is not multiple of custodian fee", async function () {
+            const topUpAmount = custodianFee.amount / 2n; // half of the period
+            await mockToken.approve(fermionProtocolAddress, topUpAmount);
+            await custodyVaultFacet.topUpCustodianVault(exchange.tokenId, topUpAmount);
+
+            const payoutPeriods = 5n; // empty the vault
+            await setNextBlockTimestamp(
+              String(vaultCreationTimestamp + (payoutPeriods + 1n) * custodianFee.period + 200n),
+            );
+
+            const fractionsToIssue = 2n * custodianVaultParameters.newFractionsPerAuction; // for the previously fractionalised token and the new one
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
+            const tx2 = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            const timestamp = BigInt((await tx2.getBlock()).timestamp);
+            const auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
+            await expect(tx2)
+              .to.emit(fundsFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, payoutPeriods * custodianFee.amount);
+            await expect(tx2)
+              .to.emit(fundsFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, topUpAmount); // the reminder is also released
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AuctionStarted")
+              .withArgs(offerId, fractionsToIssue, auctionEnd);
+            await expect(tx2).to.not.emit(wrapper, "FractionsSetup");
+            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, fractionsPerToken);
+            await expect(tx2)
+              .to.emit(wrapper, "AdditionalFractionsMinted")
+              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue);
+
+            // offer vault remains the same, just number of items is increased
+            const expectedOfferVault = {
+              amount: 0n,
+              period: offerVaultCreationTimestamp,
+            };
+            let itemCount = 2n;
+
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedOfferVault),
+              itemCount,
+            ]);
+
+            // item vault is closed
+            const expectedItemVault = {
+              amount: 0n,
+              period: 0n,
+            };
+            itemCount = 0n;
+
+            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
+              Object.values(expectedItemVault),
+              itemCount,
+            ]);
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + payoutPeriods * custodianFee.amount + topUpAmount,
+            );
+          });
+        });
+      });
 
       context("Revert reasons", function () {
         it("Custody region is paused", async function () {
@@ -422,9 +840,9 @@ describe("CustodyVault", function () {
 
         it("Vault does not exist/is inactive", async function () {
           // existing token id but not checked in
-          await expect(custodyVaultFacet.releaseFundsFromVault(exchangeSelfSale.tokenId))
+          await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId + 1n))
             .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
-            .withArgs(exchangeSelfSale.tokenId);
+            .withArgs(exchange.tokenId + 1n);
 
           // invalid token id
           await expect(custodyVaultFacet.releaseFundsFromVault(0n))
@@ -436,7 +854,7 @@ describe("CustodyVault", function () {
             .withArgs(1000n);
         });
 
-        it("Period not over yer", async function () {
+        it("Period not over yet", async function () {
           await setNextBlockTimestamp(String(vaultCreationTimestamp + custodianFee.period - 1n));
 
           await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
@@ -459,6 +877,74 @@ describe("CustodyVault", function () {
           await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
             .to.be.revertedWithCustomError(fermionErrors, "PeriodNotOver")
             .withArgs(exchange.tokenId, vaultCreationTimestamp + 5n * custodianFee.period);
+        });
+
+        context("Auction is ongoing", function () {
+          it("First/single item from collection", async function () {
+            const payoutPeriods = 5n; // empty the vault
+            await setNextBlockTimestamp(
+              String(vaultCreationTimestamp + (payoutPeriods + 1n) * custodianFee.period + 200n),
+            );
+
+            const tx = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted");
+
+            const offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
+
+            await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
+              .withArgs(exchange.tokenId);
+
+            await expect(custodyVaultFacet.releaseFundsFromVault(offerId))
+              .to.be.revertedWithCustomError(fermionErrors, "PeriodNotOver")
+              .withArgs(offerId, offerVaultCreationTimestamp + custodianFee.period);
+          });
+
+          it.only("Existing fractionalised F-NFT in collection", async function () {
+            const fractionsPerToken = 5000n * 10n ** 18n;
+            const auctionParameters = {
+              exitPrice: parseEther("0.1"),
+              duration: 60n * 60n * 24n * 7n, // 1 week
+              unlockThreshold: 7500n, // 75%
+              topBidLockTime: 60n * 60n * 24n * 2n, // two days
+            };
+            const custodianVaultParameters = {
+              partialAuctionThreshold: custodianFee.amount * 15n,
+              partialAuctionDuration: custodianFee.period / 2n,
+              liquidationThreshold: custodianFee.amount * 2n,
+              newFractionsPerAuction: (custodianFee.amount * 15n * fractionsPerToken) / exchange.price,
+            };
+
+            const tx = await wrapper
+              .connect(buyer)
+              .mintFractions(
+                BigInt(exchange.tokenId) + 1n,
+                1,
+                fractionsPerToken,
+                auctionParameters,
+                custodianVaultParameters,
+              );
+            const offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
+
+            const payoutPeriods = 5n; // empty the vault
+            await setNextBlockTimestamp(
+              String(offerVaultCreationTimestamp + (payoutPeriods + 1n) * custodianFee.period + 200n),
+            );
+
+            const tx2 = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
+            await expect(tx2).to.emit(custodyVaultFacet, "AuctionStarted");
+
+            const auctionStart = BigInt((await tx2.getBlock()).timestamp);
+            const auctionEnd = auctionStart + custodianVaultParameters.partialAuctionDuration;
+
+            await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
+              .withArgs(exchange.tokenId);
+
+            await expect(custodyVaultFacet.releaseFundsFromVault(offerId))
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionOngoing")
+              .withArgs(offerId, auctionEnd);
+          });
         });
       });
     });

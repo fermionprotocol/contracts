@@ -3,7 +3,7 @@ import { resetCompilationFolder, setCompilationFolder, deriveTokenId } from "./c
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
-import { Contract } from "ethers";
+import { BigNumberish, Contract } from "ethers";
 
 const { getContractFactory, parseEther } = ethers;
 
@@ -39,7 +39,7 @@ export function createBuyerAdvancedOrderClosure(
   mockToken: Contract,
   offerFacet: Contract,
 ) {
-  return async function (buyer: HardhatEthersSigner, offerId: string, exchangeId: string) {
+  return async function (buyer: HardhatEthersSigner, offerId: string, exchangeId: string | BigNumberish, collectionSalt = "") {
     const fullPrice = parseEther("1");
     const openSeaFee = (fullPrice * 2n) / 100n;
     const openSea = wallets[5]; // a mock OS address
@@ -49,7 +49,7 @@ export function createBuyerAdvancedOrderClosure(
 
     const exchangeToken = await mockToken.getAddress();
     const tokenId = deriveTokenId(offerId, exchangeId).toString();
-    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
+    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(collectionSalt || tokenId);
     const { executeAllActions } = await seaport.createOrder(
       {
         offer: [

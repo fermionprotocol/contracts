@@ -53,18 +53,20 @@ library CustodyLib {
      *
      * @param _firstTokenId - the lowest token ID to add to the vault
      * @param _length - the number of tokens to add to the vault
+     * @param _checkCaller - if true, the caller is checked to be the F-NFT contract owning the token. Use false for internal calls.
      * @param pl - the protocol lookups storage
      */
     function addItemToCustodianOfferVault(
         uint256 _firstTokenId,
         uint256 _length,
+        bool _checkCaller,
         FermionStorage.ProtocolLookups storage pl
     ) internal returns (uint256 offerId, uint256 amountToTransfer) {
         // not testing the checkout request status. After confirming that the called is the FNFT address, we know
         // that fractionalisation can happen only if the item was checked-in
         FermionTypes.Offer storage offer;
         (offerId, offer) = FermionStorage.getOfferFromTokenId(_firstTokenId);
-        if (msg.sender != pl.wrapperAddress[offerId]) revert FermionErrors.AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
+        if (_checkCaller && msg.sender != pl.wrapperAddress[offerId]) revert FermionErrors.AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
 
         uint256 custodianId = offer.custodianId;
         address exchangeToken = offer.exchangeToken;
