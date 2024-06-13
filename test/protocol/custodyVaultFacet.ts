@@ -32,6 +32,8 @@ import {
   UNLOCK_THRESHOLD,
   TOP_BID_LOCK_TIME,
 } from "../utils/constants";
+import { mock } from "node:test";
+import { time } from "console";
 
 const { parseEther } = ethers;
 
@@ -51,6 +53,7 @@ describe("CustodyVault", function () {
   let custodian: HardhatEthersSigner;
   let facilitator: HardhatEthersSigner, facilitator2: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
+  let bidder: HardhatEthersSigner;
   let seaportAddress: string;
   let wrapper: Contract, wrapperSelfSale: Contract, wrapperSelfCustody: Contract;
   const offerId = "1";
@@ -139,6 +142,9 @@ describe("CustodyVault", function () {
         exchange.price = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
       }
     }
+
+    bidder = wallets[7];
+    await mockToken.mint(bidder.address, parseEther("1000"));
 
     const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
@@ -941,7 +947,6 @@ describe("CustodyVault", function () {
   });
 
   context("Multiple F-NFT owners (fractionalised)", function () {
-    const itemCount = 1n;
     const fractionsPerToken = 5000n * 10n ** 18n;
     const auctionParameters = {
       exitPrice: parseEther("0.1"),
@@ -1629,16 +1634,130 @@ describe("CustodyVault", function () {
         offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
       });
 
+      context("topUpCustodianVault", function () {
+        const topUpAmount = parseEther("0.01");
+        const itemCount = 1n;
+
+        it("Anyone can top-up the vault", async function () {
+          const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+
+          await mockToken.approve(fermionProtocolAddress, topUpAmount);
+          const tx = await custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount);
+
+          await expect(tx).to.emit(custodyVaultFacet, "VaultBalanceUpdated").withArgs(offerId, topUpAmount);
+
+          const expectedCustodianVault = {
+            amount: topUpAmount,
+            period: offerVaultCreationTimestamp,
+          };
+
+          expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+            Object.values(expectedCustodianVault),
+            tokenCount,
+          ]);
+          expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance + topUpAmount);
+        });
+
+        it("Second top-up adds value", async function () {
+          const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+
+          await mockToken.approve(fermionProtocolAddress, topUpAmount);
+          await custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount);
+
+          const topUpAmount2 = parseEther("0.01");
+          await mockToken.approve(fermionProtocolAddress, topUpAmount2);
+          const tx = await custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount2);
+          await expect(tx)
+            .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
+            .withArgs(offerId, topUpAmount + topUpAmount2);
+
+          const expectedCustodianVault = {
+            amount: topUpAmount + topUpAmount2,
+            period: offerVaultCreationTimestamp,
+          };
+
+          expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+            Object.values(expectedCustodianVault),
+            tokenCount,
+          ]);
+          expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(
+            protocolBalance + topUpAmount + topUpAmount2,
+          );
+        });
+
+        context("Revert reasons", function () {
+          it("Custody region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.CustodyVault]);
+
+            await expect(custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.CustodyVault);
+          });
+
+          it("Amount to deposit is zero", async function () {
+            const topUpAmount = 0n;
+
+            await expect(custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "ZeroDepositNotAllowed",
+            );
+          });
+
+          it("Vault does not exist/is inactive", async function () {
+            // existing token id but not checked in
+            await expect(custodyVaultFacet.topUpCustodianVault(offerId + 1n, topUpAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
+              .withArgs(offerId + 1n);
+
+            // invalid token id
+            await expect(custodyVaultFacet.topUpCustodianVault(0n, topUpAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
+              .withArgs(0n);
+
+            await expect(custodyVaultFacet.topUpCustodianVault(1000n, topUpAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
+              .withArgs(1000n);
+          });
+
+          it("Funds related errors", async function () {
+            // ERC20 offer - insufficient allowance
+            await mockToken.approve(fermionProtocolAddress, topUpAmount - 1n);
+
+            await expect(custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount))
+              .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+              .withArgs(fermionProtocolAddress, topUpAmount - 1n, topUpAmount);
+
+            // ERC20 offer - contract sends insufficient funds
+            await mockToken.approve(fermionProtocolAddress, topUpAmount);
+            await mockToken.setBurnAmount(1);
+            await expect(custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
+              .withArgs(topUpAmount, topUpAmount - 1n);
+            await mockToken.setBurnAmount(0);
+
+            // ERC20 offer - insufficient balance
+            const signerBalance = await mockToken.balanceOf(defaultSigner.address);
+            await mockToken.transfer(wallets[4].address, signerBalance); // transfer all the tokens to another wallet
+
+            await expect(custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount))
+              .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+              .withArgs(defaultSigner.address, 0n, topUpAmount);
+
+            // Send native currency to ERC20 offer
+            await expect(
+              custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount, { value: topUpAmount }),
+            ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+          });
+        });
+      });
+
       context("removeItemFromCustodianOfferVault", function () {
         const tokenCount = 3n;
-        let bidder: HardhatEthersSigner;
 
         beforeEach(async function () {
           // buyoutAuction for the first item
-          bidder = wallets[7];
           const bidAmount = auctionParameters.exitPrice + parseEther("0.1");
           const usedFractions = 0;
-          await mockToken.mint(bidder.address, parseEther("1000"));
           await mockToken.connect(bidder).approve(await wrapper.getAddress(), bidAmount);
           const tx2 = await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
           const blockTimeStamp = (await tx2.getBlock()).timestamp;
@@ -2242,11 +2361,186 @@ describe("CustodyVault", function () {
           });
         });
       });
+
+      context("bid", function () {
+        const topUpAmount = custodianVaultParameters.partialAuctionThreshold * tokenCount;
+        const bidderId = 6n;
+
+        let auctionEnd: bigint;
+        const bidAmount = (custodianVaultParameters.partialAuctionThreshold * tokenCount * 11n) / 10n;
+
+        beforeEach(async function () {
+          await mockToken.approve(fermionProtocolAddress, topUpAmount);
+          await custodyVaultFacet.topUpCustodianVault(offerId, topUpAmount);
+          await setNextBlockTimestamp(String(offerVaultCreationTimestamp + custodianFee.period + 200n));
+          const tx = await custodyVaultFacet.releaseFundsFromVault(offerId);
+          await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted");
+          const timestamp = BigInt((await tx.getBlock()).timestamp);
+          auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
+
+          bidder = wallets[7];
+        });
+
+        it("Place a bid", async function () {
+          const custodianVault = await custodyVaultFacet.getCustodianVault(offerId);
+          const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+
+          await mockToken.connect(bidder).approve(fermionProtocolAddress, bidAmount);
+
+          const tx = await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
+
+          await expect(tx)
+            .to.emit(custodyVaultFacet, "BidPlaced")
+            .withArgs(offerId, bidder.address, bidderId, bidAmount);
+          await expect(tx).to.not.emit(fundsFacet, "AvailableFundsIncreased");
+
+          expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance + bidAmount);
+          expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql(custodianVault); // placing a bid does not change the vault
+
+          const expectedAuctionDetails = {
+            endTime: auctionEnd,
+            availableFractions: custodianVaultParameters.newFractionsPerAuction * tokenCount,
+            maxBid: bidAmount,
+            bidderId: bidderId,
+          };
+          expect(await custodyVaultFacet.getPartialAuctionDetails(offerId)).to.eql(
+            Object.values(expectedAuctionDetails),
+          );
+        });
+
+        it("When outbid, previous bidder gets the money in available funds", async function () {
+          await mockToken.connect(bidder).approve(fermionProtocolAddress, bidAmount);
+          await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
+
+          const newBidder = wallets[8];
+          const newBidAmount = (bidAmount * 12n) / 10n;
+          await mockToken.mint(newBidder.address, newBidAmount);
+
+          const custodianVault = await custodyVaultFacet.getCustodianVault(offerId);
+          const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+          await mockToken.connect(newBidder).approve(fermionProtocolAddress, newBidAmount);
+
+          const tx = await custodyVaultFacet.connect(newBidder).bid(offerId, newBidAmount);
+
+          await expect(tx)
+            .to.emit(custodyVaultFacet, "BidPlaced")
+            .withArgs(offerId, newBidder.address, bidderId + 1n, newBidAmount);
+          await expect(tx)
+            .to.emit(fundsFacet, "AvailableFundsIncreased")
+            .withArgs(bidderId, mockTokenAddress, bidAmount);
+
+          expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance + newBidAmount);
+          expect(await fundsFacet.getAvailableFunds(bidderId, mockTokenAddress)).to.equal(bidAmount);
+          expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql(custodianVault); // placing a bid does not change the vault
+          const expectedAuctionDetails = {
+            endTime: auctionEnd,
+            availableFractions: custodianVaultParameters.newFractionsPerAuction * tokenCount,
+            maxBid: newBidAmount,
+            bidderId: bidderId + 1n,
+          };
+          expect(await custodyVaultFacet.getPartialAuctionDetails(offerId)).to.eql(
+            Object.values(expectedAuctionDetails),
+          );
+        });
+
+        it("placing a bid within buffer time extends it by buffer period", async function () {
+          const { endTime } = await custodyVaultFacet.getPartialAuctionDetails(offerId);
+
+          await mockToken.connect(bidder).approve(fermionProtocolAddress, bidAmount);
+          await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
+          const { endTime: endTime2 } = await custodyVaultFacet.getPartialAuctionDetails(offerId);
+          expect(endTime2).to.equal(endTime);
+
+          const newBidder = wallets[8];
+          const newBidAmount = (bidAmount * 12n) / 10n;
+          await mockToken.mint(newBidder.address, newBidAmount);
+          await mockToken.connect(newBidder).approve(fermionProtocolAddress, newBidAmount);
+
+          await setNextBlockTimestamp(String(auctionEnd - AUCTION_END_BUFFER + 123n));
+
+          const tx = await custodyVaultFacet.connect(newBidder).bid(offerId, newBidAmount);
+          const timestamp = BigInt((await tx.getBlock()).timestamp);
+          const { endTime: endTime3 } = await custodyVaultFacet.getPartialAuctionDetails(offerId);
+          expect(endTime3).to.equal(timestamp + AUCTION_END_BUFFER);
+        });
+
+        context("Revert reasons", function () {
+          it("Custody region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.CustodyVault]);
+
+            await expect(custodyVaultFacet.connect(bidder).bid(offerId, bidAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.CustodyVault);
+          });
+
+          it("No auction for the vault", async function () {
+            // invalid offer id
+            await expect(custodyVaultFacet.connect(bidder).bid(0n, bidAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionNotStarted")
+              .withArgs(0n);
+
+            await expect(custodyVaultFacet.connect(bidder).bid(1000n, bidAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionNotStarted")
+              .withArgs(1000n);
+          });
+
+          it("Auction ended", async function () {
+            await setNextBlockTimestamp(String(auctionEnd + 1n));
+
+            await expect(custodyVaultFacet.connect(bidder).bid(offerId, bidAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionEnded")
+              .withArgs(offerId, auctionEnd);
+          });
+
+          it("Second bid is too low", async function () {
+            await mockToken.connect(bidder).approve(fermionProtocolAddress, bidAmount);
+            await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
+
+            const newBidder = wallets[8];
+            const minimalBid = (bidAmount * (10000n + MINIMAL_BID_INCREMENT)) / 10000n;
+            const newBidAmount = minimalBid - 1n;
+
+            await expect(custodyVaultFacet.connect(newBidder).bid(offerId, newBidAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidBid")
+              .withArgs(offerId, minimalBid, newBidAmount);
+          });
+
+          it("Funds related errors", async function () {
+            // ERC20 offer - insufficient allowance
+            await mockToken.connect(bidder).approve(fermionProtocolAddress, bidAmount - 1n);
+
+            await expect(custodyVaultFacet.connect(bidder).bid(offerId, bidAmount))
+              .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+              .withArgs(fermionProtocolAddress, bidAmount - 1n, bidAmount);
+
+            // ERC20 offer - contract sends insufficient funds
+            await mockToken.connect(bidder).approve(fermionProtocolAddress, bidAmount);
+            await mockToken.setBurnAmount(1);
+            await expect(custodyVaultFacet.connect(bidder).bid(offerId, bidAmount))
+              .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
+              .withArgs(bidAmount, bidAmount - 1n);
+            await mockToken.setBurnAmount(0);
+
+            // ERC20 offer - insufficient balance
+            const bidderBalance = await mockToken.balanceOf(bidder.address);
+            await mockToken.connect(bidder).transfer(wallets[4].address, bidderBalance); // transfer all the tokens to another wallet
+
+            await expect(custodyVaultFacet.connect(bidder).bid(offerId, bidAmount))
+              .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+              .withArgs(bidder.address, 0n, bidAmount);
+
+            // Send native currency to ERC20 offer
+            await expect(
+              custodyVaultFacet.connect(bidder).bid(offerId, bidAmount, { value: bidAmount }),
+            ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+          });
+        });
+      });
     });
   });
 
   context.skip("checkOut", function () {
-    it("Custodian can check item out", async function () {
+    it("After checkout any vault is closed", async function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
       await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
@@ -2268,165 +2562,6 @@ describe("CustodyVault", function () {
       await expect(wrapper.ownerOf(exchange.tokenId))
         .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
         .withArgs(exchange.tokenId);
-    });
-
-    it("Self custody", async function () {
-      await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
-      await wrapperSelfCustody.connect(buyer).approve(fermionProtocolAddress, exchangeSelfCustody.tokenId);
-      await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
-      await custodyFacet.clearCheckoutRequest(exchangeSelfCustody.tokenId);
-
-      const tx = await custodyFacet.checkOut(exchangeSelfCustody.tokenId);
-
-      // Events
-      // Fermion
-      await expect(tx).to.emit(custodyFacet, "CheckedOut").withArgs(sellerId, exchangeSelfCustody.tokenId);
-
-      // Wrapper
-      await expect(tx)
-        .to.emit(wrapperSelfCustody, "TokenStateChange")
-        .withArgs(exchangeSelfCustody.tokenId, TokenState.CheckedOut);
-      await expect(tx)
-        .to.emit(wrapperSelfCustody, "Transfer")
-        .withArgs(fermionProtocolAddress, ZeroAddress, exchangeSelfCustody.tokenId);
-
-      // State
-      // Wrapper
-      expect(await wrapperSelfCustody.tokenState(exchangeSelfCustody.tokenId)).to.equal(TokenState.CheckedOut);
-      await expect(wrapperSelfCustody.ownerOf(exchangeSelfCustody.tokenId))
-        .to.be.revertedWithCustomError(wrapperSelfCustody, "ERC721NonexistentToken")
-        .withArgs(exchangeSelfCustody.tokenId);
-    });
-
-    context("Revert reasons", function () {
-      it("Custody region is paused", async function () {
-        await pauseFacet.pause([PausableRegion.Custody]);
-
-        await expect(custodyFacet.checkOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
-          .withArgs(PausableRegion.Custody);
-      });
-
-      it("Caller is not the custodian's assistant", async function () {
-        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
-        await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
-        await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-        await custodyFacet.clearCheckoutRequest(exchange.tokenId);
-
-        const wallet = wallets[9];
-
-        // completely random wallet
-        await expect(custodyFacet.connect(wallet).checkOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(custodianId, wallet.address, EntityRole.Custodian, WalletRole.Assistant);
-
-        // seller
-        await expect(custodyFacet.checkOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(custodianId, defaultSigner.address, EntityRole.Custodian, WalletRole.Assistant);
-
-        // an entity-wide Treasury or admin wallet (not Assistant)
-        await entityFacet
-          .connect(custodian)
-          .addEntityWallets(custodianId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
-        await expect(custodyFacet.connect(wallet).checkOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(custodianId, wallet.address, EntityRole.Custodian, WalletRole.Assistant);
-
-        // a Custodian specific Treasury or Admin wallet
-        const wallet2 = wallets[10];
-        await entityFacet
-          .connect(custodian)
-          .addEntityWallets(
-            custodianId,
-            [wallet2],
-            [[EntityRole.Custodian]],
-            [[[WalletRole.Treasury, WalletRole.Admin]]],
-          );
-        await expect(custodyFacet.connect(wallet2).checkOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(custodianId, wallet2.address, EntityRole.Custodian, WalletRole.Assistant);
-
-        // an Assistant of another role than Custodian
-        await entityFacet.connect(custodian).updateEntity(custodianId, [EntityRole.Verifier, EntityRole.Custodian], "");
-        await entityFacet
-          .connect(custodian)
-          .addEntityWallets(custodianId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
-        await expect(custodyFacet.connect(wallet2).checkOut(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(custodianId, wallet2.address, EntityRole.Custodian, WalletRole.Assistant);
-      });
-
-      context("Invalid state", function () {
-        const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
-
-        it("Cannot check item out twice", async function () {
-          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
-          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
-          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
-
-          await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
-
-          await expect(custodyFacet.connect(custodian).checkOut(exchange.tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
-            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.CheckedOut);
-        });
-
-        it("Cannot check item out before it's unwrapped", async function () {
-          await expect(custodyFacet.checkOut(tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
-            .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
-        });
-
-        it("Cannot check item out if not verified or rejected", async function () {
-          await offerFacet.unwrapNFTToSelf(tokenId);
-
-          // Unwrapped but not verified
-          await expect(custodyFacet.checkOut(tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
-            .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
-
-          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
-
-          // Unwrapped and rejected
-          await expect(custodyFacet.checkOut(tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
-            .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
-        });
-
-        it("Cannot check item out if not checked in", async function () {
-          // Verified but not checked in
-          await expect(custodyFacet.connect(custodian).checkOut(exchange.tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
-            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
-        });
-
-        it("Cannot check item out if checkout not requested", async function () {
-          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
-
-          // Checked in but checkout not requested
-          await expect(custodyFacet.connect(custodian).checkOut(exchange.tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
-            .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.CheckedIn);
-        });
-
-        it("Cannot check item out if checkout request not cleared", async function () {
-          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
-          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
-
-          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-
-          // Checkout request but not cleared
-          await expect(custodyFacet.connect(custodian).checkOut(exchange.tokenId))
-            .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
-            .withArgs(
-              exchange.tokenId,
-              CheckoutRequestStatus.CheckOutRequestCleared,
-              CheckoutRequestStatus.CheckOutRequested,
-            );
-        });
-      });
     });
   });
 });

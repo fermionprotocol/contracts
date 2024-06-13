@@ -14,7 +14,6 @@ import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
 import { FundsFacet } from "./Funds.sol";
-import "hardhat/console.sol";
 
 /**
  * @title CustodyVaultFacet
@@ -249,7 +248,6 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                 vault.amount <
                 pl.custodianVaultItems[offerId] * pl.custodianVaultParameters[offerId].partialAuctionThreshold)
         ) {
-            console.log("start auction");
             startFractionalAuction(offerId, _tokenOrOfferId, isOfferVault, custodianFee);
         }
 
@@ -316,7 +314,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * @param _offerId - token ID associated with the vault
      * @param _bidAmount - amount to bid
      */
-    function bid(uint256 _offerId, uint256 _bidAmount) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
+    function bid(uint256 _offerId, uint256 _bidAmount) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
@@ -335,10 +333,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         FundsLib.validateIncomingPayment(exchangeToken, _bidAmount);
 
         // release funds to the previous bidder
-        if (previousBid > 0) {
-            FundsLib.increaseAvailableFunds(fractionAuction.bidderId, exchangeToken, previousBid);
-        }
-
+        FundsLib.increaseAvailableFunds(fractionAuction.bidderId, exchangeToken, previousBid);
+        
         address msgSender = msgSender();
         uint256 bidderId = EntityLib.getOrCreateBuyerId(msgSender, pl);
 
@@ -416,11 +412,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
-        console.log("offerod", _offerId);
         FermionTypes.CustodianVaultParameters storage vaultParameters = pl.custodianVaultParameters[_offerId];
 
-        console.log(fractionAuction.endTime);
-        console.log(block.timestamp);
         if (fractionAuction.endTime > block.timestamp) revert AuctionOngoing(_tokenOrOfferId, fractionAuction.endTime);
 
         uint256 fractionsToIssue;
@@ -434,7 +427,6 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
 
                 CustodyLib.addItemToCustodianOfferVault(_tokenOrOfferId, 1, false, pl);
             } else {
-                console.log("before default fractionalisation");
                 // no vault yet. Use the default parameters
                 FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
                 _buyoutAuctionParameters.exitPrice = pl.itemPrice[_tokenOrOfferId];
@@ -457,7 +449,6 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                     _custodianVaultParameters
                 );
 
-                console.log("after default fractionalisation");
                 setupCustodianOfferVault(_tokenOrOfferId, 1, false, _custodianVaultParameters);
             }
 
@@ -470,15 +461,20 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         fractionAuction.endTime = auctionEnd;
         fractionsToIssue = itemsInVault * vaultParameters.newFractionsPerAuction;
 
-        console.log("before mint additional fractionalisation");
         // mint the factions to the protocol
         IFermionFNFT(wrapperAddress).mintAdditionalFractions(fractionsToIssue); /// <mint to the protocol
-        console.log("after mint additional fractionalisation");
         fractionAuction.availableFractions = fractionsToIssue;
 
         emit AuctionStarted(_offerId, fractionsToIssue, auctionEnd);
     }
 
+    /**
+     * @notice Returns custodian vault details.
+     *
+     * @param _tokenOrOfferId - the offer ID associated with the vault
+     * @return vault - the custodian vault details
+    * @return items - the number of items in the vault
+     */
     function getCustodianVault(
         uint256 _tokenOrOfferId
     ) external view returns (FermionTypes.CustodianFee memory vault, uint256 items) {
@@ -489,6 +485,18 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         } else {
             items = vault.period > 0 ? 1 : 0;
         }
+    }
+
+    /**
+     * @notice Returns the partial auction details.
+     *
+     * @param _offerId - the offer ID associated with the vault
+     * @return auction - the auction details
+     */
+    function getPartialAuctionDetails(
+        uint256 _offerId
+    ) external view returns (FermionTypes.FractionAuction memory auction) {
+        return FermionStorage.protocolLookups().fractionAuction[_offerId];
     }
 
     /**
