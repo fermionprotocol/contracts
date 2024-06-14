@@ -10,25 +10,14 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 /**
  * @dev Implementation of the {IERC20} interface.
  *
- * This implementation is agnostic to the way tokens are created. This means
- * that a supply mechanism has to be added in a derived contract using {_mint}.
- *
- * TIP: For a detailed writeup see our guide
- * https://forum.openzeppelin.com/t/how-to-implement-erc20-supply-mechanisms/226[How
- * to implement supply mechanisms].
- *
- * The default value of {decimals} is 18. To change this, you should override
- * this function so it returns a different value.
- *
- * We have followed general OpenZeppelin Contracts guidelines: functions revert
- * instead returning `false` on failure. This behavior is nonetheless
- * conventional and does not conflict with the expectations of ERC20
- * applications.
- *
- * Additionally, an {Approval} event is emitted on calls to {transferFrom}.
- * This allows applications to reconstruct the allowance for all accounts just
- * by listening to said events. Other implementations of the EIP may not emit
- * these events, as it isn't required by the specification.
+ * It's a fork of OpenZeppelin's ERC20 contract with the following changes:
+ * - _transfer renamed to _transferFractions
+ * - _approve renamed to _approveFractions
+ * - _transferFrom renamed to _transferFractionsFrom
+ * - _mint renamed to _mintFractions
+ * - public methods `transferFrom` and `approve` are not defined in this contract. They are defined as part of
+ *   the FermionFNFT overrides, where ERC721 and ERC20 are combined. This is done, since otherwise the ERC20 and ERC721
+ *   have different return types and cannot be overriden in the usual way.
  */
 abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors {
     // ERC20
