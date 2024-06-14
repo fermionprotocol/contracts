@@ -86,7 +86,7 @@ contract FundsFacet is Context, FermionErrors, Access {
             )
         ) revert NotEntityTreasury(_entityId, _treasury);
 
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
         if (
             !EntityLib.hasWalletRole(
                 _entityId,

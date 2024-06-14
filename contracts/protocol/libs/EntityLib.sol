@@ -277,7 +277,7 @@ library EntityLib {
      * @param _facilitatorId - the facilitator's entity ID
      */
     function validateSellerAssistantOrFacilitator(uint256 _sellerId, uint256 _facilitatorId) internal view {
-        validateSellerAssistantOrFacilitator(_sellerId, _facilitatorId, ContextLib.msgSender());
+        validateSellerAssistantOrFacilitator(_sellerId, _facilitatorId, ContextLib._msgSender());
     }
 
     /** @notice Verifies that the caller is either a seller's assistant or seller's facilitator's assistant

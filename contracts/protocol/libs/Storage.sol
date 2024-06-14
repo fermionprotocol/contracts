@@ -10,6 +10,7 @@ import { FermionTypes } from "../domain/Types.sol";
  */
 library FermionStorage {
     bytes32 internal constant PROTOCOL_STATUS_POSITION = keccak256("fermion.protocol.status");
+    bytes32 internal constant PROTOCOL_CONFIG_POSITION = keccak256("fermion.protocol.config");
     bytes32 internal constant PROTOCOL_ENTITIES_POSITION = keccak256("fermion.protocol.entities");
     bytes32 internal constant PROTOCOL_LOOKUPS_POSITION = keccak256("fermion.protocol.lookups");
     bytes32 internal constant META_TRANSACTION_POSITION = keccak256("fermion.meta.transaction");
@@ -27,6 +28,15 @@ library FermionStorage {
         address wrapperBeaconProxy;
         // Pause status
         uint256 paused;
+    }
+
+    struct ProtocolConfig {
+        // Protocol treasury address
+        address payable treasury;
+        // Protocol fee
+        uint16 protocolFeePercentage;
+        // Verification timeout
+        uint256 verificationTimeout;
     }
 
     // Protocol entities storage
@@ -88,6 +98,18 @@ library FermionStorage {
         bytes32 position = PROTOCOL_STATUS_POSITION;
         assembly {
             ps.slot := position
+        }
+    }
+
+    /**
+     * @notice Gets the protocol config slot
+     *
+     * @return pc - the protocol config slot
+     */
+    function protocolConfig() internal pure returns (ProtocolConfig storage pc) {
+        bytes32 position = PROTOCOL_CONFIG_POSITION;
+        assembly {
+            pc.slot := position
         }
     }
 

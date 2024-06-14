@@ -38,7 +38,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
     ) external notPaused(FermionTypes.PausableRegion.Entity) {
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
         if (entityId != 0) revert EntityAlreadyExists();
@@ -253,7 +253,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      * @param _newWallet - the new wallet address
      */
     function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) {
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
 
@@ -516,7 +516,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         FermionTypes.EntityRole[] calldata _entityRoles,
         FermionTypes.WalletRole[][] calldata _walletRoles
     ) internal view returns (uint256 compactWalletRole) {
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
 
         if (_entityRoles.length == 0) {
             if (_walletRoles.length != 1) revert ArrayLengthMismatch(1, _walletRoles.length);
@@ -567,7 +567,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         uint256 _entityId,
         FermionStorage.ProtocolLookups storage pl
     ) internal notPaused(FermionTypes.PausableRegion.Entity) returns (address) {
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
         uint256 callerEntityId = pl.entityId[msgSender];
         if (callerEntityId == 0) {
             // Try to accept the admin role

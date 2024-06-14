@@ -45,7 +45,7 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
         // Check the caller is the verifier's assistant
         EntityLib.validateWalletRole(
             verifierId,
-            msgSender(),
+            _msgSender(),
             FermionTypes.EntityRole.Verifier,
             FermionTypes.WalletRole.Assistant
         );

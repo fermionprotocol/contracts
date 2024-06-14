@@ -9,6 +9,7 @@ interface FermionErrors {
     error ArrayLengthMismatch(uint256 expectedLength, uint256 actualLength);
     error AccessDenied(address caller);
     error InvalidPercentage(uint256 percentage);
+    error ZeroNotAllowed();
 
     // Initialization errors
     error DirectInitializationNotAllowed();

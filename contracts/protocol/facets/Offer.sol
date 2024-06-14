@@ -445,7 +445,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         uint256 _quantity,
         FermionStorage.ProtocolStatus storage ps
     ) internal {
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
         address wrapperAddress = pl.wrapperAddress[_offerId];

@@ -44,7 +44,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         // Check the caller is the custodian's assistant
         EntityLib.validateWalletRole(
             custodianId,
-            msgSender(),
+            _msgSender(),
             FermionTypes.EntityRole.Custodian,
             FermionTypes.WalletRole.Assistant
         );
@@ -82,7 +82,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         // Check the caller is the verifier's assistant
         EntityLib.validateWalletRole(
             custodianId,
-            msgSender(),
+            _msgSender(),
             FermionTypes.EntityRole.Custodian,
             FermionTypes.WalletRole.Assistant
         );
@@ -115,7 +115,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
         IFermionFNFT(pl.wrapperAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequested;
@@ -198,7 +198,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         } else {
             // Buyer is finalizing the checkout
             address buyer = checkoutRequest.buyer;
-            address msgSender = msgSender();
+            address msgSender = _msgSender();
             if (buyer != msgSender) {
                 revert NotTokenBuyer(_tokenId, buyer, msgSender);
             }

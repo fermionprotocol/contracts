@@ -40,7 +40,7 @@ library FundsLib {
             if (msg.value != 0) revert FermionErrors.NativeNotAllowed();
 
             // if transfer is in ERC20 token, try to transfer the amount from buyer to the protocol
-            transferFundsToProtocol(_exchangeToken, ContextLib.msgSender(), _value);
+            transferFundsToProtocol(_exchangeToken, ContextLib._msgSender(), _value);
         }
     }
 
