@@ -481,9 +481,6 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 offerId = CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, _checkCaller, pl);
 
-        if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
-            revert InvalidThresholds();
-
         // no need to worry this gets overwritten. If `setupCustodianOfferVault` is called the second time with the same offer it
         // it means that all items from the collection were recombined, and new parameters can be set
         pl.custodianVaultParameters[offerId] = _custodianVaultParameters;

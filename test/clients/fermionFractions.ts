@@ -88,7 +88,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     await loadFixture(setupFermionFractionsTest);
   });
 
-  context("mintFractions - initial", function () {
+  context("mintFractions - initial fractionalisation", function () {
     const fractionsAmount = 5000n * 10n ** 18n;
     const auctionParameters = {
       exitPrice: parseEther("0.1"),
@@ -301,27 +301,32 @@ describe("FermionFNFT - fractionalisation tests", function () {
       it("Invalid number of initial additional fractions", async function () {
         const fractionsAmountLow = MIN_FRACTIONS - 1n;
         await expect(
-          fermionFNFTProxy
-            .connect(seller)
-            .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, {
-              ...custodianVaultParameters,
-              newFractionsPerAuction: fractionsAmountLow,
-            }),
+          fermionFNFTProxy.connect(seller).mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, {
+            ...custodianVaultParameters,
+            newFractionsPerAuction: fractionsAmountLow,
+          }),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
           .withArgs(fractionsAmountLow, MIN_FRACTIONS, MAX_FRACTIONS);
 
         const fractionsAmountHigh = MAX_FRACTIONS + 1n;
         await expect(
-          fermionFNFTProxy
-            .connect(seller)
-            .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, {
-              ...custodianVaultParameters,
-              newFractionsPerAuction: fractionsAmountHigh,
-            }),
+          fermionFNFTProxy.connect(seller).mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, {
+            ...custodianVaultParameters,
+            newFractionsPerAuction: fractionsAmountHigh,
+          }),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
           .withArgs(fractionsAmountHigh, MIN_FRACTIONS, MAX_FRACTIONS);
+      });
+
+      it("Liquidation threshold is above the auction threshold", async function () {
+        await expect(
+          fermionFNFTProxy.connect(seller).mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, {
+            ...custodianVaultParameters,
+            liquidationThreshold: custodianVaultParameters.partialAuctionThreshold + 1n,
+          }),
+        ).to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidThresholds");
       });
 
       it("The token is not verified", async function () {
@@ -379,7 +384,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     });
   });
 
-  context("mintFractions - additional", function () {
+  context("mintFractions - subsequent fractionalisation", function () {
     const fractionsAmount = 5000n * 10n ** 18n;
     const auctionParameters = {
       exitPrice: parseEther("0.1"),
@@ -562,6 +567,60 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(fermionFNFTProxy.connect(seller).mintFractions(tokenId, 1))
           .to.be.revertedWithCustomError(fermionFNFTProxy, "ERC721NonexistentToken")
           .withArgs(tokenId);
+      });
+    });
+  });
+
+  context("mintAdditionalFractions", function () {
+    const fractionsAmount = 5000n * 10n ** 18n;
+    const auctionParameters = {
+      exitPrice: parseEther("0.1"),
+      duration: 60n * 60n * 24n * 7n, // 1 week
+      unlockThreshold: 7500n, // 75%
+      topBidLockTime: 60n * 60n * 24n * 2n, // two days
+    };
+    const custodianFee = {
+      amount: parseEther("0.05"),
+      period: 30n * 24n * 60n * 60n, // 30 days
+    };
+    const custodianVaultParameters = {
+      partialAuctionThreshold: custodianFee.amount * 15n,
+      partialAuctionDuration: custodianFee.period / 2n,
+      liquidationThreshold: custodianFee.amount * 2n,
+      newFractionsPerAuction: fractionsAmount * 2n,
+    };
+
+    beforeEach(async function () {
+      await fermionFNFTProxy
+        .connect(seller)
+        .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters);
+    });
+
+    it("The fermion can mint additional fractions", async function () {
+      const additionalAmount = fractionsAmount / 10n;
+      const tx = await fermionFNFTProxy.attach(fermionMock).mintAdditionalFractions(additionalAmount);
+
+      // lock the F-NFT (erc721 transfer)
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "AdditionalFractionsMinted")
+        .withArgs(additionalAmount, additionalAmount + fractionsAmount);
+
+      // mint fractions (erc20 mint)
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "Transfer")
+        .withArgs(ZeroAddress, await fermionMock.getAddress(), additionalAmount);
+
+      // state
+      expect(await fermionFNFTProxy.balanceOf(await fermionMock.getAddress())).to.equal(additionalAmount);
+      expect(await fermionFNFTProxy.totalSupply()).to.equal(fractionsAmount + additionalAmount);
+      expect(await fermionFNFTProxy.liquidSupply()).to.equal(fractionsAmount + additionalAmount);
+    });
+
+    context("Revert reasons", function () {
+      it("Caller is not the fermion", async function () {
+        await expect(fermionFNFTProxy.connect(seller).mintAdditionalFractions(fractionsAmount))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "AccessDenied")
+          .withArgs(seller.address);
       });
     });
   });

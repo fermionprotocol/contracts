@@ -67,8 +67,6 @@ interface IFermionFractions {
      */
     function mintAdditionalFractions(uint256 _amount) external;
 
-    function getFractionInfo() external view returns (uint256 exitPrice, uint256 nftCount, uint256 totalSupply);
-
     /**
      * @dev See {IERC20-transfer}.
      *

@@ -1305,6 +1305,30 @@ describe("CustodyVault", function () {
           });
         });
       });
+
+      context("Revert reasons", function () {
+        it("Custody region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.CustodyVault]);
+
+          await expect(
+            wrapper
+              .connect(buyer)
+              .mintFractions(exchange.tokenId, 1, fractionsPerToken, auctionParameters, custodianVaultParameters),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.CustodyVault);
+        });
+
+        it("Caller is not the wrapper", async function () {
+          await expect(
+            custodyVaultFacet
+              .connect(defaultSigner)
+              .setupCustodianOfferVault(exchange.tokenId, 1, custodianVaultParameters),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "AccessDenied")
+            .withArgs(defaultSigner.address);
+        });
+      });
     });
 
     context("addItemToCustodianOfferVault", function () {
@@ -1600,6 +1624,22 @@ describe("CustodyVault", function () {
               paymentPeriods * custodianFee.amount * tokenCount,
             );
           });
+        });
+      });
+
+      context("Revert reasons", function () {
+        it("Custody region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.CustodyVault]);
+
+          await expect(wrapper.connect(buyer).mintFractions(exchange.tokenId, 1))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.CustodyVault);
+        });
+
+        it("Caller is not the wrapper", async function () {
+          await expect(custodyVaultFacet.connect(defaultSigner).addItemToCustodianOfferVault(exchange.tokenId, 1))
+            .to.be.revertedWithCustomError(fermionErrors, "AccessDenied")
+            .withArgs(defaultSigner.address);
         });
       });
     });
@@ -2046,6 +2086,22 @@ describe("CustodyVault", function () {
               );
               expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(wrapperBalance); // no change
             });
+          });
+        });
+
+        context("Revert reasons", function () {
+          it("Custody region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.CustodyVault]);
+
+            await expect(wrapper.connect(bidder).redeem(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.CustodyVault);
+          });
+
+          it("Caller is not the wrapper", async function () {
+            await expect(custodyVaultFacet.connect(defaultSigner).removeItemFromCustodianOfferVault(exchange.tokenId))
+              .to.be.revertedWithCustomError(fermionErrors, "AccessDenied")
+              .withArgs(defaultSigner.address);
           });
         });
       });

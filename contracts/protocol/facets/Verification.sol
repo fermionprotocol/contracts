@@ -91,13 +91,7 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
         } else {
             address buyerAddress = IFermionFNFT(pl.wrapperAddress[offerId]).burn(_tokenId);
 
-            uint256 buyerId = pl.walletId[buyerAddress];
-
-            if (buyerId == 0) {
-                FermionTypes.EntityRole[] memory _roles = new FermionTypes.EntityRole[](1);
-                _roles[0] = FermionTypes.EntityRole.Buyer;
-                buyerId = EntityLib.createEntity(buyerAddress, _roles, "", pl);
-            }
+            uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 
             // transfer the remainder to the buyer
             FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder);

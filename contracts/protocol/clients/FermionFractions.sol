@@ -105,6 +105,9 @@ abstract contract FermionFractions is
             );
         }
 
+        if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
+            revert InvalidThresholds();
+
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 
         // set the default values if not provided
@@ -610,13 +613,6 @@ abstract contract FermionFractions is
      */
     function getIndividualLockedVotes(uint256 _tokenId, address _voter) external view returns (uint256 lockedVotes) {
         return getLastAuction(_tokenId, _getBuyoutAuctionStorage()).votes.individual[_voter];
-    }
-
-    function getFractionInfo() external view returns (uint256 exitPrice, uint256 nftCount, uint256 totalSupply) {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        exitPrice = $.auctionParameters.exitPrice;
-        nftCount = $.nftCount;
-        totalSupply = _getERC20Storage()._totalSupply;
     }
 
     /**
