@@ -11,14 +11,14 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
  *
  */
 contract MockFermion {
-    // constructor(address implementation) ERC1967Proxy(implementation, "") {}
     address private immutable DESTINATION;
     address private immutable EXCHANGE_TOKEN;
     address private destinationOverride;
     uint256 private amountToRelease;
 
-    constructor(address _destination) {
+    constructor(address _destination, address _exchangeToken) {
         DESTINATION = _destination;
+        EXCHANGE_TOKEN = _exchangeToken;
     }
 
     function setupCustodianOfferVault(
@@ -43,6 +43,10 @@ contract MockFermion {
 
     function setDestinationOverride(address _destination) external {
         destinationOverride = _destination;
+    }
+
+    function setAmountToRelease(uint256 _amount) external {
+        amountToRelease = _amount;
     }
 
     fallback() external payable {

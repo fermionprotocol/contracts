@@ -33,10 +33,13 @@ describe("FermionFNFT", function () {
 
     const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
 
-    const fermionMockFactory = await ethers.getContractFactory("MockFermion");
-    fermionMock = await fermionMockFactory.deploy(await fermionFNFTProxy.getAddress());
-
     const [mockBoson, mockExchangeToken] = await deployMockTokens(["ERC721", "ERC20"]);
+
+    const fermionMockFactory = await ethers.getContractFactory("MockFermion");
+    fermionMock = await fermionMockFactory.deploy(
+      await fermionFNFTProxy.getAddress(),
+      await mockExchangeToken.getAddress(),
+    );
 
     await mockBoson.mint(await fermionMock.getAddress(), startTokenId, quantity);
     await fermionFNFTProxy

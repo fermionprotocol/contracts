@@ -47,11 +47,14 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
     const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
 
-    const fermionMockFactory = await ethers.getContractFactory("MockFermion");
-    fermionMock = await fermionMockFactory.deploy(await fermionFNFTProxy.getAddress());
-    const fermionMockAddress = await fermionMock.getAddress();
-
     const [mockBoson, mockExchangeToken] = await deployMockTokens(["ERC721", "ERC20"]);
+
+    const fermionMockFactory = await ethers.getContractFactory("MockFermion");
+    fermionMock = await fermionMockFactory.deploy(
+      await fermionFNFTProxy.getAddress(),
+      await mockExchangeToken.getAddress(),
+    );
+    const fermionMockAddress = await fermionMock.getAddress();
 
     await mockBoson.mint(fermionMockAddress, startTokenId, quantity);
     await fermionFNFTProxy
@@ -275,7 +278,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .withArgs(unlockThreshold);
       });
 
-      it("Invalid number of fractions", async function () {
+      it("Invalid number of initial fractions", async function () {
         const fractionsAmountLow = MIN_FRACTIONS - 1n;
         await expect(
           fermionFNFTProxy
@@ -290,6 +293,32 @@ describe("FermionFNFT - fractionalisation tests", function () {
           fermionFNFTProxy
             .connect(seller)
             .mintFractions(startTokenId, 1, fractionsAmountHigh, auctionParameters, custodianVaultParameters),
+        )
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
+          .withArgs(fractionsAmountHigh, MIN_FRACTIONS, MAX_FRACTIONS);
+      });
+
+      it("Invalid number of initial additional fractions", async function () {
+        const fractionsAmountLow = MIN_FRACTIONS - 1n;
+        await expect(
+          fermionFNFTProxy
+            .connect(seller)
+            .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, {
+              ...custodianVaultParameters,
+              newFractionsPerAuction: fractionsAmountLow,
+            }),
+        )
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
+          .withArgs(fractionsAmountLow, MIN_FRACTIONS, MAX_FRACTIONS);
+
+        const fractionsAmountHigh = MAX_FRACTIONS + 1n;
+        await expect(
+          fermionFNFTProxy
+            .connect(seller)
+            .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, {
+              ...custodianVaultParameters,
+              newFractionsPerAuction: fractionsAmountHigh,
+            }),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
           .withArgs(fractionsAmountHigh, MIN_FRACTIONS, MAX_FRACTIONS);
@@ -1844,9 +1873,6 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const sellerShare = fractionsPerToken - owner1Share - owner2Share - owner3Share;
 
     const owner1payout = applyPercentage(price, 2000); //20%
-    const owner2payout = applyPercentage(price, 3000); //30%
-    const owner3payout = applyPercentage(price, 1000); //10%
-    const sellerPayout = price - owner1payout - owner2payout - owner3payout;
 
     before(async function () {
       fractionalOwners = wallets.slice(5, 8); // overlap with bidders, except for the bidder 0
@@ -1862,22 +1888,23 @@ describe("FermionFNFT - fractionalisation tests", function () {
       await fermionFNFTProxy.connect(seller).transfer(fractionalOwners[2].address, owner3Share);
     });
 
-    async function claimAfterRedeem(sellerShareAdjusted = sellerShare, sellerPayoutAdjusted = sellerPayout) {
+    async function claimAfterRedeem(sellerShareAdjusted = sellerShare, bidAmount = price, vaultPayout = 0n) {
       await fermionFNFTProxy.connect(bidders[0]).redeem(startTokenId);
-      await verifyEventsAndBalances("claim", [], sellerShareAdjusted, sellerPayoutAdjusted);
+      await verifyEventsAndBalances("claim", [], sellerShareAdjusted, bidAmount, vaultPayout);
     }
 
-    async function finalizeAndClaim(sellerShareAdjusted = sellerShare, sellerPayoutAdjusted = sellerPayout) {
-      await verifyEventsAndBalances("finalizeAndClaim", [startTokenId], sellerShareAdjusted, sellerPayoutAdjusted);
+    async function finalizeAndClaim(sellerShareAdjusted = sellerShare, bidAmount = price, vaultPayout = 0n) {
+      await verifyEventsAndBalances("finalizeAndClaim", [startTokenId], sellerShareAdjusted, bidAmount, vaultPayout);
     }
 
-    async function claimWithLockedFractions(sellerShareAdjusted = sellerShare, sellerPayoutAdjusted = sellerPayout) {
+    async function claimWithLockedFractions(sellerShareAdjusted = sellerShare, bidAmount = price, vaultPayout = 0n) {
       await fermionFNFTProxy.connect(bidders[0]).redeem(startTokenId);
       await verifyEventsAndBalances(
         "claimWithLockedFractions",
         [startTokenId, 0],
         sellerShareAdjusted,
-        sellerPayoutAdjusted,
+        bidAmount,
+        vaultPayout,
       );
     }
 
@@ -1885,8 +1912,14 @@ describe("FermionFNFT - fractionalisation tests", function () {
       method: string,
       args: any[] = [],
       sellerShareAdjusted = sellerShare,
-      sellerPayoutAdjusted = sellerPayout,
+      bidAmount = price,
+      vaultPayout = 0n,
     ) {
+      const owner1payout = applyPercentage(price + vaultPayout, 2000); //20%
+      const owner2payout = applyPercentage(price + vaultPayout, 3000); //30%
+      const owner3payout = applyPercentage(price + vaultPayout, 1000); //10%
+      const sellerPayout = bidAmount + vaultPayout - owner1payout - owner2payout - owner3payout;
+
       await expect(fermionFNFTProxy.connect(fractionalOwners[0])[method](...args, owner1Share))
         .to.emit(fermionFNFTProxy, "Claimed")
         .withArgs(fractionalOwners[0].address, owner1Share, owner1payout);
@@ -1898,7 +1931,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .withArgs(fractionalOwners[2].address, owner3Share, owner3payout);
       await expect(fermionFNFTProxy.connect(seller)[method](...args, sellerShareAdjusted))
         .to.emit(fermionFNFTProxy, "Claimed")
-        .withArgs(seller.address, sellerShareAdjusted, sellerPayoutAdjusted);
+        .withArgs(seller.address, sellerShareAdjusted, sellerPayout);
 
       expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
       expect(await fermionFNFTProxy.balanceOf(fractionalOwners[0].address)).to.equal(0n);
@@ -1914,7 +1947,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       expect(await mockExchangeToken.balanceOf(fractionalOwners[2].address)).to.equal(
         parseEther("1000") + owner3payout,
       );
-      expect(await mockExchangeToken.balanceOf(seller.address)).to.equal(sellerPayoutAdjusted);
+      expect(await mockExchangeToken.balanceOf(seller.address)).to.equal(sellerPayout);
     }
 
     const scenarios = ["redeem and claim", "finalize and claim", "claim with locked fractions"];
@@ -1948,7 +1981,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
         await setNextBlockTimestamp(String(auctionEnd + 1n));
 
-        await finalizations[scenario](sellerShare - fractions, bidAmount - owner1payout - owner2payout - owner3payout);
+        await finalizations[scenario](sellerShare - fractions, bidAmount);
       });
 
       it("Bid with votes", async function () {
@@ -1963,7 +1996,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
         await setNextBlockTimestamp(String(auctionEnd + 1n));
 
-        await finalizations[scenario](sellerShare - votes, bidAmount - owner1payout - owner2payout - owner3payout);
+        await finalizations[scenario](sellerShare - votes, bidAmount);
       });
 
       it("Bid with votes and fractions", async function () {
@@ -1978,10 +2011,23 @@ describe("FermionFNFT - fractionalisation tests", function () {
         const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
         await setNextBlockTimestamp(String(auctionEnd + 1n));
 
-        await finalizations[scenario](
-          sellerShare - fractions - votes,
-          bidAmount - owner1payout - owner2payout - owner3payout,
-        );
+        await finalizations[scenario](sellerShare - fractions - votes, bidAmount);
+      });
+
+      it("Custody vault returns some funds", async function () {
+        const fractions = 0n;
+        const bidAmount = price;
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
+        const blockTimeStamp = (await tx.getBlock()).timestamp;
+        const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+        await setNextBlockTimestamp(String(auctionEnd + 1n));
+
+        const amountToRelease = parseEther("0.03");
+        await mockExchangeToken.mint(await fermionMock.getAddress(), amountToRelease);
+        await fermionMock.setAmountToRelease(amountToRelease);
+
+        await finalizations[scenario](sellerShare, bidAmount, amountToRelease);
       });
     });
 
