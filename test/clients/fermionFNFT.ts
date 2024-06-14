@@ -74,20 +74,24 @@ describe("FermionFNFT", function () {
       const { interface: ERC165Interface } = await ethers.getContractAt("IERC165", ZeroAddress);
       const { interface: ERC721Interface } = await ethers.getContractAt("IERC721", ZeroAddress);
       const { interface: FermionWrapperInterface } = await ethers.getContractAt("IFermionWrapper", ZeroAddress);
+      const { interface: FermionFractionsInterface } = await ethers.getContractAt("IFermionFractions", ZeroAddress);
       const { interface: FermionFNFTInterface } = await ethers.getContractAt("IFermionFNFT", ZeroAddress);
 
       const ERC165InterfaceID = getInterfaceID(ERC165Interface);
       const ERC721InterfaceID = getInterfaceID(ERC721Interface, [ERC165InterfaceID]);
       const FermionWrapperInterfaceID = getInterfaceID(FermionWrapperInterface, [ERC165InterfaceID, ERC721InterfaceID]);
+      const FermionFractionsInterfaceID = getInterfaceID(FermionFractionsInterface);
       const FermionFNFTInterfaceID = getInterfaceID(FermionFNFTInterface, [
         ERC165InterfaceID,
         ERC721InterfaceID,
         FermionWrapperInterfaceID,
+        FermionFractionsInterfaceID,
       ]);
 
       expect(await fermionFNFT.supportsInterface(ERC165InterfaceID)).to.be.true;
       expect(await fermionFNFT.supportsInterface(ERC721InterfaceID)).to.be.true;
       expect(await fermionFNFT.supportsInterface(FermionWrapperInterfaceID)).to.be.true;
+      expect(await fermionFNFT.supportsInterface(FermionFractionsInterfaceID)).to.be.true;
       expect(await fermionFNFT.supportsInterface(FermionFNFTInterfaceID)).to.be.true;
     });
   });

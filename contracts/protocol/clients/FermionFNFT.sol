@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { FermionFractions } from "./FermionFractions.sol";
@@ -58,6 +59,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
         return
             super.supportsInterface(_interfaceId) ||
             _interfaceId == type(IFermionWrapper).interfaceId ||
+            _interfaceId == type(IFermionFractions).interfaceId ||
             _interfaceId == type(IFermionFNFT).interfaceId;
     }
 
