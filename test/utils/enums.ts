@@ -47,6 +47,13 @@ export enum PausableRegion {
   Verification,
 }
 
+export enum AuctionState {
+  NotStarted,
+  Ongoing,
+  Finalized,
+  Redeemed,
+}
+
 export function enumIterator(enumObject: any) {
   return Object.keys(enumObject).filter((key) => !isNaN(Number(key)));
 }

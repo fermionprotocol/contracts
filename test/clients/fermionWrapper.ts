@@ -1,5 +1,5 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { getInterfaceID, deployMockTokens } from "../utils/common";
+import { deployMockTokens } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
@@ -8,7 +8,7 @@ import { TokenState } from "../utils/enums";
 
 const { ZeroAddress } = ethers;
 
-describe("FermionWrapper", function () {
+describe("FermionFNFT - wrapper tests", function () {
   let fermionWrapper: Contract, fermionWrapperProxy: Contract;
   let wallets: HardhatEthersSigner[];
   let fermionProtocolSigner: HardhatEthersSigner;
@@ -18,8 +18,8 @@ describe("FermionWrapper", function () {
 
   async function setupFermionWrapperTest() {
     const [mockConduit, mockBosonPriceDiscovery] = (await ethers.getSigners()).slice(9, 11);
-    const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
-    const fermionWrapper = await FermionWrapper.deploy(mockBosonPriceDiscovery.address, {
+    const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
+    const fermionWrapper = await FermionFNFT.deploy(mockBosonPriceDiscovery.address, {
       seaport: ZeroAddress,
       openSeaConduit: mockConduit.address,
       openSeaConduitKey: ZeroHash,
@@ -28,7 +28,7 @@ describe("FermionWrapper", function () {
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionWrapper.getAddress());
 
-    const fermionWrapperProxy = await ethers.getContractAt("FermionWrapper", await proxy.getAddress());
+    const fermionWrapperProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
 
     const [mockBoson] = await deployMockTokens(["ERC721"]);
     return { fermionWrapper, fermionWrapperProxy, mockBoson, mockBosonPriceDiscovery };
@@ -48,25 +48,9 @@ describe("FermionWrapper", function () {
     await loadFixture(setupFermionWrapperTest);
   });
 
-  context("supportsInterface", function () {
-    it("Supports ERC165 and ERC721 interfaces", async function () {
-      const { interface: ERC165Interface } = await ethers.getContractAt("IERC165", ZeroAddress);
-      const { interface: ERC721Interface } = await ethers.getContractAt("IERC721", ZeroAddress);
-      const { interface: FermionWrapperInterface } = await ethers.getContractAt("IFermionWrapper", ZeroAddress);
-
-      const ERC165InterfaceID = getInterfaceID(ERC165Interface);
-      const ERC721InterfaceID = getInterfaceID(ERC721Interface, [ERC165InterfaceID]);
-      const FermionWrapperInterfaceID = getInterfaceID(FermionWrapperInterface, [ERC165InterfaceID, ERC721InterfaceID]);
-
-      expect(await fermionWrapper.supportsInterface(ERC165InterfaceID)).to.be.true;
-      expect(await fermionWrapper.supportsInterface(ERC721InterfaceID)).to.be.true;
-      expect(await fermionWrapper.supportsInterface(FermionWrapperInterfaceID)).to.be.true;
-    });
-  });
-
   context("initialize", function () {
     it("Initialization via proxy sets the new owner", async function () {
-      await expect(fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address))
+      await expect(fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress))
         .to.emit(fermionWrapperProxy, "OwnershipTransferred")
         .withArgs(ZeroAddress, wrapperContractOwner.address);
 
@@ -76,23 +60,23 @@ describe("FermionWrapper", function () {
     context("Revert reasons", function () {
       it("Direct initialization fails", async function () {
         await expect(
-          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address),
-        ).to.be.revertedWithCustomError(fermionWrapper, "AlreadyInitialized");
+          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress),
+        ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
 
       it("Second initialization via proxy fails", async function () {
-        await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address);
+        await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress);
 
         await expect(
-          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address),
-        ).to.be.revertedWithCustomError(fermionWrapper, "AlreadyInitialized");
+          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress),
+        ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
     });
   });
 
   context("transferOwnership", function () {
     beforeEach(async function () {
-      await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address);
+      await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress);
     });
 
     it("Initialization caller can transfer the ownership", async function () {
@@ -126,12 +110,12 @@ describe("FermionWrapper", function () {
 
   context("wrapForAuction", function () {
     let seller: HardhatEthersSigner;
-    const startTokenId = 1;
-    const quantity = 10;
+    const startTokenId = 2n ** 128n + 1n;
+    const quantity = 10n;
     beforeEach(async function () {
       await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
 
-      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address);
+      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address, ZeroAddress);
 
       seller = wallets[3];
     });
@@ -140,7 +124,7 @@ describe("FermionWrapper", function () {
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
       const tx = await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
 
-      for (let i = 0; i < quantity; i++) {
+      for (let i = 0n; i < quantity; i++) {
         const tokenId = startTokenId + i;
         await expect(tx).to.emit(fermionWrapperProxy, "Transfer").withArgs(ZeroAddress, seller.address, tokenId);
         expect(await fermionWrapperProxy.ownerOf(tokenId)).to.equal(seller.address);
@@ -160,7 +144,7 @@ describe("FermionWrapper", function () {
         await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
         await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
 
-        for (let i = 0; i < quantity; i++) {
+        for (let i = 0n; i < quantity; i++) {
           const tokenId = startTokenId + i;
           await expect(fermionWrapperProxy.connect(seller).transferFrom(seller.address, newOwner.address, tokenId))
             .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
@@ -171,7 +155,7 @@ describe("FermionWrapper", function () {
   });
 
   context("unwrap/unwrapToSelf", function () {
-    // This tests internal FermionWrapper.unwrap function, which is used by both unwrap and unwrapToSelf
+    // This tests internal FermionFNFT.unwrap function, which is used by both unwrap and unwrapToSelf
     // Tests are done using only unwrapToSelf, since the setup is simpler
 
     let seller: HardhatEthersSigner;
@@ -182,7 +166,7 @@ describe("FermionWrapper", function () {
       seller = wallets[3];
 
       await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
-      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address);
+      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address, ZeroAddress);
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
       await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
     });

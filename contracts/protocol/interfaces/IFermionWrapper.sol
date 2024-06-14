@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { FermionTypes } from "../domain/Types.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
@@ -10,31 +11,6 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * A set of methods to interact with the FermionWrapper contract.
  */
 interface IFermionWrapper is IERC721 {
-    enum TokenState {
-        Inexistent,
-        Wrapped,
-        Unverified,
-        Verified,
-        CheckedIn,
-        CheckedOut,
-        Burned
-    }
-
-    error AlreadyInitialized();
-    error InvalidStateOrCaller(uint256 tokenId, address sender, TokenState state);
-
-    event TokenStateChange(uint256 indexed tokenId, TokenState state);
-
-    /**
-     * @notice Initializes the contract
-     *
-     * Reverts if:
-     * - Contract is already initialized
-     *
-     * @param _voucherAddress The address of the Boson Voucher contract
-     * @param _owner The address of the owner
-     */
-    function initialize(address _voucherAddress, address _owner) external;
     /**
      * @notice Wraps the vouchers, transfer true vouchers to this contract and mint wrapped vouchers
      *
@@ -61,28 +37,4 @@ interface IFermionWrapper is IERC721 {
      * @param _tokenId The token id.
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external;
-
-    /**
-     * @notice Burns the token and returns the voucher owner
-     *
-     * Reverts if:
-     * - Caller is not the Fermion Protocol
-     * - Token is not in the Unverified state
-     *
-     * @param _tokenId The token id.
-     */
-    function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner);
-
-    /**
-     * @notice Pushes the F-NFT from unverified to verified
-     *
-     * Reverts if:
-     * - Caller is not the Fermion Protocol
-     * - The new token state is not consecutive to the current state
-     *
-     * N.B. Not checking if the new state is valid, since the caller is the Fermion Protocol, which is trusted
-     *
-     * @param _tokenId The token id.
-     */
-    function pushToNextTokenState(uint256 _tokenId, TokenState _newState) external;
 }
