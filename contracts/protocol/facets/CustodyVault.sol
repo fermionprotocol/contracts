@@ -418,7 +418,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         fractionAuction.endTime = auctionEnd;
         fractionsToIssue = itemsInVault * vaultParameters.newFractionsPerAuction;
 
-        // mint the factions to the protocol
+        // mint the fractions to the protocol
         IFermionFNFT(wrapperAddress).mintAdditionalFractions(fractionsToIssue); /// <mint to the protocol
         fractionAuction.availableFractions = fractionsToIssue;
 
