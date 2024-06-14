@@ -8,7 +8,7 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
-import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 
 /**
@@ -49,10 +49,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
             FermionTypes.WalletRole.Assistant
         );
 
-        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(
-            _tokenId,
-            IFermionWrapper.TokenState.CheckedIn
-        );
+        IFermionFNFT(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
@@ -82,7 +79,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 custodianId = offer.custodianId;
 
-        // Check the caller is the the verifier's assistant
+        // Check the caller is the verifier's assistant
         EntityLib.validateWalletRole(
             custodianId,
             msgSender(),
@@ -93,10 +90,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
 
-        IFermionWrapper(pl.wrapperAddress[offerId]).pushToNextTokenState(
-            _tokenId,
-            IFermionWrapper.TokenState.CheckedOut
-        );
+        IFermionFNFT(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedOut);
     }
 
     /**
@@ -122,7 +116,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         address msgSender = msgSender();
-        IFermionWrapper(pl.wrapperAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
+        IFermionFNFT(pl.wrapperAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequested;
         checkoutRequest.buyer = msgSender;

@@ -66,8 +66,8 @@ const config: HardhatUserConfig = {
       transform: (line, { absolutePath }) => {
         if (absolutePath.includes("boson-protocol-contracts")) {
           line = line.replace(
-            "@openzeppelin/contracts/",
-            "@bosonprotocol/boson-protocol-contracts/node_modules/@openzeppelin/contracts/",
+            "@openzeppelin/contracts",
+            "@bosonprotocol/boson-protocol-contracts/node_modules/@openzeppelin/contracts",
           );
         }
         return line;

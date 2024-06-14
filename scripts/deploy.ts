@@ -72,15 +72,15 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   if (allModules || modules.includes("wrapper")) {
     const constructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
 
-    const FermionWrapper = await ethers.getContractFactory("FermionWrapper");
-    const fermionWrapper = await FermionWrapper.deploy(...constructorArgs);
+    const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
+    const fermionWrapper = await FermionFNFT.deploy(...constructorArgs);
     await fermionWrapper.waitForDeployment();
     wrapperImplementationAddress = await fermionWrapper.getAddress();
 
-    deploymentComplete("FermionWrapper", wrapperImplementationAddress, constructorArgs, true);
+    deploymentComplete("FermionFNFT", wrapperImplementationAddress, constructorArgs, true);
   } else {
     deploymentData = await getDeploymentData(env);
-    wrapperImplementationAddress = deploymentData.find((contract) => contract.name === "FermionWrapper")?.address;
+    wrapperImplementationAddress = deploymentData.find((contract) => contract.name === "FermionFNFT")?.address;
 
     if (!wrapperImplementationAddress) {
       throw Error("Fermion wrapper implementation not found in contracts file");

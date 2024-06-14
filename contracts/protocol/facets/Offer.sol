@@ -18,6 +18,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 
 /**
@@ -453,7 +454,8 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
             wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(_startingNFTId)); // ToDo: investigate the salt options
             pl.wrapperAddress[_offerId] = wrapperAddress;
 
-            IFermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender);
+            address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
+            IFermionFNFT(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken);
         }
 
         // wrap NFTs
