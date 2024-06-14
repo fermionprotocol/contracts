@@ -12,7 +12,6 @@ import { IDiamondCut } from "../interfaces/IDiamondCut.sol";
 // The loupe functions are required by the EIP2535 Diamonds standard
 
 error NoSelectorsGivenToAdd();
-error NotContractOwner(address _user, address _contractOwner);
 error NoSelectorsProvidedForFacetForCut(address _facetAddress);
 error CannotAddSelectorsToZeroAddress(bytes4[] _selectors);
 error NoBytecodeAtAddress(address _contractAddress, string _message);

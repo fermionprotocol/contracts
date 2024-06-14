@@ -2,7 +2,6 @@
 pragma solidity 0.8.24;
 
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
-import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "./Storage.sol";
 import { FermionErrors } from "../domain/Errors.sol";

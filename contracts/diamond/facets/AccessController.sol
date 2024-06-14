@@ -12,7 +12,9 @@ import { Context } from "../../protocol/libs/Context.sol";
  *
  * @notice Implements centralized role-based access for Boson Protocol contracts.
  */
-contract AccessController is AccessControl, Context {
+contract AccessController is AccessControl, Context, FermionErrors {
+    address private immutable THIS_ADDRESS = address(this); // used to prevent invocation of 'initialize' directly on deployed contract. Variable is not used by the protocol.
+
     /**
      * @notice Initialize
      *
@@ -22,7 +24,9 @@ contract AccessController is AccessControl, Context {
      * @param _defaultAdmin - the address to grant the ADMIN role to
      */
     function initialize(address _defaultAdmin) external {
-        if (_defaultAdmin == address(0)) revert FermionErrors.InvalidAddress();
+        if (address(this) == THIS_ADDRESS) revert DirectInitializationNotAllowed();
+
+        if (_defaultAdmin == address(0)) revert InvalidAddress();
         _grantRole(ADMIN, _defaultAdmin);
         _setRoleAdmin(ADMIN, ADMIN);
         _setRoleAdmin(PAUSER, ADMIN);

@@ -1,4 +1,5 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
@@ -17,7 +18,7 @@ const { id, getContractAt, getContractFactory, MaxUint256, toBeHex, ZeroAddress,
 
 describe("MetaTransactions", function () {
   let entityFacet: Contract, metaTransactionFacet: Contract, pauseFacet: Contract;
-  let wallets, defaultSigner;
+  let wallets: HardhatEthersSigner[], defaultSigner: HardhatEthersSigner;
   let fermionErrors: Contract;
   let bosonProtocolAddress: string, wrapperImplementationAddress: string;
 
@@ -362,6 +363,8 @@ describe("MetaTransactions", function () {
               [],
             ]);
 
+            const accessController = await ethers.getContractAt("AccessController", diamondAddress);
+            await accessController.grantRole(id("UPGRADER"), wallets[0].address);
             await makeDiamondCut(
               diamondAddress,
               await prepareFacetCuts([metaTransactionFacet.attach(metaTransactionFacetAddress)]),
@@ -667,9 +670,10 @@ describe("MetaTransactions", function () {
           });
 
           it("caller is not the admin", async function () {
+            const accessControl = await getContractAt("IAccessControl", ZeroAddress);
             await expect(metaTransactionFacet.setAllowlistedFunctions(functionHashList, true))
-              .to.revertedWithCustomError(metaTransactionFacet, "NotContractOwner")
-              .withArgs(defaultSigner.address, admin.address);
+              .to.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+              .withArgs(defaultSigner.address, id("ADMIN"));
           });
         });
       });

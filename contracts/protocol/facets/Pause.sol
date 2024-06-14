@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { ADMIN } from "../domain/Constants.sol";
+import { PAUSER } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -22,11 +22,11 @@ contract PauseFacet is Access, FermionErrors, IPauseEvents {
      * Emits a ProtocolPaused event if successful.
      *
      * Reverts if:
-     * - Caller is not the protcol admin
+     * - Caller is not the protocol pauser
      *
      * @param _regions - an array of regions to pause. See: {FermionTypes.PausableRegion}
      */
-    function pause(FermionTypes.PausableRegion[] calldata _regions) external onlyRole(ADMIN) {
+    function pause(FermionTypes.PausableRegion[] calldata _regions) external onlyRole(PAUSER) {
         togglePause(_regions, true);
 
         // Notify watchers of state change
@@ -39,10 +39,10 @@ contract PauseFacet is Access, FermionErrors, IPauseEvents {
      * Emits a ProtocolUnpaused event if successful.
      *
      * Reverts if:
-     * - Caller is not the protcol admin
+     * - Caller is not the protcol pauser
      * - Protocol is not currently paused
      */
-    function unpause(FermionTypes.PausableRegion[] calldata _regions) external onlyRole(ADMIN) {
+    function unpause(FermionTypes.PausableRegion[] calldata _regions) external onlyRole(PAUSER) {
         // Make sure the protocol is paused
         if (FermionStorage.protocolStatus().paused == 0) revert NotPaused();
 

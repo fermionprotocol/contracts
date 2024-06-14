@@ -14,7 +14,7 @@ describe("DiamondTest", async function () {
   let diamondAddress: string;
   let diamondCutFacet: Contract;
   let diamondLoupeFacet: Contract;
-  let ownershipFacet: Contract;
+  let accessControllerFacet: Contract;
   let initializationFacet: Contract;
   let tx;
   let receipt;
@@ -27,7 +27,7 @@ describe("DiamondTest", async function () {
     console.log({ diamondAddress });
     diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", diamondAddress);
     diamondLoupeFacet = await ethers.getContractAt("DiamondLoupeFacet", diamondAddress);
-    ownershipFacet = await ethers.getContractAt("OwnershipFacet", diamondAddress);
+    accessControllerFacet = await ethers.getContractAt("AccessController", diamondAddress);
     initializationFacet = await ethers.getContractAt("InitializationFacet", diamondAddress);
   });
 
@@ -36,7 +36,7 @@ describe("DiamondTest", async function () {
       addresses.push(address);
     }
     console.log({ addresses });
-    assert.equal(addresses.length, 11); // default facets: [diamondCut, diamondLoupe, ownership, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause]
+    assert.equal(addresses.length, 11); // default facets: [diamondCut, diamondLoupe, accessControl, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause]
   });
 
   it("facets should have the right function selectors -- call to facetFunctionSelectors function", async () => {
@@ -47,7 +47,7 @@ describe("DiamondTest", async function () {
     selectors = getSelectors(diamondLoupeFacet);
     result = await diamondLoupeFacet.facetFunctionSelectors(addresses[1]);
     assert.sameMembers([...result], selectors);
-    selectors = getSelectors(ownershipFacet);
+    selectors = getSelectors(accessControllerFacet);
     result = await diamondLoupeFacet.facetFunctionSelectors(addresses[2]);
     assert.sameMembers([...result], selectors);
     selectors = getSelectors(initializationFacet).remove(["initialize", "initializeDiamond"]);
@@ -244,7 +244,7 @@ describe("DiamondTest", async function () {
       {
         facetAddress: addresses[2],
         action: FacetCutAction.Add,
-        functionSelectors: getSelectors(ownershipFacet),
+        functionSelectors: getSelectors(accessControllerFacet),
       },
       {
         facetAddress: addresses[3],
@@ -279,7 +279,10 @@ describe("DiamondTest", async function () {
       getSelectors(diamondCutFacet),
     );
     assert.sameMembers([...facets[findAddressPositionInFacets(addresses[1], facets)][1]], diamondLoupeFacetSelectors);
-    assert.sameMembers([...facets[findAddressPositionInFacets(addresses[2], facets)][1]], getSelectors(ownershipFacet));
+    assert.sameMembers(
+      [...facets[findAddressPositionInFacets(addresses[2], facets)][1]],
+      getSelectors(accessControllerFacet),
+    );
     assert.sameMembers([...facets[findAddressPositionInFacets(addresses[3], facets)][1]], getSelectors(Test1Facet));
     assert.sameMembers([...facets[findAddressPositionInFacets(addresses[4], facets)][1]], getSelectors(Test2Facet));
   });
