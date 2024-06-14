@@ -12,8 +12,6 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
-import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
-import { FundsFacet } from "./Funds.sol";
 
 /**
  * @title CustodyVaultFacet

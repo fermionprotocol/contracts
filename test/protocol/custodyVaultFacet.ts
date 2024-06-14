@@ -1751,6 +1751,7 @@ describe("CustodyVault", function () {
 
         context("Not last offer item", function () {
           it("Offer vault is empty", async function () {
+            const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
             const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
             const transferTime = BigInt((await tx.getBlock()).timestamp);
 
@@ -1778,6 +1779,7 @@ describe("CustodyVault", function () {
               itemCount,
             ]);
             expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(0n);
+            expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(wrapperBalance); // no change
           });
 
           context("Offer vault is not empty", function () {
@@ -1792,6 +1794,10 @@ describe("CustodyVault", function () {
             it("Enough to cover past fee", async function () {
               const transferTime = offerVaultCreationTimestamp + (custodianFee.period * 3n) / 2n;
               const custodianPayoff = (custodianFee.amount * 3n) / 2n;
+              const removedFromVault = vaultAmount / tokenCount;
+              const releasedToWrapper = removedFromVault - custodianPayoff;
+              const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
+
               await setNextBlockTimestamp(String(transferTime));
 
               const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
@@ -1801,11 +1807,11 @@ describe("CustodyVault", function () {
                 .withArgs(custodianId, mockTokenAddress, custodianPayoff);
               await expect(tx)
                 .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
-                .withArgs(offerId, vaultAmount - vaultAmount / tokenCount);
+                .withArgs(offerId, vaultAmount - removedFromVault);
 
               // offer vault remains, just number of items is increased and amount increases
               const expectedOfferVault = {
-                amount: vaultAmount - vaultAmount / tokenCount,
+                amount: vaultAmount - removedFromVault,
                 period: offerVaultCreationTimestamp,
               };
               let itemCount = 2n;
@@ -1827,10 +1833,14 @@ describe("CustodyVault", function () {
                 itemCount,
               ]);
               expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(custodianPayoff);
+              expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(
+                wrapperBalance + releasedToWrapper,
+              );
             });
 
             it("Not enough to cover past fee", async function () {
               const transferTime = offerVaultCreationTimestamp + paymentPeriods * custodianFee.period + 100n;
+              const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
 
               await setNextBlockTimestamp(String(transferTime));
 
@@ -1869,6 +1879,7 @@ describe("CustodyVault", function () {
               expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
                 paymentPeriods * custodianFee.amount,
               );
+              expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(wrapperBalance); // no change
             });
           });
         });
@@ -1897,6 +1908,8 @@ describe("CustodyVault", function () {
           it("Offer vault is empty", async function () {
             await wrapper.connect(bidder).redeem(tokenId2);
             await wrapper.connect(bidder).redeem(tokenId3);
+            const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
+
             const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
             const transferTime = BigInt((await tx.getBlock()).timestamp);
 
@@ -1924,6 +1937,7 @@ describe("CustodyVault", function () {
               itemCount,
             ]);
             expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(0n);
+            expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(wrapperBalance); // no change
           });
 
           context("Offer vault is not empty", function () {
@@ -1940,6 +1954,10 @@ describe("CustodyVault", function () {
               await wrapper.connect(bidder).redeem(tokenId3);
               const transferTime = offerVaultCreationTimestamp + (custodianFee.period * 3n) / 2n;
               const custodianPayoff = (custodianFee.amount * 3n) / 2n;
+              const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
+              const newVaultAmount = vaultAmount - (vaultAmount * 2n) / 3n;
+              const releasedToWrapper = newVaultAmount - custodianPayoff;
+
               await setNextBlockTimestamp(String(transferTime));
               const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
               const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
@@ -1975,15 +1993,14 @@ describe("CustodyVault", function () {
               expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
                 custodianAvailableFunds + custodianPayoff,
               );
+              expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(
+                wrapperBalance + releasedToWrapper,
+              );
             });
 
             it("Not enough to cover past fee", async function () {
               let transferTime = offerVaultCreationTimestamp + paymentPeriods * custodianFee.period + 100n;
-
-              await setNextBlockTimestamp(String(transferTime));
-              await wrapper.connect(bidder).redeem(tokenId2);
-              await wrapper.connect(bidder).redeem(tokenId3);
-
+              const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
               const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
               const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
               transferTime = BigInt((await tx.getBlock()).timestamp);
@@ -2020,6 +2037,7 @@ describe("CustodyVault", function () {
               expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
                 custodianAvailableFunds + remainderInVault,
               );
+              expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(wrapperBalance); // no change
             });
           });
         });
