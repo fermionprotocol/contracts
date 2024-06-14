@@ -43,9 +43,9 @@ abstract contract FermionFractions is
     /**
      * @notice Locks the F-NFTs and mints the fractions. Sets the auction parameters and custodian vault parameters.
      * This function is called when the first NFT is fractionalised.
-     * If some NFTs are already fractionalised, use `mintAdditionalFractions(uint256 _tokenId, uint256 _amount)` instead.
+     * If some NFTs are already fractionalised, use `mintFractions(uint256 _firstTokenId, uint256 _length)` instead.
      *
-     * Emits Fractionalised event if successful.
+     * Emits FractionsSetup and Fractionalised events if successful.
      *
      * Reverts if:
      * - Number of tokens to fractionalise is zero
@@ -136,7 +136,7 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice A fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.
+     * @notice Fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.
      * They need to lock their fractions to vote. The fractions can be unlocked before the auction starts.
      * The fractions can be used to bid in the auction.
      * The locked votes guarantee to get the proceeds from the auction for the specific token.
@@ -235,7 +235,7 @@ abstract contract FermionFractions is
      *
      * @param _tokenId The token Id
      * @param _price The bidding price
-     * @param _fractions The number of fractions to use for the bid
+     * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
     function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
@@ -291,7 +291,7 @@ abstract contract FermionFractions is
         auctionDetails.maxBid = _price;
 
         if (_fractions > 0) _transferFractions(msgSender, address(this), bidderFractions - lockedIndividualVotes);
-        FundsLib.validateIncomingPayment(exchangeToken, bidAmount);
+        if (bidAmount > 0) FundsLib.validateIncomingPayment(exchangeToken, bidAmount);
 
         auctionDetails.lockedBidAmount = bidAmount;
         emit Bid(_tokenId, msgSender, _price, bidderFractions, bidAmount);
@@ -402,6 +402,7 @@ abstract contract FermionFractions is
 
             $.lockedProceeds[_tokenId][_auctionIndex] -= claimAmount;
             votes.total -= lockedIndividualVotes;
+            $.lockedRedeemableSupply -= lockedIndividualVotes;
 
             _burn(address(this), lockedIndividualVotes);
         }
@@ -500,7 +501,7 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice Returns the auction details for pas auctions
+     * @notice Returns the auction details for past auctions
      *
      * @param _tokenId The token Id
      * @param _auctionIndex The auction index (if there are multiple auctions for the same F-NFT)
@@ -726,7 +727,7 @@ abstract contract FermionFractions is
         uint256 lockedIndividualVotes = _votes.individual[bidder];
         uint256 lockedFractions = _auction.lockedFractions - lockedIndividualVotes;
 
-        // transfer to previus bidder if they used some of the fractions
+        // transfer to previus bidder if they used some of the fractions. Do not transfer the locked votes.
         if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
         FundsLib.transferFundsFromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
     }

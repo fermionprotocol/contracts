@@ -35,7 +35,7 @@ library Common {
     }
 
     /**
-     * @notice Checks it the token is in the expected state and the caller is the expected address
+     * @notice Checks if the token is in the expected state and the caller is the expected address
      *
      * Reverts if:
      * - Token is not in the expected state

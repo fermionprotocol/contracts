@@ -55,7 +55,10 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
      * to learn more about how these ids are created.
      */
     function supportsInterface(bytes4 _interfaceId) public view virtual override(ERC721, IERC165) returns (bool) {
-        return super.supportsInterface(_interfaceId) || _interfaceId == type(IFermionWrapper).interfaceId;
+        return
+            super.supportsInterface(_interfaceId) ||
+            _interfaceId == type(IFermionWrapper).interfaceId ||
+            _interfaceId == type(IFermionFNFT).interfaceId;
     }
 
     /**
@@ -105,7 +108,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
         return Common._getFermionCommonStorage().tokenState[_tokenId];
     }
 
-    ///////// overrrides ///////////
+    ///////// overrides ///////////
     function balanceOf(
         address owner
     ) public view virtual override(IERC721, ERC721, FermionFractions) returns (uint256) {

@@ -131,7 +131,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .mintFractions(startTokenId, quantity, fractionsAmount, auctionParameters);
 
       // lock the F-NFT (erc721 transfer)
-      for (let i = 0n; i < 5n; i++) {
+      for (let i = 0n; i < quantity; i++) {
         const tokenId = startTokenId + i;
         await expect(tx)
           .to.emit(fermionFNFTProxy, "Transfer")
@@ -340,7 +340,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       const tx = await fermionFNFTProxy.connect(seller).mintFractions(startTokenId2, quantity);
 
       // lock the F-NFT (erc721 transfer)
-      for (let i = 0n; i < 5n; i++) {
+      for (let i = 0n; i < quantity; i++) {
         const tokenId = startTokenId2 + i;
         await expect(tx)
           .to.emit(fermionFNFTProxy, "Transfer")
