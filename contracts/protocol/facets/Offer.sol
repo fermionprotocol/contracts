@@ -445,17 +445,16 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         FermionStorage.ProtocolStatus storage ps
     ) internal {
         address msgSender = msgSender();
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
-        // create wrapper
-        // opt1: minimal clone
-        address wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(_startingNFTId)); // ToDo: investigate the salt options
+        address wrapperAddress = pl.wrapperAddress[_offerId];
+        if (wrapperAddress == address(0)) {
+            // create wrapper
+            wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(_startingNFTId)); // ToDo: investigate the salt options
+            pl.wrapperAddress[_offerId] = wrapperAddress;
 
-        // opt2: beacon proxy <= alternative approach. Keep for now, estimate gas after more functions are implemented
-        // deployment: ~80k more per deployment. But the next calls should be cheaper.
-        // address wrapperAddress = address(new BeaconProxy{salt: bytes32(_startingNFTId)}(ps.wrapperBeacon, ""));
-
-        FermionStorage.protocolLookups().wrapperAddress[_offerId] = wrapperAddress;
-        IFermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender);
+            IFermionWrapper(wrapperAddress).initialize(address(_bosonVoucher), msgSender);
+        }
 
         // wrap NFTs
         _bosonVoucher.setApprovalForAll(wrapperAddress, true);
