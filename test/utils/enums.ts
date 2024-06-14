@@ -45,6 +45,7 @@ export enum PausableRegion {
   Offer,
   Custody,
   Verification,
+  Config,
 }
 
 export enum AuctionState {

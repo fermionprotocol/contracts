@@ -43,7 +43,7 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
   }
 
   await facets["AccessController"].grantRole(ethers.id("PAUSER"), defaultSigner.address);
-  // await facets[AccessController].grantRole(ethers.id("ADMIN"), defaultSigner.address);
+  await facets["AccessController"].grantRole(ethers.id("ADMIN"), defaultSigner.address);
 
   return {
     diamondAddress,

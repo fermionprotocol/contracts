@@ -114,6 +114,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
 
   // deploy facets
   const facetNames = [
+    "ConfigFacet",
     "EntityFacet",
     "MetaTransactionFacet",
     "OfferFacet",
@@ -156,6 +157,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     // Prepare init call
     const init = {
       MetaTransactionFacet: [await getStateModifyingFunctionsHashes(facetNames)],
+      ConfigFacet: [fermionConfig.protocolParameters],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
     const initCalldatas = Object.keys(init).map((facetName) =>

@@ -6,6 +6,7 @@ import { FermionErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
+import { FermionTypes } from "../domain/Types.sol";
 
 /**
  * @title ConfigFacet
@@ -19,7 +20,7 @@ contract ConfigFacet is Access, FermionErrors, IConfigEvents {
      *
      * @param _config - the protocol configuration parameters
      */
-    function initialize(FermionStorage.ProtocolConfig calldata _config) public {
+    function init(FermionStorage.ProtocolConfig calldata _config) public {
         // Initialize protocol config params
         setTreasuryAddress(_config.treasury);
         setProtocolFeePercentage(_config.protocolFeePercentage);
@@ -37,7 +38,9 @@ contract ConfigFacet is Access, FermionErrors, IConfigEvents {
      *
      * @param _treasuryAddress - the the multi-sig wallet address
      */
-    function setTreasuryAddress(address payable _treasuryAddress) public onlyRole(ADMIN) {
+    function setTreasuryAddress(
+        address payable _treasuryAddress
+    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
         checkNonZeroAddress(_treasuryAddress);
         FermionStorage.protocolConfig().treasury = _treasuryAddress;
         emit TreasuryAddressChanged(_treasuryAddress);
@@ -66,7 +69,9 @@ contract ConfigFacet is Access, FermionErrors, IConfigEvents {
      * N.B. Represent percentage value as an unsigned int by multiplying the percentage by 100:
      * e.g, 1.75% = 175, 100% = 10000
      */
-    function setProtocolFeePercentage(uint16 _protocolFeePercentage) public onlyRole(ADMIN) {
+    function setProtocolFeePercentage(
+        uint16 _protocolFeePercentage
+    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
         // Make sure percentage is less than 10000
         checkMaxPercententage(_protocolFeePercentage);
 
@@ -97,7 +102,9 @@ contract ConfigFacet is Access, FermionErrors, IConfigEvents {
      *
      * @param _verificationTimeout - the period after anyone can reject the verification
      */
-    function setVerificationTimeout(uint256 _verificationTimeout) public onlyRole(ADMIN) {
+    function setVerificationTimeout(
+        uint256 _verificationTimeout
+    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
         // Make sure percentage is less than 10000
         checkNonZeroValue(_verificationTimeout);
 

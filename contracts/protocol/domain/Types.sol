@@ -41,7 +41,8 @@ contract FermionTypes {
         Funds,
         Offer,
         Custody,
-        Verification
+        Verification,
+        Config
     }
 
     enum AuctionState {
