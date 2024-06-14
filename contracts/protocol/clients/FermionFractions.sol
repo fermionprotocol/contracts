@@ -12,7 +12,7 @@ import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable
 import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
-import { IFermionCustody } from "../interfaces/IFermionCustody.sol";
+import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -117,7 +117,7 @@ abstract contract FermionFractions is
         emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters);
 
         if (_msgSender() != fermionProtocol) {
-            IFermionCustody(fermionProtocol).setupCustodianOfferVault(
+            IFermionCustodyVault(fermionProtocol).setupCustodianOfferVault(
                 _firstTokenId,
                 _length,
                 _custodianVaultParameters
@@ -155,7 +155,7 @@ abstract contract FermionFractions is
         lockNFTsAndMintFractions(_firstTokenId, _length, fractionsAmount, $);
 
         if (_msgSender() != fermionProtocol) {
-            IFermionCustody(fermionProtocol).addItemToCustodianOfferVault(_firstTokenId, _length);
+            IFermionCustodyVault(fermionProtocol).addItemToCustodianOfferVault(_firstTokenId, _length);
         }
     }
 
@@ -719,7 +719,7 @@ abstract contract FermionFractions is
         }
         if (block.timestamp <= auctionDetails.timer) revert AuctionOngoing(_tokenId, auctionDetails.timer);
 
-        uint256 releasedFromCustodianVault = IFermionCustody(fermionProtocol).removeItemFromCustodianOfferVault(
+        uint256 releasedFromCustodianVault = IFermionCustodyVault(fermionProtocol).removeItemFromCustodianOfferVault(
             _tokenId
         );
 

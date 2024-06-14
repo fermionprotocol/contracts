@@ -11,14 +11,13 @@ const { parseEther, ZeroAddress } = ethers;
 describe("FermionFNFT", function () {
   let fermionFNFT: Contract, fermionFNFTProxy: Contract;
   let wallets: HardhatEthersSigner[];
-  let fermionProtocolSigner: HardhatEthersSigner;
   let seller: HardhatEthersSigner;
+  let fermionMock: Contract;
   const startTokenId = 2n ** 128n + 1n;
   const quantity = 10n;
 
   async function setupFermionFNFTTest() {
     wallets = await ethers.getSigners();
-    fermionProtocolSigner = wallets[1]; // wallet that simulates the fermion protocol
     const wrapperContractOwner = wallets[2];
     seller = wallets[3];
     const [mockConduit, mockBosonPriceDiscovery] = (await ethers.getSigners()).slice(9, 11);
@@ -32,23 +31,28 @@ describe("FermionFNFT", function () {
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
 
-    const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress(), fermionProtocolSigner);
+    const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
+
+    const fermionMockFactory = await ethers.getContractFactory("MockFermion");
+    fermionMock = await fermionMockFactory.deploy(await fermionFNFTProxy.getAddress());
 
     const [mockBoson, mockExchangeToken] = await deployMockTokens(["ERC721", "ERC20"]);
 
-    await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
-    await fermionFNFTProxy.initialize(
-      await mockBoson.getAddress(),
-      wrapperContractOwner.address,
-      await mockExchangeToken.getAddress(),
-    );
-    await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
-    await fermionFNFTProxy.wrapForAuction(startTokenId, quantity, seller.address);
+    await mockBoson.mint(await fermionMock.getAddress(), startTokenId, quantity);
+    await fermionFNFTProxy
+      .attach(fermionMock)
+      .initialize(await mockBoson.getAddress(), wrapperContractOwner.address, await mockExchangeToken.getAddress());
+    await fermionMock.setDestinationOverride(await mockBoson.getAddress());
+    await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
+    await fermionFNFTProxy.attach(fermionMock).wrapForAuction(startTokenId, quantity, seller.address);
 
     for (let i = 0n; i < quantity; i++) {
       const tokenId = startTokenId + i;
       await fermionFNFTProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId + i, ZeroAddress, 0);
-      if (i < quantity - 1n) await fermionFNFTProxy.pushToNextTokenState(tokenId, TokenState.Verified);
+      if (i < quantity - 1n) {
+        await fermionFNFTProxy.attach(fermionMock).pushToNextTokenState(tokenId, TokenState.Verified);
+        await fermionFNFTProxy.attach(fermionMock).pushToNextTokenState(tokenId, TokenState.CheckedIn);
+      }
     }
 
     return { fermionFNFT, fermionFNFTProxy, mockBoson, mockBosonPriceDiscovery };
@@ -56,8 +60,6 @@ describe("FermionFNFT", function () {
 
   before(async function () {
     ({ fermionFNFT, fermionFNFTProxy } = await loadFixture(setupFermionFNFTTest));
-
-    fermionFNFTProxy = fermionFNFTProxy.connect(fermionProtocolSigner);
   });
 
   afterEach(async function () {
@@ -108,7 +110,7 @@ describe("FermionFNFT", function () {
         partialAuctionThreshold: custodianFee.amount * 15n,
         partialAuctionDuration: custodianFee.period / 2n,
         liquidationThreshold: custodianFee.amount * 2n,
-        newFractionsPerAuction: 0n,
+        newFractionsPerAuction: fractionsAmount,
       };
 
       await fermionFNFTProxy
@@ -151,7 +153,7 @@ describe("FermionFNFT", function () {
         partialAuctionThreshold: custodianFee.amount * 15n,
         partialAuctionDuration: custodianFee.period / 2n,
         liquidationThreshold: custodianFee.amount * 2n,
-        newFractionsPerAuction: 0n,
+        newFractionsPerAuction: fractionsAmount,
       };
 
       await fermionFNFTProxy

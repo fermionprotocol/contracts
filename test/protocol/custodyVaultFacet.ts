@@ -2001,11 +2001,18 @@ describe("CustodyVault", function () {
             it("Not enough to cover past fee", async function () {
               let transferTime = offerVaultCreationTimestamp + paymentPeriods * custodianFee.period + 100n;
               const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
+              await setNextBlockTimestamp(String(transferTime));
+              await wrapper.connect(bidder).redeem(tokenId2);
+              const vaultAmount2 = vaultAmount - vaultAmount / 3n;
+              await wrapper.connect(bidder).redeem(tokenId3);
+              const vaultAmount3 = vaultAmount2 - vaultAmount2 / 2n;
+
+              const remainderInVault = vaultAmount3;
               const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+
               const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
               transferTime = BigInt((await tx.getBlock()).timestamp);
 
-              const remainderInVault = vaultAmount - (2n * vaultAmount) / 3n;
               await expect(tx)
                 .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
                 .withArgs(custodianId, mockTokenAddress, remainderInVault);

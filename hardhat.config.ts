@@ -40,6 +40,11 @@ const config: HardhatUserConfig = {
             },
           },
           evmVersion: "cancun",
+          outputSelection: {
+            "*": {
+              "*": ["storageLayout"],
+            },
+          },
         },
       },
       {

@@ -10,7 +10,7 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
  *
  * A set of methods to interact with the Fermion custody facet contract.
  */
-interface IFermionCustody {
+interface IFermionCustodyVault {
     function setupCustodianOfferVault(
         uint256 _firstTokenId,
         uint256 _length,
