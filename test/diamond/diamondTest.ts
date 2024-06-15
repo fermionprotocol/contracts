@@ -36,7 +36,7 @@ describe("DiamondTest", async function () {
       addresses.push(address);
     }
     console.log({ addresses });
-    assert.equal(addresses.length, 11); // default facets: [diamondCut, diamondLoupe, accessControl, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause]
+    assert.equal(addresses.length, 12); // default facets: [diamondCut, diamondLoupe, accessControl, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause, config]
   });
 
   it("facets should have the right function selectors -- call to facetFunctionSelectors function", async () => {
@@ -47,7 +47,7 @@ describe("DiamondTest", async function () {
     selectors = getSelectors(diamondLoupeFacet);
     result = await diamondLoupeFacet.facetFunctionSelectors(addresses[1]);
     assert.sameMembers([...result], selectors);
-    selectors = getSelectors(accessControllerFacet);
+    selectors = getSelectors(accessControllerFacet).remove(["supportsInterface", "initialize"]);
     result = await diamondLoupeFacet.facetFunctionSelectors(addresses[2]);
     assert.sameMembers([...result], selectors);
     selectors = getSelectors(initializationFacet).remove(["initialize", "initializeDiamond"]);
@@ -59,7 +59,7 @@ describe("DiamondTest", async function () {
     assert.equal(addresses[0], await diamondLoupeFacet.facetAddress("0x1f931c1c"));
     assert.equal(addresses[1], await diamondLoupeFacet.facetAddress("0xcdffacc6"));
     assert.equal(addresses[1], await diamondLoupeFacet.facetAddress("0x01ffc9a7"));
-    assert.equal(addresses[2], await diamondLoupeFacet.facetAddress("0xf2fde38b"));
+    assert.equal(addresses[2], await diamondLoupeFacet.facetAddress("0xa217fddf"));
   });
 
   it("should add test1 functions", async () => {
@@ -225,6 +225,7 @@ describe("DiamondTest", async function () {
 
   it("add most functions and facets", async () => {
     const diamondLoupeFacetSelectors = getSelectors(diamondLoupeFacet).remove(["supportsInterface(bytes4)"]);
+    const accessControllerFacetSelectors = getSelectors(accessControllerFacet).remove(["supportsInterface(bytes4)"]);
     const Test1Facet = await ethers.getContractFactory("Test1Facet");
     const Test2Facet = await ethers.getContractFactory("Test2Facet");
 
@@ -244,7 +245,7 @@ describe("DiamondTest", async function () {
       {
         facetAddress: addresses[2],
         action: FacetCutAction.Add,
-        functionSelectors: getSelectors(accessControllerFacet),
+        functionSelectors: accessControllerFacetSelectors,
       },
       {
         facetAddress: addresses[3],
@@ -281,7 +282,7 @@ describe("DiamondTest", async function () {
     assert.sameMembers([...facets[findAddressPositionInFacets(addresses[1], facets)][1]], diamondLoupeFacetSelectors);
     assert.sameMembers(
       [...facets[findAddressPositionInFacets(addresses[2], facets)][1]],
-      getSelectors(accessControllerFacet),
+      accessControllerFacetSelectors,
     );
     assert.sameMembers([...facets[findAddressPositionInFacets(addresses[3], facets)][1]], getSelectors(Test1Facet));
     assert.sameMembers([...facets[findAddressPositionInFacets(addresses[4], facets)][1]], getSelectors(Test2Facet));

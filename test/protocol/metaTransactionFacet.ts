@@ -671,9 +671,10 @@ describe("MetaTransactions", function () {
 
           it("caller is not the admin", async function () {
             const accessControl = await getContractAt("IAccessControl", ZeroAddress);
-            await expect(metaTransactionFacet.setAllowlistedFunctions(functionHashList, true))
+            const randomWallet = wallets[2];
+            await expect(metaTransactionFacet.connect(randomWallet).setAllowlistedFunctions(functionHashList, true))
               .to.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
-              .withArgs(defaultSigner.address, id("ADMIN"));
+              .withArgs(randomWallet.address, id("ADMIN"));
           });
         });
       });
