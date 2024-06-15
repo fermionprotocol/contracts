@@ -7,7 +7,7 @@ import { Access } from "../libs/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { FundsErrors, EntityErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { Context } from "../libs/Context.sol";
 
 /**
@@ -15,7 +15,7 @@ import { Context } from "../libs/Context.sol";
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FermionErrors, Access {
+contract FundsFacet is Context, FundsErrors, Access {
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *
@@ -87,7 +87,7 @@ contract FundsFacet is Context, FermionErrors, Access {
                 FermionTypes.WalletRole.Treasury,
                 true
             )
-        ) revert NotEntityTreasury(_entityId, _treasury);
+        ) revert EntityErrors.NotEntityTreasury(_entityId, _treasury);
 
         address msgSender = _msgSender();
         if (
@@ -98,7 +98,7 @@ contract FundsFacet is Context, FermionErrors, Access {
                 FermionTypes.WalletRole.Assistant,
                 true
             )
-        ) revert NotEntityAssistant(_entityId, msgSender);
+        ) revert EntityErrors.NotEntityAssistant(_entityId, msgSender);
 
         withdrawFundsInternal(_entityId, _treasury, _tokenList, _tokenAmounts);
     }
@@ -197,7 +197,7 @@ contract FundsFacet is Context, FermionErrors, Access {
 
         // Make sure that the data is complete
         if (_tokenList.length != _tokenAmounts.length)
-            revert ArrayLengthMismatch(_tokenList.length, _tokenAmounts.length);
+            revert FermionGeneralErrors.ArrayLengthMismatch(_tokenList.length, _tokenAmounts.length);
 
         // Two possible options: withdraw all, or withdraw only specified tokens and amounts
         if (_tokenList.length == 0) {

@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import { BOSON_DR_ID_OFFSET } from "../domain/Constants.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { InitializationErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { IInitialziationEvents } from "../interfaces/events/IInitializationEvents.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IDiamondLoupe } from "../../diamond/interfaces/IDiamondLoupe.sol";
@@ -23,7 +23,7 @@ import { AccessController } from "../../diamond/facets/AccessController.sol";
  * @notice Handle initialization of protocol
  *
  */
-contract InitializationFacet is FermionErrors, IInitialziationEvents {
+contract InitializationFacet is InitializationErrors, IInitialziationEvents {
     address private immutable THIS_ADDRESS = address(this); // used to prevent invocation of 'initialize' directly on deployed contract. Variable is not used by the protocol.
 
     /**
@@ -117,7 +117,8 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         address _bosonProtocolAddress,
         address _fermionFNFTImplementation
     ) internal {
-        if (_bosonProtocolAddress == address(0) || _fermionFNFTImplementation == address(0)) revert InvalidAddress();
+        if (_bosonProtocolAddress == address(0) || _fermionFNFTImplementation == address(0))
+            revert FermionGeneralErrors.InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
         uint256 bosonSellerId = bosonProtocol.getNextAccountId();

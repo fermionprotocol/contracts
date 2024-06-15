@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { ADMIN, HUNDRED_PERCENT } from "../domain/Constants.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { FermionGeneralErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
@@ -13,7 +13,7 @@ import { FermionTypes } from "../domain/Types.sol";
  *
  * @notice Handles management of protocol-wide configuration parameters.
  */
-contract ConfigFacet is Access, FermionErrors, IConfigEvents {
+contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     /**
      * @notice Initializes facet.
      * This function is callable only once.

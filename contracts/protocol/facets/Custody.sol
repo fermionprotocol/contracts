@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionErrors } from "../domain/Errors.sol";
+import { CustodyErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -16,7 +16,7 @@ import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
  *
  * @notice Handles RWA custody.
  */
-contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
+contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents {
     /**
      * @notice Notifies the protocol that an RWA has been checked in
      *

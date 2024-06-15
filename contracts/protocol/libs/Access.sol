@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "./Storage.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { PauseErrors } from "../domain/Errors.sol";
 import { Context } from "./Context.sol";
 
 /**
@@ -45,7 +45,7 @@ contract Access is Context {
         // Region enum value must be used as the exponent in a power of 2
         uint256 powerOfTwo = 1 << uint256(_region);
         if ((FermionStorage.protocolStatus().paused & powerOfTwo) == powerOfTwo)
-            revert FermionErrors.RegionPaused(_region);
+            revert PauseErrors.RegionPaused(_region);
         _;
     }
 }

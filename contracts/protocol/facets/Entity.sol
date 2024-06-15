@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { BYTE_SIZE } from "../domain/Constants.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { EntityErrors, FermionGeneralErrors, OfferErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -17,7 +17,7 @@ import { FermionWrapper } from "../clients/FermionWrapper.sol";
  *
  * @notice Handles entity management.
  */
-contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
+contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRole).max) + 1;
     uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
     uint256 private constant WALLET_ROLE_MASK = (1 << (uint256(type(FermionTypes.WalletRole).max) + 1)) - 1;
@@ -127,8 +127,10 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = _entityId; // for some reason this solves the stack too deep error
         EntityLib.validateEntityId(entityId, pl);
-        if (_wallets.length != _entityRoles.length) revert ArrayLengthMismatch(_wallets.length, _entityRoles.length);
-        if (_wallets.length != _walletRoles.length) revert ArrayLengthMismatch(_wallets.length, _walletRoles.length);
+        if (_wallets.length != _entityRoles.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_wallets.length, _entityRoles.length);
+        if (_wallets.length != _walletRoles.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_wallets.length, _walletRoles.length);
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
 
@@ -338,7 +340,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
     function transferWrapperContractOwnership(uint256 _offerId, address _newOwner) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address wrapperAddress = pl.fermionFNFTAddress[_offerId];
-        if (wrapperAddress == address(0)) revert NoSuchOffer(_offerId);
+        if (wrapperAddress == address(0)) revert OfferErrors.NoSuchOffer(_offerId);
 
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
         uint256 entityId = offer.sellerId;
@@ -519,7 +521,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
         address msgSender = _msgSender();
 
         if (_entityRoles.length == 0) {
-            if (_walletRoles.length != 1) revert ArrayLengthMismatch(1, _walletRoles.length);
+            if (_walletRoles.length != 1) revert FermionGeneralErrors.ArrayLengthMismatch(1, _walletRoles.length);
 
             // To set entity-wide wallet roles, the caller must have entity-wide admin role
             if (
@@ -536,7 +538,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
             compactWalletRole = compactWalletRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
         } else {
             if (_entityRoles.length != _walletRoles.length)
-                revert ArrayLengthMismatch(_entityRoles.length, _walletRoles.length);
+                revert FermionGeneralErrors.ArrayLengthMismatch(_entityRoles.length, _walletRoles.length);
             for (uint256 i = 0; i < _entityRoles.length; i++) {
                 FermionTypes.EntityRole entityRole = _entityRoles[i];
                 // Check that the entity has the role

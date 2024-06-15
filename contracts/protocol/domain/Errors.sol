@@ -3,19 +3,23 @@ pragma solidity 0.8.24;
 
 import { FermionTypes } from "./Types.sol";
 
-interface FermionErrors {
+interface FermionGeneralErrors {
     // General errors
     error InvalidAddress();
     error ArrayLengthMismatch(uint256 expectedLength, uint256 actualLength);
     error AccessDenied(address caller);
     error InvalidPercentage(uint256 percentage);
     error ZeroNotAllowed();
+}
 
+interface InitializationErrors {
     // Initialization errors
     error DirectInitializationNotAllowed();
     error VersionMustBeSet();
     error AddressesAndCalldataLengthMismatch(uint256 addressesLength, uint256 calldataLength);
+}
 
+interface EntityErrors {
     // Entity errors
     error EntityAlreadyExists();
     error NoSuchEntity(uint256 entityId);
@@ -34,15 +38,21 @@ interface FermionErrors {
     error ChangeNotAllowed();
     error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
     error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
+}
 
+interface OfferErrors {
     // Offer errors
     error InvalidQuantity(uint256 quantity);
     error NoSuchOffer(uint256 offerId);
     error InvalidOrder();
+}
 
+interface VerificationErrors {
     // Verification errors
     error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
+}
 
+interface CustodyErrors {
     // Custody errors
     error NotTokenBuyer(uint256 tokenId, address owner, address caller);
     error InvalidTaxAmount();
@@ -51,7 +61,9 @@ interface FermionErrors {
         FermionTypes.CheckoutRequestStatus expectedStatus,
         FermionTypes.CheckoutRequestStatus actualStatus
     );
+}
 
+interface FundsErrors {
     // Funds errors
     error WrongValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
@@ -60,11 +72,15 @@ interface FermionErrors {
     error NothingToWithdraw();
     error TokenTransferFailed(address to, uint256 amount, bytes errorMessage);
     error InsufficientAvailableFunds(uint256 availableFunds, uint256 requestedFunds);
+}
 
+interface PauseErrors {
     // Pause handler
     error NotPaused();
     error RegionPaused(FermionTypes.PausableRegion region);
+}
 
+interface MetaTransactionErrors {
     // Meta transaction errors
     error NonceUsedAlready();
     error FunctionNotAllowlisted();
@@ -72,7 +88,9 @@ interface FermionErrors {
     error InvalidSignature();
     error SignerAndSignatureDoNotMatch();
     error FunctionCallFailed();
+}
 
+interface FractionalisationErrors {
     // Fractionalisation errors
     error InvalidLength();
     error InvalidFractionsAmount(uint256 amount, uint256 min, uint256 max);
@@ -96,3 +114,16 @@ interface FermionErrors {
     error TokenNotFractionalised(uint256 tokenId);
     error InvalidAuctionIndex(uint256 auctionIndex, uint256 numberOfAuctions); // auctionIndex should be less than numberOfAuctions
 }
+
+interface FermionErrors is
+    FermionGeneralErrors,
+    InitializationErrors,
+    EntityErrors,
+    OfferErrors,
+    VerificationErrors,
+    CustodyErrors,
+    FundsErrors,
+    PauseErrors,
+    MetaTransactionErrors,
+    FractionalisationErrors
+{}

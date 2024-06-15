@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import { PAUSER } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { PauseErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
 import { IPauseEvents } from "../interfaces/events/IPauseEvents.sol";
@@ -13,7 +13,7 @@ import { IPauseEvents } from "../interfaces/events/IPauseEvents.sol";
  *
  * @notice Handles protocol region pausing.
  */
-contract PauseFacet is Access, FermionErrors, IPauseEvents {
+contract PauseFacet is Access, PauseErrors, IPauseEvents {
     uint256 private constant ALL_REGIONS_MASK = (1 << (uint256(type(FermionTypes.PausableRegion).max) + 1)) - 1;
 
     /**

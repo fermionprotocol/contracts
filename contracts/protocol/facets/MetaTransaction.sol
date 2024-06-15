@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { ADMIN } from "../domain/Constants.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { MetaTransactionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
@@ -14,7 +14,7 @@ import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEve
  *
  * @notice Handles meta-transaction requests.
  */
-contract MetaTransactionFacet is Access, FermionErrors, IMetaTransactionEvents {
+contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransactionEvents {
     string private constant PROTOCOL_NAME = "Fermion Protocol";
     string private constant PROTOCOL_VERSION = "V0";
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =

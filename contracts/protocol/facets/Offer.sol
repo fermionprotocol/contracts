@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -26,7 +26,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
  *
  * @notice Handles offer listing.
  */
-contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
+contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     using SafeERC20 for IERC20;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
@@ -54,7 +54,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
             _offer.sellerId != _offer.facilitatorId &&
             !FermionStorage.protocolLookups().isSellersFacilitator[_offer.sellerId][_offer.facilitatorId]
         ) {
-            revert FermionErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
+            revert EntityErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
         }
         EntityLib.validateSellerAssistantOrFacilitator(_offer.sellerId, _offer.facilitatorId);
 
@@ -73,7 +73,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
 
         // Fermion offer parameter validation
         if (_offer.facilitatorFeePercent > HUNDRED_PERCENT) {
-            revert FermionErrors.InvalidPercentage(_offer.facilitatorFeePercent);
+            revert FermionGeneralErrors.InvalidPercentage(_offer.facilitatorFeePercent);
         }
 
         // Create offer in Boson
@@ -247,7 +247,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
                     _priceDiscovery.price
                 );
                 if (_priceDiscovery.price < minimalPrice) {
-                    revert PriceTooLow(_priceDiscovery.price, minimalPrice);
+                    revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
                 }
                 _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
             }
