@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -41,8 +42,10 @@ contract FundsFacet is Context, FermionErrors, Access {
     ) external payable notPaused(FermionTypes.PausableRegion.Funds) {
         if (_amount == 0) revert ZeroDepositNotAllowed();
 
-        // Check that entity exists
-        EntityLib.fetchEntityData(_entityId);
+        // Check that entity exists. Funds to protocol entity (0) are allowed too.
+        if (_entityId > 0) {
+            EntityLib.fetchEntityData(_entityId);
+        }
 
         FundsLib.validateIncomingPayment(_tokenAddress, _amount);
         FundsLib.increaseAvailableFunds(_entityId, _tokenAddress, _amount);
@@ -75,7 +78,7 @@ contract FundsFacet is Context, FermionErrors, Access {
         address payable _treasury,
         address[] calldata _tokenList,
         uint256[] calldata _tokenAmounts
-    ) external notPaused(FermionTypes.PausableRegion.Funds) {
+    ) external {
         if (
             !EntityLib.hasWalletRole(
                 _entityId,
@@ -98,6 +101,29 @@ contract FundsFacet is Context, FermionErrors, Access {
         ) revert NotEntityAssistant(_entityId, msgSender);
 
         withdrawFundsInternal(_entityId, _treasury, _tokenList, _tokenAmounts);
+    }
+
+    /**
+     * @notice Withdraws the funds collected by the protocol.
+     *
+     * Emits FundsWithdrawn event if successful.
+     *
+     * Reverts if:
+     * - Funds region is paused
+     * - Caller does not have FEE_COLLECTOR role
+     * - Token list length does not match amount list length
+     * - Caller tries to withdraw more that they have in available funds
+     * - There is nothing to withdraw
+     * - Transfer of funds is not successful
+     *
+     * @param _tokenList - list of contract addresses of tokens that are being withdrawn
+     * @param _tokenAmounts - list of amounts to be withdrawn, corresponding to tokens in tokenList
+     */
+    function withdrawProtocolFees(
+        address[] calldata _tokenList,
+        uint256[] calldata _tokenAmounts
+    ) external onlyRole(FEE_COLLECTOR) {
+        withdrawFundsInternal(0, FermionStorage.protocolConfig().treasury, _tokenList, _tokenAmounts);
     }
 
     /**
@@ -148,6 +174,7 @@ contract FundsFacet is Context, FermionErrors, Access {
      * Emits FundsWithdrawn event if successful.
      *
      * Reverts if:
+     * - Funds region is paused
      * - Caller is not associated with the entity id
      * - Token list length does not match amount list length
      * - Caller tries to withdraw more that they have in available funds
@@ -164,7 +191,7 @@ contract FundsFacet is Context, FermionErrors, Access {
         address payable _destinationAddress,
         address[] calldata _tokenList,
         uint256[] calldata _tokenAmounts
-    ) internal {
+    ) internal notPaused(FermionTypes.PausableRegion.Funds) {
         // Cache protocol lookups for reference
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 

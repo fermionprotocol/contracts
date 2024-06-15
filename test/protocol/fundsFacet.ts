@@ -16,7 +16,8 @@ describe("Funds", function () {
     entityFacet: Contract,
     verificationFacet: Contract,
     fundsFacet: Contract,
-    pauseFacet: Contract;
+    pauseFacet: Contract,
+    configFacet: Contract;
   let mockToken1: Contract, mockToken2: Contract, mockToken3: Contract;
   let mockToken1Address: string, mockToken2Address: string, mockToken3Address: string;
   let fermionErrors: Contract;
@@ -25,13 +26,14 @@ describe("Funds", function () {
   let defaultSigner: HardhatEthersSigner;
   let verifier: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
+  let feeCollector: HardhatEthersSigner;
   let seaportAddress: string;
   const sellerId = "1";
   const verifierId = "2";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
 
-  async function setupCustodyTest() {
+  async function setupFundsTest() {
     // Create three entities
     // Seller, Verifier, Custodian combined
     // Verifier and custodian
@@ -50,6 +52,10 @@ describe("Funds", function () {
     mockToken1Address = await mockToken1.getAddress();
     mockToken2Address = await mockToken2.getAddress();
     mockToken3Address = await mockToken3.getAddress();
+
+    feeCollector = wallets[8];
+    const accessController = await ethers.getContractAt("AccessController", fermionProtocolAddress);
+    await accessController.grantRole(id("FEE_COLLECTOR"), feeCollector.address);
   }
 
   before(async function () {
@@ -61,6 +67,7 @@ describe("Funds", function () {
         VerificationFacet: verificationFacet,
         FundsFacet: fundsFacet,
         PauseFacet: pauseFacet,
+        ConfigFacet: configFacet,
       },
       fermionErrors,
       wallets,
@@ -68,11 +75,11 @@ describe("Funds", function () {
       seaportAddress,
     } = await loadFixture(deployFermionProtocolFixture));
 
-    await loadFixture(setupCustodyTest);
+    await loadFixture(setupFundsTest);
   });
 
   afterEach(async function () {
-    await loadFixture(setupCustodyTest);
+    await loadFixture(setupFundsTest);
   });
 
   context("depositFunds", function () {
@@ -517,6 +524,205 @@ describe("Funds", function () {
         await expect(
           fundsFacet.withdrawFunds(sellerId, contractWalletWithReceiveAddress, [ZeroAddress], [amountNative]),
         )
+          .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
+          .withArgs(contractWalletWithReceiveAddress, amountNative, id("NotAcceptingMoney()").slice(0, 10));
+      });
+    });
+  });
+
+  context("withdrawProtocolFees", function () {
+    const amountNative = parseEther("10");
+    const amountMockToken = parseEther("12");
+    const protocolId = 0n;
+    const protocolTreasury = fermionConfig.protocolParameters.treasury;
+
+    beforeEach(async function () {
+      await fundsFacet.depositFunds(protocolId, ZeroAddress, amountNative, { value: amountNative });
+      await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amountMockToken);
+      await fundsFacet.depositFunds(protocolId, mockToken1Address, amountMockToken);
+    });
+
+    it("Fee collector can withdraw the funds to protocol treasury", async function () {
+      const entityAvailableFunds = await fundsFacet.getAvailableFunds(protocolId, mockToken1Address);
+      const treasuryBalance = await mockToken1.balanceOf(protocolTreasury);
+
+      // Withdraw funds
+      const withdrawAmount = amountMockToken / 2n;
+      const tx = await fundsFacet.connect(feeCollector).withdrawProtocolFees([mockToken1Address], [withdrawAmount]);
+
+      // Events
+      await expect(tx)
+        .to.emit(fundsFacet, "FundsWithdrawn")
+        .withArgs(protocolId, protocolTreasury, mockToken1Address, withdrawAmount);
+
+      // State
+      expect(await fundsFacet.getAvailableFunds(protocolId, mockToken1Address)).to.equal(
+        entityAvailableFunds - withdrawAmount,
+      );
+      expect(await mockToken1.balanceOf(protocolTreasury)).to.equal(treasuryBalance + withdrawAmount);
+    });
+
+    it("Withdraw all", async function () {
+      const entityAvailableFundsNative = await fundsFacet.getAvailableFunds(protocolId, ZeroAddress);
+      const entityAvailableFundsMockToken1 = await fundsFacet.getAvailableFunds(protocolId, mockToken1Address);
+      const adminBalanceNative = await ethers.provider.getBalance(protocolTreasury);
+      const adminBalanceMockToken1 = await mockToken1.balanceOf(protocolTreasury);
+
+      // Withdraw funds
+      const tx = await fundsFacet.connect(feeCollector).withdrawProtocolFees([], [], { gasPrice: 0 });
+
+      // Events
+      await expect(tx)
+        .to.emit(fundsFacet, "FundsWithdrawn")
+        .withArgs(protocolId, protocolTreasury, ZeroAddress, amountNative);
+      await expect(tx)
+        .to.emit(fundsFacet, "FundsWithdrawn")
+        .withArgs(protocolId, protocolTreasury, mockToken1Address, amountMockToken);
+
+      // State
+      expect(await fundsFacet.getAvailableFunds(protocolId, ZeroAddress)).to.equal(
+        entityAvailableFundsNative - amountNative,
+      );
+      expect(await fundsFacet.getAvailableFunds(protocolId, ZeroAddress)).to.equal(
+        entityAvailableFundsMockToken1 - amountMockToken,
+      );
+      expect(await ethers.provider.getBalance(protocolTreasury)).to.equal(adminBalanceNative + amountNative);
+      expect(await mockToken1.balanceOf(protocolTreasury)).to.equal(adminBalanceMockToken1 + amountMockToken);
+    });
+
+    it("Token list is updated correctly", async function () {
+      // add more tokens
+      await mockToken2.connect(defaultSigner).approve(fermionProtocolAddress, amountMockToken);
+      await mockToken3.connect(defaultSigner).approve(fermionProtocolAddress, amountMockToken);
+      await fundsFacet.depositFunds(protocolId, mockToken2Address, amountMockToken);
+      await fundsFacet.depositFunds(protocolId, mockToken3Address, amountMockToken);
+
+      expect(await fundsFacet.getTokenList(protocolId)).to.eql([
+        ZeroAddress,
+        mockToken1Address,
+        mockToken2Address,
+        mockToken3Address,
+      ]);
+
+      // Withdraw funds
+      const withdrawAmount = amountMockToken / 2n;
+      await fundsFacet.connect(feeCollector).withdrawProtocolFees([mockToken1Address], [withdrawAmount]);
+
+      // Token list should not change
+      expect(await fundsFacet.getTokenList(protocolId)).to.eql([
+        ZeroAddress,
+        mockToken1Address,
+        mockToken2Address,
+        mockToken3Address,
+      ]);
+
+      // Withdraw remaining mocktoken1 - token list should be updated
+      await fundsFacet.connect(feeCollector).withdrawProtocolFees([mockToken1Address], [withdrawAmount]);
+      expect(await fundsFacet.getTokenList(protocolId)).to.eql([ZeroAddress, mockToken3Address, mockToken2Address]);
+
+      // Withdraw all native - token list should be updated
+      await fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative]);
+      expect(await fundsFacet.getTokenList(protocolId)).to.eql([mockToken2Address, mockToken3Address]);
+    });
+
+    it("Treasury can be a contract wallet", async function () {
+      const contractWalletWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
+      const contractWalletWithReceive = await contractWalletWithReceiveFactory.deploy();
+      const contractWalletWithReceiveAddress = await contractWalletWithReceive.getAddress();
+
+      await configFacet.setTreasuryAddress(contractWalletWithReceiveAddress);
+
+      // contract without receive function
+      const tx = await fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative]);
+      await expect(tx)
+        .to.emit(fundsFacet, "FundsWithdrawn")
+        .withArgs(protocolId, contractWalletWithReceiveAddress, ZeroAddress, amountNative);
+      await expect(tx)
+        .to.emit(contractWalletWithReceive, "FundsReceived")
+        .withArgs(fermionProtocolAddress, amountNative);
+    });
+
+    context("Revert reasons", function () {
+      it("Funds region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Funds]);
+
+        await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([], []))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Funds);
+      });
+
+      it("Caller does not have fee collector role", async function () {
+        const accessControl = await ethers.getContractAt("IAccessControl", ethers.ZeroAddress);
+        const wallet = wallets[9];
+
+        // completely random wallet
+        await expect(fundsFacet.connect(wallet).withdrawProtocolFees([], []))
+          .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(wallet.address, id("FEE_COLLECTOR"));
+      });
+
+      it("Fee collector cannot use withdraw funds to collect the fees", async function () {
+        await expect(fundsFacet.connect(feeCollector).withdrawFunds(protocolId, protocolTreasury, [], []))
+          .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+          .withArgs(protocolId);
+      });
+
+      it("Token list and token amounts length mismatch", async function () {
+        await expect(
+          fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative, amountMockToken]),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+          .withArgs(1, 2);
+
+        await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], []))
+          .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+          .withArgs(1, 0);
+      });
+
+      it("Nothing to withdraw - withdraw all", async function () {
+        await fundsFacet.connect(feeCollector).withdrawProtocolFees([], []);
+
+        await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([], [])).to.be.revertedWithCustomError(
+          fermionErrors,
+          "NothingToWithdraw",
+        );
+      });
+
+      it("Nothing to withdraw - requested amount is 0", async function () {
+        await expect(
+          fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], ["0"]),
+        ).to.be.revertedWithCustomError(fermionErrors, "NothingToWithdraw");
+      });
+
+      it("Withdraw more than available", async function () {
+        await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative + 1n]))
+          .to.be.revertedWithCustomError(fermionErrors, "InsufficientAvailableFunds")
+          .withArgs(amountNative, amountNative + 1n);
+
+        await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([mockToken1Address], [amountMockToken + 1n]))
+          .to.be.revertedWithCustomError(fermionErrors, "InsufficientAvailableFunds")
+          .withArgs(amountMockToken, amountMockToken + 1n);
+      });
+
+      it("Treasury reverts", async function () {
+        const contractWalletFactory = await ethers.getContractFactory("ContractWallet");
+        const contractWallet = await contractWalletFactory.deploy();
+        const contractWalletWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
+        const contractWalletWithReceive = await contractWalletWithReceiveFactory.deploy();
+
+        const contractWalletAddress = await contractWallet.getAddress();
+        const contractWalletWithReceiveAddress = await contractWalletWithReceive.getAddress();
+
+        await configFacet.setTreasuryAddress(contractWalletAddress);
+        // contract without receive function
+        await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative]))
+          .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
+          .withArgs(contractWalletAddress, amountNative, "0x");
+
+        // contract with receive function, but reverting
+        await configFacet.setTreasuryAddress(contractWalletWithReceiveAddress);
+        await contractWalletWithReceive.setAcceptingMoney(false);
+        await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative]))
           .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
           .withArgs(contractWalletWithReceiveAddress, amountNative, id("NotAcceptingMoney()").slice(0, 10));
       });
