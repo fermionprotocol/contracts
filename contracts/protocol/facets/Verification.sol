@@ -67,12 +67,16 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
      * Emits an ItemVerificationTimeoutChanged event
      *
      * Reverts if:
+     * - Verification region is paused
      * - Caller is not the seller's assistant or facilitator
      *
      * @param _tokenId - the token ID
      * @param _newTimeout - the new verification timeout
      */
-    function changeVerificationTimeout(uint256 _tokenId, uint256 _newTimeout) external {
+    function changeVerificationTimeout(
+        uint256 _tokenId,
+        uint256 _newTimeout
+    ) external notPaused(FermionTypes.PausableRegion.Verification) {
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
@@ -87,7 +91,7 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
      *
      * @param _tokenId - the token ID
      */
-    function getVerificationTimeout(uint256 _tokenId) external view returns (uint256) {
+    function getItemVerificationTimeout(uint256 _tokenId) external view returns (uint256) {
         return FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId];
     }
 

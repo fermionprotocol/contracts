@@ -5,6 +5,7 @@ import {
   deriveTokenId,
   applyPercentage,
   setNextBlockTimestamp,
+  verifySellerAssistantRoleClosure,
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
@@ -33,6 +34,7 @@ describe("Verification", function () {
   let buyer: HardhatEthersSigner;
   let seaportAddress: string;
   let exchangeToken: string;
+  let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
   const bosonBuyerId = "2"; // Fermion buyer id in Boson
   let bosonExchangeHandler: Contract;
   const protocolId = "0";
@@ -216,6 +218,13 @@ describe("Verification", function () {
     } = await loadFixture(deployFermionProtocolFixture));
 
     await loadFixture(setupVerificationTest);
+
+    verifySellerAssistantRole = verifySellerAssistantRoleClosure(
+      verificationFacet,
+      wallets,
+      entityFacet,
+      fermionErrors,
+    );
   });
 
   afterEach(async function () {
@@ -615,7 +624,7 @@ describe("Verification", function () {
       await setNextBlockTimestamp(itemVerificationTimeout);
     });
 
-    context("verificationTimeout", function () {
+    context("Anyone can timeout if the verifier is inactive", function () {
       const buyerId = "5"; // new buyer in fermion
       it("Normal sale", async function () {
         const tx = await verificationFacet.connect(randomWallet).verificationTimeout(exchange.tokenId);
@@ -790,6 +799,34 @@ describe("Verification", function () {
         await expect(verificationFacet.connect(randomWallet).verificationTimeout(exchange.tokenId))
           .to.be.revertedWithCustomError(verificationFacet, "VerificationTimeoutNotPassed")
           .withArgs(newTimeout, nextBlockTimestamp);
+      });
+    });
+  });
+
+  context("changeVerificationTimeout", function () {
+    it("seller can change the verification timeout", async function () {
+      const newTimeout = BigInt(itemVerificationTimeout) + 24n * 60n * 60n * 10n;
+      const tx = await verificationFacet.changeVerificationTimeout(exchange.tokenId, newTimeout);
+
+      await expect(tx)
+        .to.emit(verificationFacet, "ItemVerificationTimeoutChanged")
+        .withArgs(exchange.tokenId, newTimeout);
+
+      expect(await verificationFacet.getItemVerificationTimeout(exchange.tokenId)).to.equal(newTimeout);
+    });
+
+    context("Revert reasons", function () {
+      it("Verification region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Verification]);
+
+        await expect(verificationFacet.changeVerificationTimeout(exchange.tokenId, itemVerificationTimeout))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Verification);
+      });
+
+      it("Caller is not the seller's assistant", async function () {
+        const newTimeout = BigInt(itemVerificationTimeout) + 24n * 60n * 60n * 10n;
+        await verifySellerAssistantRole("changeVerificationTimeout", [exchange.tokenId, newTimeout]);
       });
     });
   });
