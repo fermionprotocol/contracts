@@ -40,7 +40,7 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
         uint256 _tokenId,
         FermionTypes.VerificationStatus _verificationStatus
     ) external notPaused(FermionTypes.PausableRegion.Verification) {
-        submitVerdictInternal(_tokenId, _verificationStatus, true);
+        submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
     /**
@@ -58,7 +58,7 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
         uint256 timeout = FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId];
         if (block.timestamp < timeout) revert VerificationTimeoutNotPassed(timeout, block.timestamp);
 
-        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, false);
+        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, true);
     }
 
     /**
@@ -106,17 +106,17 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
-     * @param _checkRole - whether to check the caller's role. Set false for internal calls
+     * @param _afterTimeout - indicator if the verification is rejected after timeout
      */
     function submitVerdictInternal(
         uint256 _tokenId,
         FermionTypes.VerificationStatus _verificationStatus,
-        bool _checkRole
+        bool _afterTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Verification) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 verifierId = offer.verifierId;
 
-        if (_checkRole) {
+        if (!_afterTimeout) {
             // Check the caller is the verifier's assistant
             EntityLib.validateWalletRole(
                 verifierId,
@@ -142,12 +142,12 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
             BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
         }
 
-        uint256 remainder;
+        uint256 remainder = offerPrice;
         unchecked {
             // pay the verifier
             uint256 verifierFee = offer.verifierFee;
-            FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
-            remainder = offerPrice - verifierFee; // guaranteed to be positive
+            if (!_afterTimeout) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
+            remainder -= verifierFee; // guaranteed to be positive
 
             // fermion fee
             uint256 fermionFeeAmount = FundsLib.applyPercentage(
@@ -156,14 +156,14 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
             );
             FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
             remainder -= fermionFeeAmount;
+        }
 
+        if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
             // pay the facilitator
             uint256 facilitatorFeeAmount = FundsLib.applyPercentage(remainder, offer.facilitatorFeePercent);
             FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
             remainder = remainder - facilitatorFeeAmount + sellerDeposit;
-        }
 
-        if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
             // transfer the remainder to the seller
             FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
             IFermionFNFT(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.Verified);
@@ -178,8 +178,12 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
                 buyerId = EntityLib.createEntity(buyerAddress, _roles, "", pl);
             }
 
+            if (_afterTimeout) {
+                remainder += offer.verifierFee;
+            }
+
             // transfer the remainder to the buyer
-            FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder);
+            FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
         }
 
         emit VerdictSubmitted(verifierId, _tokenId, _verificationStatus);

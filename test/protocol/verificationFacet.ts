@@ -163,7 +163,11 @@ describe("Verification", function () {
     exchangeSelfSale.verifierId = verifierId;
     exchangeSelfSale.offerId = offerIdSelfSale;
     exchangeSelfSale.exchangeId = exchangeIdSelf;
-    exchangeSelfSale.payout = { remainder: 0n, fermionFeeAmount: 0n, facilitatorFeeAmount: 0n };
+    exchangeSelfSale.payout = {
+      remainder: 0n,
+      fermionFeeAmount: 0n,
+      facilitatorFeeAmount: 0n,
+    };
 
     // Self verification
     exchangeSelfVerification.tokenId = tokenIdSelfVerification;
@@ -391,10 +395,7 @@ describe("Verification", function () {
           .withArgs(exchange.verifierId, exchangeToken, verifierFee);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(facilitatorId, exchangeToken, exchange.payout.facilitatorFeeAmount);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(buyerId, exchangeToken, exchange.payout.remainder);
+          .withArgs(buyerId, exchangeToken, exchange.payout.remainder + exchange.payout.facilitatorFeeAmount); // buyer gets the remainder and facilitator fee back
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
@@ -414,10 +415,10 @@ describe("Verification", function () {
         // Fermion
         // Available funds
         expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
-        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
-          exchange.payout.facilitatorFeeAmount,
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0n); // facilitator not paid if rejected
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchange.payout.remainder + exchange.payout.facilitatorFeeAmount,
         );
-        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(exchange.payout.remainder);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
           exchange.payout.fermionFeeAmount,
@@ -480,7 +481,11 @@ describe("Verification", function () {
           .withArgs(sellerId, exchangeSelfVerification.tokenId, VerificationStatus.Rejected);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(buyerId, exchangeToken, exchangeSelfVerification.payout.remainder);
+          .withArgs(
+            buyerId,
+            exchangeToken,
+            exchangeSelfVerification.payout.remainder + exchangeSelfVerification.payout.facilitatorFeeAmount,
+          );
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(protocolId, exchangeToken, exchangeSelfVerification.payout.fermionFeeAmount);
@@ -507,11 +512,8 @@ describe("Verification", function () {
         // Fermion
         // Available funds
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
-          exchangeSelfVerification.payout.remainder,
-        );
-        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
-          exchangeSelfVerification.payout.facilitatorFeeAmount,
-        );
+          exchangeSelfVerification.payout.remainder + exchangeSelfVerification.payout.facilitatorFeeAmount,
+        ); // buyer gets the remainder and facilitator fee back
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
           exchangeSelfVerification.payout.fermionFeeAmount,
@@ -529,14 +531,19 @@ describe("Verification", function () {
           .to.emit(entityFacet, "EntityStored")
           .withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
 
-        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(exchange.payout.remainder);
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchange.payout.remainder + exchange.payout.facilitatorFeeAmount,
+        );
 
         await expect(
           verificationFacet.submitVerdict(exchangeSelfVerification.tokenId, VerificationStatus.Rejected),
         ).to.not.emit(entityFacet, "EntityStored");
 
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
-          exchange.payout.remainder + exchangeSelfVerification.payout.remainder,
+          exchange.payout.remainder +
+            exchange.payout.facilitatorFeeAmount +
+            exchangeSelfVerification.payout.remainder +
+            exchangeSelfVerification.payout.facilitatorFeeAmount,
         );
       });
     });
@@ -636,13 +643,11 @@ describe("Verification", function () {
           .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(facilitatorId, exchangeToken, exchange.payout.facilitatorFeeAmount);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(buyerId, exchangeToken, exchange.payout.remainder);
+          .withArgs(
+            buyerId,
+            exchangeToken,
+            exchange.payout.remainder + exchange.payout.facilitatorFeeAmount + verifierFee,
+          );
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
@@ -661,11 +666,11 @@ describe("Verification", function () {
         // State
         // Fermion
         // Available funds
-        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
-        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
-          exchange.payout.facilitatorFeeAmount,
+        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchange.payout.remainder + exchange.payout.facilitatorFeeAmount + verifierFee,
         );
-        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(exchange.payout.remainder);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
           exchange.payout.fermionFeeAmount,
@@ -686,9 +691,6 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Rejected);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
 
         // Wrapper
@@ -704,9 +706,9 @@ describe("Verification", function () {
         // State
         // Fermion
         // Available funds
-        expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
+        expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
-        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(verifierFee);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0);
 
         // Wrapper
@@ -726,7 +728,11 @@ describe("Verification", function () {
           .withArgs(sellerId, exchangeSelfVerification.tokenId, VerificationStatus.Rejected);
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(buyerId, exchangeToken, exchangeSelfVerification.payout.remainder);
+          .withArgs(
+            buyerId,
+            exchangeToken,
+            exchangeSelfVerification.payout.remainder + exchangeSelfVerification.payout.facilitatorFeeAmount,
+          ); // verifier fee is 0, so it's not added
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(protocolId, exchangeToken, exchangeSelfVerification.payout.fermionFeeAmount);
@@ -753,11 +759,8 @@ describe("Verification", function () {
         // Fermion
         // Available funds
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
-          exchangeSelfVerification.payout.remainder,
-        );
-        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
-          exchangeSelfVerification.payout.facilitatorFeeAmount,
-        );
+          exchangeSelfVerification.payout.remainder + exchangeSelfVerification.payout.facilitatorFeeAmount,
+        ); // verifier fee is 0, so it's not added
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
           exchangeSelfVerification.payout.fermionFeeAmount,
