@@ -77,6 +77,8 @@ library FermionStorage {
         mapping(uint256 => mapping(uint256 => bool)) isSellersFacilitator;
         // seller id => list of facilitators
         mapping(uint256 => uint256[]) sellerFacilitators;
+        // token id => verification teimeout
+        mapping(uint256 => uint256) itemVerificationTimeout;
     }
 
     // Storage related to Meta Transactions

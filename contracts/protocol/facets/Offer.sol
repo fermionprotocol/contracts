@@ -211,47 +211,56 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
         _priceDiscovery.priceDiscoveryContract = wrapperAddress;
         _priceDiscovery.conduit = wrapperAddress;
-        uint256 bosonProtocolFee;
-        if (_selfSale) {
-            uint256 minimalPrice;
-            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(exchangeToken, offer.verifierFee, 0);
-            if (minimalPrice > 0) {
-                FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-                IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
+        {
+            uint256 bosonProtocolFee;
+            if (_selfSale) {
+                uint256 minimalPrice;
+                (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                    exchangeToken,
+                    offer.verifierFee,
+                    0
+                );
+                if (minimalPrice > 0) {
+                    FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
+                    IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
+                }
+
+                _priceDiscovery.price = minimalPrice;
+                _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+                    IFermionWrapper.unwrapToSelf,
+                    (_tokenId, exchangeToken, minimalPrice)
+                );
+            } else {
+                if (_buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount) {
+                    revert InvalidOrder();
+                }
+                unchecked {
+                    _priceDiscovery.price =
+                        _buyerOrder.parameters.offer[0].startAmount -
+                        _buyerOrder.parameters.consideration[1].startAmount;
+                }
+
+                uint256 minimalPrice;
+                (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                    exchangeToken,
+                    offer.verifierFee,
+                    _priceDiscovery.price
+                );
+                if (_priceDiscovery.price < minimalPrice) {
+                    revert PriceTooLow(_priceDiscovery.price, minimalPrice);
+                }
+                _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
             }
 
-            _priceDiscovery.price = minimalPrice;
-            _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                IFermionWrapper.unwrapToSelf,
-                (_tokenId, exchangeToken, minimalPrice)
-            );
-        } else {
-            if (_buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount) {
-                revert InvalidOrder();
-            }
-            unchecked {
-                _priceDiscovery.price =
-                    _buyerOrder.parameters.offer[0].startAmount -
-                    _buyerOrder.parameters.consideration[1].startAmount;
-            }
+            pl.offerPrice[offerId] = _priceDiscovery.price - bosonProtocolFee;
 
-            uint256 minimalPrice;
-            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                exchangeToken,
-                offer.verifierFee,
-                _priceDiscovery.price
-            );
-            if (_priceDiscovery.price < minimalPrice) {
-                revert PriceTooLow(_priceDiscovery.price, minimalPrice);
-            }
-            _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
+            BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
+            BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
         }
 
-        pl.offerPrice[offerId] = _priceDiscovery.price - bosonProtocolFee;
-
-        BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
-        BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
-        emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId);
+        uint256 itemVerificationTimeout = block.timestamp + FermionStorage.protocolConfig().verificationTimeout;
+        pl.itemVerificationTimeout[_tokenId] = itemVerificationTimeout;
+        emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId, itemVerificationTimeout);
     }
 
     /**

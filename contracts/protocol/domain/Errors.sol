@@ -40,6 +40,9 @@ interface FermionErrors {
     error NoSuchOffer(uint256 offerId);
     error InvalidOrder();
 
+    // Verification errors
+    error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
+
     // Custody errors
     error NotTokenBuyer(uint256 tokenId, address owner, address caller);
     error InvalidTaxAmount();

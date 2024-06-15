@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
+import { FermionErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -16,7 +17,7 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, Access, IVerificationEvents {
+contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol) {
@@ -39,16 +40,87 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
         uint256 _tokenId,
         FermionTypes.VerificationStatus _verificationStatus
     ) external notPaused(FermionTypes.PausableRegion.Verification) {
+        submitVerdictInternal(_tokenId, _verificationStatus, true);
+    }
+
+    /**
+     * @notice Reject a verification if verifier is inactive
+     *
+     * Emits an VerdictSubmitted event
+     *
+     * Reverts if:
+     * - Verification region is paused
+     * - Verification timeout has not passed
+     *
+     * @param _tokenId - the token ID
+     */
+    function verificationTimeout(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Verification) {
+        uint256 timeout = FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId];
+        if (block.timestamp < timeout) revert VerificationTimeoutNotPassed(timeout, block.timestamp);
+
+        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, false);
+    }
+
+    /**
+     * @notice Change the verification timeout for a specific token
+     *
+     * Emits an ItemVerificationTimeoutChanged event
+     *
+     * Reverts if:
+     * - Caller is not the seller's assistant or facilitator
+     *
+     * @param _tokenId - the token ID
+     * @param _newTimeout - the new verification timeout
+     */
+    function changeVerificationTimeout(uint256 _tokenId, uint256 _newTimeout) external {
+        (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+
+        EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
+
+        FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId] = _newTimeout;
+
+        emit ItemVerificationTimeoutChanged(_tokenId, _newTimeout);
+    }
+
+    /**
+     * @notice Returns the verification timeout for a specific token
+     *
+     * @param _tokenId - the token ID
+     */
+    function getVerificationTimeout(uint256 _tokenId) external view returns (uint256) {
+        return FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId];
+    }
+
+    /**
+     * @notice Submit a verdict
+     *
+     * Emits an VerdictSubmitted event
+     *
+     * Reverts if:
+     * - Verification region is paused
+     * - Caller is not the verifier's assistant
+     *
+     * @param _tokenId - the token ID
+     * @param _verificationStatus - the verification status
+     * @param _checkRole - whether to check the caller's role. Set false for internal calls
+     */
+    function submitVerdictInternal(
+        uint256 _tokenId,
+        FermionTypes.VerificationStatus _verificationStatus,
+        bool _checkRole
+    ) internal notPaused(FermionTypes.PausableRegion.Verification) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 verifierId = offer.verifierId;
 
-        // Check the caller is the verifier's assistant
-        EntityLib.validateWalletRole(
-            verifierId,
-            _msgSender(),
-            FermionTypes.EntityRole.Verifier,
-            FermionTypes.WalletRole.Assistant
-        );
+        if (_checkRole) {
+            // Check the caller is the verifier's assistant
+            EntityLib.validateWalletRole(
+                verifierId,
+                _msgSender(),
+                FermionTypes.EntityRole.Verifier,
+                FermionTypes.WalletRole.Assistant
+            );
+        }
 
         BOSON_PROTOCOL.completeExchange(_tokenId & type(uint128).max);
 

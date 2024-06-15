@@ -1,4 +1,4 @@
-import { BigNumberish, ZeroAddress, ZeroHash } from "ethers";
+import { ZeroAddress, ZeroHash } from "ethers";
 
 interface FermionConfig {
   protocolParameters: ProtocolParameters;
@@ -8,7 +8,7 @@ interface FermionConfig {
 interface ProtocolParameters {
   treasury: string;
   protocolFeePercentage: number;
-  verificationTimeout: BigNumberish;
+  verificationTimeout: bigint;
 }
 
 interface SeaportConfigs {
