@@ -205,7 +205,7 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        address wrapperAddress = pl.wrapperAddress[offerId];
+        address wrapperAddress = pl.fermionFNFTAddress[offerId];
 
         IBosonProtocol.PriceDiscovery memory _priceDiscovery;
         _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
@@ -376,19 +376,19 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
     }
 
     /**
-     * @notice Predict the address of the wrapper contract
+     * @notice Predict the address of the Fermion FNFT contract
      *
      * @dev This is primarily used for testing purposes. Might be removed in the future.
      *
-     * @param _startingNFTId - the starting NFT ID
+     * @param _offerId - the offer ID
      *
      * @return address - the predicted address
      */
-    function predictFermionWrapperAddress(uint256 _startingNFTId) external view returns (address) {
+    function predictFermionFNFTAddress(uint256 _offerId) external view returns (address) {
         return
             Clones.predictDeterministicAddress(
-                FermionStorage.protocolStatus().wrapperBeaconProxy,
-                bytes32(_startingNFTId)
+                FermionStorage.protocolStatus().fermionFNFTBeaconProxy,
+                bytes32(_offerId)
             );
     }
 
@@ -457,14 +457,14 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
         address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
-        address wrapperAddress = pl.wrapperAddress[_offerId];
+        address wrapperAddress = pl.fermionFNFTAddress[_offerId];
         if (wrapperAddress == address(0)) {
             // Currently, the wrapper is created for each offer, since BOSON_PROTOCOL.reserveRange can be called only once
             // so else path is not possible. This is here for future proofing.
 
             // create wrapper
-            wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(_startingNFTId)); // ToDo: investigate the salt options
-            pl.wrapperAddress[_offerId] = wrapperAddress;
+            wrapperAddress = Clones.cloneDeterministic(ps.fermionFNFTBeaconProxy, bytes32(_offerId));
+            pl.fermionFNFTAddress[_offerId] = wrapperAddress;
 
             address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
             IFermionFNFT(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken);

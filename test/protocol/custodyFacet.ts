@@ -140,13 +140,13 @@ describe("Custody", function () {
     await verificationFacet.connect(verifier).submitVerdict(tokenIdSelf, VerificationStatus.Verified);
     await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified);
 
-    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+    const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
 
-    const wrapperAddressSelfSale = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
+    const wrapperAddressSelfSale = await offerFacet.predictFermionFNFTAddress(offerIdSelfSale);
     wrapperSelfSale = await ethers.getContractAt("FermionFNFT", wrapperAddressSelfSale);
 
-    const wrapperAddressSelfCustody = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
+    const wrapperAddressSelfCustody = await offerFacet.predictFermionFNFTAddress(offerIdSelfCustody);
     wrapperSelfCustody = await ethers.getContractAt("FermionFNFT", wrapperAddressSelfCustody);
   }
 

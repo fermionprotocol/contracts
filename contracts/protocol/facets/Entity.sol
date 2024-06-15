@@ -337,7 +337,7 @@ contract EntityFacet is Context, FermionErrors, Access, IEntityEvents {
      */
     function transferWrapperContractOwnership(uint256 _offerId, address _newOwner) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        address wrapperAddress = pl.wrapperAddress[_offerId];
+        address wrapperAddress = pl.fermionFNFTAddress[_offerId];
         if (wrapperAddress == address(0)) revert NoSuchOffer(_offerId);
 
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];

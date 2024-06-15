@@ -80,16 +80,16 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      *
      * @param _defaultAdmin - address to grant the ADMIN role to
      * @param _bosonProtocolAddress - address of the Boson Protocol
-     * @param _wrapperImplementation - address of the initial wrapper implementation
+     * @param _fermionFNFTImplementation - address of the initial FermionFNFT implementation
      */
     function initializeDiamond(
         address _accessController,
         address _defaultAdmin,
         address _bosonProtocolAddress,
-        address _wrapperImplementation
+        address _fermionFNFTImplementation
     ) external noDirectInitialization {
         _accessController.delegatecall(abi.encodeCall(AccessController.initialize, (_defaultAdmin)));
-        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress, _wrapperImplementation);
+        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress, _fermionFNFTImplementation);
 
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;
@@ -107,17 +107,17 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * Reverts if:
      * - Is invoked directly on the deployed contract (not via proxy)
      * - Boson Protocol address is not set
-     * - Wrapper implementation is not set
+     * - FermionFNFT implementation is not set
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
-     * @param _wrapperImplementation - address of the initial wrapper implementation
+     * @param _fermionFNFTImplementation - address of the initial FermionFNFT implementation
      */
     function initializeBosonSellerAndBuyerAndDR(
         address _bosonProtocolAddress,
-        address _wrapperImplementation
+        address _fermionFNFTImplementation
     ) internal {
-        if (_bosonProtocolAddress == address(0) || _wrapperImplementation == address(0)) revert InvalidAddress();
+        if (_bosonProtocolAddress == address(0) || _fermionFNFTImplementation == address(0)) revert InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
         uint256 bosonSellerId = bosonProtocol.getNextAccountId();
@@ -170,9 +170,12 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         sellerAllowList[0] = bosonSellerId;
         bosonProtocol.createDisputeResolver(disputeResolver, disputeResolverFees, sellerAllowList);
 
-        // Wrapper beacon
-        ps.wrapperBeacon = address(new UpgradeableBeacon(_wrapperImplementation, address(this)));
-        ps.wrapperBeaconProxy = address(new BeaconProxy(ps.wrapperBeacon, ""));
+        // Fermion FNFT beacon
+        ps.fermionFNFTBeacon = address(new UpgradeableBeacon(_fermionFNFTImplementation, address(this)));
+
+        // Ensure that the beacon is unique to the network and consequently, Fermion F-NFT contracts get different addresses
+        bytes32 salt = keccak256(abi.encode(block.chainid));
+        ps.fermionFNFTBeaconProxy = address(new BeaconProxy{ salt: salt }(ps.fermionFNFTBeacon, ""));
     }
 
     /**

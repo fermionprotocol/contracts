@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { EntityRole, PausableRegion, WalletRole, enumIterator } from "../utils/enums";
-import { deployFermionProtocolFixture, deriveTokenId } from "../utils/common";
+import { deployFermionProtocolFixture } from "../utils/common";
 import { BigNumberish, Contract, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
@@ -1179,9 +1179,7 @@ describe("Entity", function () {
         await offerFacet.createOffer(fermionOffer);
         await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
 
-        const nextBosonExchangeId = "1";
-        const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(startingTokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
         wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
       });
 

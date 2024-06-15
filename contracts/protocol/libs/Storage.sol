@@ -23,9 +23,9 @@ library FermionStorage {
         // Boson NFT collection address
         address bosonNftCollection;
         // Beacon for wrapper implementation
-        address wrapperBeacon;
-        // Beacon proxy, which uses wrapperBeacon
-        address wrapperBeaconProxy;
+        address fermionFNFTBeacon;
+        // Beacon proxy, which uses fermionFNFTBeacon
+        address fermionFNFTBeaconProxy;
         // Pause status
         uint256 paused;
     }
@@ -62,7 +62,7 @@ library FermionStorage {
         // entity id => entity admin => pending status
         mapping(uint256 => mapping(address => bool)) pendingEntityAdmin;
         // offerId => wrapper address
-        mapping(uint256 => address) wrapperAddress;
+        mapping(uint256 => address) fermionFNFTAddress;
         // offerId => offerPrice
         mapping(uint256 => uint256) offerPrice;
         // entity id => token address => amount

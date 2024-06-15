@@ -166,9 +166,12 @@ contract VerificationFacet is Context, Access, FermionErrors, IVerificationEvent
 
             // transfer the remainder to the seller
             FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
-            IFermionFNFT(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.Verified);
+            IFermionFNFT(pl.fermionFNFTAddress[offerId]).pushToNextTokenState(
+                _tokenId,
+                FermionTypes.TokenState.Verified
+            );
         } else {
-            address buyerAddress = IFermionFNFT(pl.wrapperAddress[offerId]).burn(_tokenId);
+            address buyerAddress = IFermionFNFT(pl.fermionFNFTAddress[offerId]).burn(_tokenId);
 
             uint256 buyerId = pl.walletId[buyerAddress];
 

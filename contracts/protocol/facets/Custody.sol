@@ -49,7 +49,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
             FermionTypes.WalletRole.Assistant
         );
 
-        IFermionFNFT(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
+        IFermionFNFT(pl.fermionFNFTAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
@@ -90,7 +90,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
 
-        IFermionFNFT(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedOut);
+        IFermionFNFT(pl.fermionFNFTAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedOut);
     }
 
     /**
@@ -116,7 +116,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         address msgSender = _msgSender();
-        IFermionFNFT(pl.wrapperAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
+        IFermionFNFT(pl.fermionFNFTAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequested;
         checkoutRequest.buyer = msgSender;

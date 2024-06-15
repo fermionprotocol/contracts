@@ -262,7 +262,7 @@ describe("Verification", function () {
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
 
@@ -304,7 +304,7 @@ describe("Verification", function () {
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.Verified);
 
@@ -343,7 +343,7 @@ describe("Verification", function () {
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfVerification.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfVerification.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")
@@ -402,7 +402,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
 
@@ -447,7 +447,7 @@ describe("Verification", function () {
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.Burned);
 
@@ -492,7 +492,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfVerification.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfVerification.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")
@@ -654,7 +654,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
 
@@ -694,7 +694,7 @@ describe("Verification", function () {
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.Burned);
 
@@ -739,7 +739,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchangeSelfVerification.tokenId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfVerification.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")

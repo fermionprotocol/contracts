@@ -383,7 +383,7 @@ describe("Offer", function () {
 
       const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
       const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
-      const predictedWrapperAddress = await offerFacet.predictFermionWrapperAddress(startingTokenId);
+      const predictedWrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
 
       // ERC20 offer
       const tx = await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
@@ -428,7 +428,7 @@ describe("Offer", function () {
       const nextBosonExchangeId2 = nextBosonExchangeId + quantity;
       const startingTokenId2 = deriveTokenId(bosonOfferId2, nextBosonExchangeId2);
       const tx2 = await offerFacet.mintAndWrapNFTs(bosonOfferId2, quantity);
-      const predictedWrapperAddress2 = await offerFacet.predictFermionWrapperAddress(startingTokenId2);
+      const predictedWrapperAddress2 = await offerFacet.predictFermionFNFTAddress(bosonOfferId2);
 
       // test events
       // fermion
@@ -569,7 +569,7 @@ describe("Offer", function () {
 
       exchangeToken = await mockToken.getAddress();
 
-      wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
+      wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
       fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
     });
 
@@ -809,7 +809,7 @@ describe("Offer", function () {
             // mint and wrap
             await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
 
-            wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
+            wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
             fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
           });
 

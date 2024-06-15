@@ -49,7 +49,7 @@ export function createBuyerAdvancedOrderClosure(
 
     const exchangeToken = await mockToken.getAddress();
     const tokenId = deriveTokenId(offerId, exchangeId).toString();
-    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
+    const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     const { executeAllActions } = await seaport.createOrder(
       {
         offer: [
