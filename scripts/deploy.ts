@@ -69,7 +69,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
 
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
-  if (allModules || modules.includes("wrapper")) {
+  if (allModules || modules.includes("fnft")) {
     const constructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
 
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
