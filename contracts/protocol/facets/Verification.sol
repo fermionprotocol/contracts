@@ -74,7 +74,10 @@ contract VerificationFacet is Context, Access, IVerificationEvents {
             remainder = offerPrice - verifierFee; // guaranteed to be positive
 
             // fermion fee
-            uint256 fermionFeeAmount = FundsLib.applyPercentage(remainder, 0); //ToDo
+            uint256 fermionFeeAmount = FundsLib.applyPercentage(
+                remainder,
+                FermionStorage.protocolConfig().protocolFeePercentage
+            );
             FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
             remainder -= fermionFeeAmount;
 

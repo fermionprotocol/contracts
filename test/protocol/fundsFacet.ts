@@ -1,5 +1,5 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployFermionProtocolFixture, deployMockTokens } from "../utils/common";
+import { applyPercentage, deployFermionProtocolFixture, deployMockTokens } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroAddress, ZeroHash } from "ethers";
@@ -7,6 +7,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, PausableRegion, VerificationStatus, WalletRole } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
+import fermionConfig from "./../../fermion.config";
 
 const { parseEther, id } = ethers;
 
@@ -359,11 +360,14 @@ describe("Funds", function () {
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Rejected);
 
       const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-      const expectedPayout =
-        encumberedAmount -
-        (encumberedAmount * BigInt(bosonProtocolFeePercentage)) / 10000n -
-        verifierFee +
-        sellerDeposit;
+      const afterBosonProtocolFee = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
+      const afterVerifierFee = afterBosonProtocolFee - verifierFee;
+      const fermionFeeAmount = applyPercentage(
+        afterVerifierFee,
+        fermionConfig.protocolParameters.protocolFeePercentage,
+      );
+      const afterFermionFee = afterVerifierFee - fermionFeeAmount;
+      const expectedPayout = afterFermionFee + sellerDeposit;
 
       const buyerBalance = await mockToken1.balanceOf(buyer.address);
       const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);

@@ -8,6 +8,7 @@ import { EntityRole, PausableRegion, TokenState, VerificationStatus, WalletRole 
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { getBosonHandler } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
+import fermionConfig from "./../../fermion.config";
 
 const { parseEther } = ethers;
 
@@ -25,6 +26,7 @@ describe("Verification", function () {
   let verifier: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
   let seaportAddress: string;
+  const protocolId = "0";
   const sellerId = "1";
   const verifierId = "2";
   const facilitatorId = "4";
@@ -173,7 +175,7 @@ describe("Verification", function () {
     const afterBosonProtocolFee = escrowAmount - applyPercentage(escrowAmount, bosonProtocolFeePercentage);
 
     const afterVerifierFee = afterBosonProtocolFee - verifierFee;
-    const fermionFeeAmount = applyPercentage(afterVerifierFee, 0);
+    const fermionFeeAmount = applyPercentage(afterVerifierFee, fermionConfig.protocolParameters.protocolFeePercentage);
     const afterFermionFee = afterVerifierFee - fermionFeeAmount;
     const facilitatorFeeAmount = applyPercentage(afterFermionFee, facilitatorFeePercent);
     const afterFacilitatorFee = afterFermionFee - facilitatorFeeAmount;
@@ -235,7 +237,9 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(sellerId, exchangeToken, exchange.payout.remainder);
-        // ToDo: add fermion protocol fees test once they are implemented
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
 
         // Wrapper
@@ -256,7 +260,9 @@ describe("Verification", function () {
           exchange.payout.facilitatorFeeAmount,
         );
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(exchange.payout.remainder);
-        expect(await fundsFacet.getAvailableFunds(0, exchangeToken)).to.equal(exchange.payout.fermionFeeAmount); // fermion protocol fees
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchange.payout.fermionFeeAmount,
+        ); // fermion protocol fees
 
         // Wrapper
         expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Verified);
@@ -276,7 +282,6 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
-        // ToDo: add fermion protocol fees test once they are implemented
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
 
         // Wrapper
@@ -295,7 +300,7 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
-        expect(await fundsFacet.getAvailableFunds(0, exchangeToken)).to.equal(0); // fermion protocol fees
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0);
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Verified);
@@ -313,7 +318,9 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(sellerId, exchangeToken, exchangeSelfVerification.payout.remainder);
-        // ToDo: add fermion protocol fees test once they are implemented
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfVerification.payout.fermionFeeAmount);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
 
         // Wrapper
@@ -342,9 +349,9 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
           exchangeSelfVerification.payout.facilitatorFeeAmount,
         );
-        expect(await fundsFacet.getAvailableFunds(0, exchangeToken)).to.equal(
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
           exchangeSelfVerification.payout.fermionFeeAmount,
-        ); // fermion protocol fees
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfVerification.tokenId)).to.equal(TokenState.Verified);
@@ -373,7 +380,9 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(buyerId, exchangeToken, exchange.payout.remainder);
-        // ToDo: add fermion protocol fees test once they are implemented
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
         await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
 
         // Wrapper
@@ -395,7 +404,9 @@ describe("Verification", function () {
         );
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(exchange.payout.remainder);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
-        expect(await fundsFacet.getAvailableFunds(0, exchangeToken)).to.equal(exchange.payout.fermionFeeAmount); // fermion protocol fees
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchange.payout.fermionFeeAmount,
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Burned);
@@ -417,7 +428,6 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
-        // ToDo: add fermion protocol fees test once they are implemented
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
 
         // Wrapper
@@ -436,7 +446,7 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
-        expect(await fundsFacet.getAvailableFunds(0, exchangeToken)).to.equal(0); // fermion protocol fees
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0);
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Burned);
@@ -456,7 +466,9 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(buyerId, exchangeToken, exchangeSelfVerification.payout.remainder);
-        // ToDo: add fermion protocol fees test once they are implemented
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfVerification.payout.fermionFeeAmount);
         await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
 
         // Wrapper
@@ -486,9 +498,9 @@ describe("Verification", function () {
           exchangeSelfVerification.payout.facilitatorFeeAmount,
         );
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
-        expect(await fundsFacet.getAvailableFunds(0, exchangeToken)).to.equal(
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
           exchangeSelfVerification.payout.fermionFeeAmount,
-        ); // fermion protocol fees
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfVerification.tokenId)).to.equal(TokenState.Burned);
