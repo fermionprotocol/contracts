@@ -459,6 +459,9 @@ contract OfferFacet is Context, FermionErrors, Access, IOfferEvents {
 
         address wrapperAddress = pl.wrapperAddress[_offerId];
         if (wrapperAddress == address(0)) {
+            // Currently, the wrapper is created for each offer, since BOSON_PROTOCOL.reserveRange can be called only once
+            // so else path is not possible. This is here for future proofing.
+
             // create wrapper
             wrapperAddress = Clones.cloneDeterministic(ps.wrapperBeaconProxy, bytes32(_startingNFTId)); // ToDo: investigate the salt options
             pl.wrapperAddress[_offerId] = wrapperAddress;

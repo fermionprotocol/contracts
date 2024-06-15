@@ -646,7 +646,7 @@ describe("Offer", function () {
           await mockToken.approve(fermionProtocolAddress, sellerDeposit);
         });
 
-        it.only("Unwrapping", async function () {
+        it("Unwrapping", async function () {
           const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
 
           // events:
