@@ -14,7 +14,7 @@ contract MockFermion {
     address private immutable DESTINATION;
     address private immutable EXCHANGE_TOKEN;
     address private destinationOverride;
-    uint256 private amountToRelease;
+    int256 private amountToRelease;
 
     constructor(address _destination, address _exchangeToken) {
         DESTINATION = _destination;
@@ -22,26 +22,23 @@ contract MockFermion {
     }
 
     function setupCustodianOfferVault(
-        uint256 _firstTokenId,
-        uint256 _length,
-        FermionTypes.CustodianVaultParameters calldata custodianVaultParameters
-    ) external returns (uint256 returnedAmount) {
-        // do nothing
+        uint256,
+        uint256,
+        FermionTypes.CustodianVaultParameters calldata,
+        uint256
+    ) external pure returns (uint256) {
+        return 0;
     }
 
-    function addItemToCustodianOfferVault(
-        uint256 _tokenId,
-        uint256 _amount,
-        uint256 _depositAmount
-    ) external returns (uint256 returnedAmount) {
-        // do nothing
+    function addItemToCustodianOfferVault(uint256, uint256, uint256) external pure returns (uint256) {
+        return 0;
     }
 
-    function removeItemFromCustodianOfferVault(uint256 _tokenId) external returns (uint256 released) {
+    function removeItemFromCustodianOfferVault(uint256, uint256) external returns (int256 released) {
         // return funds if set so
         released = amountToRelease;
         if (released > 0) {
-            IERC20(EXCHANGE_TOKEN).transfer(DESTINATION, released);
+            IERC20(EXCHANGE_TOKEN).transfer(DESTINATION, uint256(released));
         }
     }
 
@@ -49,7 +46,7 @@ contract MockFermion {
         destinationOverride = _destination;
     }
 
-    function setAmountToRelease(uint256 _amount) external {
+    function setAmountToRelease(int256 _amount) external {
         amountToRelease = _amount;
     }
 

@@ -120,6 +120,7 @@ contract FermionTypes {
         uint256 timer;
         uint256 maxBid;
         address maxBidder;
+        uint256 totalFractions;
         uint256 lockedFractions;
         uint256 lockedBidAmount;
         AuctionState state;
@@ -136,10 +137,11 @@ contract FermionTypes {
         BuyoutAuctionParameters auctionParameters;
         mapping(uint256 => bool) isFractionalised; // tokenId -> fractionalised
         mapping(uint256 => Auction[]) auctions; // tokenId -> Auction
+        uint256 pendingRedeemableSupply; // for tokens that auction started but not finalized yet
         uint256 unrestricedRedeemableSupply;
         uint256 unrestricedRedeemableAmount;
         uint256 lockedRedeemableSupply;
-        mapping(uint256 => uint256[]) lockedProceeds; // tokenId -> auction index -> amount; locked for users that voted to start
+        mapping(uint256 => int256[]) lockedProceeds; // tokenId -> auction index -> amount; locked for users that voted to start
     }
 
     struct BuyoutAuctionParameters {

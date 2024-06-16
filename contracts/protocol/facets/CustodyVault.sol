@@ -93,10 +93,13 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * - Caller is not the F-NFT contract owning the token
      *
      * @param _tokenId - the token id to remove from the vault
+     * @param _buyoutAuctionEnd - the timestamp when the buyout auction will end
+     * @return released - the amount released to the the FNFT auction. If positive, the fraction owner gets it. If negative, the custodian gets it.
      */
     function removeItemFromCustodianOfferVault(
-        uint256 _tokenId
-    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) returns (uint256 released) {
+        uint256 _tokenId,
+        uint256 _buyoutAuctionEnd
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) returns (int256 released) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         // Only F-NFT contract can call it
         uint256 offerId;
@@ -108,40 +111,51 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         // trust the F-NFT contract that the token was added to offer vault at some point, i.e. it was fractionalised
         FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
 
-        address exchangeToken = offer.exchangeToken;
         {
             FermionTypes.CustodianFee storage custodianFee = offer.custodianFee;
             uint256 vaultBalance = offerVault.amount;
-            uint256 itemCount = pl.custodianVaultItems[offerId];
-            uint256 itemBalance = vaultBalance / itemCount;
-            uint256 lastReleased = offerVault.period;
+            uint256 itemBalance;
+            {
+                uint256 itemCount = pl.custodianVaultItems[offerId];
+                itemBalance = vaultBalance / itemCount;
+                if (itemCount == 1) {
+                    // closing the offer vault
+                    offerVault.period = 0;
+                }
+            }
 
-            uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee.amount) / custodianFee.period;
+            uint256 custodianPayoff = ((_buyoutAuctionEnd - offerVault.period) * custodianFee.amount) /
+                custodianFee.period;
+            released = int256(itemBalance) - int256(custodianPayoff); // can be negative. When the buyout auction ends this is paid out first.
             if (custodianPayoff > itemBalance) {
                 // This happens if the vault balance fell below auction threshold and the forceful fractionalisation did not happen
-                // The custodian gets everything that's in the vault, but they missed the chance to get the custodian fee via fractionalisation
+                // The custodian gets everything that's in the vault, they might get the remaining amount after the buyout auction ends
                 custodianPayoff = itemBalance;
             }
-            FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
 
             unchecked {
-                released = itemBalance - custodianPayoff;
                 offerVault.amount -= itemBalance;
             }
 
-            if (itemCount == 1) {
-                // closing the offer vault
-                offerVault.period = 0;
-            }
             pl.custodianVaultItems[offerId]--;
+
+            {
+                address exchangeToken = offer.exchangeToken;
+                FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
+                uint256 immediateTransfer = itemBalance - custodianPayoff;
+                if (immediateTransfer > 0)
+                    FundsLib.transferFundsFromProtocol(
+                        exchangeToken,
+                        payable(wrapperAddress),
+                        itemBalance - custodianPayoff
+                    );
+            }
         }
 
         // setup back the individual custodian vault
-        CustodyLib.setupCustodianItemVault(_tokenId);
+        CustodyLib.setupCustodianItemVault(_tokenId, _buyoutAuctionEnd);
 
         emit VaultBalanceUpdated(offerId, offerVault.amount);
-
-        FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), released);
     }
 
     /**

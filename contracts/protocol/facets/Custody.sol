@@ -55,7 +55,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents, IFundsE
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
-        CustodyLib.setupCustodianItemVault(_tokenId);
+        CustodyLib.setupCustodianItemVault(_tokenId, block.timestamp);
 
         emit CheckedIn(custodianId, _tokenId);
     }

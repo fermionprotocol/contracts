@@ -19,10 +19,12 @@ library CustodyLib {
      *
      * @param _tokenId - the token ID
      */
-    function setupCustodianItemVault(uint256 _tokenId) internal {
+    function setupCustodianItemVault(uint256 _tokenId, uint256 _itemVaultSetupTime) internal {
         FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenId];
 
-        vault.period = block.timestamp; // period is the time when the vault was created and then reset whenever the funds are released
+        vault.period = _itemVaultSetupTime;
+        // period is the time when the vault was created (initial setup), or will be created (after buyout auction)
+        // It is reset whenever the funds are released
     }
 
     /**
