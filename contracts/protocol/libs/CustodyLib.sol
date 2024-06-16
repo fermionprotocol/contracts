@@ -53,54 +53,78 @@ library CustodyLib {
      *
      * @param _firstTokenId - the lowest token ID to add to the vault
      * @param _length - the number of tokens to add to the vault
-     * @param _checkCaller - if true, the caller is checked to be the F-NFT contract owning the token. Use false for internal calls.
+     * @param _depositAmount - the amount to deposit
+     * @param _externalCall - if true, the caller is checked to be the F-NFT contract owning the token. Use false for internal calls.
      * @param pl - the protocol lookups storage
+     * @return offerId - the ID of the offer vault
+     * @return returnedAmount - the amount returned to the caller
      */
     function addItemToCustodianOfferVault(
         uint256 _firstTokenId,
         uint256 _length,
-        bool _checkCaller,
+        uint256 _depositAmount,
+        bool _externalCall,
         FermionStorage.ProtocolLookups storage pl
-    ) internal returns (uint256 offerId) {
+    ) internal returns (uint256 offerId, uint256 returnedAmount) {
         // not testing the checkout request status. After confirming that the called is the FNFT address, we know
         // that fractionalisation can happen only if the item was checked-in
-        FermionTypes.Offer storage offer;
-        (offerId, offer) = FermionStorage.getOfferFromTokenId(_firstTokenId);
-        if (_checkCaller && msg.sender != pl.wrapperAddress[offerId]) revert FermionErrors.AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
+        returnedAmount=_depositAmount;
+        uint256 custodianId;
+        address exchangeToken;
+        FermionTypes.CustodianFee memory custodianFee;
+        {
+            FermionTypes.Offer storage offer;
+            (offerId, offer) = FermionStorage.getOfferFromTokenId(_firstTokenId);
+            if (_externalCall && msg.sender != pl.wrapperAddress[offerId])
+                revert FermionErrors.AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
 
-        uint256 custodianId = offer.custodianId;
-        address exchangeToken = offer.exchangeToken;
-        FermionTypes.CustodianFee memory custodianFee = offer.custodianFee;
-        uint256 amountToTransfer;
+            custodianId = offer.custodianId;
+            exchangeToken = offer.exchangeToken;
+            custodianFee = offer.custodianFee;
+        }
+        uint256 amountToTransferToOfferVault;
         for (uint256 i = 0; i < _length; i++) {
             // temporary close individual vaults and transfer the amount for unused periods to the offer vault
             uint256 tokenId = _firstTokenId + i;
             FermionTypes.CustodianFee storage itemVault = pl.vault[tokenId];
 
-            // unused period ?
+            // when fractionalisation happens, the owner must pay for used period + 1 future period to prevent fee evasion
             uint256 balance = itemVault.amount;
-            if (balance > 0) {
-                uint256 lastReleased = itemVault.period;
-                uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee.amount) /
-                    custodianFee.period;
+            uint256 lastReleased = itemVault.period;
+            uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee.amount) /
+                custodianFee.period;
 
-                if (custodianPayoff > balance) {
-                    // This happens if the F-NFT owner was not paying the custodian fee and the forceful fractionalisation did not happen
-                    // The custodian gets everything that's in the vault, but they missed the chance to get the custodian fee via fractionalisation
+            if (custodianPayoff + custodianFee.amount > balance) {
+                // In case of external fractionalisation, the caller can provide additional funds to cover the custodian fee. If not enough, revert.
+                if (_externalCall) {
+                    // Full custodian payoff must be paid in order to fractionalise
+                    uint256 diff = custodianPayoff + custodianFee.amount - balance;
+
+                    if (returnedAmount > diff) {
+                        returnedAmount -= diff;
+                        balance = custodianPayoff + custodianFee.amount;
+                    } else {
+                        revert FermionErrors.InssuficientBalanceToFractionalise(tokenId, diff);
+                    }
+                } else {
+                    // If forceful fractionalisation, transfer the max amount available to the custodian
                     custodianPayoff = balance;
                 }
-                amountToTransfer += (balance - custodianPayoff);
-
-                itemVault.amount = custodianPayoff;
             }
+            amountToTransferToOfferVault += (balance - custodianPayoff); // transfer the amount for unused periods to the offer vault
+            itemVault.amount = custodianPayoff;
             closeCustodianItemVault(tokenId, custodianId, exchangeToken);
         }
         pl.custodianVaultItems[offerId] += _length;
 
         FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
         if (offerVault.period == 0) offerVault.period = block.timestamp;
-        offerVault.amount += amountToTransfer;
-
+        offerVault.amount += amountToTransferToOfferVault;
+        
+        if (_externalCall && returnedAmount > 0) {
+            returnedAmount = returnedAmount;
+            FundsLib.transferFundsFromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
+        } 
         emit ICustodyEvents.VaultBalanceUpdated(offerId, offerVault.amount);
     }
 }

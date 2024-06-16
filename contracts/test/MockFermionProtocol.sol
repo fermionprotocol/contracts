@@ -25,11 +25,11 @@ contract MockFermion {
         uint256 _firstTokenId,
         uint256 _length,
         FermionTypes.CustodianVaultParameters calldata custodianVaultParameters
-    ) external {
+    ) external returns (uint256 returnedAmount) {
         // do nothing
     }
 
-    function addItemToCustodianOfferVault(uint256 _tokenId, uint256 _amount) external {
+    function addItemToCustodianOfferVault(uint256 _tokenId, uint256 _amount, uint256 _depositAmount) external returns (uint256 returnedAmount){
         // do nothing
     }
 

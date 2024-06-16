@@ -61,6 +61,7 @@ interface FermionErrors {
     error InactiveVault(uint256 tokenId);
     error PeriodNotOver(uint256 tokenId, uint256 periodEnd);
     error InvalidThresholds();
+    error InssuficientBalanceToFractionalise(uint256 tokenId, uint256 minimalDeposit);
 
     // Pause handler
     error NotPaused();

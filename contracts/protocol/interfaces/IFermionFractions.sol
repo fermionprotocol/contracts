@@ -30,13 +30,15 @@ interface IFermionFractions {
      * @param _fractionsAmount The number of fractions to mint for each NFT
      * @param _buyoutAuctionParameters The buyout auction parameters
      * @param _custodianVaultParameters The custodian vault parameters
+      * @param _depositAmount - the amount to deposit
      */
     function mintFractions(
         uint256 _firstTokenId,
         uint256 _length,
         uint256 _fractionsAmount,
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
-        FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters
+        FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
+        uint256 _depositAmount
     ) external;
 
     /**
@@ -52,8 +54,9 @@ interface IFermionFractions {
      *
      * @param _firstTokenId The starting token ID
      * @param _length The number of tokens to fractionalise
+      * @param _depositAmount - the amount to deposit
      */
-    function mintFractions(uint256 _firstTokenId, uint256 _length) external;
+    function mintFractions(uint256 _firstTokenId, uint256 _length, uint256 _depositAmount) external;
 
     /**
      * @notice Mints additional fractions to be sold in the partial auction to fill the custodian vault.

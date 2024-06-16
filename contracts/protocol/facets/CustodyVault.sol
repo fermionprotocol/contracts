@@ -35,13 +35,16 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * @param _firstTokenId - the lowest token ID to add to the vault
      * @param _length - the number of tokens to add to the vault
      * @param _custodianVaultParameters - the custodian vault parameters
+     * @param _depositAmount - the amount to deposit
+     * @return returnedAmount - the amount returned to the caller
      */
     function setupCustodianOfferVault(
         uint256 _firstTokenId,
         uint256 _length,
-        FermionTypes.CustodianVaultParameters memory _custodianVaultParameters
-    ) external {
-        setupCustodianOfferVault(_firstTokenId, _length, true, _custodianVaultParameters);
+        FermionTypes.CustodianVaultParameters memory _custodianVaultParameters,
+        uint256 _depositAmount
+    ) external returns (uint256 returnedAmount){
+        returnedAmount=setupCustodianOfferVault(_firstTokenId, _length, _custodianVaultParameters, _depositAmount, true);
     }
 
     /**
@@ -55,12 +58,15 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      *
      * @param _firstTokenId - the lowest token ID to add to the vault
      * @param _length - the number of tokens to add to the vault
+     * @param _depositAmount - the amount to deposit
+     * @return returnedAmount - the amount returned to the caller
      */
     function addItemToCustodianOfferVault(
         uint256 _firstTokenId,
-        uint256 _length
-    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
-        CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, true, FermionStorage.protocolLookups());
+        uint256 _length,
+        uint256 _depositAmount
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault)returns (uint256 returnedAmount){
+        (, returnedAmount)=CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, _depositAmount, true, FermionStorage.protocolLookups());
     }
 
     /**
@@ -380,9 +386,9 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
             // Forceful fractionalisation
             if (itemsInVault > 0) {
                 // vault exist already
-                IFermionFNFT(wrapperAddress).mintFractions(_tokenOrOfferId, 1);
+                IFermionFNFT(wrapperAddress).mintFractions(_tokenOrOfferId, 1,0);
 
-                CustodyLib.addItemToCustodianOfferVault(_tokenOrOfferId, 1, false, pl);
+                CustodyLib.addItemToCustodianOfferVault(_tokenOrOfferId, 1, 0, false, pl);
             } else {
                 // no vault yet. Use the default parameters
                 FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
@@ -403,10 +409,11 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                     1,
                     DEFAULT_FRACTION_AMOUNT,
                     _buyoutAuctionParameters,
-                    _custodianVaultParameters
+                    _custodianVaultParameters,
+                    0
                 );
 
-                setupCustodianOfferVault(_tokenOrOfferId, 1, false, _custodianVaultParameters);
+                setupCustodianOfferVault(_tokenOrOfferId, 1, _custodianVaultParameters, 0, false);
             }
 
             _offerId = _tokenOrOfferId >> 128;
@@ -469,17 +476,23 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      *
      * @param _firstTokenId - the lowest token ID to add to the vault
      * @param _length - the number of tokens to add to the vault
+     * @param _depositAmount - the amount to deposit
+     * @param _depositAmount - the amount to deposit
      * @param _custodianVaultParameters - the custodian vault parameters
+     * @param _externalCall - if true, the caller is checked to be the F-NFT contract owning the token. Use false for internal calls.
+     * @return returnedAmount - the amount returned to the caller
      */
     function setupCustodianOfferVault(
         uint256 _firstTokenId,
         uint256 _length,
-        bool _checkCaller,
-        FermionTypes.CustodianVaultParameters memory _custodianVaultParameters
-    ) internal notPaused(FermionTypes.PausableRegion.CustodyVault) {
+        FermionTypes.CustodianVaultParameters memory _custodianVaultParameters,
+        uint256 _depositAmount,
+        bool _externalCall
+    ) internal notPaused(FermionTypes.PausableRegion.CustodyVault) returns (uint256 returnedAmount){
         // Only F-NFT contract can call it
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        uint256 offerId = CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, _checkCaller, pl);
+        uint256 offerId;
+        (offerId, returnedAmount) = CustodyLib.addItemToCustodianOfferVault(_firstTokenId, _length, _depositAmount, _externalCall, pl);
 
         // no need to worry this gets overwritten. If `setupCustodianOfferVault` is called the second time with the same offer it
         // it means that all items from the collection were recombined, and new parameters can be set

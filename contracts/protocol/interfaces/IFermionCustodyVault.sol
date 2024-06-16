@@ -2,8 +2,6 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
-import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
-import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 
 /**
  * @title Fermion Custody facet interface
@@ -14,10 +12,11 @@ interface IFermionCustodyVault {
     function setupCustodianOfferVault(
         uint256 _firstTokenId,
         uint256 _length,
-        FermionTypes.CustodianVaultParameters calldata custodianVaultParameters
-    ) external;
+        FermionTypes.CustodianVaultParameters calldata custodianVaultParameters,
+        uint256 _depositAmount
+    ) external returns (uint256 returnedAmount);
 
-    function addItemToCustodianOfferVault(uint256 _tokenId, uint256 _amount) external;
+    function addItemToCustodianOfferVault(uint256 _tokenId, uint256 _amount, uint256 _depositAmount) external returns (uint256 returnedAmount);
 
     function removeItemFromCustodianOfferVault(uint256 _tokenId) external returns (uint256 released);
 }

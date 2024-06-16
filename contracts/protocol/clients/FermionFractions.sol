@@ -64,13 +64,15 @@ abstract contract FermionFractions is
      * @param _fractionsAmount The number of fractions to mint for each NFT
      * @param _buyoutAuctionParameters The buyout auction parameters
      * @param _custodianVaultParameters The custodian vault parameters
+     * @param _depositAmount - the amount to deposit
      */
     function mintFractions(
         uint256 _firstTokenId,
         uint256 _length,
         uint256 _fractionsAmount,
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
-        FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters
+        FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
+        uint256 _depositAmount
     ) external {
         if (_length == 0) {
             revert InvalidLength();
@@ -119,12 +121,16 @@ abstract contract FermionFractions is
 
         emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters);
 
-        if (_msgSender() != fermionProtocol) {
-            IFermionCustodyVault(fermionProtocol).setupCustodianOfferVault(
+        address msgSender = _msgSender();
+        if (msgSender != fermionProtocol) {
+            moveDepositToFermionProtocol(_depositAmount, $);
+            uint256 returnedAmount = IFermionCustodyVault(fermionProtocol).setupCustodianOfferVault(
                 _firstTokenId,
                 _length,
-                _custodianVaultParameters
+                _custodianVaultParameters,
+                _depositAmount
             );
+            FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
         }
     }
 
@@ -141,8 +147,9 @@ abstract contract FermionFractions is
      *
      * @param _firstTokenId The starting token ID
      * @param _length The number of tokens to fractionalise
+     * @param _depositAmount - the amount to deposit
      */
-    function mintFractions(uint256 _firstTokenId, uint256 _length) external {
+    function mintFractions(uint256 _firstTokenId, uint256 _length, uint256 _depositAmount) external {
         if (_length == 0) {
             revert InvalidLength();
         }
@@ -157,8 +164,15 @@ abstract contract FermionFractions is
 
         lockNFTsAndMintFractions(_firstTokenId, _length, fractionsAmount, $);
 
-        if (_msgSender() != fermionProtocol) {
-            IFermionCustodyVault(fermionProtocol).addItemToCustodianOfferVault(_firstTokenId, _length);
+        address msgSender = _msgSender();
+        if (msgSender != fermionProtocol) {
+            moveDepositToFermionProtocol(_depositAmount, $);
+            uint256 returnedAmount = IFermionCustodyVault(fermionProtocol).addItemToCustodianOfferVault(
+                _firstTokenId,
+                _length,
+                _depositAmount
+            );
+            FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
         }
     }
 
@@ -810,5 +824,22 @@ abstract contract FermionFractions is
         // transfer to previus bidder if they used some of the fractions. Do not transfer the locked votes.
         if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
         FundsLib.transferFundsFromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
+    }
+
+    /**
+     * @notice Transfers the deposit to the Fermion Protocol during fractionalisation
+     *
+     * @param _depositAmount The amount to deposit
+     * @param $ The storage
+     */
+    function moveDepositToFermionProtocol(
+        uint256 _depositAmount,
+        FermionTypes.BuyoutAuctionStorage storage $
+    ) internal {
+        if (_depositAmount > 0) {
+            address exchangeToken = $.exchangeToken;
+            FundsLib.validateIncomingPayment(exchangeToken, _depositAmount);
+            FundsLib.transferFundsFromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
+        }
     }
 }
