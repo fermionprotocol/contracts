@@ -29,7 +29,11 @@ contract MockFermion {
         // do nothing
     }
 
-    function addItemToCustodianOfferVault(uint256 _tokenId, uint256 _amount, uint256 _depositAmount) external returns (uint256 returnedAmount){
+    function addItemToCustodianOfferVault(
+        uint256 _tokenId,
+        uint256 _amount,
+        uint256 _depositAmount
+    ) external returns (uint256 returnedAmount) {
         // do nothing
     }
 

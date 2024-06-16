@@ -16,7 +16,11 @@ interface IFermionCustodyVault {
         uint256 _depositAmount
     ) external returns (uint256 returnedAmount);
 
-    function addItemToCustodianOfferVault(uint256 _tokenId, uint256 _amount, uint256 _depositAmount) external returns (uint256 returnedAmount);
+    function addItemToCustodianOfferVault(
+        uint256 _tokenId,
+        uint256 _amount,
+        uint256 _depositAmount
+    ) external returns (uint256 returnedAmount);
 
     function removeItemFromCustodianOfferVault(uint256 _tokenId) external returns (uint256 released);
 }

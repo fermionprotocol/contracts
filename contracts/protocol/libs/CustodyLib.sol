@@ -68,7 +68,7 @@ library CustodyLib {
     ) internal returns (uint256 offerId, uint256 returnedAmount) {
         // not testing the checkout request status. After confirming that the called is the FNFT address, we know
         // that fractionalisation can happen only if the item was checked-in
-        returnedAmount=_depositAmount;
+        returnedAmount = _depositAmount;
         uint256 custodianId;
         address exchangeToken;
         FermionTypes.CustodianFee memory custodianFee;
@@ -91,15 +91,13 @@ library CustodyLib {
             // when fractionalisation happens, the owner must pay for used period + 1 future period to prevent fee evasion
             uint256 balance = itemVault.amount;
             uint256 lastReleased = itemVault.period;
-            uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee.amount) /
-                custodianFee.period;
+            uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee.amount) / custodianFee.period;
 
             if (custodianPayoff + custodianFee.amount > balance) {
                 // In case of external fractionalisation, the caller can provide additional funds to cover the custodian fee. If not enough, revert.
                 if (_externalCall) {
                     // Full custodian payoff must be paid in order to fractionalise
                     uint256 diff = custodianPayoff + custodianFee.amount - balance;
-
                     if (returnedAmount > diff) {
                         returnedAmount -= diff;
                         balance = custodianPayoff + custodianFee.amount;
@@ -120,11 +118,11 @@ library CustodyLib {
         FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
         if (offerVault.period == 0) offerVault.period = block.timestamp;
         offerVault.amount += amountToTransferToOfferVault;
-        
+
         if (_externalCall && returnedAmount > 0) {
             returnedAmount = returnedAmount;
             FundsLib.transferFundsFromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
-        } 
+        }
         emit ICustodyEvents.VaultBalanceUpdated(offerId, offerVault.amount);
     }
 }
