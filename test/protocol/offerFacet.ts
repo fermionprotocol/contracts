@@ -28,7 +28,11 @@ describe("Offer", function () {
   const custodianId = "3";
   const facilitatorId = "4";
   const facilitator2Id = "5";
-  let offerFacet: Contract, entityFacet: Contract, fundsFacet: Contract, pauseFacet: Contract;
+  let offerFacet: Contract,
+    entityFacet: Contract,
+    fundsFacet: Contract,
+    pauseFacet: Contract,
+    verificationFacet: Contract;
   let mockToken: Contract, mockBosonToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -72,7 +76,13 @@ describe("Offer", function () {
   before(async function () {
     ({
       diamondAddress: fermionProtocolAddress,
-      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet, FundsFacet: fundsFacet, PauseFacet: pauseFacet },
+      facets: {
+        EntityFacet: entityFacet,
+        OfferFacet: offerFacet,
+        FundsFacet: fundsFacet,
+        PauseFacet: pauseFacet,
+        VerificationFacet: verificationFacet,
+      },
       fermionErrors,
       wallets,
       defaultSigner,
@@ -1014,6 +1024,25 @@ describe("Offer", function () {
           });
         });
 
+        it("Set custom verification timeout", async function () {
+          const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
+          const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
+          const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
+            tokenId,
+            buyerAdvancedOrder,
+            customItemVerificationTimeout,
+          );
+
+          // events:
+          // fermion
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout);
+
+          // State:
+          expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
+        });
+
         context("Revert reasons", function () {
           it("Offer region is paused", async function () {
             await pauseFacet.pause([PausableRegion.Offer]);
@@ -1476,6 +1505,26 @@ describe("Offer", function () {
             expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit);
             expect(await fundsFacet.getAvailableFunds(sellerId, ZeroAddress)).to.equal(0);
           });
+        });
+
+        it("Set custom verification timeout", async function () {
+          const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
+          const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
+
+          await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+          await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+          await mockToken.approve(fermionProtocolAddress, minimalPrice);
+          const tx = await offerFacet.unwrapNFTToSelfAndSetVerificationTimeout(tokenId, customItemVerificationTimeout);
+
+          // events:
+          // fermion
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout);
+
+          // State:
+          expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
         });
 
         context("Revert reasons", function () {

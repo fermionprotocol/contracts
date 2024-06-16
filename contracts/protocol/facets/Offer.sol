@@ -157,7 +157,18 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      */
     function unwrapNFTToSelf(uint256 _tokenId) external payable {
         SeaportTypes.AdvancedOrder memory _emptyOrder;
-        unwrapNFT(_tokenId, _emptyOrder, true);
+        unwrapNFT(_tokenId, _emptyOrder, true, 0);
+    }
+
+    /**
+     * @notice Same as unwrapNFTToSelf, but also sets the verification timeout
+     *
+     * @param _tokenId - the token ID
+     * @param _verificationTimeout - the verification timeout
+     */
+    function unwrapNFTToSelfAndSetVerificationTimeout(uint256 _tokenId, uint256 _verificationTimeout) external payable {
+        SeaportTypes.AdvancedOrder memory _emptyOrder;
+        unwrapNFT(_tokenId, _emptyOrder, true, _verificationTimeout);
     }
 
     /**
@@ -172,7 +183,22 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * @param _buyerOrder - the Seaport buyer order
      */
     function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external payable {
-        unwrapNFT(_tokenId, _buyerOrder, false);
+        unwrapNFT(_tokenId, _buyerOrder, false, 0);
+    }
+
+    /**
+     * @notice Same as unwrapNFT, but also sets the verification timeout
+     *
+     * @param _tokenId - the token ID
+     * @param _buyerOrder - the Seaport buyer order
+     * @param _verificationTimeout - the verification timeout
+     */
+    function unwrapNFTAndSetVerificationTimeout(
+        uint256 _tokenId,
+        SeaportTypes.AdvancedOrder calldata _buyerOrder,
+        uint256 _verificationTimeout
+    ) external payable {
+        unwrapNFT(_tokenId, _buyerOrder, false, _verificationTimeout);
     }
 
     /**
@@ -189,20 +215,24 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * @param _tokenId - the token ID
      * @param _buyerOrder - the Seaport buyer order (if not self sale)
      * @param _selfSale - if true, the NFT is unwrapped to the seller
+     * @param _verificationTimeout - the verification timeout
      */
     function unwrapNFT(
         uint256 _tokenId,
         SeaportTypes.AdvancedOrder memory _buyerOrder,
-        bool _selfSale
+        bool _selfSale,
+        uint256 _verificationTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Offer) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        address exchangeToken = offer.exchangeToken;
 
         // Check the caller is the the seller's assistant
-        uint256 sellerId = offer.sellerId;
-        EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
+        {
+            uint256 sellerId = offer.sellerId;
+            EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
 
-        address exchangeToken = offer.exchangeToken;
-        handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
+            handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
+        }
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address wrapperAddress = pl.fermionFNFTAddress[offerId];
@@ -258,7 +288,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
         }
 
-        uint256 itemVerificationTimeout = block.timestamp + FermionStorage.protocolConfig().verificationTimeout;
+        uint256 itemVerificationTimeout = _verificationTimeout == 0
+            ? block.timestamp + FermionStorage.protocolConfig().verificationTimeout
+            : _verificationTimeout;
         pl.itemVerificationTimeout[_tokenId] = itemVerificationTimeout;
         emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId, itemVerificationTimeout);
     }
