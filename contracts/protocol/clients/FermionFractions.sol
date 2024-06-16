@@ -403,9 +403,13 @@ abstract contract FermionFractions is
         if (auction.state == FermionTypes.AuctionState.Redeemed) revert AlreadyRedeemed(_tokenId);
         auction.state = FermionTypes.AuctionState.Redeemed;
 
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         uint256 lockedFractions = auction.lockedFractions;
 
-        if (lockedFractions > 0) _burn(address(this), lockedFractions);
+        if (lockedFractions > 0) {
+            _burn(address(this), lockedFractions);
+            $.lockedRedeemableSupply -= lockedFractions;
+        }
         ERC721._safeTransfer(address(this), msgSender, _tokenId);
 
         emit Redeemed(_tokenId, msgSender);
@@ -721,16 +725,24 @@ abstract contract FermionFractions is
 
         uint256 fractionsPerToken = liquidSupply() / $.nftCount;
 
+        uint256 winnersLockedFractions = auctionDetails.lockedFractions;
         FermionTypes.Votes storage votes = auction.votes;
-        address maxBidder = auctionDetails.maxBidder;
-        uint256 winnersLockedVotes = votes.individual[maxBidder];
-        if (winnersLockedVotes > 0) votes.individual[maxBidder] = 0;
+        {
+            // ToDo distribute the released vault amount to the maxbidder
+            address maxBidder = auctionDetails.maxBidder;
+            uint256 winnersLockedVotes = votes.individual[maxBidder];
+            if (winnersLockedVotes > 0) {
+                votes.individual[maxBidder] = 0;
+                votes.total -= winnersLockedVotes;
+            }
+        }
         uint256 auctionProceeds = auctionDetails.maxBid + releasedFromCustodianVault;
-        uint256 lockedVotes = votes.total - winnersLockedVotes;
+        uint256 lockedVotes = votes.total + winnersLockedFractions;
+        // uint256 lockedVotes = votes.total;
         uint256 lockedAmount = (lockedVotes * auctionProceeds) / fractionsPerToken;
 
-        $.unrestricedRedeemableSupply += fractionsPerToken - lockedVotes;
-        $.unrestricedRedeemableAmount += auctionProceeds - lockedAmount;
+        $.unrestricedRedeemableSupply += (fractionsPerToken - lockedVotes);
+        $.unrestricedRedeemableAmount += (auctionProceeds - lockedAmount);
         $.lockedRedeemableSupply += lockedVotes;
         $.lockedProceeds[_tokenId].push(lockedAmount);
 
