@@ -108,7 +108,7 @@ abstract contract FermionFractions is
         }
 
         if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
-            revert InvalidThresholds();
+            revert InvalidPartialAuctionThreshold();
 
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 

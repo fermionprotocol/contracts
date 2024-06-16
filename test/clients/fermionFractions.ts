@@ -326,7 +326,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
             ...custodianVaultParameters,
             liquidationThreshold: custodianVaultParameters.partialAuctionThreshold + 1n,
           }),
-        ).to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidThresholds");
+        ).to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidPartialAuctionThreshold");
       });
 
       it("The token is not verified", async function () {

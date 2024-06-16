@@ -60,7 +60,7 @@ interface FermionErrors {
     // Custodian vault
     error InactiveVault(uint256 tokenId);
     error PeriodNotOver(uint256 tokenId, uint256 periodEnd);
-    error InvalidThresholds();
+    error InvalidPartialAuctionThreshold();
     error InssuficientBalanceToFractionalise(uint256 tokenId, uint256 minimalDeposit);
 
     // Pause handler
