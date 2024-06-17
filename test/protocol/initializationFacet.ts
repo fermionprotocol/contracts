@@ -120,16 +120,14 @@ describe("Initialization", function () {
         });
 
         it("initializeDiamond is not registered", async function () {
-          const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
-            accessControllerAddress,
-            defaultAdmin.address,
-            ZeroAddress,
-            ZeroAddress,
-          ]);
           const selector = initializationFacet.interface.getFunction("initializeDiamond").selector;
           const diamond = await ethers.getContractAt("Diamond", fermionProtocolAddress);
 
-          await expect(makeDiamondCut(fermionProtocolAddress, [], fermionProtocolAddress, initializeBosonSeller))
+          await expect(
+            initializationFacet
+              .attach(fermionProtocolAddress)
+              .initializeDiamond(accessControllerAddress, defaultAdmin.address, ZeroAddress, ZeroAddress),
+          )
             .to.be.revertedWithCustomError(diamond, "FunctionNotFound")
             .withArgs(selector);
         });
@@ -250,18 +248,10 @@ describe("Initialization", function () {
 
       context("Revert reasons", function () {
         it("initialize is not registered", async function () {
-          const initializationCall = initializationFacet.interface.encodeFunctionData("initialize", [
-            ZeroHash,
-            [],
-            [],
-            [],
-            [],
-          ]);
-
           const selector = initializationFacet.interface.getFunction("initialize").selector;
           const diamond = await ethers.getContractAt("Diamond", fermionProtocolAddress);
 
-          await expect(makeDiamondCut(fermionProtocolAddress, [], fermionProtocolAddress, initializationCall))
+          await expect(initializationFacet.attach(fermionProtocolAddress).initialize(ZeroHash, [], [], [], []))
             .to.be.revertedWithCustomError(diamond, "FunctionNotFound")
             .withArgs(selector);
         });
