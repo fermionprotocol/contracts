@@ -10,13 +10,14 @@ import { Access } from "../libs/Access.sol";
 import { Context } from "../libs/Context.sol";
 
 import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEvents.sol";
+import { ReentrancyGuard } from "../../diamond/libraries/ReentrancyGuard.sol";
 
 /**
  * @title MetaTransactionFacet
  *
  * @notice Handles meta-transaction requests.
  */
-contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactionEvents {
+contract MetaTransactionFacet is Access, Context, ReentrancyGuard, FermionErrors, IMetaTransactionEvents {
     string private constant PROTOCOL_NAME = "Fermion Protocol";
     string private constant PROTOCOL_VERSION = "V0";
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
@@ -85,6 +86,8 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
         bytes32 _sigS,
         uint8 _sigV
     ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) returns (bytes memory) {
+        removeGuard();
+
         address userAddress = _userAddress; // stack too deep workaround. ToDo: Consider using a struct for signature
         validateTx(_functionName, _functionSignature, _nonce, userAddress);
 

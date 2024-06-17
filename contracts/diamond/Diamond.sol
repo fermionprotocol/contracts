@@ -10,6 +10,7 @@ pragma solidity 0.8.24;
 
 import { LibDiamond } from "./libraries/LibDiamond.sol";
 import { IDiamondCut } from "./interfaces/IDiamondCut.sol";
+import { ReentrancyGuard } from "./libraries/ReentrancyGuard.sol";
 
 // When no function exists for function called
 error FunctionNotFound(bytes4 _functionSelector);
@@ -23,7 +24,7 @@ struct DiamondArgs {
     bytes initCalldata;
 }
 
-contract Diamond {
+contract Diamond is ReentrancyGuard {
     constructor(IDiamondCut.FacetCut[] memory _diamondCut, DiamondArgs memory _args) payable {
         LibDiamond.setContractOwner(_args.owner);
         LibDiamond.diamondCut(_diamondCut, _args.init, _args.initCalldata);
@@ -33,7 +34,7 @@ contract Diamond {
 
     // Find facet for function that is called and execute the
     // function if a facet is found and return any value.
-    fallback() external payable {
+    fallback() external payable nonReentrant {
         LibDiamond.DiamondStorage storage ds;
         bytes32 position = LibDiamond.DIAMOND_STORAGE_POSITION;
         // get diamond storage
