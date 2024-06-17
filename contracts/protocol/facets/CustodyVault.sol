@@ -113,16 +113,8 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         {
             FermionTypes.CustodianFee storage custodianFee = offer.custodianFee;
-            uint256 vaultBalance = offerVault.amount;
-            uint256 itemBalance;
-            {
-                uint256 itemCount = pl.custodianVaultItems[offerId];
-                itemBalance = vaultBalance / itemCount;
-                if (itemCount == 1) {
-                    // closing the offer vault
-                    offerVault.period = 0;
-                }
-            }
+            uint256 itemCount = pl.custodianVaultItems[offerId];
+            uint256 itemBalance = offerVault.amount / itemCount;
 
             uint256 custodianPayoff = ((_buyoutAuctionEnd - offerVault.period) * custodianFee.amount) /
                 custodianFee.period;
@@ -144,11 +136,12 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                 FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
                 uint256 immediateTransfer = itemBalance - custodianPayoff;
                 if (immediateTransfer > 0)
-                    FundsLib.transferFundsFromProtocol(
-                        exchangeToken,
-                        payable(wrapperAddress),
-                        itemBalance - custodianPayoff
-                    );
+                    FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), immediateTransfer);
+            }
+
+            if (itemCount == 1) {
+                // closing the offer vault
+                offerVault.period = 0;
             }
         }
 
@@ -156,6 +149,30 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         CustodyLib.setupCustodianItemVault(_tokenId, _buyoutAuctionEnd);
 
         emit VaultBalanceUpdated(offerId, offerVault.amount);
+    }
+
+    /** Repays the debt after the buyout auction ends. The custodian gets the remaining amount from the vault.
+     * It is possible that the buyout auction did not cover all outstanding debt.
+     *
+     * Only the F-NFT contract can call it.
+     *
+     * Reverts if:
+     * - Custody region is paused
+     * - Caller is not the F-NFT contract owning the token
+     */
+    function repayDebt(
+        uint256 _tokenId,
+        uint256 _repaidAmount
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        // Only F-NFT contract can call it
+        uint256 offerId;
+        FermionTypes.Offer storage offer;
+        (offerId, offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        address wrapperAddress = pl.wrapperAddress[offerId];
+        if (msg.sender != wrapperAddress) revert AccessDenied(msg.sender); // not using msgSender() since the FNFT will ne
+
+        FundsLib.increaseAvailableFunds(offer.custodianId, offer.exchangeToken, _repaidAmount);
     }
 
     /**
@@ -371,8 +388,15 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         fractionAuction.availableFractions = 0;
 
         FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_offerId];
-        vault.amount += winningBid;
-        emit VaultBalanceUpdated(_offerId, vault.amount);
+        if (vault.period == 0) {
+            // buyout auction for the last item in vault started after partial auction, but ended earlier
+            // release proceeds directly to the custodian
+            FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+            FundsLib.increaseAvailableFunds(offer.custodianId, offer.exchangeToken, winningBid);
+        } else {
+            vault.amount += winningBid;
+            emit VaultBalanceUpdated(_offerId, vault.amount);
+        }
 
         emit AuctionFinished(_offerId, winnerAddress, soldFractions, winningBid);
     }

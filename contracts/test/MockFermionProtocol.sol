@@ -42,6 +42,10 @@ contract MockFermion {
         }
     }
 
+    function repayDebt(uint256 _tokenId, uint256 _repaidAmount) external {
+        //do nothing
+    }
+
     function setDestinationOverride(address _destination) external {
         destinationOverride = _destination;
     }

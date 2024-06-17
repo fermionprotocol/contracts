@@ -15,6 +15,7 @@ describe("FermionFNFT", function () {
   let fermionMock: Contract;
   const startTokenId = 2n ** 128n + 1n;
   const quantity = 10n;
+  const additionalDeposit = 0n;
 
   async function setupFermionFNFTTest() {
     wallets = await ethers.getSigners();
@@ -122,7 +123,14 @@ describe("FermionFNFT", function () {
 
       await fermionFNFTProxy
         .connect(seller)
-        .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters);
+        .mintFractions(
+          startTokenId,
+          1,
+          fractionsAmount,
+          auctionParameters,
+          custodianVaultParameters,
+          additionalDeposit,
+        );
 
       const approvedWallet = wallets[4];
 
@@ -165,7 +173,14 @@ describe("FermionFNFT", function () {
 
       await fermionFNFTProxy
         .connect(seller)
-        .mintFractions(startTokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters);
+        .mintFractions(
+          startTokenId,
+          1,
+          fractionsAmount,
+          auctionParameters,
+          custodianVaultParameters,
+          additionalDeposit,
+        );
 
       // Approve to 0 address
       await expect(fermionFNFTProxy.connect(seller).approve(ZeroAddress, fractionsAmount))

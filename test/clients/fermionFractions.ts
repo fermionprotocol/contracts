@@ -2096,10 +2096,11 @@ describe("FermionFNFT - fractionalisation tests", function () {
       await verifyEventsAndBalances(
         "finalizeAndClaim",
         [startTokenId],
-        0n,
+        biddersFractions,
         sellerShareAdjusted,
         bidAmount,
         vaultPayout,
+        false,
       );
     }
 
@@ -2113,10 +2114,11 @@ describe("FermionFNFT - fractionalisation tests", function () {
       await verifyEventsAndBalances(
         "claimWithLockedFractions",
         [startTokenId, 0],
-        0n,
+        biddersFractions,
         sellerShareAdjusted,
         bidAmount,
         vaultPayout,
+        false,
       );
     }
 
@@ -2127,15 +2129,23 @@ describe("FermionFNFT - fractionalisation tests", function () {
       sellerShareAdjusted = sellerShare,
       bidAmount = price,
       vaultPayout = 0n,
+      redeemed = true,
     ) {
-      expect(await fermionFNFTProxy.totalSupply()).to.equal(fractionsPerToken - biddersFractions);
+      expect(await fermionFNFTProxy.totalSupply()).to.equal(fractionsPerToken - (redeemed ? biddersFractions : 0n));
 
       const availableVaultPayout =
         vaultPayout - applyPercentage(vaultPayout, (biddersFractions * 10000n) / fractionsPerToken);
-      // owner1Share/availableForClaim
-      const owner1payout = applyPercentage(price + availableVaultPayout, 2000n); //20% of available
-      const owner2payout = applyPercentage(price + availableVaultPayout, 3000n); //30% of available
-      const owner3payout = applyPercentage(price + availableVaultPayout, 1000n); //10% of available
+
+      const availableForClaim = fractionsPerToken - biddersFractions;
+
+      // console.log("availableforclaim", availableForClaim);
+      // console.log("owner1Share",  owner1Share,owner1Share*10000n/availableForClaim);
+      // console.log("bidAmount", bidAmount);
+
+      // const owner1payout = applyPercentage(bidAmount + availableVaultPayout, owner1Share*10000n/availableForClaim); //20% of available
+      const owner1payout = ((bidAmount + availableVaultPayout) * owner1Share) / availableForClaim; //20% of available
+      const owner2payout = ((bidAmount + availableVaultPayout) * owner2Share) / availableForClaim; //30% of available
+      const owner3payout = ((bidAmount + availableVaultPayout) * owner3Share) / availableForClaim; //10% of available
       const sellerPayout = bidAmount + availableVaultPayout - owner1payout - owner2payout - owner3payout;
 
       await expect(fermionFNFTProxy.connect(fractionalOwners[0])[method](...args, owner1Share))

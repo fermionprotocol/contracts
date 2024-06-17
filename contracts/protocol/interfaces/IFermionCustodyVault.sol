@@ -26,4 +26,6 @@ interface IFermionCustodyVault {
         uint256 _tokenId,
         uint256 _buyoutAuctionEnd
     ) external returns (int256 released);
+
+    function repayDebt(uint256 _tokenId, uint256 _repaidAmount) external;
 }
