@@ -46,6 +46,10 @@ describe("Custody", function () {
   const facilitator2Id = "5";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
+  const custodianFee = {
+    amount: parseEther("0.05"),
+    period: 30n * 24n * 60n * 60n, // 30 days
+  };
   const exchange = { tokenId: "", custodianId: "" };
   const exchangeSelfSale = { tokenId: "", custodianId: "" };
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
@@ -81,6 +85,7 @@ describe("Custody", function () {
       verifierId,
       verifierFee,
       custodianId: "3",
+      custodianFee,
       facilitatorId: sellerId,
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
@@ -140,13 +145,13 @@ describe("Custody", function () {
     await verificationFacet.connect(verifier).submitVerdict(tokenIdSelf, VerificationStatus.Verified);
     await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified);
 
-    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+    const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
 
-    const wrapperAddressSelfSale = await offerFacet.predictFermionWrapperAddress(exchangeSelfSale.tokenId);
+    const wrapperAddressSelfSale = await offerFacet.predictFermionFNFTAddress(offerIdSelfSale);
     wrapperSelfSale = await ethers.getContractAt("FermionFNFT", wrapperAddressSelfSale);
 
-    const wrapperAddressSelfCustody = await offerFacet.predictFermionWrapperAddress(exchangeSelfCustody.tokenId);
+    const wrapperAddressSelfCustody = await offerFacet.predictFermionFNFTAddress(offerIdSelfCustody);
     wrapperSelfCustody = await ethers.getContractAt("FermionFNFT", wrapperAddressSelfCustody);
   }
 

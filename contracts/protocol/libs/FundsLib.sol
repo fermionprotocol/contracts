@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { FundsErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { ContextLib } from "../libs/Context.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
@@ -34,13 +34,13 @@ library FundsLib {
     function validateIncomingPayment(address _exchangeToken, uint256 _value) internal {
         if (_exchangeToken == address(0)) {
             // if transfer is in the native currency, msg.value must match offer price
-            if (msg.value != _value) revert FermionErrors.WrongValueReceived(_value, msg.value);
+            if (msg.value != _value) revert FundsErrors.WrongValueReceived(_value, msg.value);
         } else {
             // when price is in an erc20 token, transferring the native currency is not allowed
-            if (msg.value != 0) revert FermionErrors.NativeNotAllowed();
+            if (msg.value != 0) revert FundsErrors.NativeNotAllowed();
 
             // if transfer is in ERC20 token, try to transfer the amount from buyer to the protocol
-            transferFundsToProtocol(_exchangeToken, ContextLib.msgSender(), _value);
+            transferFundsToProtocol(_exchangeToken, ContextLib._msgSender(), _value);
         }
     }
 
@@ -68,7 +68,7 @@ library FundsLib {
 
         // make sure that expected amount of tokens was transferred
         uint256 receivedAmount = protocolTokenBalanceAfter - protocolTokenBalanceBefore;
-        if (receivedAmount != _amount) revert FermionErrors.WrongValueReceived(_amount, receivedAmount);
+        if (receivedAmount != _amount) revert FundsErrors.WrongValueReceived(_amount, receivedAmount);
     }
 
     /**
@@ -146,7 +146,7 @@ library FundsLib {
         if (_tokenAddress == address(0)) {
             // transfer native currency
             (bool success, bytes memory errorMessage) = _to.call{ value: _amount }("");
-            if (!success) revert FermionErrors.TokenTransferFailed(_to, _amount, errorMessage);
+            if (!success) revert FundsErrors.TokenTransferFailed(_to, _amount, errorMessage);
         } else {
             // transfer ERC20 tokens
             IERC20(_tokenAddress).safeTransfer(_to, _amount);
@@ -173,7 +173,7 @@ library FundsLib {
         uint256 entityFunds = availableFunds[_tokenAddress];
 
         // make sure that seller has enough funds in the pool and reduce the available funds
-        if (entityFunds < _amount) revert FermionErrors.InsufficientAvailableFunds(entityFunds, _amount);
+        if (entityFunds < _amount) revert FundsErrors.InsufficientAvailableFunds(entityFunds, _amount);
 
         // Use unchecked to optimize execution cost. The math is safe because of the require above.
         unchecked {

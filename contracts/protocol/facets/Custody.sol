@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionErrors } from "../domain/Errors.sol";
+import { CustodyErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
+import { CustodyLib } from "../libs/CustodyLib.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
+import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
 
 /**
  * @title CustodyFacet
  *
  * @notice Handles RWA custody.
  */
-contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
+contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsEvents {
     /**
      * @notice Notifies the protocol that an RWA has been checked in
      *
@@ -44,14 +46,16 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         // Check the caller is the custodian's assistant
         EntityLib.validateWalletRole(
             custodianId,
-            msgSender(),
+            _msgSender(),
             FermionTypes.EntityRole.Custodian,
             FermionTypes.WalletRole.Assistant
         );
 
-        IFermionFNFT(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
+        IFermionFNFT(pl.fermionFNFTAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
+
+        CustodyLib.setupCustodianItemVault(_tokenId, block.timestamp);
 
         emit CheckedIn(custodianId, _tokenId);
     }
@@ -82,15 +86,17 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         // Check the caller is the verifier's assistant
         EntityLib.validateWalletRole(
             custodianId,
-            msgSender(),
+            _msgSender(),
             FermionTypes.EntityRole.Custodian,
             FermionTypes.WalletRole.Assistant
         );
 
+        CustodyLib.closeCustodianItemVault(_tokenId, custodianId, offer.exchangeToken);
+
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
 
-        IFermionFNFT(pl.wrapperAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedOut);
+        IFermionFNFT(pl.fermionFNFTAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedOut);
     }
 
     /**
@@ -115,8 +121,8 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
-        address msgSender = msgSender();
-        IFermionFNFT(pl.wrapperAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
+        address msgSender = _msgSender();
+        IFermionFNFT(pl.fermionFNFTAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequested;
         checkoutRequest.buyer = msgSender;
@@ -198,7 +204,7 @@ contract CustodyFacet is Context, FermionErrors, Access, ICustodyEvents {
         } else {
             // Buyer is finalizing the checkout
             address buyer = checkoutRequest.buyer;
-            address msgSender = msgSender();
+            address msgSender = _msgSender();
             if (buyer != msgSender) {
                 revert NotTokenBuyer(_tokenId, buyer, msgSender);
             }

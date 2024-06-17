@@ -18,8 +18,8 @@ contract Context {
      *
      * @return the message sender address
      */
-    function msgSender() internal view returns (address) {
-        return ContextLib.msgSender();
+    function _msgSender() internal view virtual returns (address) {
+        return ContextLib._msgSender();
     }
 }
 
@@ -38,7 +38,7 @@ library ContextLib {
      *
      * @return the message sender address
      */
-    function msgSender() internal view returns (address) {
+    function _msgSender() internal view returns (address) {
         uint256 msgDataLength = msg.data.length;
         address protocolAddress = FermionStorage.metaTransaction().fermionAddress;
 

@@ -3,13 +3,14 @@ pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 
 /**
  * @title FermionWrapper interface
  *
  * A set of methods to interact with the FermionWrapper contract.
  */
-interface IFermionFNFT is IFermionWrapper {
+interface IFermionFNFT is IFermionWrapper, IFermionFractions {
     /**
      * @notice Initializes the contract
      *

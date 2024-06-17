@@ -4,18 +4,18 @@ pragma solidity 0.8.24;
 import { BOSON_DR_ID_OFFSET } from "../domain/Constants.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { LibDiamond } from "../../diamond/libraries/LibDiamond.sol";
-import { FermionErrors } from "../domain/Errors.sol";
-
+import { InitializationErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { IInitialziationEvents } from "../interfaces/events/IInitializationEvents.sol";
-
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IDiamondLoupe } from "../../diamond/interfaces/IDiamondLoupe.sol";
 import { IDiamondCut } from "../../diamond/interfaces/IDiamondCut.sol";
 import { IERC173 } from "../../diamond/interfaces/IERC173.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
+import { AccessController } from "../../diamond/facets/AccessController.sol";
 
 /**
  * @title FermionProtocolInitializationHandler
@@ -23,17 +23,8 @@ import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.so
  * @notice Handle initialization of protocol
  *
  */
-contract InitializationFacet is FermionErrors, IInitialziationEvents {
-    address private immutable THIS_ADDRESS; // used to prevent invocation of 'initialize' directly on deployed contract. Variable is not used by the protocol.
-
-    /**
-     * @notice Constructor
-     *
-     * @dev This constructor is used to prevent invocation of 'initialize' directly on deployed contract.
-     */
-    constructor() {
-        THIS_ADDRESS = address(this);
-    }
+contract InitializationFacet is InitializationErrors, IInitialziationEvents {
+    address private immutable THIS_ADDRESS = address(this); // used to prevent invocation of 'initialize' directly on deployed contract. Variable is not used by the protocol.
 
     /**
      * @notice Initializes the protocol after the deployment.
@@ -87,20 +78,25 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * - Boson Protocol address is not set
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
+     * @param _defaultAdmin - address to grant the ADMIN role to
      * @param _bosonProtocolAddress - address of the Boson Protocol
-     * @param _wrapperImplementation - address of the initial wrapper implementation
+     * @param _fermionFNFTImplementation - address of the initial FermionFNFT implementation
      */
     function initializeDiamond(
+        address _accessController,
+        address _defaultAdmin,
         address _bosonProtocolAddress,
-        address _wrapperImplementation
+        address _fermionFNFTImplementation
     ) external noDirectInitialization {
-        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress, _wrapperImplementation);
+        _accessController.delegatecall(abi.encodeCall(AccessController.initialize, (_defaultAdmin)));
+        initializeBosonSellerAndBuyerAndDR(_bosonProtocolAddress, _fermionFNFTImplementation);
 
         LibDiamond.DiamondStorage storage ds = LibDiamond.diamondStorage();
         ds.supportedInterfaces[type(IERC165).interfaceId] = true;
         ds.supportedInterfaces[type(IDiamondCut).interfaceId] = true;
         ds.supportedInterfaces[type(IDiamondLoupe).interfaceId] = true;
         ds.supportedInterfaces[type(IERC173).interfaceId] = true;
+        ds.supportedInterfaces[type(IAccessControl).interfaceId] = true;
     }
 
     /**
@@ -111,17 +107,18 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
      * Reverts if:
      * - Is invoked directly on the deployed contract (not via proxy)
      * - Boson Protocol address is not set
-     * - Wrapper implementation is not set
+     * - FermionFNFT implementation is not set
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
      * @param _bosonProtocolAddress - address of the Boson Protocol
-     * @param _wrapperImplementation - address of the initial wrapper implementation
+     * @param _fermionFNFTImplementation - address of the initial FermionFNFT implementation
      */
     function initializeBosonSellerAndBuyerAndDR(
         address _bosonProtocolAddress,
-        address _wrapperImplementation
+        address _fermionFNFTImplementation
     ) internal {
-        if (_bosonProtocolAddress == address(0) || _wrapperImplementation == address(0)) revert InvalidAddress();
+        if (_bosonProtocolAddress == address(0) || _fermionFNFTImplementation == address(0))
+            revert FermionGeneralErrors.InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
         uint256 bosonSellerId = bosonProtocol.getNextAccountId();
@@ -174,9 +171,12 @@ contract InitializationFacet is FermionErrors, IInitialziationEvents {
         sellerAllowList[0] = bosonSellerId;
         bosonProtocol.createDisputeResolver(disputeResolver, disputeResolverFees, sellerAllowList);
 
-        // Wrapper beacon
-        ps.wrapperBeacon = address(new UpgradeableBeacon(_wrapperImplementation, address(this)));
-        ps.wrapperBeaconProxy = address(new BeaconProxy(ps.wrapperBeacon, ""));
+        // Fermion FNFT beacon
+        ps.fermionFNFTBeacon = address(new UpgradeableBeacon(_fermionFNFTImplementation, address(this)));
+
+        // Ensure that the beacon is unique to the network and consequently, Fermion F-NFT contracts get different addresses
+        bytes32 salt = keccak256(abi.encode(block.chainid));
+        ps.fermionFNFTBeaconProxy = address(new BeaconProxy{ salt: salt }(ps.fermionFNFTBeacon, ""));
     }
 
     /**
