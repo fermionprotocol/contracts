@@ -1168,6 +1168,10 @@ describe("Entity", function () {
           verifierId: sellerId,
           verifierFee: "0",
           custodianId: sellerId,
+          custodianFee: {
+            amount: 0n,
+            period: 30n * 24n * 60n * 60n, // 30 days
+          },
           facilitatorId,
           facilitatorFeePercent: "0",
           exchangeToken: ZeroAddress,

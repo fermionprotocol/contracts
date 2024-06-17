@@ -202,7 +202,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     }
 
     /**
-     * @notice Unwraps F-NFT
+     * @notice Unwraps F-NFT, uses seaport to sell the NFT
      *
      * Emits VerificationInitiated event
      *
@@ -282,7 +282,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
             }
 
-            pl.offerPrice[offerId] = _priceDiscovery.price - bosonProtocolFee;
+            pl.itemPrice[_tokenId] = _priceDiscovery.price - bosonProtocolFee;
 
             BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
             BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits

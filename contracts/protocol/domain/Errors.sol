@@ -63,6 +63,22 @@ interface CustodyErrors {
     );
 }
 
+interface AuctionErrors {
+    error InvalidBid(uint256 tokenId, uint256 minimalBid, uint256 bid);
+    error AuctionEnded(uint256 tokenId, uint256 endedAt);
+    error AuctionNotStarted(uint256 tokenId);
+    error AuctionOngoing(uint256 tokenId, uint256 validUntil);
+    error AuctionFinalized(uint256 tokenId);
+}
+
+interface CustodianVaultErrors is AuctionErrors {
+    // Custodian vault
+    error InactiveVault(uint256 tokenId);
+    error PeriodNotOver(uint256 tokenId, uint256 periodEnd);
+    error InvalidPartialAuctionThreshold();
+    error InssuficientBalanceToFractionalise(uint256 tokenId, uint256 minimalDeposit);
+}
+
 interface FundsErrors {
     // Funds errors
     error WrongValueReceived(uint256 expected, uint256 actual);
@@ -90,17 +106,13 @@ interface MetaTransactionErrors {
     error FunctionCallFailed();
 }
 
-interface FractionalisationErrors {
+interface FractionalisationErrors is AuctionErrors {
     // Fractionalisation errors
     error InvalidLength();
     error InvalidFractionsAmount(uint256 amount, uint256 min, uint256 max);
     error InvalidExitPrice(uint256 amount);
     error AlreadyFractionalized(uint256 tokenId);
-    error InvalidBid(uint256 tokenId, uint256 minimalBid, uint256 bid);
-    error AuctionEnded(uint256 tokenId, uint256 endedAt);
-    error AuctionNotStarted(uint256 tokenId);
-    error AuctionOngoing(uint256 tokenId, uint256 validUntil);
-    error AuctionFinalized(uint256 tokenId);
+
     error NotMaxBidder(uint256 tokenId, address caller, address winner);
     error AlreadyRedeemed(uint256 tokenId);
     error NoFractions();
@@ -122,6 +134,7 @@ interface FermionErrors is
     OfferErrors,
     VerificationErrors,
     CustodyErrors,
+    CustodianVaultErrors,
     FundsErrors,
     PauseErrors,
     MetaTransactionErrors,

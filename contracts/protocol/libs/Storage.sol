@@ -63,8 +63,8 @@ library FermionStorage {
         mapping(uint256 => mapping(address => bool)) pendingEntityAdmin;
         // offerId => wrapper address
         mapping(uint256 => address) fermionFNFTAddress;
-        // offerId => offerPrice
-        mapping(uint256 => uint256) offerPrice;
+        // tokenId => item price
+        mapping(uint256 => uint256) itemPrice;
         // entity id => token address => amount
         mapping(uint256 => mapping(address => uint256)) availableFunds;
         // entity id => all tokens with balance > 0
@@ -77,7 +77,15 @@ library FermionStorage {
         mapping(uint256 => mapping(uint256 => bool)) isSellersFacilitator;
         // seller id => list of facilitators
         mapping(uint256 => uint256[]) sellerFacilitators;
-        // token id => verification teimeout
+        // token id => vault amount
+        mapping(uint256 => FermionTypes.CustodianFee) vault;
+        // offer id => fraction auction details
+        mapping(uint256 => FermionTypes.FractionAuction) fractionAuction;
+        // offer id => custodianVaultParameters
+        mapping(uint256 => FermionTypes.CustodianVaultParameters) custodianVaultParameters;
+        // offer id => number of items in custodian vault
+        mapping(uint256 => uint256) custodianVaultItems;
+        // token id => verification timeout
         mapping(uint256 => uint256) itemVerificationTimeout;
     }
 

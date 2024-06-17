@@ -17,4 +17,9 @@ interface ICustodyEvents {
     );
     event TaxAmountSubmitted(uint256 indexed nftId, uint256 indexed sellerId, uint256 taxAmount);
     event CheckOutRequestCleared(uint256 indexed custodianId, uint256 indexed nftId);
+
+    event AuctionStarted(uint256 indexed tokenId, uint256 offeredFractions, uint256 auctionEnd);
+    event BidPlaced(uint256 indexed tokenId, address indexed bidder, uint256 bidderId, uint256 amount);
+    event AuctionFinished(uint256 indexed tokenId, address indexed winner, uint256 soldFractions, uint256 winningBid);
+    event VaultBalanceUpdated(uint256 indexed tokenId, uint256 amount);
 }

@@ -2,20 +2,21 @@
 pragma solidity 0.8.24;
 
 import { FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
+import { FermionTypes } from "../domain/Types.sol";
+import { FundsErrors, EntityErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
-import { FermionTypes } from "../domain/Types.sol";
-import { FundsErrors, EntityErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { Context } from "../libs/Context.sol";
+import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
 
 /**
  * @title FundsFacet
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FundsErrors, Access {
+contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *
@@ -76,8 +77,8 @@ contract FundsFacet is Context, FundsErrors, Access {
     function withdrawFunds(
         uint256 _entityId,
         address payable _treasury,
-        address[] calldata _tokenList,
-        uint256[] calldata _tokenAmounts
+        address[] memory _tokenList,
+        uint256[] memory _tokenAmounts
     ) external {
         if (
             !EntityLib.hasWalletRole(
@@ -138,6 +139,17 @@ contract FundsFacet is Context, FundsErrors, Access {
     }
 
     /**
+     * @notice Gets the information about the available funds for an entity.
+     *
+     * @param _entityId - the entity ID
+     * @param _token - the token address
+     * @return amount - the amount available to withdraw
+     */
+    function getAvailableFunds(uint256 _entityId, address _token) external view returns (uint256 amount) {
+        return FermionStorage.protocolLookups().availableFunds[_entityId][_token];
+    }
+
+    /**
      * @notice Returns list of addresses for which the entity has funds available.
      *
      * @param _entityId - id of entity for which availability of funds should be checked
@@ -189,8 +201,8 @@ contract FundsFacet is Context, FundsErrors, Access {
     function withdrawFundsInternal(
         uint256 _entityId,
         address payable _destinationAddress,
-        address[] calldata _tokenList,
-        uint256[] calldata _tokenAmounts
+        address[] memory _tokenList,
+        uint256[] memory _tokenAmounts
     ) internal notPaused(FermionTypes.PausableRegion.Funds) {
         // Cache protocol lookups for reference
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
@@ -227,16 +239,5 @@ contract FundsFacet is Context, FundsErrors, Access {
                 FundsLib.transferFundsFromProtocol(_entityId, _tokenList[i], _destinationAddress, _tokenAmounts[i]);
             }
         }
-    }
-
-    /**
-     * @notice Gets the information about the available funds for an entity.
-     *
-     * @param _entityId - the entity ID
-     * @param _token - the token address
-     * @return amount - the amount available to withdraw
-     */
-    function getAvailableFunds(uint256 _entityId, address _token) external view returns (uint256 amount) {
-        return FermionStorage.protocolLookups().availableFunds[_entityId][_token];
     }
 }

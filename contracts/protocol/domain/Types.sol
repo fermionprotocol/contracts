@@ -36,13 +36,14 @@ contract FermionTypes {
     }
 
     enum PausableRegion {
+        Config,
         MetaTransaction,
-        Entity,
         Funds,
+        Entity,
         Offer,
-        Custody,
         Verification,
-        Config
+        Custody,
+        CustodyVault
     }
 
     enum AuctionState {
@@ -82,11 +83,17 @@ contract FermionTypes {
         uint256 verifierId;
         uint256 verifierFee;
         uint256 custodianId;
+        CustodianFee custodianFee;
         uint256 facilitatorId;
         uint256 facilitatorFeePercent;
         address exchangeToken;
         string metadataURI;
         string metadataHash;
+    }
+
+    struct CustodianFee {
+        uint256 amount;
+        uint256 period;
     }
 
     struct CheckoutRequest {
@@ -95,10 +102,26 @@ contract FermionTypes {
         uint256 taxAmount;
     }
 
+    struct CustodianVaultParameters {
+        uint256 partialAuctionThreshold;
+        uint256 partialAuctionDuration;
+        uint256 liquidationThreshold;
+        uint256 newFractionsPerAuction;
+    }
+
+    struct FractionAuction {
+        uint256 endTime;
+        uint256 availableFractions;
+        uint256 maxBid;
+        uint256 bidderId;
+    }
+
+    // Fermion F-NFT, buyout auction
     struct AuctionDetails {
         uint256 timer;
         uint256 maxBid;
         address maxBidder;
+        uint256 totalFractions;
         uint256 lockedFractions;
         uint256 lockedBidAmount;
         AuctionState state;
@@ -115,10 +138,11 @@ contract FermionTypes {
         BuyoutAuctionParameters auctionParameters;
         mapping(uint256 => bool) isFractionalised; // tokenId -> fractionalised
         mapping(uint256 => Auction[]) auctions; // tokenId -> Auction
+        uint256 pendingRedeemableSupply; // for tokens that auction started but not finalized yet
         uint256 unrestricedRedeemableSupply;
         uint256 unrestricedRedeemableAmount;
         uint256 lockedRedeemableSupply;
-        mapping(uint256 => uint256[]) lockedProceeds; // tokenId -> auction index -> amount; locked for users that voted to start
+        mapping(uint256 => int256[]) lockedProceeds; // tokenId -> auction index -> amount; locked for users that voted to start
     }
 
     struct BuyoutAuctionParameters {

@@ -46,6 +46,10 @@ describe("Custody", function () {
   const facilitator2Id = "5";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
+  const custodianFee = {
+    amount: parseEther("0.05"),
+    period: 30n * 24n * 60n * 60n, // 30 days
+  };
   const exchange = { tokenId: "", custodianId: "" };
   const exchangeSelfSale = { tokenId: "", custodianId: "" };
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
@@ -81,6 +85,7 @@ describe("Custody", function () {
       verifierId,
       verifierFee,
       custodianId: "3",
+      custodianFee,
       facilitatorId: sellerId,
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),

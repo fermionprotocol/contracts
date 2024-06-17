@@ -122,6 +122,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     "CustodyFacet",
     "FundsFacet",
     "PauseFacet",
+    "CustodyVaultFacet",
   ];
   let facets = {};
 

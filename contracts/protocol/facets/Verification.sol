@@ -131,7 +131,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address exchangeToken = offer.exchangeToken;
         uint256 sellerDeposit = offer.sellerDeposit;
-        uint256 offerPrice = pl.offerPrice[offerId];
+        uint256 offerPrice = pl.itemPrice[_tokenId];
 
         {
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
@@ -173,13 +173,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         } else {
             address buyerAddress = IFermionFNFT(pl.fermionFNFTAddress[offerId]).burn(_tokenId);
 
-            uint256 buyerId = pl.walletId[buyerAddress];
-
-            if (buyerId == 0) {
-                FermionTypes.EntityRole[] memory _roles = new FermionTypes.EntityRole[](1);
-                _roles[0] = FermionTypes.EntityRole.Buyer;
-                buyerId = EntityLib.createEntity(buyerAddress, _roles, "", pl);
-            }
+            uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 
             if (_afterTimeout) {
                 remainder += offer.verifierFee;
