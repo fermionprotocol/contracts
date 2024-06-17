@@ -17,6 +17,7 @@ import { ItemType } from "@opensea/seaport-js/lib/constants";
 import { AdvancedOrder } from "@opensea/seaport-js/lib/types";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
+import fermionConfig from "./../../fermion.config";
 
 const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
 const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
@@ -31,7 +32,11 @@ describe("Offer", function () {
     amount: parseEther("0.05"),
     period: 30n * 24n * 60n * 60n, // 30 days
   };
-  let offerFacet: Contract, entityFacet: Contract, fundsFacet: Contract, pauseFacet: Contract;
+  let offerFacet: Contract,
+    entityFacet: Contract,
+    fundsFacet: Contract,
+    pauseFacet: Contract,
+    verificationFacet: Contract;
   let mockToken: Contract, mockBosonToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -75,7 +80,13 @@ describe("Offer", function () {
   before(async function () {
     ({
       diamondAddress: fermionProtocolAddress,
-      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet, FundsFacet: fundsFacet, PauseFacet: pauseFacet },
+      facets: {
+        EntityFacet: entityFacet,
+        OfferFacet: offerFacet,
+        FundsFacet: fundsFacet,
+        PauseFacet: pauseFacet,
+        VerificationFacet: verificationFacet,
+      },
       fermionErrors,
       wallets,
       defaultSigner,
@@ -429,7 +440,7 @@ describe("Offer", function () {
 
       const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
       const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
-      const predictedWrapperAddress = await offerFacet.predictFermionWrapperAddress(startingTokenId);
+      const predictedWrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
 
       // ERC20 offer
       const tx = await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
@@ -474,7 +485,7 @@ describe("Offer", function () {
       const nextBosonExchangeId2 = nextBosonExchangeId + quantity;
       const startingTokenId2 = deriveTokenId(bosonOfferId2, nextBosonExchangeId2);
       const tx2 = await offerFacet.mintAndWrapNFTs(bosonOfferId2, quantity);
-      const predictedWrapperAddress2 = await offerFacet.predictFermionWrapperAddress(startingTokenId2);
+      const predictedWrapperAddress2 = await offerFacet.predictFermionFNFTAddress(bosonOfferId2);
 
       // test events
       // fermion
@@ -615,7 +626,7 @@ describe("Offer", function () {
 
       exchangeToken = await mockToken.getAddress();
 
-      wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
+      wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
       fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
     });
 
@@ -698,7 +709,11 @@ describe("Offer", function () {
 
           // events:
           // fermion
-          await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
           // Boson:
           await expect(tx)
@@ -756,7 +771,11 @@ describe("Offer", function () {
 
           // events:
           // fermion
-          await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
         });
 
         context("Boson seller deposit covered from the available funds", function () {
@@ -769,7 +788,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -796,7 +819,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -841,7 +868,7 @@ describe("Offer", function () {
             // mint and wrap
             await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
 
-            wrapperAddress = await offerFacet.predictFermionWrapperAddress(tokenId);
+            wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
             fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
           });
 
@@ -888,7 +915,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -989,7 +1020,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -1036,6 +1071,25 @@ describe("Offer", function () {
             const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
             expect(newOpenSeaBalance).to.equal(openSeaBalance);
           });
+        });
+
+        it("Set custom verification timeout", async function () {
+          const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
+          const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
+          const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
+            tokenId,
+            buyerAdvancedOrder,
+            customItemVerificationTimeout,
+          );
+
+          // events:
+          // fermion
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout);
+
+          // State:
+          expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
         });
 
         context("Revert reasons", function () {
@@ -1266,7 +1320,11 @@ describe("Offer", function () {
 
           // events:
           // fermion
-          await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
           // Boson:
           await expect(tx)
@@ -1326,7 +1384,11 @@ describe("Offer", function () {
 
           // events:
           // fermion
-          await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
         });
 
         context("Boson seller deposit covered from the available funds", function () {
@@ -1341,7 +1403,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -1369,7 +1435,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -1418,7 +1488,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -1441,7 +1515,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -1463,7 +1541,11 @@ describe("Offer", function () {
 
             // events:
             // fermion
-            await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
             // Boson:
             await expect(tx)
@@ -1475,6 +1557,26 @@ describe("Offer", function () {
             expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit);
             expect(await fundsFacet.getAvailableFunds(sellerId, ZeroAddress)).to.equal(0);
           });
+        });
+
+        it("Set custom verification timeout", async function () {
+          const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
+          const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
+
+          await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+          await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+          await mockToken.approve(fermionProtocolAddress, minimalPrice);
+          const tx = await offerFacet.unwrapNFTToSelfAndSetVerificationTimeout(tokenId, customItemVerificationTimeout);
+
+          // events:
+          // fermion
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout);
+
+          // State:
+          expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
         });
 
         context("Revert reasons", function () {
@@ -1765,7 +1867,11 @@ describe("Offer", function () {
 
           // events:
           // fermion
-          await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
           // Boson:
           await expect(tx)
@@ -1787,7 +1893,11 @@ describe("Offer", function () {
 
           // events:
           // fermion
-          await expect(tx).to.emit(offerFacet, "VerificationInitiated").withArgs(bosonOfferId, verifierId, tokenId);
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
 
           // Boson:
           await expect(tx)

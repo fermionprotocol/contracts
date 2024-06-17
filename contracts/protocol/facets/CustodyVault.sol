@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { HUNDRED_PERCENT, AUCTION_END_BUFFER, MINIMAL_BID_INCREMENT, DEFAULT_FRACTION_AMOUNT, PARTIAL_THRESHOLD_MULTIPLIER, LIQUIDATION_THRESHOLD_MULTIPLIER, PARTIAL_AUCTION_DURATION_DIVISOR } from "../domain/Constants.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { FundsErrors, FermionGeneralErrors, CustodianVaultErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -18,7 +18,7 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
  *
  * @notice Handles Custody Vaults and partial auctions.
  */
-contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
+contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEvents {
     /**
      * @notice When the first NFT is fractionalised, the custodian offer vault is setup.
      * The items' vaults are temporarily closed. If their balance was not zero, the custodian fee, proportional to the passed service time,
@@ -195,7 +195,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         uint256 _tokenOrOfferId,
         uint256 _amount
     ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
-        if (_amount == 0) revert ZeroDepositNotAllowed();
+        if (_amount == 0) revert FundsErrors.ZeroDepositNotAllowed();
 
         FermionTypes.Offer storage offer;
         bool isOfferVault = _tokenOrOfferId < (1 << 128);
@@ -339,7 +339,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         // release funds to the previous bidder
         FundsLib.increaseAvailableFunds(fractionAuction.bidderId, exchangeToken, previousBid);
 
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
         uint256 bidderId = EntityLib.getOrCreateBuyerId(msgSender, pl);
 
         fractionAuction.maxBid = _bidAmount;
@@ -375,7 +375,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;
         uint256 soldFractions = fractionAuction.availableFractions;
-        IFermionFNFT(pl.wrapperAddress[_offerId]).transfer(winnerAddress, soldFractions);
+        IFermionFNFT(pl.fermionFNFTAddress[_offerId]).transfer(winnerAddress, soldFractions);
 
         // release funds in the vault
         uint256 winningBid = fractionAuction.maxBid;
@@ -430,7 +430,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         uint256 fractionsToIssue;
         uint256 itemsInVault = pl.custodianVaultItems[_offerId];
-        address fermionFNFTAddress = pl.wrapperAddress[_offerId];
+        address fermionFNFTAddress = pl.fermionFNFTAddress[_offerId];
         if (!_isOfferVault) {
             // Forceful fractionalisation
             if (itemsInVault > 0) {
@@ -567,6 +567,6 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * @param pl - the number of tokens to add to the vault
      */
     function verifyFermionFNFTCaller(uint256 _offerId, FermionStorage.ProtocolLookups storage pl) internal view {
-        if (msg.sender != pl.wrapperAddress[_offerId]) revert AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
+        if (msg.sender != pl.fermionFNFTAddress[_offerId]) revert FermionGeneralErrors.AccessDenied(msg.sender); // not using _msgSender() since the FNFT will never use meta transactions
     }
 }

@@ -12,7 +12,6 @@ import { IDiamondCut } from "../interfaces/IDiamondCut.sol";
 // The loupe functions are required by the EIP2535 Diamonds standard
 
 error NoSelectorsGivenToAdd();
-error NotContractOwner(address _user, address _contractOwner);
 error NoSelectorsProvidedForFacetForCut(address _facetAddress);
 error CannotAddSelectorsToZeroAddress(bytes4[] _selectors);
 error NoBytecodeAtAddress(address _contractAddress, string _message);
@@ -40,33 +39,12 @@ library LibDiamond {
         mapping(bytes4 => FacetAddressAndSelectorPosition) facetAddressAndSelectorPosition;
         bytes4[] selectors;
         mapping(bytes4 => bool) supportedInterfaces;
-        // owner of the contract
-        address contractOwner;
     }
 
     function diamondStorage() internal pure returns (DiamondStorage storage ds) {
         bytes32 position = DIAMOND_STORAGE_POSITION;
         assembly {
             ds.slot := position
-        }
-    }
-
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    function setContractOwner(address _newOwner) internal {
-        DiamondStorage storage ds = diamondStorage();
-        address previousOwner = ds.contractOwner;
-        ds.contractOwner = _newOwner;
-        emit OwnershipTransferred(previousOwner, _newOwner);
-    }
-
-    function contractOwner() internal view returns (address contractOwner_) {
-        contractOwner_ = diamondStorage().contractOwner;
-    }
-
-    function enforceIsContractOwner() internal view {
-        if (msg.sender != diamondStorage().contractOwner) {
-            revert NotContractOwner(msg.sender, diamondStorage().contractOwner);
         }
     }
 

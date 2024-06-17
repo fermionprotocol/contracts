@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { FundsErrors, EntityErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -15,7 +16,7 @@ import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FermionErrors, Access, IFundsEvents {
+contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *
@@ -42,8 +43,10 @@ contract FundsFacet is Context, FermionErrors, Access, IFundsEvents {
     ) external payable notPaused(FermionTypes.PausableRegion.Funds) {
         if (_amount == 0) revert ZeroDepositNotAllowed();
 
-        // Check that entity exists
-        EntityLib.fetchEntityData(_entityId);
+        // Check that entity exists. Funds to protocol entity (0) are allowed too.
+        if (_entityId > 0) {
+            EntityLib.fetchEntityData(_entityId);
+        }
 
         FundsLib.validateIncomingPayment(_tokenAddress, _amount);
         FundsLib.increaseAvailableFunds(_entityId, _tokenAddress, _amount);
@@ -76,7 +79,7 @@ contract FundsFacet is Context, FermionErrors, Access, IFundsEvents {
         address payable _treasury,
         address[] memory _tokenList,
         uint256[] memory _tokenAmounts
-    ) external notPaused(FermionTypes.PausableRegion.Funds) {
+    ) external {
         if (
             !EntityLib.hasWalletRole(
                 _entityId,
@@ -85,9 +88,9 @@ contract FundsFacet is Context, FermionErrors, Access, IFundsEvents {
                 FermionTypes.WalletRole.Treasury,
                 true
             )
-        ) revert NotEntityTreasury(_entityId, _treasury);
+        ) revert EntityErrors.NotEntityTreasury(_entityId, _treasury);
 
-        address msgSender = msgSender();
+        address msgSender = _msgSender();
         if (
             !EntityLib.hasWalletRole(
                 _entityId,
@@ -96,9 +99,32 @@ contract FundsFacet is Context, FermionErrors, Access, IFundsEvents {
                 FermionTypes.WalletRole.Assistant,
                 true
             )
-        ) revert NotEntityAssistant(_entityId, msgSender);
+        ) revert EntityErrors.NotEntityAssistant(_entityId, msgSender);
 
         withdrawFundsInternal(_entityId, _treasury, _tokenList, _tokenAmounts);
+    }
+
+    /**
+     * @notice Withdraws the funds collected by the protocol.
+     *
+     * Emits FundsWithdrawn event if successful.
+     *
+     * Reverts if:
+     * - Funds region is paused
+     * - Caller does not have FEE_COLLECTOR role
+     * - Token list length does not match amount list length
+     * - Caller tries to withdraw more than they have in available funds
+     * - There is nothing to withdraw
+     * - Transfer of funds is not successful
+     *
+     * @param _tokenList - list of contract addresses of tokens that are being withdrawn
+     * @param _tokenAmounts - list of amounts to be withdrawn, corresponding to tokens in tokenList
+     */
+    function withdrawProtocolFees(
+        address[] calldata _tokenList,
+        uint256[] calldata _tokenAmounts
+    ) external onlyRole(FEE_COLLECTOR) {
+        withdrawFundsInternal(0, FermionStorage.protocolConfig().treasury, _tokenList, _tokenAmounts);
     }
 
     /**
@@ -160,6 +186,7 @@ contract FundsFacet is Context, FermionErrors, Access, IFundsEvents {
      * Emits FundsWithdrawn event if successful.
      *
      * Reverts if:
+     * - Funds region is paused
      * - Caller is not associated with the entity id
      * - Token list length does not match amount list length
      * - Caller tries to withdraw more that they have in available funds
@@ -176,13 +203,13 @@ contract FundsFacet is Context, FermionErrors, Access, IFundsEvents {
         address payable _destinationAddress,
         address[] memory _tokenList,
         uint256[] memory _tokenAmounts
-    ) internal {
+    ) internal notPaused(FermionTypes.PausableRegion.Funds) {
         // Cache protocol lookups for reference
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
         // Make sure that the data is complete
         if (_tokenList.length != _tokenAmounts.length)
-            revert ArrayLengthMismatch(_tokenList.length, _tokenAmounts.length);
+            revert FermionGeneralErrors.ArrayLengthMismatch(_tokenList.length, _tokenAmounts.length);
 
         // Two possible options: withdraw all, or withdraw only specified tokens and amounts
         if (_tokenList.length == 0) {

@@ -4,22 +4,19 @@ import { expect } from "chai";
 import { Contract } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { PausableRegion, enumIterator } from "../utils/enums";
+import { ethers } from "hardhat";
 
 describe("Pause", function () {
   let pauseFacet: Contract;
   let fermionErrors: Contract;
   let wallets: HardhatEthersSigner[];
-  let defaultSigner: HardhatEthersSigner;
 
   before(async function () {
     ({
       facets: { PauseFacet: pauseFacet },
       fermionErrors,
       wallets,
-      defaultSigner,
     } = await loadFixture(deployFermionProtocolFixture));
-
-    // await loadFixture(setupVerificationTest);
   });
 
   afterEach(async function () {
@@ -82,11 +79,12 @@ describe("Pause", function () {
 
     context("Revert Reasons", async function () {
       it("Caller does not have admin role", async function () {
-        const admin = wallets[0];
+        const randomSigner = wallets[2];
         // Attempt to pause without PAUSER role, expecting revert
-        await expect(pauseFacet.connect(defaultSigner).pause([]))
-          .to.revertedWithCustomError(pauseFacet, "NotContractOwner")
-          .withArgs(defaultSigner.address, admin.address);
+        const accessControl = await ethers.getContractAt("IAccessControl", ethers.ZeroAddress);
+        await expect(pauseFacet.connect(randomSigner).pause([]))
+          .to.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomSigner.address, ethers.id("PAUSER"));
       });
     });
   });
@@ -138,15 +136,15 @@ describe("Pause", function () {
 
     context("Revert Reasons", async function () {
       it("Caller does not have admin role", async function () {
-        const admin = wallets[0];
-
         // Pause protocol
         await pauseFacet.pause([PausableRegion.Custody]);
 
+        const randomSigner = wallets[2];
         // Attempt to unpause without PAUSER role, expecting revert
-        await expect(pauseFacet.connect(defaultSigner).unpause([]))
-          .to.revertedWithCustomError(pauseFacet, "NotContractOwner")
-          .withArgs(defaultSigner.address, admin.address);
+        const accessControl = await ethers.getContractAt("IAccessControl", ethers.ZeroAddress);
+        await expect(pauseFacet.connect(randomSigner).unpause([]))
+          .to.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomSigner.address, ethers.id("PAUSER"));
       });
 
       it("Protocol is not currently paused", async function () {
@@ -165,7 +163,7 @@ describe("Pause", function () {
 
       const pausedRegions = await pauseFacet.getPausedRegions();
 
-      expect(pausedRegions).to.deep.equal(regions);
+      expect(pausedRegions.map(String)).to.have.members(regions.map(String));
     });
   });
 });

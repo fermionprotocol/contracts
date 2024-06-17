@@ -36,13 +36,14 @@ contract FermionTypes {
     }
 
     enum PausableRegion {
+        Config,
         MetaTransaction,
-        Entity,
         Funds,
+        Entity,
         Offer,
+        Verification,
         Custody,
-        CustodyVault,
-        Verification
+        CustodyVault
     }
 
     enum AuctionState {

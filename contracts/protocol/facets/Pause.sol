@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { PAUSER } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { PauseErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
-import { Context } from "../libs/Context.sol";
 import { IPauseEvents } from "../interfaces/events/IPauseEvents.sol";
 
 /**
@@ -13,7 +13,7 @@ import { IPauseEvents } from "../interfaces/events/IPauseEvents.sol";
  *
  * @notice Handles protocol region pausing.
  */
-contract PauseFacet is Access, Context, FermionErrors, IPauseEvents {
+contract PauseFacet is Access, PauseErrors, IPauseEvents {
     uint256 private constant ALL_REGIONS_MASK = (1 << (uint256(type(FermionTypes.PausableRegion).max) + 1)) - 1;
 
     /**
@@ -22,11 +22,11 @@ contract PauseFacet is Access, Context, FermionErrors, IPauseEvents {
      * Emits a ProtocolPaused event if successful.
      *
      * Reverts if:
-     * - Caller is not the protcol admin
+     * - Caller is not the protocol pauser
      *
      * @param _regions - an array of regions to pause. See: {FermionTypes.PausableRegion}
      */
-    function pause(FermionTypes.PausableRegion[] calldata _regions) external onlyAdmin {
+    function pause(FermionTypes.PausableRegion[] calldata _regions) external onlyRole(PAUSER) {
         togglePause(_regions, true);
 
         // Notify watchers of state change
@@ -39,10 +39,10 @@ contract PauseFacet is Access, Context, FermionErrors, IPauseEvents {
      * Emits a ProtocolUnpaused event if successful.
      *
      * Reverts if:
-     * - Caller is not the protcol admin
+     * - Caller is not the protcol pauser
      * - Protocol is not currently paused
      */
-    function unpause(FermionTypes.PausableRegion[] calldata _regions) external onlyAdmin {
+    function unpause(FermionTypes.PausableRegion[] calldata _regions) external onlyRole(PAUSER) {
         // Make sure the protocol is paused
         if (FermionStorage.protocolStatus().paused == 0) revert NotPaused();
 

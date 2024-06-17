@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import { BYTE_SIZE } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { EntityErrors } from "../domain/Errors.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
 import { ContextLib } from "../libs/Context.sol";
 
@@ -193,7 +193,7 @@ library EntityLib {
         FermionTypes.WalletRole _walletRole
     ) internal view {
         if (!hasWalletRole(_entityId, _walletAddress, _entityRole, _walletRole, false)) {
-            revert FermionErrors.WalletHasNoRole(_entityId, _walletAddress, _entityRole, _walletRole);
+            revert EntityErrors.WalletHasNoRole(_entityId, _walletAddress, _entityRole, _walletRole);
         }
     }
 
@@ -210,7 +210,7 @@ library EntityLib {
         FermionTypes.EntityRole _entityRole
     ) internal pure {
         if (!checkEntityRole(_compactEntityRoles, _entityRole)) {
-            revert FermionErrors.EntityHasNoRole(_entityId, _entityRole);
+            revert EntityErrors.EntityHasNoRole(_entityId, _entityRole);
         }
     }
 
@@ -241,7 +241,7 @@ library EntityLib {
         address _adminWallet
     ) internal view returns (uint256 entityId, FermionTypes.EntityData storage entityData) {
         entityId = FermionStorage.protocolLookups().entityId[_adminWallet];
-        if (entityId == 0) revert FermionErrors.NoSuchEntity(0);
+        if (entityId == 0) revert EntityErrors.NoSuchEntity(0);
 
         entityData = FermionStorage.protocolEntities().entityData[entityId];
     }
@@ -268,7 +268,7 @@ library EntityLib {
      * @param pl - the protocol lookups
      */
     function validateEntityId(uint256 _entityId, FermionStorage.ProtocolLookups storage pl) internal view {
-        if (_entityId == 0 || _entityId > pl.entityCounter) revert FermionErrors.NoSuchEntity(_entityId);
+        if (_entityId == 0 || _entityId > pl.entityCounter) revert EntityErrors.NoSuchEntity(_entityId);
     }
 
     /** @notice Verifies that the caller is either a seller's assistant or seller's facilitator's assistant
@@ -277,7 +277,7 @@ library EntityLib {
      * @param _facilitatorId - the facilitator's entity ID
      */
     function validateSellerAssistantOrFacilitator(uint256 _sellerId, uint256 _facilitatorId) internal view {
-        validateSellerAssistantOrFacilitator(_sellerId, _facilitatorId, ContextLib.msgSender());
+        validateSellerAssistantOrFacilitator(_sellerId, _facilitatorId, ContextLib._msgSender());
     }
 
     /** @notice Verifies that the caller is either a seller's assistant or seller's facilitator's assistant
@@ -307,7 +307,7 @@ library EntityLib {
             );
 
         if (!isSellerOrFacilitator) {
-            revert FermionErrors.WalletHasNoRole(
+            revert EntityErrors.WalletHasNoRole(
                 _sellerId,
                 _walletAddress,
                 FermionTypes.EntityRole.Seller,

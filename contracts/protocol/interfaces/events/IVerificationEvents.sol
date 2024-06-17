@@ -9,8 +9,13 @@ import { FermionTypes } from "../../domain/Types.sol";
  * @notice Defines events related to verification within the protocol.
  */
 interface IVerificationEvents {
-    event VerificationInitiated(uint256 indexed bosonOfferId, uint256 indexed verifierId, uint256 nftId);
-
+    event VerificationInitiated(
+        uint256 indexed bosonOfferId,
+        uint256 indexed verifierId,
+        uint256 nftId,
+        uint256 itemVerificationTimeout
+    );
+    event ItemVerificationTimeoutChanged(uint256 indexed nftId, uint256 itemVerificationTimeout);
     event VerdictSubmitted(
         uint256 indexed verifierId,
         uint256 indexed nftId,

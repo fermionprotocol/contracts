@@ -134,7 +134,7 @@ describe("CustodyVault", function () {
     bidder = wallets[7];
     await mockToken.mint(bidder.address, parseEther("1000"));
 
-    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(exchange.tokenId);
+    const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
   }
 

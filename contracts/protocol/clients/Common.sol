@@ -17,7 +17,6 @@ library Common {
 
     // keccak256(abi.encode(uint256(keccak256("fermion.common.storage")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant CommonStorageLocation = 0x7d46dfbe85229102c9de7236c77f143aeebfb8807e422547099ad6d89710cd00;
-    // ToDo: pre-calculate and store the slot
 
     function _getFermionCommonStorage() internal pure returns (CommonStorage storage $) {
         assembly {

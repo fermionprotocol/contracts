@@ -39,12 +39,7 @@ export function createBuyerAdvancedOrderClosure(
   mockToken: Contract,
   offerFacet: Contract,
 ) {
-  return async function (
-    buyer: HardhatEthersSigner,
-    offerId: string,
-    exchangeId: string | BigNumberish,
-    collectionSalt = "",
-  ) {
+  return async function (buyer: HardhatEthersSigner, offerId: string, exchangeId: string | BigNumberish) {
     const fullPrice = parseEther("1");
     const openSeaFee = (fullPrice * 2n) / 100n;
     const openSea = wallets[5]; // a mock OS address
@@ -54,7 +49,7 @@ export function createBuyerAdvancedOrderClosure(
 
     const exchangeToken = await mockToken.getAddress();
     const tokenId = deriveTokenId(offerId, exchangeId).toString();
-    const wrapperAddress = await offerFacet.predictFermionWrapperAddress(collectionSalt || tokenId);
+    const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     const { executeAllActions } = await seaport.createOrder(
       {
         offer: [

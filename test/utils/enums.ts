@@ -39,13 +39,14 @@ export enum CheckoutRequestStatus {
 }
 
 export enum PausableRegion {
+  Config,
   MetaTransaction,
-  Entity,
   Funds,
+  Entity,
   Offer,
+  Verification,
   Custody,
   CustodyVault,
-  Verification,
 }
 
 export enum AuctionState {

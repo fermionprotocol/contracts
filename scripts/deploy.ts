@@ -69,7 +69,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
 
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
-  if (allModules || modules.includes("wrapper")) {
+  if (allModules || modules.includes("fnft")) {
     const constructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
 
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
@@ -88,9 +88,12 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   }
 
   // deploy diamond
-  let diamondAddress, initializationFacet;
+  let diamondAddress, initializationFacet, accessController;
   if (allModules || modules.includes("diamond")) {
-    ({ diamondAddress, initializationFacet } = await deployDiamond(bosonProtocolAddress, wrapperImplementationAddress));
+    ({ diamondAddress, initializationFacet, accessController } = await deployDiamond(
+      bosonProtocolAddress,
+      wrapperImplementationAddress,
+    ));
     await writeContracts(deploymentData, env, version);
   } else {
     // get the diamond address and initialization from contracts file
@@ -106,10 +109,12 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     }
 
     initializationFacet = await ethers.getContractAt("InitializationFacet", initializationFacetAddress);
+    accessController = await ethers.getContractAt("AccessController", diamondAddress);
   }
 
   // deploy facets
   const facetNames = [
+    "ConfigFacet",
     "EntityFacet",
     "MetaTransactionFacet",
     "OfferFacet",
@@ -146,10 +151,14 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
 
   // initialize facets
   if (allModules || modules.includes("initialize")) {
+    // grant upgrader role
+    await accessController.grantRole(ethers.id("UPGRADER"), deployerAddress);
+
     // Init other facets, using the initialization facet
     // Prepare init call
     const init = {
       MetaTransactionFacet: [await getStateModifyingFunctionsHashes(facetNames)],
+      ConfigFacet: [fermionConfig.protocolParameters],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
     const initCalldatas = Object.keys(init).map((facetName) =>
@@ -171,6 +180,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     );
 
     facets["InitializationFacet"] = initializationFacet;
+    facets["AccessController"] = accessController;
   }
 
   return {
@@ -191,23 +201,27 @@ export async function deployDiamond(bosonProtocolAddress: string, wrapperImpleme
   // Deploy facets and set the `facetCuts` variable
   console.log("");
   console.log("Deploying facets");
-  const FacetNames = ["DiamondCutFacet", "DiamondLoupeFacet", "OwnershipFacet", "InitializationFacet"];
+  const FacetNames = ["DiamondCutFacet", "DiamondLoupeFacet", "AccessController", "InitializationFacet"];
   // The `facetCuts` variable is the FacetCut[] that contains the functions to add during diamond deployment
   const facets = await deployFacets(FacetNames, {}, true);
   const facetCuts = await prepareFacetCuts(Object.values(facets), ["init", "initialize", "initializeDiamond"]);
+  facetCuts[2].functionSelectors = facetCuts[2].functionSelectors.remove(["supportsInterface"]);
+
+  const accessController = facets["AccessController"];
 
   // Creating a function call
   // This call gets executed during deployment. For upgrades, "initialize" is called.
   // It is executed with delegatecall on the DiamondInit address.
   const initializationFacet = facets["InitializationFacet"];
   const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+    await accessController.getAddress(),
+    contractOwner.address,
     bosonProtocolAddress,
     wrapperImplementationAddress,
   ]);
 
   // Setting arguments that will be used in the diamond constructor
   const diamondArgs = {
-    owner: contractOwner.address,
     init: await initializationFacet.getAddress(),
     initCalldata: initializeBosonSeller,
   };
@@ -220,7 +234,8 @@ export async function deployDiamond(bosonProtocolAddress: string, wrapperImpleme
   deploymentComplete("FermionDiamond", await diamond.getAddress(), [facetCuts, diamondArgs], true);
 
   // returning the address of the diamond and the initialization contract
-  return { diamondAddress: await diamond.getAddress(), initializationFacet };
+  const diamondAddress = await diamond.getAddress();
+  return { diamondAddress, initializationFacet, accessController: accessController.attach(diamondAddress) };
 }
 
 export async function deployFacets(facetNames: string[], constructorArgs: object = {}, save: boolean = false) {

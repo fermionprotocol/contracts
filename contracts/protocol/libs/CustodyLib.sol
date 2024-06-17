@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionErrors } from "../domain/Errors.sol";
+import { FermionGeneralErrors, CustodianVaultErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
@@ -77,8 +77,8 @@ library CustodyLib {
         {
             FermionTypes.Offer storage offer;
             (offerId, offer) = FermionStorage.getOfferFromTokenId(_firstTokenId);
-            if (_externalCall && msg.sender != pl.wrapperAddress[offerId])
-                revert FermionErrors.AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
+            if (_externalCall && msg.sender != pl.fermionFNFTAddress[offerId])
+                revert FermionGeneralErrors.AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
 
             custodianId = offer.custodianId;
             exchangeToken = offer.exchangeToken;
@@ -104,7 +104,7 @@ library CustodyLib {
                         returnedAmount -= diff;
                         balance = custodianPayoff + custodianFee.amount;
                     } else {
-                        revert FermionErrors.InssuficientBalanceToFractionalise(tokenId, diff);
+                        revert CustodianVaultErrors.InssuficientBalanceToFractionalise(tokenId, diff);
                     }
                 } else {
                     // If forceful fractionalisation, transfer the max amount available to the custodian
