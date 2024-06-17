@@ -3,7 +3,26 @@
 [![Coverage Status](https://coveralls.io/repos/github/fermionprotocol/contracts/badge.svg)](https://coveralls.io/github/fermionprotocol/contracts)
 [![Contracts CI](https://github.com/fermionprotocol/contracts/actions/workflows/ci.yaml/badge.svg)](https://github.com/fermionprotocol/contracts/actions/workflows/ci.yaml)
 
-## Quick actions
+<div align="center">
+
+**Smart contracts layer of [Fermion Protocol](https://fermionprotocol.io).**
+
+</div>
+
+# Overview
+
+[Fermion Protocol](https://fermionprotocol.io) is a verification protocol built on top of [Boson Protocol](https://www.bosonprotocol.io/). This repository contains all core smart contracts and deployment scripts.
+
+## Getting started
+
+### Prerequisites
+
+For local development of the contracts, your development machine will need a few tools installed.
+
+You'll need:
+
+Node (20.12.x)
+yarn (1.22.x)
 
 ### Install dependencies
 
@@ -11,16 +30,92 @@
 yarn
 ```
 
-### Compile contracts
+### Quick actions
+
+**Build contracts**
 
 ```shell
 yarn build
 ```
 
-### Tasks
+**Run unit tests**
 
 ```shell
 npx hardhat test
-REPORT_GAS=true npx hardhat test
-npx hardhat coverage
 ```
+
+To enable gas reporter use
+
+```shell
+REPORT_GAS=true npx hardhat test
+```
+
+**Run coverage**
+
+```shell
+yarn coverage
+```
+
+**Lint and prettify contracts and scripts**
+**Run coverage**
+
+```shell
+yarn tidy:contracts
+yarn tidy:scripts
+```
+
+## Local development
+
+The core protocol contracts are in `contracts/protocol`. They implement the core connection to Boson Protocol, verification, fractionalisation and custody mechanism. Change them if you want to modify core protocol functionalities.
+
+Other supporting contracts are in `contracts/diamond`, `contracts/external` and `contracts/test` and you normally don't change them.
+
+Unit tests are separated by facet and available in `./test`. All contracts are extensively tested. 100% coverage is one of the requirements for code to be included in the main branch.
+
+We advise you to fork the repository before making any local changes. If you want your changes to be added to this repository, refer to [Contributing](#contributing) for details.
+
+## Deployment
+
+To deploy the Fermion protocol on a public blockchain:
+
+- set the protocol parameters in `./fermion.config.ts`
+- set the deployment configuration variables. The project uses [Hardhat configuration variables](https://hardhat.org/hardhat-runner/docs/guides/configuration-variables)
+
+  Get the list of possible configuration variables.
+
+  ```shell
+  npx hardhat vars list
+  ```
+
+  Set the values for the desired network. For example, to set the deployer key and RPC endpoint for polygon amoy, run
+
+  ```shell
+  npx hardhat vars set DEPLOYER_KEY_HARDHAT
+  npx hardhat vars set TEST_API_KEY
+  ```
+
+  Note: `DEPLOYER_KEY_HARDHAT` and `TEST_API_KEY` are NOT the values. Run the commands exactly as they are written and Hardhat will prompt you to enter the value.
+
+- Deploy the suite by calling
+
+  ```shell
+  npx hardhat deploy-suite --network <network> --env <environment> --modules <modules>
+  ```
+
+  - `network`: network to deploy to. The Network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters in `./fermion.config.ts`
+  - `environment`: optional name for the environment to deploy to. Useful to manage multiple instances on the same network. Value can be anything, typical values are `test`, `staging` and `production`.
+  - `modules`: the deployment script is modular and can be deployed step by step. Possible values are `fnft`, `diamond`, `facets`, `initialize` and their combinations.
+
+- The deployment info is printed into the terminal and JSON with addresses is stored in `addresses/{chainId}-{network}-{environment}.json`
+
+## Contributing
+
+We welcome contributions! Until now, Fermion Protocol has been largely worked on by a small dedicated team. However, the ultimate goal is for all of the Boson Protocol repositories to be fully owned by the community and contributors. Issues, pull requests, suggestions, and any sort of involvement are more than welcome.
+
+Questions and feedback are always welcome, we will use them to improve our offering.
+
+To contribute your code, first fork the protocol, make local changes in the forked repository and then open a PR from the forked repository to this repository
+
+All PRs must pass all tests before being merged.
+
+By being in this community, you agree to the [Code of Conduct](/code-of-conduct.md). Take a look at it, if you haven't already.

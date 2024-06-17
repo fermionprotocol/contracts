@@ -34,13 +34,16 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
   const implementationAddresses = {};
   for (const facetName of Object.keys(facets)) {
     implementationAddresses[facetName] = await facets[facetName].getAddress();
-    if (facetName === "PauseFacet") {
+    if (facetName === "AccessController") {
       // PauseFacet is called only by the admin, do not connect it to the default signer
       facets[facetName] = facets[facetName].attach(diamondAddress);
     } else {
       facets[facetName] = facets[facetName].connect(defaultSigner).attach(diamondAddress);
     }
   }
+
+  await facets["AccessController"].grantRole(ethers.id("PAUSER"), defaultSigner.address);
+  await facets["AccessController"].grantRole(ethers.id("ADMIN"), defaultSigner.address);
 
   return {
     diamondAddress,

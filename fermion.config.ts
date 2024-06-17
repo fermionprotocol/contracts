@@ -1,7 +1,14 @@
 import { ZeroAddress, ZeroHash } from "ethers";
 
 interface FermionConfig {
+  protocolParameters: ProtocolParameters;
   seaport: SeaportConfigs;
+}
+
+interface ProtocolParameters {
+  treasury: string;
+  protocolFeePercentage: number;
+  verificationTimeout: bigint;
 }
 
 interface SeaportConfigs {
@@ -15,6 +22,11 @@ interface SeaportConfig {
 }
 
 const fermionConfig: FermionConfig = {
+  protocolParameters: {
+    treasury: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199", // dummy
+    protocolFeePercentage: 500,
+    verificationTimeout: 60n * 60n * 24n * 7n,
+  },
   seaport: {
     hardhat: {
       seaport: ZeroAddress,

@@ -34,12 +34,17 @@ const config: HardhatUserConfig = {
           viaIR: false,
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 150,
             details: {
               yul: true,
             },
           },
           evmVersion: "cancun",
+          outputSelection: {
+            "*": {
+              "*": ["storageLayout"],
+            },
+          },
         },
       },
       {

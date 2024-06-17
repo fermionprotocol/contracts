@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
-
-import { FermionStorage } from "../libs/Storage.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { ADMIN } from "../domain/Constants.sol";
+import { MetaTransactionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
+import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
-import { Context } from "../libs/Context.sol";
-
+import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEvents.sol";
 
 /**
@@ -16,7 +14,7 @@ import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEve
  *
  * @notice Handles meta-transaction requests.
  */
-contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactionEvents {
+contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransactionEvents {
     string private constant PROTOCOL_NAME = "Fermion Protocol";
     string private constant PROTOCOL_VERSION = "V0";
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
@@ -127,7 +125,7 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
     function setAllowlistedFunctions(
         bytes32[] calldata _functionNameHashes,
         bool _isAllowlisted
-    ) external onlyAdmin notPaused(FermionTypes.PausableRegion.MetaTransaction) {
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.MetaTransaction) {
         setAllowlistedFunctionsInternal(_functionNameHashes, _isAllowlisted);
     }
 
@@ -280,7 +278,7 @@ contract MetaTransactionFacet is Access, Context, FermionErrors, IMetaTransactio
         }
 
         // Notify external observers
-        emit FunctionsAllowlisted(_functionNameHashes, _isAllowlisted, msgSender());
+        emit FunctionsAllowlisted(_functionNameHashes, _isAllowlisted, _msgSender());
     }
 
     /**

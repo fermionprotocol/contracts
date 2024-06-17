@@ -13,7 +13,7 @@ import { deployFermionProtocolFixture } from "../utils/common";
 describe("Cache bug test", async () => {
   let diamondLoupeFacet: Contract;
   let test1Facet: Contract;
-  const ownerSel = "0x8da5cb5b";
+  const accessSel = "0xa217fddf";
 
   const sel0 = "0x19e3b533"; // fills up slot 1
   const sel1 = "0x0716c2ae"; // fills up slot 1
@@ -63,7 +63,7 @@ describe("Cache bug test", async () => {
     // Remove function selectors
     // Function selector for the owner function in slot 0
     selectors = [
-      ownerSel, // owner selector
+      accessSel, // owner selector
       sel5,
       sel10,
     ];
@@ -100,7 +100,7 @@ describe("Cache bug test", async () => {
     assert.isTrue(selectors.includes(sel8), "Does not contain sel8");
     assert.isTrue(selectors.includes(sel9), "Does not contain sel9");
 
-    assert.isFalse(selectors.includes(ownerSel), "Contains ownerSel");
+    assert.isFalse(selectors.includes(accessSel), "Contains accessSel");
     assert.isFalse(selectors.includes(sel10), "Contains sel10");
     assert.isFalse(selectors.includes(sel5), "Contains sel5");
   });

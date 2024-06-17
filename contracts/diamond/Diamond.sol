@@ -19,17 +19,13 @@ error FunctionNotFound(bytes4 _functionSelector);
 // more arguments are added to this struct
 // this avoids stack too deep errors
 struct DiamondArgs {
-    address owner;
     address init;
     bytes initCalldata;
 }
 
 contract Diamond is ReentrancyGuard {
     constructor(IDiamondCut.FacetCut[] memory _diamondCut, DiamondArgs memory _args) payable {
-        LibDiamond.setContractOwner(_args.owner);
         LibDiamond.diamondCut(_diamondCut, _args.init, _args.initCalldata);
-
-        // Code can be added here to perform actions and set state variables.
     }
 
     // Find facet for function that is called and execute the

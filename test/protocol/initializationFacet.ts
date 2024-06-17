@@ -9,7 +9,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 
 const { encodeBytes32String, ZeroAddress, ZeroHash } = ethers;
 
-describe("Entity", function () {
+describe("Initialization", function () {
   let initializationFacet: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -31,6 +31,15 @@ describe("Entity", function () {
   });
 
   describe("Initialization facet", function () {
+    let accessControllerAddress: string;
+    let defaultAdmin: HardhatEthersSigner;
+    before(async function () {
+      const accessControllerFactory = await ethers.getContractFactory("AccessController");
+      const accessController = await accessControllerFactory.deploy();
+      accessControllerAddress = await accessController.getAddress();
+      defaultAdmin = wallets[0];
+    });
+
     context("Initial deployment", function () {
       it("Check Boson Roles", async function () {
         const accountHandler = await getBosonHandler("IBosonAccountHandler");
@@ -63,6 +72,8 @@ describe("Entity", function () {
         it("Initializing again fails", async function () {
           const accountHandler = await getBosonHandler("IBosonAccountHandler");
           const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            accessControllerAddress,
+            defaultAdmin.address,
             await accountHandler.getAddress(),
             fermionProtocolAddress, // dummy value
           ]);
@@ -74,6 +85,8 @@ describe("Entity", function () {
 
         it("Boson protocol address is 0", async function () {
           const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            accessControllerAddress,
+            defaultAdmin.address,
             ZeroAddress,
             fermionProtocolAddress, // dummy value
           ]);
@@ -85,6 +98,8 @@ describe("Entity", function () {
 
         it("Wrapper implementation address is 0", async function () {
           const initializeBosonSeller = initializationFacet.interface.encodeFunctionData("initializeDiamond", [
+            accessControllerAddress,
+            defaultAdmin.address,
             fermionProtocolAddress, // dummy value
             ZeroAddress,
           ]);
@@ -100,7 +115,7 @@ describe("Entity", function () {
           );
 
           await expect(
-            initializationFacetImplementation.initializeDiamond(ZeroAddress, ZeroAddress),
+            initializationFacetImplementation.initializeDiamond(ZeroAddress, ZeroAddress, ZeroAddress, ZeroAddress),
           ).to.be.revertedWithCustomError(fermionErrors, "DirectInitializationNotAllowed");
         });
 
@@ -108,7 +123,11 @@ describe("Entity", function () {
           const selector = initializationFacet.interface.getFunction("initializeDiamond").selector;
           const diamond = await ethers.getContractAt("Diamond", fermionProtocolAddress);
 
-          await expect(initializationFacet.attach(fermionProtocolAddress).initializeDiamond(ZeroAddress, ZeroAddress))
+          await expect(
+            initializationFacet
+              .attach(fermionProtocolAddress)
+              .initializeDiamond(accessControllerAddress, defaultAdmin.address, ZeroAddress, ZeroAddress),
+          )
             .to.be.revertedWithCustomError(diamond, "FunctionNotFound")
             .withArgs(selector);
         });
