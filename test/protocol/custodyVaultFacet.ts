@@ -1432,6 +1432,34 @@ describe("CustodyVault", function () {
             .withArgs(PausableRegion.CustodyVault);
         });
 
+        it("Insufficient balance to fractionalise", async function () {
+          await expect(
+            wrapper
+              .connect(buyer)
+              .mintFractions(exchange.tokenId, 1, fractionsPerToken, auctionParameters, custodianVaultParameters, 0n),
+          ).to.be.revertedWithCustomError(fermionErrors, "InssuficientBalanceToFractionalise");
+        });
+
+        it("Partial auction threshold is below custodian fee", async function () {
+          const additionalDeposit = custodianFee.amount * 2n;
+          await mockToken.connect(buyer).approve(await wrapper.getAddress(), additionalDeposit);
+
+          await expect(
+            wrapper.connect(buyer).mintFractions(
+              exchange.tokenId,
+              1,
+              fractionsPerToken,
+              auctionParameters,
+              {
+                ...custodianVaultParameters,
+                partialAuctionThreshold: custodianFee.amount - 1n,
+                liquidationThreshold: custodianFee.amount - 2n,
+              },
+              additionalDeposit,
+            ),
+          ).to.be.revertedWithCustomError(fermionErrors, "InvalidPartialAuctionThreshold");
+        });
+
         it("Caller is not the wrapper", async function () {
           await expect(
             custodyVaultFacet
@@ -1841,6 +1869,13 @@ describe("CustodyVault", function () {
             .withArgs(PausableRegion.CustodyVault);
         });
 
+        it("Insufficient balance to fractionalise", async function () {
+          await expect(wrapper.connect(buyer).mintFractions(exchange.tokenId, 1, 0n)).to.be.revertedWithCustomError(
+            fermionErrors,
+            "InssuficientBalanceToFractionalise",
+          );
+        });
+
         it("Caller is not the wrapper", async function () {
           await expect(
             custodyVaultFacet
@@ -2009,39 +2044,6 @@ describe("CustodyVault", function () {
         });
 
         context("Not last offer item", function () {
-          it.skip("Offer vault is empty", async function () {
-            // to make it really empty, releaseFunds should be called and auction with 0 bids should be finalised
-            const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
-            const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
-            const transferTime = BigInt((await tx.getBlock()).timestamp);
-
-            // offer vault remains, just number of items is increased
-            const expectedOfferVault = {
-              amount: 0n,
-              period: offerVaultCreationTimestamp,
-            };
-            let itemCount = 2n;
-
-            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
-              Object.values(expectedOfferVault),
-              itemCount,
-            ]);
-
-            // item vault is open
-            const expectedItemVault = {
-              amount: 0n,
-              period: transferTime,
-            };
-            itemCount = 1n;
-
-            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
-              Object.values(expectedItemVault),
-              itemCount,
-            ]);
-            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(0n);
-            expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(wrapperBalance); // no change
-          });
-
           context("Offer vault is not empty", function () {
             const paymentPeriods = 5n;
             const prepaymentAmount = custodianFee.amount * paymentPeriods * tokenCount; // pre pay for 5 periods
@@ -2166,43 +2168,6 @@ describe("CustodyVault", function () {
 
             await mockToken.mint(bidder.address, parseEther("1000"));
             await mockToken.connect(bidder).approve(await wrapper.getAddress(), 3n * bidAmount);
-          });
-
-          it.skip("Offer vault is empty", async function () {
-            // to make it really empty, releaseFunds should be called and auction with 0 bids should be finalised
-            await wrapper.connect(bidder).redeem(tokenId2);
-            await wrapper.connect(bidder).redeem(tokenId3);
-            const wrapperBalance = await mockToken.balanceOf(await wrapper.getAddress());
-
-            const custodianBalance = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
-            const tx = await wrapper.connect(bidder).redeem(exchange.tokenId);
-            const transferTime = BigInt((await tx.getBlock()).timestamp);
-
-            // offer vault get closed
-            const expectedOfferVault = {
-              amount: 0n,
-              period: 0n,
-            };
-            let itemCount = 0n;
-
-            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
-              Object.values(expectedOfferVault),
-              itemCount,
-            ]);
-
-            // item vault is open
-            const expectedItemVault = {
-              amount: 0n,
-              period: transferTime,
-            };
-            itemCount = 1n;
-
-            expect(await custodyVaultFacet.getCustodianVault(exchange.tokenId)).to.eql([
-              Object.values(expectedItemVault),
-              itemCount,
-            ]);
-            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(custodianBalance);
-            expect(await mockToken.balanceOf(await wrapper.getAddress())).to.equal(wrapperBalance); // no change
           });
 
           context("Offer vault is not empty", function () {
@@ -3056,6 +3021,33 @@ describe("CustodyVault", function () {
           expect(await custodyVaultFacet.getPartialAuctionDetails(offerId)).to.eql(
             Object.values(expectedAuctionDetails),
           );
+        });
+
+        it("remove items from vault while auction is ongoing", async function () {
+          const usedFractions = 0n;
+          const buyoutAuctionBid = auctionParameters.exitPrice + parseEther("0.1");
+          const partialAuctionBid = bidAmount;
+          await mockToken.mint(bidder.address, buyoutAuctionBid * 3n);
+          await mockToken.connect(bidder).approve(await wrapper.getAddress(), buyoutAuctionBid * 3n);
+          await wrapper.connect(bidder).bid(exchange.tokenId, buyoutAuctionBid, usedFractions);
+          await wrapper.connect(bidder).bid(BigInt(exchange.tokenId) + 1n, buyoutAuctionBid, usedFractions);
+          await wrapper.connect(bidder).bid(BigInt(exchange.tokenId) + 2n, buyoutAuctionBid, usedFractions);
+
+          await setNextBlockTimestamp(String(auctionEnd + 1n));
+          const tx = await custodyVaultFacet.endAuction(offerId);
+
+          await expect(tx)
+            .to.emit(custodyVaultFacet, "AuctionFinished")
+            .withArgs(
+              offerId,
+              bidder.address,
+              custodianVaultParameters.newFractionsPerAuction * tokenCount,
+              partialAuctionBid,
+            );
+          await expect(tx).to.not.emit(custodyVaultFacet, "VaultBalanceUpdated");
+          await expect(tx)
+            .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+            .withArgs(custodianId, mockTokenAddress, partialAuctionBid);
         });
 
         context("Revert reasons", function () {

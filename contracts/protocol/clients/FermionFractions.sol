@@ -12,7 +12,6 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
-import "hardhat/console.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -752,18 +751,13 @@ abstract contract FermionFractions is
         uint256 fractionsPerToken = auctionDetails.totalFractions;
         uint256 auctionIndex = $.lockedProceeds[_tokenId].length - 1;
         int256 lockedProceeds = $.lockedProceeds[_tokenId][auctionIndex];
-        console.log("finalizing");
-        console.logInt(lockedProceeds);
         if (lockedProceeds < 0) {
-            console.log("repaying debt");
             // custodian must be paid first
             uint256 debtFromVault = uint256(-lockedProceeds);
-            console.log(debtFromVault, auctionProceeds);
             if (debtFromVault > auctionProceeds) {
                 // the debt in the protocol is higher than the auction proceeds
                 debtFromVault = auctionProceeds;
             }
-            console.log(debtFromVault);
             FundsLib.transferFundsFromProtocol($.exchangeToken, payable(fermionProtocol), debtFromVault);
             IFermionCustodyVault(fermionProtocol).repayDebt(_tokenId, debtFromVault);
             auctionProceeds -= debtFromVault;

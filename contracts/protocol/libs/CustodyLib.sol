@@ -28,7 +28,7 @@ library CustodyLib {
     }
 
     /**
-     * @notice Closes the custodian vault for a tokenId and releses the amount to the custodian
+     * @notice Closes the custodian vault for a tokenId and releases the amount to the custodian
      *
      * Emits an AvailableFundsIncreased event if successful.
      *

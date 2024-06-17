@@ -24,7 +24,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * The items' vaults are temporarily closed. If their balance was not zero, the custodian fee, proportional to the passed service time,
      * is released to the custodian and the remaining amount is transferred to the offer vault.
      *
-     * Only the F-NFT contract can call this function. The F-NFT contract is trusted to call this function only when the initial fractionalisation happen.
+     * Only the F-NFT contract can call this function. The F-NFT contract is trusted to call this function only when the initial fractionalisation happens.
      *
      * Emits an VaultBalanceUpdated events
      *
@@ -389,6 +389,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_offerId];
         if (vault.period == 0) {
+            // equivalent to pl.custodianVaultItems[_offerId]==0
             // buyout auction for the last item in vault started after partial auction, but ended earlier
             // release proceeds directly to the custodian
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
@@ -412,13 +413,13 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * - Auction for the tokenId is ongoing
      *
      * @param _offerId - the offer ID associated with the vault
-     * @param _tokenOrOfferId - the token ID associated with the vault
+     * @param _tokenId - the token ID associated with the vault (relevant for forceful fractionalisation only)
      * @param _isOfferVault - indicator whether the release was done on the offer vault (false means item vault)
      * @param _custodianFee - the custodian fee details (amount and period)
      */
     function startFractionalAuction(
         uint256 _offerId,
-        uint256 _tokenOrOfferId,
+        uint256 _tokenId,
         bool _isOfferVault,
         FermionTypes.CustodianFee memory _custodianFee
     ) internal {
@@ -427,7 +428,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         FermionTypes.CustodianVaultParameters storage vaultParameters = pl.custodianVaultParameters[_offerId];
 
-        if (fractionAuction.endTime > block.timestamp) revert AuctionOngoing(_tokenOrOfferId, fractionAuction.endTime);
+        if (fractionAuction.endTime > block.timestamp) revert AuctionOngoing(_offerId, fractionAuction.endTime);
 
         uint256 fractionsToIssue;
         uint256 itemsInVault = pl.custodianVaultItems[_offerId];
@@ -436,13 +437,13 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
             // Forceful fractionalisation
             if (itemsInVault > 0) {
                 // vault exist already
-                IFermionFNFT(wrapperAddress).mintFractions(_tokenOrOfferId, 1, 0);
+                IFermionFNFT(wrapperAddress).mintFractions(_tokenId, 1, 0);
 
-                CustodyLib.addItemToCustodianOfferVault(_tokenOrOfferId, 1, 0, false, pl);
+                CustodyLib.addItemToCustodianOfferVault(_tokenId, 1, 0, false, pl);
             } else {
                 // no vault yet. Use the default parameters
                 FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
-                _buyoutAuctionParameters.exitPrice = pl.itemPrice[_tokenOrOfferId];
+                _buyoutAuctionParameters.exitPrice = pl.itemPrice[_tokenId];
                 uint256 partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * _custodianFee.amount;
                 uint256 newFractionsPerAuction = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) /
                     _buyoutAuctionParameters.exitPrice;
@@ -455,7 +456,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                     });
 
                 IFermionFNFT(wrapperAddress).mintFractions(
-                    _tokenOrOfferId,
+                    _tokenId,
                     1,
                     DEFAULT_FRACTION_AMOUNT,
                     _buyoutAuctionParameters,
@@ -463,10 +464,9 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                     0
                 );
 
-                setupCustodianOfferVault(_tokenOrOfferId, 1, _custodianVaultParameters, 0, false);
+                setupCustodianOfferVault(_tokenId, 1, _custodianVaultParameters, 0, false);
             }
 
-            _offerId = _tokenOrOfferId >> 128;
             itemsInVault++;
             vaultParameters = pl.custodianVaultParameters[_offerId];
         }

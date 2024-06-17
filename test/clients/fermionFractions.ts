@@ -1931,6 +1931,38 @@ describe("FermionFNFT - fractionalisation tests", function () {
       expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
     });
 
+    it("Bid with 100% fractions", async function () {
+      const fractions = fractionsPerToken; // 100% of bid paid with fractions
+      await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, fractions);
+
+      const bidAmount = ((fractionsPerToken - fractions) * price) / fractionsPerToken; // amount to pay
+      await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+
+      const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, price, fractions);
+      const blockTimeStamp = (await tx.getBlock()).timestamp;
+      const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+      await setNextBlockTimestamp(String(auctionEnd + 1n));
+
+      const tx2 = await fermionFNFTProxy.connect(bidders[0]).redeem(startTokenId);
+      await expect(tx2).to.emit(fermionFNFTProxy, "Redeemed").withArgs(startTokenId, bidders[0].address);
+      await expect(tx2)
+        .to.emit(fermionFNFTProxy, "Transfer")
+        .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, startTokenId);
+      await expect(tx2)
+        .to.emit(fermionFNFTProxy, "Transfer")
+        .withArgs(await fermionFNFTProxy.getAddress(), ZeroAddress, fractions); // burn fractions
+
+      expect(await fermionFNFTProxy.ownerOf(startTokenId)).to.equal(bidders[0].address);
+      expect(await fermionFNFTProxy.balanceOfERC721(bidders[0].address)).to.equal(1n);
+      expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount);
+      expectedAuctionDetails.timer = auctionEnd;
+      expectedAuctionDetails.lockedBidAmount = bidAmount;
+      expectedAuctionDetails.lockedFractions = fractions;
+      expect(await fermionFNFTProxy.getAuctionDetails(startTokenId)).to.eql(Object.values(expectedAuctionDetails));
+      expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(0n);
+      expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
+    });
+
     context("Redeem after someone claimed proceeds", async function () {
       beforeEach(async function () {
         const fractions = 0n;
