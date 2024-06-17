@@ -105,8 +105,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         uint256 offerId;
         FermionTypes.Offer storage offer;
         (offerId, offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-        address wrapperAddress = pl.wrapperAddress[offerId];
-        if (msg.sender != wrapperAddress) revert AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
+        verifyFermionFNFTCaller(offerId, pl);
 
         // trust the F-NFT contract that the token was added to offer vault at some point, i.e. it was fractionalised
         FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
@@ -136,7 +135,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                 FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
                 uint256 immediateTransfer = itemBalance - custodianPayoff;
                 if (immediateTransfer > 0)
-                    FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), immediateTransfer);
+                    FundsLib.transferFundsFromProtocol(exchangeToken, payable(msg.sender), immediateTransfer);
             }
 
             if (itemCount == 1) {
@@ -169,8 +168,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         uint256 offerId;
         FermionTypes.Offer storage offer;
         (offerId, offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-        address wrapperAddress = pl.wrapperAddress[offerId];
-        if (msg.sender != wrapperAddress) revert AccessDenied(msg.sender); // not using msgSender() since the FNFT will ne
+        verifyFermionFNFTCaller(offerId, pl);
 
         FundsLib.increaseAvailableFunds(offer.custodianId, offer.exchangeToken, _repaidAmount);
     }
@@ -314,7 +312,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
      * - Bid is too low
      * - Caller does not provide enough funds
      *
-     * @param _offerId - token ID associated with the vault
+     * @param _offerId - offer ID associated with the vault
      * @param _bidAmount - amount to bid
      */
     function bid(
@@ -432,12 +430,12 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
 
         uint256 fractionsToIssue;
         uint256 itemsInVault = pl.custodianVaultItems[_offerId];
-        address wrapperAddress = pl.wrapperAddress[_offerId];
+        address fermionFNFTAddress = pl.wrapperAddress[_offerId];
         if (!_isOfferVault) {
             // Forceful fractionalisation
             if (itemsInVault > 0) {
                 // vault exist already
-                IFermionFNFT(wrapperAddress).mintFractions(_tokenId, 1, 0);
+                IFermionFNFT(fermionFNFTAddress).mintFractions(_tokenId, 1, 0);
 
                 CustodyLib.addItemToCustodianOfferVault(_tokenId, 1, 0, false, pl);
             } else {
@@ -455,7 +453,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
                         newFractionsPerAuction: newFractionsPerAuction
                     });
 
-                IFermionFNFT(wrapperAddress).mintFractions(
+                IFermionFNFT(fermionFNFTAddress).mintFractions(
                     _tokenId,
                     1,
                     DEFAULT_FRACTION_AMOUNT,
@@ -476,7 +474,7 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         fractionsToIssue = itemsInVault * vaultParameters.newFractionsPerAuction;
 
         // mint the fractions to the protocol
-        IFermionFNFT(wrapperAddress).mintAdditionalFractions(fractionsToIssue); /// <mint to the protocol
+        IFermionFNFT(fermionFNFTAddress).mintAdditionalFractions(fractionsToIssue); /// <mint to the protocol
         fractionAuction.availableFractions = fractionsToIssue;
 
         emit AuctionStarted(_offerId, fractionsToIssue, auctionEnd);
@@ -558,5 +556,17 @@ contract CustodyVaultFacet is Context, FermionErrors, Access, ICustodyEvents {
         // no need to worry this gets overwritten. If `setupCustodianOfferVault` is called the second time with the same offer it
         // it means that all items from the collection were recombined, and new parameters can be set
         pl.custodianVaultParameters[offerId] = _custodianVaultParameters;
+    }
+
+    /** Checks if the caller is the F-NFT contract owning the token.
+     *
+     * Reverts if:
+     * - The caller is not the F-NFT contract owning the token
+     *
+     * @param _offerId - offer ID associated with the vault
+     * @param pl - the number of tokens to add to the vault
+     */
+    function verifyFermionFNFTCaller(uint256 _offerId, FermionStorage.ProtocolLookups storage pl) internal view {
+        if (msg.sender != pl.wrapperAddress[_offerId]) revert AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
     }
 }
