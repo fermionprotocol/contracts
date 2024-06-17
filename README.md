@@ -70,7 +70,7 @@ The core protocol contracts are in `contracts/protocol`. They implement the core
 
 Other supporting contracts are in `contracts/diamond`, `contracts/external` and `contracts/test` and you normally don't change them.
 
-Unit tests are separated by facet and available in `./test`. All or contracts are extensively tested. 100% coverage is one of the requirements for code to be included in the main branch.
+Unit tests are separated by facet and available in `./test`. All contracts are extensively tested. 100% coverage is one of the requirements for code to be included in the main branch.
 
 We advise you to fork the repository before making any local changes. If you want your changes to be added to this repository, refer to [Contributing](#contributing) for details.
 
@@ -114,7 +114,7 @@ We welcome contributions! Until now, Fermion Protocol has been largely worked on
 
 Questions and feedback are always welcome, we will use them to improve our offering.
 
-To contribute your code, first fork the protocol, make local changes in the forked repository and the open a PR from the forked repository to this repository
+To contribute your code, first fork the protocol, make local changes in the forked repository and then open a PR from the forked repository to this repository
 
 All PRs must pass all tests before being merged.
 

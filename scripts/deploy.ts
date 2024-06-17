@@ -205,7 +205,6 @@ export async function deployDiamond(bosonProtocolAddress: string, wrapperImpleme
   const facets = await deployFacets(FacetNames, {}, true);
   const facetCuts = await prepareFacetCuts(Object.values(facets), ["init", "initialize", "initializeDiamond"]);
   facetCuts[2].functionSelectors = facetCuts[2].functionSelectors.remove(["supportsInterface"]);
-  console.log(facetCuts);
 
   const accessController = facets["AccessController"];
 

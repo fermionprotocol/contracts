@@ -112,7 +112,7 @@ contract FundsFacet is Context, FundsErrors, Access {
      * - Funds region is paused
      * - Caller does not have FEE_COLLECTOR role
      * - Token list length does not match amount list length
-     * - Caller tries to withdraw more that they have in available funds
+     * - Caller tries to withdraw more than they have in available funds
      * - There is nothing to withdraw
      * - Transfer of funds is not successful
      *

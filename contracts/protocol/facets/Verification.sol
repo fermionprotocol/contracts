@@ -46,7 +46,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
     /**
      * @notice Reject a verification if verifier is inactive
      *
-     * Emits an VerdictSubmitted event
+     * Emits a VerdictSubmitted event
      *
      * Reverts if:
      * - Verification region is paused
