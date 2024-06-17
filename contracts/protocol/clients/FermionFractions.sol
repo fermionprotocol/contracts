@@ -12,6 +12,7 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
+import "hardhat/console.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -424,26 +425,6 @@ abstract contract FermionFractions is
         emit Redeemed(_tokenId, msgSender);
     }
 
-    function burnLockedVotes(
-        uint256 _tokenId,
-        uint256 _auctionIndex,
-        address _from,
-        uint256 _fractions,
-        FermionTypes.Votes storage votes,
-        FermionTypes.BuyoutAuctionStorage storage $
-    ) internal {
-        votes.individual[_from] = 0;
-
-        uint256 lockedAmount = uint256($.lockedProceeds[_tokenId][_auctionIndex]); // at this point it is guaranteed to be positive
-        uint256 claimAmount = (lockedAmount * _fractions) / votes.total;
-
-        $.lockedProceeds[_tokenId][_auctionIndex] -= int256(claimAmount);
-        votes.total -= _fractions;
-        $.lockedRedeemableSupply -= _fractions;
-
-        _burn(address(this), _fractions);
-    }
-
     /**
      * @notice Claim the specific auction proceeds if the user has voted to start the auction.
      *
@@ -771,13 +752,18 @@ abstract contract FermionFractions is
         uint256 fractionsPerToken = auctionDetails.totalFractions;
         uint256 auctionIndex = $.lockedProceeds[_tokenId].length - 1;
         int256 lockedProceeds = $.lockedProceeds[_tokenId][auctionIndex];
+        console.log("finalizing");
+        console.logInt(lockedProceeds);
         if (lockedProceeds < 0) {
+            console.log("repaying debt");
             // custodian must be paid first
             uint256 debtFromVault = uint256(-lockedProceeds);
+            console.log(debtFromVault, auctionProceeds);
             if (debtFromVault > auctionProceeds) {
                 // the debt in the protocol is higher than the auction proceeds
                 debtFromVault = auctionProceeds;
             }
+            console.log(debtFromVault);
             FundsLib.transferFundsFromProtocol($.exchangeToken, payable(fermionProtocol), debtFromVault);
             IFermionCustodyVault(fermionProtocol).repayDebt(_tokenId, debtFromVault);
             auctionProceeds -= debtFromVault;

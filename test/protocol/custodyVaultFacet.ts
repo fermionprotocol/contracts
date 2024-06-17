@@ -2271,7 +2271,7 @@ describe("CustodyVault", function () {
             it("Not enough to cover past fee", async function () {
               let transferTime = offerVaultCreationTimestamp + paymentPeriods * custodianFee.period + 100n;
               await setNextBlockTimestamp(String(transferTime));
-              // await wrapper.connect(bidder).redeem(tokenId2);
+
               await wrapper.connect(bidder).bid(tokenId2, bidAmount, usedFractions);
               const vaultAmount2 = vaultAmount - vaultAmount / 3n;
               // await wrapper.connect(bidder).redeem(tokenId3);
@@ -2335,6 +2335,160 @@ describe("CustodyVault", function () {
             await expect(
               custodyVaultFacet.connect(defaultSigner).removeItemFromCustodianOfferVault(exchange.tokenId, 0n),
             )
+              .to.be.revertedWithCustomError(fermionErrors, "AccessDenied")
+              .withArgs(defaultSigner.address);
+          });
+        });
+      });
+
+      context("repayDebt", function () {
+        const tokenCount = 3n;
+        const bidAmount = auctionParameters.exitPrice + parseEther("0.1");
+        const usedFractions = 0;
+        const paymentPeriods = 5n;
+        const prepaymentAmount = custodianFee.amount * paymentPeriods * tokenCount; // pre pay for 5 periods
+
+        beforeEach(async function () {
+          await mockToken.connect(bidder).approve(await wrapper.getAddress(), bidAmount);
+          await mockToken.approve(fermionProtocolAddress, prepaymentAmount);
+        });
+
+        context("Not last offer item", async function () {
+          const vaultAmount = prepaymentAmount + custodianFee.amount * tokenCount; // 1 period custodian fee already from fractionalisation
+          const effectivePaymentPeriods = paymentPeriods + 1n; // 1 period already paid from fractionalisation
+          let deficit: bigint;
+
+          beforeEach(async function () {
+            const transferTime = offerVaultCreationTimestamp + effectivePaymentPeriods * custodianFee.period + 100n;
+            const itemVaultCreationTimestamp = transferTime + auctionParameters.duration;
+            const custodianPayoff =
+              ((itemVaultCreationTimestamp - offerVaultCreationTimestamp) * custodianFee.amount) / custodianFee.period;
+            deficit = vaultAmount / 3n - custodianPayoff;
+
+            await custodyVaultFacet.topUpCustodianVault(offerId, prepaymentAmount);
+            await setNextBlockTimestamp(String(transferTime));
+          });
+
+          it("bid covers the debt", async function () {
+            const tx = await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
+            const bidTime = BigInt((await tx.getBlock()).timestamp);
+            const auctionEnd = bidTime + auctionParameters.duration + 1n;
+            await setNextBlockTimestamp(String(auctionEnd));
+
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+            const repaid = -deficit; // deficit is negative. Absolute value of deficit is less than bidAmount, so it is repaid in full
+            const tx2 = await wrapper.connect(bidder).redeem(exchange.tokenId);
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, repaid);
+
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + repaid,
+            );
+          });
+
+          it("bid does not cover the debt", async function () {
+            const bidAmount = (-deficit * 3n) / 4n;
+            await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
+            const sellerFractions = await wrapper.balanceOf(buyer.address);
+            console.log("sellerFractions", sellerFractions);
+            const tx = await wrapper.connect(buyer).voteToStartAuction(exchange.tokenId, sellerFractions); // bid is below exit price, original buyer votes to start auction
+            const voteTime = BigInt((await tx.getBlock()).timestamp);
+            const auctionEnd = voteTime + auctionParameters.duration + 1n;
+            await setNextBlockTimestamp(String(auctionEnd));
+
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+            const repaid = bidAmount; //Absolute value of deficit is more than bidAmount, so it is not repaid in full
+            const tx2 = await wrapper.connect(bidder).redeem(exchange.tokenId);
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, repaid);
+
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + repaid,
+            );
+          });
+        });
+
+        context("Last item in vault", function () {
+          const tokenCount = 2n;
+          const prepaymentAmount = custodianFee.amount * paymentPeriods * tokenCount; // pre pay for 5 periods
+          let deficit: bigint;
+          let transferTime: bigint;
+          beforeEach(async function () {
+            await custodyVaultFacet.topUpCustodianVault(offerId, prepaymentAmount);
+
+            const tokenId2 = BigInt(exchange.tokenId) + 1n;
+            const tokenId3 = BigInt(exchange.tokenId) + 2n;
+
+            await mockToken.mint(bidder.address, parseEther("1000"));
+            await mockToken.connect(bidder).approve(await wrapper.getAddress(), 3n * bidAmount);
+            const vaultAmount = prepaymentAmount + custodianFee.amount * (tokenCount + 1n); // 1 period custodian fee already from fractionalisation
+            transferTime = offerVaultCreationTimestamp + paymentPeriods * custodianFee.period + 100n;
+            await setNextBlockTimestamp(String(transferTime));
+            await wrapper.connect(bidder).bid(tokenId2, bidAmount, usedFractions);
+            const vaultAmount2 = vaultAmount - vaultAmount / 3n;
+            await wrapper.connect(bidder).bid(tokenId3, bidAmount, usedFractions);
+            const vaultAmount3 = vaultAmount2 - vaultAmount2 / 2n;
+
+            transferTime += 100n;
+            await setNextBlockTimestamp(String(transferTime));
+            const itemVaultCreationTimestamp = transferTime + auctionParameters.duration;
+            const custodianPayoff =
+              ((itemVaultCreationTimestamp - offerVaultCreationTimestamp) * custodianFee.amount) / custodianFee.period;
+
+            deficit = vaultAmount3 - custodianPayoff;
+          });
+
+          it("bid covers the debt", async function () {
+            await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
+            const auctionEnd = transferTime + auctionParameters.duration + 1n;
+            await setNextBlockTimestamp(String(auctionEnd));
+
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+            const repaid = -deficit; // deficit is negative. Absolute value of deficit is less than bidAmount, so it is repaid in full
+            const tx2 = await wrapper.connect(bidder).redeem(exchange.tokenId);
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, repaid); // deficit is
+
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + repaid,
+            );
+          });
+
+          it("bid does not cover the debt", async function () {
+            const bidAmount = (-deficit * 3n) / 4n;
+            await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
+            const tx = await wrapper.connect(buyer).voteToStartAuction(exchange.tokenId, fractionsPerToken); // bid is below exit price, vote to start auction
+            const voteTime = BigInt((await tx.getBlock()).timestamp);
+            const auctionEnd = voteTime + auctionParameters.duration + 1n;
+            await setNextBlockTimestamp(String(auctionEnd));
+
+            const custodianAvailableFunds = await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress);
+            const repaid = bidAmount; //Absolute value of deficit is more than bidAmount, so it is not repaid in full
+            const tx2 = await wrapper.connect(bidder).redeem(exchange.tokenId);
+            await expect(tx2)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, repaid); // deficit is
+
+            expect(await fundsFacet.getAvailableFunds(custodianId, mockTokenAddress)).to.equal(
+              custodianAvailableFunds + repaid,
+            );
+          });
+        });
+
+        context("Revert reasons", function () {
+          it("Custody region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.CustodyVault]);
+
+            await expect(custodyVaultFacet.repayDebt(exchange.tokenId, 0n))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.CustodyVault);
+          });
+
+          it("Caller is not the wrapper", async function () {
+            await expect(custodyVaultFacet.connect(defaultSigner).repayDebt(exchange.tokenId, 0n))
               .to.be.revertedWithCustomError(fermionErrors, "AccessDenied")
               .withArgs(defaultSigner.address);
           });
