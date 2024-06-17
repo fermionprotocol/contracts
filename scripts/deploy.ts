@@ -222,7 +222,6 @@ export async function deployDiamond(bosonProtocolAddress: string, wrapperImpleme
 
   // Setting arguments that will be used in the diamond constructor
   const diamondArgs = {
-    owner: contractOwner.address,
     init: await initializationFacet.getAddress(),
     initCalldata: initializeBosonSeller,
   };

@@ -18,7 +18,6 @@ error FunctionNotFound(bytes4 _functionSelector);
 // more arguments are added to this struct
 // this avoids stack too deep errors
 struct DiamondArgs {
-    address owner;
     address init;
     bytes initCalldata;
 }

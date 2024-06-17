@@ -36,10 +36,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
      */
-    function submitVerdict(
-        uint256 _tokenId,
-        FermionTypes.VerificationStatus _verificationStatus
-    ) external notPaused(FermionTypes.PausableRegion.Verification) {
+    function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
         submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
@@ -54,7 +51,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      *
      * @param _tokenId - the token ID
      */
-    function verificationTimeout(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Verification) {
+    function verificationTimeout(uint256 _tokenId) external {
         uint256 timeout = FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId];
         if (block.timestamp < timeout) revert VerificationTimeoutNotPassed(timeout, block.timestamp);
 
