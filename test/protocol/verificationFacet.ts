@@ -79,6 +79,10 @@ describe("Verification", function () {
       verifierId,
       verifierFee,
       custodianId: "3",
+      custodianFee: {
+        amount: parseEther("0.05"),
+        period: 30n * 24n * 60n * 60n, // 30 days
+      },
       facilitatorId: sellerId,
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),

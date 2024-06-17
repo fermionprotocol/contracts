@@ -29,6 +29,10 @@ describe("Funds", function () {
   const verifierId = "2";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
+  const custodianFee = {
+    amount: parseEther("0.05"),
+    period: 30n * 24n * 60n * 60n, // 30 days
+  };
 
   async function setupCustodyTest() {
     // Create three entities
@@ -333,6 +337,7 @@ describe("Funds", function () {
         verifierId,
         verifierFee,
         custodianId: verifierId,
+        custodianFee,
         facilitatorId: sellerId,
         facilitatorFeePercent: "0",
         exchangeToken: mockToken1Address,

@@ -27,6 +27,10 @@ describe("Offer", function () {
   const custodianId = "3";
   const facilitatorId = "4";
   const facilitator2Id = "5";
+  const custodianFee = {
+    amount: parseEther("0.05"),
+    period: 30n * 24n * 60n * 60n, // 30 days
+  };
   let offerFacet: Contract, entityFacet: Contract, fundsFacet: Contract, pauseFacet: Contract;
   let mockToken: Contract, mockBosonToken: Contract;
   let fermionErrors: Contract;
@@ -93,6 +97,10 @@ describe("Offer", function () {
   context("createOffer", function () {
     const sellerDeposit = 100;
     const verifierFee = 10;
+    const custodianFee = {
+      amount: parseEther("0.05"),
+      period: 30n * 24n * 60n * 60n, // 30 days
+    };
     const metadataURI = "https://example.com/offer-metadata.json";
     let exchangeToken: string;
     let fermionOffer: FermionTypes.OfferStruct;
@@ -107,6 +115,7 @@ describe("Offer", function () {
         verifierId,
         verifierFee,
         custodianId,
+        custodianFee,
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken,
@@ -119,7 +128,13 @@ describe("Offer", function () {
       // test event
       await expect(offerFacet.createOffer(fermionOffer))
         .to.emit(offerFacet, "OfferCreated")
-        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), bosonOfferId);
+        .withArgs(
+          sellerId,
+          verifierId,
+          custodianId,
+          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          bosonOfferId,
+        );
 
       // verify state
       const offer = await offerFacet.getOffer(bosonOfferId);
@@ -179,7 +194,13 @@ describe("Offer", function () {
       // test event
       await expect(offerFacet.createOffer(fermionOffer2))
         .to.emit(offerFacet, "OfferCreated")
-        .withArgs(sellerId, sellerId, sellerId, Object.values(fermionOffer2), bosonOfferId);
+        .withArgs(
+          sellerId,
+          sellerId,
+          sellerId,
+          Object.values({ ...fermionOffer2, custodianFee: Object.values(fermionOffer2.custodianFee) }),
+          bosonOfferId,
+        );
 
       // verify state
       const offer = await offerFacet.getOffer(bosonOfferId);
@@ -201,11 +222,23 @@ describe("Offer", function () {
       // test event
       await expect(offerFacet.connect(entityAssistant).createOffer(fermionOffer))
         .to.emit(offerFacet, "OfferCreated")
-        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), bosonOfferId);
+        .withArgs(
+          sellerId,
+          verifierId,
+          custodianId,
+          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          bosonOfferId,
+        );
 
       await expect(offerFacet.connect(sellerAssistant).createOffer(fermionOffer))
         .to.emit(offerFacet, "OfferCreated")
-        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), "2");
+        .withArgs(
+          sellerId,
+          verifierId,
+          custodianId,
+          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          "2",
+        );
     });
 
     it("Facilitator wallets can create the offer", async function () {
@@ -218,11 +251,23 @@ describe("Offer", function () {
       // test event
       await expect(offerFacet.connect(facilitator).createOffer(fermionOffer))
         .to.emit(offerFacet, "OfferCreated")
-        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), bosonOfferId);
+        .withArgs(
+          sellerId,
+          verifierId,
+          custodianId,
+          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          bosonOfferId,
+        );
 
       await expect(offerFacet.connect(facilitatorAssistant).createOffer(fermionOffer))
         .to.emit(offerFacet, "OfferCreated")
-        .withArgs(sellerId, verifierId, custodianId, Object.values(fermionOffer), "2");
+        .withArgs(
+          sellerId,
+          verifierId,
+          custodianId,
+          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          "2",
+        );
     });
 
     context("Revert reasons", function () {
@@ -313,6 +358,7 @@ describe("Offer", function () {
         verifierId,
         verifierFee,
         custodianId,
+        custodianFee,
         facilitatorId: sellerId,
         facilitatorFeePercent: "0",
         exchangeToken,
@@ -357,6 +403,7 @@ describe("Offer", function () {
         verifierId: "2",
         verifierFee: 10,
         custodianId: "3",
+        custodianFee,
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
@@ -582,6 +629,7 @@ describe("Offer", function () {
           verifierId,
           verifierFee,
           custodianId: "3",
+          custodianFee,
           facilitatorId,
           facilitatorFeePercent: "0",
           exchangeToken,
@@ -779,6 +827,7 @@ describe("Offer", function () {
               verifierId,
               verifierFee: "0",
               custodianId: "3",
+              custodianFee,
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: await mockToken.getAddress(),
@@ -1087,6 +1136,7 @@ describe("Offer", function () {
                   verifierId,
                   verifierFee,
                   custodianId: "3",
+                  custodianFee,
                   facilitatorId: sellerId,
                   facilitatorFeePercent: "0",
                   exchangeToken: ZeroAddress,
@@ -1154,6 +1204,7 @@ describe("Offer", function () {
               verifierId,
               verifierFee,
               custodianId: "3",
+              custodianFee,
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: bosonTokenAddress,
@@ -1348,6 +1399,7 @@ describe("Offer", function () {
               verifierId,
               verifierFee: "0",
               custodianId: "3",
+              custodianFee,
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: ZeroAddress,
@@ -1524,6 +1576,7 @@ describe("Offer", function () {
                   verifierId,
                   verifierFee,
                   custodianId: "3",
+                  custodianFee,
                   facilitatorId: sellerId,
                   facilitatorFeePercent: "0",
                   exchangeToken: ZeroAddress,
@@ -1610,6 +1663,7 @@ describe("Offer", function () {
               verifierId,
               verifierFee,
               custodianId: "3",
+              custodianFee,
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: bosonTokenAddress,
@@ -1647,6 +1701,7 @@ describe("Offer", function () {
           verifierId,
           verifierFee,
           custodianId: "3",
+          custodianFee,
           facilitatorId: sellerId,
           facilitatorFeePercent: "0",
           exchangeToken,

@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { FermionTypes } from "../domain/Types.sol";
+import { FermionErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
-import { FermionTypes } from "../domain/Types.sol";
-import { FermionErrors } from "../domain/Errors.sol";
 import { Context } from "../libs/Context.sol";
+import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
 
 /**
  * @title FundsFacet
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FermionErrors, Access {
+contract FundsFacet is Context, FermionErrors, Access, IFundsEvents {
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *
@@ -73,8 +74,8 @@ contract FundsFacet is Context, FermionErrors, Access {
     function withdrawFunds(
         uint256 _entityId,
         address payable _treasury,
-        address[] calldata _tokenList,
-        uint256[] calldata _tokenAmounts
+        address[] memory _tokenList,
+        uint256[] memory _tokenAmounts
     ) external notPaused(FermionTypes.PausableRegion.Funds) {
         if (
             !EntityLib.hasWalletRole(
@@ -109,6 +110,17 @@ contract FundsFacet is Context, FermionErrors, Access {
      */
     function getTokenList(uint256 _entityId) external view returns (address[] memory tokenList) {
         return FermionStorage.protocolLookups().tokenList[_entityId];
+    }
+
+    /**
+     * @notice Gets the information about the available funds for an entity.
+     *
+     * @param _entityId - the entity ID
+     * @param _token - the token address
+     * @return amount - the amount available to withdraw
+     */
+    function getAvailableFunds(uint256 _entityId, address _token) external view returns (uint256 amount) {
+        return FermionStorage.protocolLookups().availableFunds[_entityId][_token];
     }
 
     /**
@@ -162,8 +174,8 @@ contract FundsFacet is Context, FermionErrors, Access {
     function withdrawFundsInternal(
         uint256 _entityId,
         address payable _destinationAddress,
-        address[] calldata _tokenList,
-        uint256[] calldata _tokenAmounts
+        address[] memory _tokenList,
+        uint256[] memory _tokenAmounts
     ) internal {
         // Cache protocol lookups for reference
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
@@ -200,16 +212,5 @@ contract FundsFacet is Context, FermionErrors, Access {
                 FundsLib.transferFundsFromProtocol(_entityId, _tokenList[i], _destinationAddress, _tokenAmounts[i]);
             }
         }
-    }
-
-    /**
-     * @notice Gets the information about the available funds for an entity.
-     *
-     * @param _entityId - the entity ID
-     * @param _token - the token address
-     * @return amount - the amount available to withdraw
-     */
-    function getAvailableFunds(uint256 _entityId, address _token) external view returns (uint256 amount) {
-        return FermionStorage.protocolLookups().availableFunds[_entityId][_token];
     }
 }

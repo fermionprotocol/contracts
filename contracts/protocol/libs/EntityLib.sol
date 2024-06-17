@@ -315,4 +315,17 @@ library EntityLib {
             );
         }
     }
+
+    function getOrCreateBuyerId(
+        address _buyerAddress,
+        FermionStorage.ProtocolLookups storage pl
+    ) internal returns (uint256 buyerId) {
+        buyerId = pl.walletId[_buyerAddress];
+
+        if (buyerId == 0) {
+            FermionTypes.EntityRole[] memory _roles = new FermionTypes.EntityRole[](1);
+            _roles[0] = FermionTypes.EntityRole.Buyer;
+            buyerId = createEntity(_buyerAddress, _roles, "", pl);
+        }
+    }
 }
