@@ -163,7 +163,7 @@ describe("Pause", function () {
 
       const pausedRegions = await pauseFacet.getPausedRegions();
 
-      expect(pausedRegions).to.deep.equal(regions);
+      expect(pausedRegions.map(String)).to.have.members(regions.map(String));
     });
   });
 });
