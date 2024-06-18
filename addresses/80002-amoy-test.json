@@ -5,49 +5,49 @@
   "protocolVersion": "0.0.1",
   "contracts": [
     {
-      "name": "FermionWrapper",
-      "address": "0xC1fD27785c958909F3Fee6403f6e0C8D425E3a91",
+      "name": "FermionFNFT",
+      "address": "0x752a1CB845e082A73Aa340B66bBA61565368B9B6",
       "args": [
         "0xFFcd4c407B60B0d4351945484F9354d2C9E34EA1",
         {
           "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
-          "openSeaConduit": "0x0000000000000000000000000000000000000000",
-          "openSeaConduitKey": "0x0000000000000000000000000000000000000000000000000000000000000000"
+          "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
+          "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000"
         }
       ]
     },
     {
       "name": "DiamondCutFacet",
-      "address": "0x9a4d1e10eF41952d59A94e16e0e2378c69Cfdb39",
+      "address": "0x525F1174B4d2ed7cF5C183de5E00439aFd9B584B",
       "args": []
     },
     {
       "name": "DiamondLoupeFacet",
-      "address": "0x1b392C57e5c497B749f6Cacea277190b89B270C5",
+      "address": "0x6359FA7AD022682799aBB1b772fAc0f48F652C7B",
       "args": []
     },
     {
-      "name": "OwnershipFacet",
-      "address": "0x6Ceb36aDBDDC325Cb27F27d8B32B85b5256F537E",
+      "name": "AccessController",
+      "address": "0x70dbFcCd334E15Ed8d892636Ba97C6FDB13a394a",
       "args": []
     },
     {
       "name": "InitializationFacet",
-      "address": "0xb5b31A717C7420E51E89A8188F9F63865573E4DF",
+      "address": "0x4Be7B31B914F532DAA1Ed3f0E8b891301a2eE61B",
       "args": []
     },
     {
       "name": "FermionDiamond",
-      "address": "0x101Cbc4C2232Ed84375B5e7f261d657c9ad10cB1",
+      "address": "0x5CB319455264139ab1DdEc1019acCB63efBE85F6",
       "args": [
         [
           {
-            "facetAddress": "0x9a4d1e10eF41952d59A94e16e0e2378c69Cfdb39",
+            "facetAddress": "0x525F1174B4d2ed7cF5C183de5E00439aFd9B584B",
             "action": 0,
             "functionSelectors": ["0x1f931c1c"]
           },
           {
-            "facetAddress": "0x1b392C57e5c497B749f6Cacea277190b89B270C5",
+            "facetAddress": "0x6359FA7AD022682799aBB1b772fAc0f48F652C7B",
             "action": 0,
             "functionSelectors": [
               "0xcdffacc6",
@@ -58,51 +58,72 @@
             ]
           },
           {
-            "facetAddress": "0x6Ceb36aDBDDC325Cb27F27d8B32B85b5256F537E",
+            "facetAddress": "0x70dbFcCd334E15Ed8d892636Ba97C6FDB13a394a",
             "action": 0,
-            "functionSelectors": ["0x8da5cb5b", "0xf2fde38b"]
+            "functionSelectors": [
+              "0xa217fddf",
+              "0x248a9ca3",
+              "0x2f2ff15d",
+              "0x91d14854",
+              "0x36568abe",
+              "0xd547741f"
+            ]
           },
           {
-            "facetAddress": "0xb5b31A717C7420E51E89A8188F9F63865573E4DF",
+            "facetAddress": "0x4Be7B31B914F532DAA1Ed3f0E8b891301a2eE61B",
             "action": 0,
             "functionSelectors": ["0x0d8e6e2c"]
           }
         ],
         {
-          "owner": "0x2a91A0148EE62fA638bE38C7eE05c29a3e568dD8",
-          "init": "0xb5b31A717C7420E51E89A8188F9F63865573E4DF",
-          "initCalldata": "0x6477e2990000000000000000000000007de418a7ce94debd057c34ebac232e7027634ade000000000000000000000000c1fd27785c958909f3fee6403f6e0c8d425e3a91"
+          "init": "0x4Be7B31B914F532DAA1Ed3f0E8b891301a2eE61B",
+          "initCalldata": "0x1e8c877600000000000000000000000070dbfccd334e15ed8d892636ba97c6fdb13a394a0000000000000000000000002a91a0148ee62fa638be38c7ee05c29a3e568dd80000000000000000000000007de418a7ce94debd057c34ebac232e7027634ade000000000000000000000000752a1cb845e082a73aa340b66bba61565368b9b6"
         }
       ]
     },
     {
+      "name": "ConfigFacet",
+      "address": "0x522AFC30aD0D0865e13F08a8a8f64Ae050bC6494",
+      "args": []
+    },
+    {
       "name": "EntityFacet",
-      "address": "0xB336d1b8AEd1388c260d5cAfD86c9cfe7e3307ea",
+      "address": "0xd12EeE1D9C16fC989550cce58a572093581515d9",
       "args": []
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x82A4Eb7E081122795e0c557fCAC4C936ad485612",
-      "args": ["0x101Cbc4C2232Ed84375B5e7f261d657c9ad10cB1"]
+      "address": "0x1B151f3c384dcB29Ecd30E47c9e5351D0D6B4d16",
+      "args": ["0x5CB319455264139ab1DdEc1019acCB63efBE85F6"]
     },
     {
       "name": "OfferFacet",
-      "address": "0xcC1AF260111da360f99283bA0d048c3bf23b02bA",
+      "address": "0xDA01E28EA66B4294EeE21013bC45a0114E976Da4",
       "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0x95022c24A6844130c4095D063DcAb4796a9210B1",
+      "address": "0x062707A99e2634Eb5305804d1DcC9FCDcc215366",
       "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
     },
     {
       "name": "CustodyFacet",
-      "address": "0x9dE7cA2ea5e80263578EAfD2D350d7DEf341EF6C",
+      "address": "0x0b5C2082Ba720C70bCC01F16A0993B3C045ade74",
       "args": []
     },
     {
       "name": "FundsFacet",
-      "address": "0xEeB9664e0E20658F0599715397c37ceE60d8fEf3",
+      "address": "0x47fC326d98aB6b3033A8F321911356E9afB057dE",
+      "args": []
+    },
+    {
+      "name": "PauseFacet",
+      "address": "0xf16521a00137F3ca220a80038f2a4A65606ef23c",
+      "args": []
+    },
+    {
+      "name": "CustodyVaultFacet",
+      "address": "0x6f2ED6747cEa24f969216aBDAA89d8F0473Cf5Cc",
       "args": []
     }
   ]
