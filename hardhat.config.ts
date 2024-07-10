@@ -46,6 +46,18 @@ const config: HardhatUserConfig = {
       url: vars.get("RPC_PROVIDER_AMOY", "https://rpc-amoy.polygon.technology"),
       accounts: [vars.get("DEPLOYER_KEY_AMOY", DEFAULT_DEPLOYER_KEY)],
     },
+    sepolia: {
+      url: vars.get("RPC_PROVIDER_SEPOLIA", "https://rpc.sepolia.org"),
+      accounts: [vars.get("DEPLOYER_KEY_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
+    },
+    polygon: {
+      url: vars.get("RPC_PROVIDER_POLYGON", "https://polygon-rpc.com"),
+      accounts: [vars.get("DEPLOYER_KEY_POLYGON", DEFAULT_DEPLOYER_KEY)],
+    },
+    ethereum: {
+      url: vars.get("RPC_PROVIDER_ETHEREUM", "https://cloudflare-eth.com"),
+      accounts: [vars.get("DEPLOYER_KEY_ETHEREUM", DEFAULT_DEPLOYER_KEY)],
+    },
   },
   solidity: {
     compilers: [
