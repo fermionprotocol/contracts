@@ -11,25 +11,22 @@ task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and init
   .addOptionalParam("env", "The deployment environment")
   .addOptionalParam("modules", "The modules to execute")
   .addFlag("dryRun", "Test the deployment without deploying")
-  .setAction(async ({ env, modules, dryRun }) => {
+  .addFlag("create3", "Use CREATE3 for deployment")
+  .setAction(async ({ env, modules, dryRun, create3 }) => {
     let balanceBefore: bigint = 0n;
     let getBalance: () => Promise<bigint> = async () => 0n;
     if (dryRun) {
       let setupDryRun;
       ({ setupDryRun, getBalance } = await import(`./scripts/dry-run`));
       ({ env, deployerBalance: balanceBefore } = await setupDryRun(env));
-      console.log("BB", balanceBefore);
     }
 
     const { deploySuite } = await import("./scripts/deploy");
-    await deploySuite(env, modules && modules.split(","));
+    await deploySuite(env, modules && modules.split(","), create3);
 
     if (dryRun) {
       const balanceAfter = await getBalance();
       const etherSpent = balanceBefore - balanceAfter;
-
-      console.log("BA", balanceAfter);
-      console.log("ES", etherSpent);
 
       const { formatUnits } = await import("ethers");
       console.log("Ether spent: ", formatUnits(etherSpent, "ether"));

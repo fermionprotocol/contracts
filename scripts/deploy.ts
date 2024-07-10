@@ -2,7 +2,8 @@ import fs from "fs";
 import hre, { ethers, network } from "hardhat";
 import { FacetCutAction, getSelectors } from "./libraries/diamond";
 import { getStateModifyingFunctionsHashes } from "./libraries/metaTransaction";
-import { writeContracts, readContracts, checkDeployerAddress } from "./libraries/utils";
+import { writeContracts, readContracts, checkDeployerAddress, deployContract } from "./libraries/utils";
+import { vars } from "hardhat/config";
 
 import { initBosonProtocolFixture, getBosonHandler } from "./../test/utils/boson-protocol";
 import { initSeaportFixture } from "./../test/utils/seaport";
@@ -12,7 +13,22 @@ import fermionConfig from "./../fermion.config";
 const version = "0.0.1";
 let deploymentData: any[] = [];
 
-export async function deploySuite(env: string = "", modules: string[] = []) {
+export async function deploySuite(env: string = "", modules: string[] = [], create3: boolean = false) {
+  if (create3) {
+    if (!vars.has(`CREATE3_ADDRESS`)) {
+      throw Error(
+        `CREATE3_ADDRESS not found in configuration variables. Use 'npx hardhat vars set CREATE3_ADDRESS' to set it or 'npx hardhat vars setup' to list all the configuration variables used by this project.`,
+      );
+    }
+
+    const create3Address = vars.get("CREATE3_ADDRESS");
+    const code = await ethers.provider.getCode(create3Address);
+    if (code === "0x") {
+      console.log("CREATE3 factory contract is not deployed on this network.");
+      process.exit(1);
+    }
+  }
+
   const allModules = modules.length === 0 || network.name === "hardhat" || network.name === "localhost";
 
   const deployerAddress = (await ethers.getSigners())[0].address;
@@ -94,6 +110,7 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
     ({ diamondAddress, initializationFacet, accessController } = await deployDiamond(
       bosonProtocolAddress,
       wrapperImplementationAddress,
+      create3,
     ));
     await writeContracts(deploymentData, env, version);
   } else {
@@ -195,7 +212,11 @@ export async function deploySuite(env: string = "", modules: string[] = []) {
   };
 }
 
-export async function deployDiamond(bosonProtocolAddress: string, wrapperImplementationAddress: string) {
+export async function deployDiamond(
+  bosonProtocolAddress: string,
+  wrapperImplementationAddress: string,
+  create3: boolean = false,
+) {
   const accounts = await ethers.getSigners();
   const contractOwner = accounts[0];
 
@@ -228,9 +249,17 @@ export async function deployDiamond(bosonProtocolAddress: string, wrapperImpleme
   };
 
   // deploy Diamond
-  const Diamond = await ethers.getContractFactory("Diamond");
-  const diamond = await Diamond.deploy(facetCuts, diamondArgs);
-  await diamond.waitForDeployment();
+  const diamondArgsTypes = [
+    "tuple(address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut",
+    "tuple(address init, bytes initCalldata) _args",
+  ];
+  const diamond = await deployContract(
+    "Diamond",
+    create3 ? { address: vars.get("CREATE3_ADDRESS"), salt: vars.get("CREATE3_SALT", "Fermion_default_salt") } : null,
+    [facetCuts, diamondArgs],
+    diamondArgsTypes,
+  );
+
   console.log();
   deploymentComplete("FermionDiamond", await diamond.getAddress(), [facetCuts, diamondArgs], true);
 
