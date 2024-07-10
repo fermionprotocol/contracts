@@ -10,9 +10,30 @@ const DEFAULT_DEPLOYER_KEY = "123456789abcdef123456789abcdef123456789abcdef12345
 task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and initializes the protocol diamond")
   .addOptionalParam("env", "The deployment environment")
   .addOptionalParam("modules", "The modules to execute")
-  .setAction(async ({ env, modules }) => {
+  .addFlag("dryRun", "Test the deployment without deploying")
+  .setAction(async ({ env, modules, dryRun }) => {
+    let balanceBefore: bigint = 0n;
+    let getBalance: () => Promise<bigint> = async () => 0n;
+    if (dryRun) {
+      let setupDryRun;
+      ({ setupDryRun, getBalance } = await import(`./scripts/dry-run`));
+      ({ env, deployerBalance: balanceBefore } = await setupDryRun(env));
+      console.log("BB", balanceBefore);
+    }
+
     const { deploySuite } = await import("./scripts/deploy");
     await deploySuite(env, modules && modules.split(","));
+
+    if (dryRun) {
+      const balanceAfter = await getBalance();
+      const etherSpent = balanceBefore - balanceAfter;
+
+      console.log("BA", balanceAfter);
+      console.log("ES", etherSpent);
+
+      const { formatUnits } = await import("ethers");
+      console.log("Ether spent: ", formatUnits(etherSpent, "ether"));
+    }
   });
 
 const config: HardhatUserConfig = {
