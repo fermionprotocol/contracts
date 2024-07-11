@@ -10,9 +10,27 @@ const DEFAULT_DEPLOYER_KEY = "123456789abcdef123456789abcdef123456789abcdef12345
 task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and initializes the protocol diamond")
   .addOptionalParam("env", "The deployment environment")
   .addOptionalParam("modules", "The modules to execute")
-  .setAction(async ({ env, modules }) => {
+  .addFlag("dryRun", "Test the deployment without deploying")
+  .addFlag("create3", "Use CREATE3 for deployment")
+  .setAction(async ({ env, modules, dryRun, create3 }) => {
+    let balanceBefore: bigint = 0n;
+    let getBalance: () => Promise<bigint> = async () => 0n;
+    if (dryRun) {
+      let setupDryRun;
+      ({ setupDryRun, getBalance } = await import(`./scripts/dry-run`));
+      ({ env, deployerBalance: balanceBefore } = await setupDryRun(env));
+    }
+
     const { deploySuite } = await import("./scripts/deploy");
-    await deploySuite(env, modules && modules.split(","));
+    await deploySuite(env, modules && modules.split(","), create3);
+
+    if (dryRun) {
+      const balanceAfter = await getBalance();
+      const etherSpent = balanceBefore - balanceAfter;
+
+      const { formatUnits } = await import("ethers");
+      console.log("Ether spent: ", formatUnits(etherSpent, "ether"));
+    }
   });
 
 const config: HardhatUserConfig = {
@@ -24,6 +42,18 @@ const config: HardhatUserConfig = {
     amoy: {
       url: vars.get("RPC_PROVIDER_AMOY", "https://rpc-amoy.polygon.technology"),
       accounts: [vars.get("DEPLOYER_KEY_AMOY", DEFAULT_DEPLOYER_KEY)],
+    },
+    sepolia: {
+      url: vars.get("RPC_PROVIDER_SEPOLIA", "https://rpc.sepolia.org"),
+      accounts: [vars.get("DEPLOYER_KEY_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
+    },
+    polygon: {
+      url: vars.get("RPC_PROVIDER_POLYGON", "https://polygon-rpc.com"),
+      accounts: [vars.get("DEPLOYER_KEY_POLYGON", DEFAULT_DEPLOYER_KEY)],
+    },
+    ethereum: {
+      url: vars.get("RPC_PROVIDER_ETHEREUM", "https://cloudflare-eth.com"),
+      accounts: [vars.get("DEPLOYER_KEY_ETHEREUM", DEFAULT_DEPLOYER_KEY)],
     },
   },
   solidity: {
