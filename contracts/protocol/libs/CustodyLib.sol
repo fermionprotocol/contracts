@@ -20,7 +20,7 @@ library CustodyLib {
      * @param _tokenId - the token ID
      */
     function setupCustodianItemVault(uint256 _tokenId, uint256 _itemVaultSetupTime) internal {
-        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenId];
+        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().tokenLookups[_tokenId].vault;
 
         vault.period = _itemVaultSetupTime;
         // period is the time when the vault was created (initial setup), or will be created (after buyout auction)
@@ -37,7 +37,7 @@ library CustodyLib {
      * @param _exchangeToken - the exchange token
      */
     function closeCustodianItemVault(uint256 _tokenId, uint256 _custodianId, address _exchangeToken) internal {
-        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenId];
+        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().tokenLookups[_tokenId].vault;
 
         FundsLib.increaseAvailableFunds(_custodianId, _exchangeToken, vault.amount);
 
@@ -77,7 +77,7 @@ library CustodyLib {
         {
             FermionTypes.Offer storage offer;
             (offerId, offer) = FermionStorage.getOfferFromTokenId(_firstTokenId);
-            if (_externalCall && msg.sender != pl.fermionFNFTAddress[offerId])
+            if (_externalCall && msg.sender != pl.offerLookups[offerId].fermionFNFTAddress)
                 revert FermionGeneralErrors.AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
 
             custodianId = offer.custodianId;
@@ -88,7 +88,7 @@ library CustodyLib {
         for (uint256 i = 0; i < _length; i++) {
             // temporary close individual vaults and transfer the amount for unused periods to the offer vault
             uint256 tokenId = _firstTokenId + i;
-            FermionTypes.CustodianFee storage itemVault = pl.vault[tokenId];
+            FermionTypes.CustodianFee storage itemVault = pl.tokenLookups[tokenId].vault;
 
             // when fractionalisation happens, the owner must pay for used period + 1 future period to prevent fee evasion
             uint256 balance = itemVault.amount;
@@ -115,9 +115,9 @@ library CustodyLib {
             itemVault.amount = custodianPayoff;
             closeCustodianItemVault(tokenId, custodianId, exchangeToken);
         }
-        pl.custodianVaultItems[offerId] += _length;
+        pl.offerLookups[offerId].custodianVaultItems += _length;
 
-        FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
+        FermionTypes.CustodianFee storage offerVault = pl.tokenLookups[offerId].vault;
         if (offerVault.period == 0) offerVault.period = block.timestamp;
         offerVault.amount += amountToTransferToOfferVault;
 

@@ -59,34 +59,54 @@ library FermionStorage {
         mapping(address => uint256) entityId;
         // wallet => wallet id
         mapping(address => uint256) walletId;
-        // entity id => entity admin => pending status
-        mapping(uint256 => mapping(address => bool)) pendingEntityAdmin;
-        // offerId => wrapper address
-        mapping(uint256 => address) fermionFNFTAddress;
-        // tokenId => item price
-        mapping(uint256 => uint256) itemPrice;
-        // entity id => token address => amount
-        mapping(uint256 => mapping(address => uint256)) availableFunds;
-        // entity id => all tokens with balance > 0
-        mapping(uint256 => address[]) tokenList;
         // account id => token address => index on token addresses list
         mapping(uint256 => mapping(address => uint256)) tokenIndexByAccount;
-        // token id => checkout request
-        mapping(uint256 => FermionTypes.CheckoutRequest) checkoutRequest;
-        // seller id => facilitator id => status
-        mapping(uint256 => mapping(uint256 => bool)) isSellersFacilitator;
-        // seller id => list of facilitators
-        mapping(uint256 => uint256[]) sellerFacilitators;
-        // token id => vault amount
-        mapping(uint256 => FermionTypes.CustodianFee) vault;
-        // offer id => fraction auction details
-        mapping(uint256 => FermionTypes.FractionAuction) fractionAuction;
-        // offer id => custodianVaultParameters
-        mapping(uint256 => FermionTypes.CustodianVaultParameters) custodianVaultParameters;
-        // offer id => number of items in custodian vault
-        mapping(uint256 => uint256) custodianVaultItems;
-        // token id => verification timeout
-        mapping(uint256 => uint256) itemVerificationTimeout;
+        // entity id => entity lookups
+        mapping(uint256 => EntityLookups) entityLookups;
+        // offer id => offer lookups
+        mapping(uint256 => OfferLookups) offerLookups;
+        // token id => token lookups
+        mapping(uint256 => TokenLookups) tokenLookups;
+        // entity id => seller lookups
+        mapping(uint256 => SellerLookups) sellerLookups;
+    }
+
+    struct EntityLookups {
+        // entity admin => pending status
+        mapping(address => bool) pendingEntityAdmin;
+        // token address => amount
+        mapping(address => uint256) availableFunds;
+        // all tokens with balance > 0
+        address[] tokenList;
+    }
+
+    struct OfferLookups {
+        // fermion FNFT address
+        address fermionFNFTAddress;
+        // fraction auction details
+        FermionTypes.FractionAuction fractionAuction;
+        // custodianVaultParameters
+        FermionTypes.CustodianVaultParameters custodianVaultParameters;
+        // number of items in custodian vault
+        uint256 custodianVaultItems;
+    }
+
+    struct TokenLookups {
+        // item price
+        uint256 itemPrice;
+        // checkout request
+        FermionTypes.CheckoutRequest checkoutRequest;
+        // vault amount
+        FermionTypes.CustodianFee vault;
+        // verification timeout
+        uint256 itemVerificationTimeout;
+    }
+
+    struct SellerLookups {
+        // facilitator id => status
+        mapping(uint256 => bool) isSellersFacilitator;
+        // list of facilitators
+        uint256[] sellerFacilitators;
     }
 
     // Storage related to Meta Transactions

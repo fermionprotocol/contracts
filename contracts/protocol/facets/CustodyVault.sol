@@ -108,11 +108,11 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         verifyFermionFNFTCaller(offerId, pl);
 
         // trust the F-NFT contract that the token was added to offer vault at some point, i.e. it was fractionalised
-        FermionTypes.CustodianFee storage offerVault = pl.vault[offerId];
+        FermionTypes.CustodianFee storage offerVault = pl.tokenLookups[offerId].vault;
 
         {
             FermionTypes.CustodianFee storage custodianFee = offer.custodianFee;
-            uint256 itemCount = pl.custodianVaultItems[offerId];
+            uint256 itemCount = pl.offerLookups[offerId].custodianVaultItems;
             uint256 itemBalance = offerVault.amount / itemCount;
 
             uint256 custodianPayoff = ((_buyoutAuctionEnd - offerVault.period) * custodianFee.amount) /
@@ -128,7 +128,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
                 offerVault.amount -= itemBalance;
             }
 
-            pl.custodianVaultItems[offerId]--;
+            pl.offerLookups[offerId].custodianVaultItems--;
 
             {
                 address exchangeToken = offer.exchangeToken;
@@ -204,7 +204,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         } else {
             (, offer) = FermionStorage.getOfferFromTokenId(_tokenOrOfferId);
         }
-        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_tokenOrOfferId];
+        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().tokenLookups[_tokenOrOfferId].vault;
 
         if (vault.period == 0) revert InactiveVault(_tokenOrOfferId);
 
@@ -250,13 +250,13 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             if (isOfferVault) {
                 offer = FermionStorage.protocolEntities().offer[_tokenOrOfferId];
                 offerId = _tokenOrOfferId;
-                itemCount = pl.custodianVaultItems[offerId];
+                itemCount = pl.offerLookups[offerId].custodianVaultItems;
             } else {
                 (offerId, offer) = FermionStorage.getOfferFromTokenId(_tokenOrOfferId);
                 itemCount = 1;
             }
 
-            vault = pl.vault[_tokenOrOfferId];
+            vault = pl.tokenLookups[_tokenOrOfferId].vault;
             custodianFee = offer.custodianFee;
 
             {
@@ -291,7 +291,8 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             coveredPeriods < numberOfPeriods ||
             (isOfferVault &&
                 vault.amount <
-                pl.custodianVaultItems[offerId] * pl.custodianVaultParameters[offerId].partialAuctionThreshold)
+                pl.offerLookups[offerId].custodianVaultItems *
+                    pl.offerLookups[offerId].custodianVaultParameters.partialAuctionThreshold)
         ) {
             startFractionalAuction(offerId, _tokenOrOfferId, isOfferVault, custodianFee);
         }
@@ -320,7 +321,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         uint256 _bidAmount
     ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
+        FermionTypes.FractionAuction storage fractionAuction = pl.offerLookups[_offerId].fractionAuction;
 
         uint256 auctionEndTime = fractionAuction.endTime;
         if (auctionEndTime == 0) revert AuctionNotStarted(_offerId);
@@ -366,7 +367,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
      */
     function endAuction(uint256 _offerId) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
+        FermionTypes.FractionAuction storage fractionAuction = pl.offerLookups[_offerId].fractionAuction;
 
         uint256 auctionEndTime = fractionAuction.endTime;
         if (auctionEndTime == 0) revert AuctionNotStarted(_offerId);
@@ -375,7 +376,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;
         uint256 soldFractions = fractionAuction.availableFractions;
-        IFermionFNFT(pl.fermionFNFTAddress[_offerId]).transfer(winnerAddress, soldFractions);
+        IFermionFNFT(pl.offerLookups[_offerId].fermionFNFTAddress).transfer(winnerAddress, soldFractions);
 
         // release funds in the vault
         uint256 winningBid = fractionAuction.maxBid;
@@ -385,7 +386,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         fractionAuction.bidderId = 0;
         fractionAuction.availableFractions = 0;
 
-        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().vault[_offerId];
+        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().tokenLookups[_offerId].vault;
         if (vault.period == 0) {
             // equivalent to pl.custodianVaultItems[_offerId]==0
             // buyout auction for the last item in vault started after partial auction, but ended earlier
@@ -422,15 +423,17 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         FermionTypes.CustodianFee memory _custodianFee
     ) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
+        FermionTypes.FractionAuction storage fractionAuction = pl.offerLookups[_offerId].fractionAuction;
 
-        FermionTypes.CustodianVaultParameters storage vaultParameters = pl.custodianVaultParameters[_offerId];
+        FermionTypes.CustodianVaultParameters storage vaultParameters = pl
+            .offerLookups[_offerId]
+            .custodianVaultParameters;
 
         if (fractionAuction.endTime > block.timestamp) revert AuctionOngoing(_offerId, fractionAuction.endTime);
 
         uint256 fractionsToIssue;
-        uint256 itemsInVault = pl.custodianVaultItems[_offerId];
-        address fermionFNFTAddress = pl.fermionFNFTAddress[_offerId];
+        uint256 itemsInVault = pl.offerLookups[_offerId].custodianVaultItems;
+        address fermionFNFTAddress = pl.offerLookups[_offerId].fermionFNFTAddress;
         if (!_isOfferVault) {
             // Forceful fractionalisation
             if (itemsInVault > 0) {
@@ -441,7 +444,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             } else {
                 // no vault yet. Use the default parameters
                 FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
-                _buyoutAuctionParameters.exitPrice = pl.itemPrice[_tokenId];
+                _buyoutAuctionParameters.exitPrice = pl.tokenLookups[_tokenId].itemPrice;
                 uint256 partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * _custodianFee.amount;
                 uint256 newFractionsPerAuction = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) /
                     _buyoutAuctionParameters.exitPrice;
@@ -466,7 +469,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             }
 
             itemsInVault++;
-            vaultParameters = pl.custodianVaultParameters[_offerId];
+            vaultParameters = pl.offerLookups[_offerId].custodianVaultParameters;
         }
 
         uint256 auctionEnd = block.timestamp + vaultParameters.partialAuctionDuration; // if new vault was created, this vault parameters were updated
@@ -491,9 +494,9 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         uint256 _tokenOrOfferId
     ) external view returns (FermionTypes.CustodianFee memory vault, uint256 items) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        vault = pl.vault[_tokenOrOfferId];
+        vault = pl.tokenLookups[_tokenOrOfferId].vault;
         if (_tokenOrOfferId < (1 << 128)) {
-            items = pl.custodianVaultItems[_tokenOrOfferId];
+            items = pl.offerLookups[_tokenOrOfferId].custodianVaultItems;
         } else {
             items = vault.period > 0 ? 1 : 0;
         }
@@ -508,7 +511,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
     function getPartialAuctionDetails(
         uint256 _offerId
     ) external view returns (FermionTypes.FractionAuction memory auction) {
-        return FermionStorage.protocolLookups().fractionAuction[_offerId];
+        return FermionStorage.protocolLookups().offerLookups[_offerId].fractionAuction;
     }
 
     /**
@@ -555,7 +558,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
 
         // no need to worry this gets overwritten. If `setupCustodianOfferVault` is called the second time with the same offer it
         // it means that all items from the collection were recombined, and new parameters can be set
-        pl.custodianVaultParameters[offerId] = _custodianVaultParameters;
+        pl.offerLookups[offerId].custodianVaultParameters = _custodianVaultParameters;
     }
 
     /** Checks if the caller is the F-NFT contract owning the token.
@@ -567,6 +570,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
      * @param pl - the number of tokens to add to the vault
      */
     function verifyFermionFNFTCaller(uint256 _offerId, FermionStorage.ProtocolLookups storage pl) internal view {
-        if (msg.sender != pl.fermionFNFTAddress[_offerId]) revert FermionGeneralErrors.AccessDenied(msg.sender); // not using _msgSender() since the FNFT will never use meta transactions
+        if (msg.sender != pl.offerLookups[_offerId].fermionFNFTAddress)
+            revert FermionGeneralErrors.AccessDenied(msg.sender); // not using _msgSender() since the FNFT will never use meta transactions
     }
 }
