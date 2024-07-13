@@ -111,9 +111,11 @@ contract PauseFacet is Access, PauseErrors, IPauseEvents {
 
         // Calculate the incoming paused status as the sum of individual regions
         // Use "or" to get the correct value even if the same region is specified more than once
-        for (uint256 i = 0; i < _regions.length; i++) {
-            // Get enum value as power of 2
-            incomingPaused |= 1 << uint256(_regions[i]);
+        unchecked {
+            for (uint256 i = 0; i < _regions.length; i++) {
+                // Get enum value as power of 2
+                incomingPaused |= 1 << uint256(_regions[i]);
+            }
         }
 
         // Store the paused status
