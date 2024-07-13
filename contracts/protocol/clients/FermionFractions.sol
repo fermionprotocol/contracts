@@ -281,8 +281,10 @@ abstract contract FermionFractions is
         }
         _transferFractions(address(this), msgSender, _fractionAmount);
 
-        votes.individual[msgSender] -= _fractionAmount;
-        votes.total -= _fractionAmount;
+        unchecked {
+            votes.individual[msgSender] -= _fractionAmount;
+            votes.total -= _fractionAmount;
+        }
 
         emit VoteRemoved(_tokenId, msgSender, _fractionAmount);
     }
@@ -348,7 +350,9 @@ abstract contract FermionFractions is
             // bidder has enough fractions to claim a full NFT without paying anything. Does a price matter in this case?
             bidderFractions = fractionsPerToken;
         } else {
-            bidAmount = ((fractionsPerToken - bidderFractions) * _price) / fractionsPerToken;
+            unchecked {
+                bidAmount = ((fractionsPerToken - bidderFractions) * _price) / fractionsPerToken;
+            }
         }
 
         auctionDetails.maxBidder = msgSender;
@@ -718,7 +722,9 @@ abstract contract FermionFractions is
     ) internal view returns (FermionTypes.Auction storage auction) {
         FermionTypes.Auction[] storage auctions = $.auctions[_tokenId];
         if (auctions.length == 0) revert TokenNotFractionalised(_tokenId);
-        return auctions[auctions.length - 1];
+        unchecked {
+            auction = auctions[auctions.length - 1];
+        }
     }
 
     /**
@@ -828,8 +834,10 @@ abstract contract FermionFractions is
         }
 
         claimAmount = ($.unrestricedRedeemableAmount * burnedFractions) / availableSupply;
-        $.unrestricedRedeemableSupply -= burnedFractions;
-        $.unrestricedRedeemableAmount -= claimAmount;
+        unchecked {
+            $.unrestricedRedeemableSupply -= burnedFractions;
+            $.unrestricedRedeemableAmount -= claimAmount;
+        }
 
         _burn(_from, burnedFractions);
     }
