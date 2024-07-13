@@ -322,6 +322,10 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             if (availableFunds >= _sellerDeposit) {
                 FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
             } else {
+                // For offers in native token, the seller deposit cannot be sent at the time of unwrapping.
+                // It must be deposited in advance, using `depositFunds` method.
+                if (_exchangeToken == address(0)) revert FundsErrors.NativeNotAllowed();
+
                 FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, availableFunds); // Use all available funds
 
                 uint256 remainder;
