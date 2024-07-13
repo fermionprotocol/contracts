@@ -76,7 +76,7 @@ interface CustodianVaultErrors is AuctionErrors {
     error InactiveVault(uint256 tokenId);
     error PeriodNotOver(uint256 tokenId, uint256 periodEnd);
     error InvalidPartialAuctionThreshold();
-    error InssuficientBalanceToFractionalise(uint256 tokenId, uint256 minimalDeposit);
+    error InsufficientBalanceToFractionalise(uint256 tokenId, uint256 minimalDeposit);
 }
 
 interface FundsErrors {
