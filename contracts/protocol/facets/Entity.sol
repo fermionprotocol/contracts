@@ -299,31 +299,6 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-     * @notice Deletes an entity.
-     *
-     * Emits an EntityDeleted event if successful.
-     *
-     * Reverts if:
-     * - Entity region is paused
-     * - Entity does not exist
-     * - Caller is not an admin for the entity role
-     *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
-     *
-     * @param _entityId - the entity ID
-     */
-    function deleteEntity(uint256 _entityId) external {
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        EntityLib.validateEntityId(_entityId, pl);
-        address adminWallet = validateEntityAdmin(_entityId, pl);
-
-        delete FermionStorage.protocolEntities().entityData[_entityId];
-        delete pl.entityId[adminWallet];
-
-        emit EntityDeleted(_entityId, adminWallet);
-    }
-
-    /**
      * @notice Updates the owner of the wrapper contract, associated with the offer id
      *
      * Reverts if:
