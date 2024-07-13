@@ -1692,14 +1692,14 @@ describe("Offer", function () {
 
               it("Zero available funds", async function () {
                 // Native currency offer - insufficient funds
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit - 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(sellerDeposit, sellerDeposit - 1n);
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit - 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
 
                 // Native currency offer - too much sent
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit + 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(sellerDeposit, sellerDeposit + 1n);
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit + 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
               it("Partially covered by available funds", async function () {
@@ -1709,14 +1709,14 @@ describe("Offer", function () {
                 });
 
                 // Native currency offer - insufficient funds
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder - 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(remainder, remainder - 1n);
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: remainder - 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
 
                 // Native currency offer - too much sent
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder + 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(remainder, remainder + 1n);
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: remainder + 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
             });
           });
