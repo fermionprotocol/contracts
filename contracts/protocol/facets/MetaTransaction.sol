@@ -178,21 +178,9 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         if (!mt.isAllowlisted[functionNameHash]) revert FunctionNotAllowlisted();
 
         // Function name must correspond to selector
-        bytes4 destinationFunctionSig = convertBytesToBytes4(_functionSignature);
+        bytes4 destinationFunctionSig = bytes4(_functionSignature);
         bytes4 functionNameSig = bytes4(functionNameHash);
         if (destinationFunctionSig != functionNameSig) revert InvalidFunctionName();
-    }
-
-    /**
-     * @notice Converts the given bytes to bytes4.
-     *
-     * @param _inBytes - the incoming bytes
-     * @return _outBytes4 -  The outgoing bytes4
-     */
-    function convertBytesToBytes4(bytes memory _inBytes) internal pure returns (bytes4 _outBytes4) {
-        assembly {
-            _outBytes4 := mload(add(_inBytes, 32))
-        }
     }
 
     /**
@@ -329,9 +317,11 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         bytes32 _sigS,
         uint8 _sigV
     ) internal view returns (bool) {
+        bytes32 typedMessageHash = toTypedMessageHash(_hashedMetaTx);
+
         // Check if user is a contract implementing ERC1271
         if (_user.code.length > 0) {
-            try IERC1271(_user).isValidSignature(_hashedMetaTx, abi.encodePacked(_sigR, _sigS, _sigV)) returns (
+            try IERC1271(_user).isValidSignature(typedMessageHash, abi.encodePacked(_sigR, _sigS, _sigV)) returns (
                 bytes4 magicValue
             ) {
                 if (magicValue != IERC1271.isValidSignature.selector) revert InvalidSignature();
@@ -348,7 +338,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             (_sigV != 27 && _sigV != 28)
         ) revert InvalidSignature();
 
-        address signer = ecrecover(toTypedMessageHash(_hashedMetaTx), _sigV, _sigR, _sigS);
+        address signer = ecrecover(typedMessageHash, _sigV, _sigR, _sigS);
         if (signer == address(0)) revert InvalidSignature();
         return signer == _user;
     }
