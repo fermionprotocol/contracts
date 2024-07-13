@@ -72,12 +72,14 @@ contract PauseFacet is Access, PauseErrors, IPauseEvents {
         } else {
             uint256 count = 0;
 
-            for (uint256 i = 0; i < totalRegions; i++) {
-                // Check if the region is paused by bitwise AND operation with shifted 1
-                if (status.paused & (1 << i) != 0) {
-                    regions[count] = FermionTypes.PausableRegion(i);
+            unchecked {
+                for (uint256 i = 0; i < totalRegions; i++) {
+                    // Check if the region is paused by bitwise AND operation with shifted 1
+                    if (status.paused & (1 << i) != 0) {
+                        regions[count] = FermionTypes.PausableRegion(i);
 
-                    count++;
+                        count++;
+                    }
                 }
             }
 
