@@ -623,8 +623,9 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         EntityLib.validateEntityId(_sellerId, pl);
         validateEntityAdmin(_sellerId, pl);
 
-        uint256[] storage facilitators = pl.sellerLookups[_sellerId].sellerFacilitators;
-        mapping(uint256 => bool) storage isFacilitator = pl.sellerLookups[_sellerId].isSellersFacilitator;
+        FermionStorage.SellerLookups storage sellerLookups = pl.sellerLookups[_sellerId];
+        uint256[] storage facilitators = sellerLookups.sellerFacilitators;
+        mapping(uint256 => bool) storage isFacilitator = sellerLookups.isSellersFacilitator;
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
         for (uint256 i = 0; i < _facilitatorIds.length; i++) {

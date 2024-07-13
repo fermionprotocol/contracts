@@ -112,7 +112,8 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
 
         {
             FermionTypes.CustodianFee storage custodianFee = offer.custodianFee;
-            uint256 itemCount = pl.offerLookups[offerId].custodianVaultItems;
+            FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[offerId];
+            uint256 itemCount = offerLookups.custodianVaultItems;
             uint256 itemBalance = offerVault.amount / itemCount;
 
             uint256 custodianPayoff = ((_buyoutAuctionEnd - offerVault.period) * custodianFee.amount) /
@@ -128,7 +129,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
                 offerVault.amount -= itemBalance;
             }
 
-            pl.offerLookups[offerId].custodianVaultItems--;
+            offerLookups.custodianVaultItems--;
 
             {
                 address exchangeToken = offer.exchangeToken;
@@ -236,35 +237,39 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         notPaused(FermionTypes.PausableRegion.CustodyVault)
         returns (uint256 amountToRelease, address exchangeToken)
     {
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        bool isOfferVault = _tokenOrOfferId < (1 << 128);
+        uint256 tokenOrOfferId = _tokenOrOfferId; // to avoid stack too deep error
+        bool isOfferVault = tokenOrOfferId < (1 << 128);
         FermionTypes.Offer storage offer;
         uint256 offerId;
         uint256 numberOfPeriods;
         FermionTypes.CustodianFee storage vault;
         FermionTypes.CustodianFee memory custodianFee;
         uint256 coveredPeriods;
+        FermionStorage.OfferLookups storage offerLookups;
 
         {
+            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
             uint256 itemCount;
             if (isOfferVault) {
-                offer = FermionStorage.protocolEntities().offer[_tokenOrOfferId];
-                offerId = _tokenOrOfferId;
-                itemCount = pl.offerLookups[offerId].custodianVaultItems;
+                offer = FermionStorage.protocolEntities().offer[tokenOrOfferId];
+                offerId = tokenOrOfferId;
+                offerLookups = pl.offerLookups[offerId];
+                itemCount = offerLookups.custodianVaultItems;
             } else {
-                (offerId, offer) = FermionStorage.getOfferFromTokenId(_tokenOrOfferId);
+                (offerId, offer) = FermionStorage.getOfferFromTokenId(tokenOrOfferId);
+                offerLookups = pl.offerLookups[offerId];
                 itemCount = 1;
             }
 
-            vault = pl.tokenLookups[_tokenOrOfferId].vault;
+            vault = pl.tokenLookups[tokenOrOfferId].vault;
             custodianFee = offer.custodianFee;
 
             {
                 uint256 lastReleased = vault.period;
-                if (lastReleased == 0) revert InactiveVault(_tokenOrOfferId);
+                if (lastReleased == 0) revert InactiveVault(tokenOrOfferId);
 
                 if (block.timestamp < lastReleased + custodianFee.period)
-                    revert PeriodNotOver(_tokenOrOfferId, lastReleased + custodianFee.period);
+                    revert PeriodNotOver(tokenOrOfferId, lastReleased + custodianFee.period);
 
                 numberOfPeriods = (block.timestamp - lastReleased) / custodianFee.period;
                 amountToRelease = custodianFee.amount * numberOfPeriods * itemCount;
@@ -291,13 +296,12 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             coveredPeriods < numberOfPeriods ||
             (isOfferVault &&
                 vault.amount <
-                pl.offerLookups[offerId].custodianVaultItems *
-                    pl.offerLookups[offerId].custodianVaultParameters.partialAuctionThreshold)
+                offerLookups.custodianVaultItems * offerLookups.custodianVaultParameters.partialAuctionThreshold)
         ) {
-            startFractionalAuction(offerId, _tokenOrOfferId, isOfferVault, custodianFee);
+            startFractionalAuction(offerId, tokenOrOfferId, isOfferVault, custodianFee);
         }
 
-        emit VaultBalanceUpdated(_tokenOrOfferId, vault.amount);
+        emit VaultBalanceUpdated(tokenOrOfferId, vault.amount);
     }
 
     /**
@@ -367,7 +371,8 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
      */
     function endAuction(uint256 _offerId) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionTypes.FractionAuction storage fractionAuction = pl.offerLookups[_offerId].fractionAuction;
+        FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[_offerId];
+        FermionTypes.FractionAuction storage fractionAuction = offerLookups.fractionAuction;
 
         uint256 auctionEndTime = fractionAuction.endTime;
         if (auctionEndTime == 0) revert AuctionNotStarted(_offerId);
@@ -376,7 +381,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;
         uint256 soldFractions = fractionAuction.availableFractions;
-        IFermionFNFT(pl.offerLookups[_offerId].fermionFNFTAddress).transfer(winnerAddress, soldFractions);
+        IFermionFNFT(offerLookups.fermionFNFTAddress).transfer(winnerAddress, soldFractions);
 
         // release funds in the vault
         uint256 winningBid = fractionAuction.maxBid;
@@ -386,7 +391,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         fractionAuction.bidderId = 0;
         fractionAuction.availableFractions = 0;
 
-        FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().tokenLookups[_offerId].vault;
+        FermionTypes.CustodianFee storage vault = pl.tokenLookups[_offerId].vault;
         if (vault.period == 0) {
             // equivalent to pl.custodianVaultItems[_offerId]==0
             // buyout auction for the last item in vault started after partial auction, but ended earlier
@@ -423,17 +428,16 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         FermionTypes.CustodianFee memory _custodianFee
     ) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionTypes.FractionAuction storage fractionAuction = pl.offerLookups[_offerId].fractionAuction;
+        FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[_offerId];
+        FermionTypes.FractionAuction storage fractionAuction = offerLookups.fractionAuction;
 
-        FermionTypes.CustodianVaultParameters storage vaultParameters = pl
-            .offerLookups[_offerId]
-            .custodianVaultParameters;
+        FermionTypes.CustodianVaultParameters storage vaultParameters = offerLookups.custodianVaultParameters;
 
         if (fractionAuction.endTime > block.timestamp) revert AuctionOngoing(_offerId, fractionAuction.endTime);
 
         uint256 fractionsToIssue;
-        uint256 itemsInVault = pl.offerLookups[_offerId].custodianVaultItems;
-        address fermionFNFTAddress = pl.offerLookups[_offerId].fermionFNFTAddress;
+        uint256 itemsInVault = offerLookups.custodianVaultItems;
+        address fermionFNFTAddress = offerLookups.fermionFNFTAddress;
         if (!_isOfferVault) {
             // Forceful fractionalisation
             if (itemsInVault > 0) {
@@ -469,7 +473,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             }
 
             itemsInVault++;
-            vaultParameters = pl.offerLookups[_offerId].custodianVaultParameters;
+            vaultParameters = offerLookups.custodianVaultParameters;
         }
 
         uint256 auctionEnd = block.timestamp + vaultParameters.partialAuctionDuration; // if new vault was created, this vault parameters were updated

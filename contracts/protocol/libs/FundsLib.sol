@@ -84,9 +84,10 @@ library FundsLib {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
         // if the current amount of token is 0, the token address must be added to the token list
-        mapping(address => uint256) storage availableFunds = pl.entityLookups[_entityId].availableFunds;
+        FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
+        mapping(address => uint256) storage availableFunds = entityLookups.availableFunds;
         if (availableFunds[_tokenAddress] == 0) {
-            address[] storage tokenList = pl.entityLookups[_entityId].tokenList;
+            address[] storage tokenList = entityLookups.tokenList;
             tokenList.push(_tokenAddress);
             //Set index mapping. Should be index in tokenList array + 1
             pl.tokenIndexByAccount[_entityId][_tokenAddress] = tokenList.length;
@@ -169,7 +170,8 @@ library FundsLib {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
         // get available funds from storage
-        mapping(address => uint256) storage availableFunds = pl.entityLookups[_entityId].availableFunds;
+        FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
+        mapping(address => uint256) storage availableFunds = entityLookups.availableFunds;
         uint256 entityFunds = availableFunds[_tokenAddress];
 
         // make sure that seller has enough funds in the pool and reduce the available funds
@@ -183,7 +185,7 @@ library FundsLib {
         // if available funds are totally emptied, the token address is removed from the seller's tokenList
         if (entityFunds == _amount) {
             // Get the index in the tokenList array, which is 1 less than the tokenIndexByAccount index
-            address[] storage tokenList = pl.entityLookups[_entityId].tokenList;
+            address[] storage tokenList = entityLookups.tokenList;
             uint256 lastTokenIndex = tokenList.length - 1;
             mapping(address => uint256) storage entityTokens = pl.tokenIndexByAccount[_entityId];
             uint256 index = entityTokens[_tokenAddress] - 1;

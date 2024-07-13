@@ -216,13 +216,14 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             // Withdraw everything
 
             // Get list of all user's tokens
-            address[] memory tokenList = pl.entityLookups[_entityId].tokenList;
+            FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
+            address[] memory tokenList = entityLookups.tokenList;
 
             // Make sure that at least something will be withdrawn
             if (tokenList.length == 0) revert NothingToWithdraw();
 
             // Get entity's availableFunds storage pointer
-            mapping(address => uint256) storage entityFunds = pl.entityLookups[_entityId].availableFunds;
+            mapping(address => uint256) storage entityFunds = entityLookups.availableFunds;
 
             // Transfer funds
             for (uint256 i = 0; i < tokenList.length; i++) {

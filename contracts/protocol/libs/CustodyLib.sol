@@ -74,10 +74,12 @@ library CustodyLib {
         uint256 custodianId;
         address exchangeToken;
         FermionTypes.CustodianFee memory custodianFee;
+        FermionStorage.OfferLookups storage offerLookups;
         {
             FermionTypes.Offer storage offer;
             (offerId, offer) = FermionStorage.getOfferFromTokenId(_firstTokenId);
-            if (_externalCall && msg.sender != pl.offerLookups[offerId].fermionFNFTAddress)
+            offerLookups = pl.offerLookups[offerId];
+            if (_externalCall && msg.sender != offerLookups.fermionFNFTAddress)
                 revert FermionGeneralErrors.AccessDenied(msg.sender); // not using msgSender() since the FNFT will never use meta transactions
 
             custodianId = offer.custodianId;
@@ -85,6 +87,7 @@ library CustodyLib {
             custodianFee = offer.custodianFee;
         }
         uint256 amountToTransferToOfferVault;
+
         for (uint256 i = 0; i < _length; i++) {
             // temporary close individual vaults and transfer the amount for unused periods to the offer vault
             uint256 tokenId = _firstTokenId + i;
@@ -115,7 +118,7 @@ library CustodyLib {
             itemVault.amount = custodianPayoff;
             closeCustodianItemVault(tokenId, custodianId, exchangeToken);
         }
-        pl.offerLookups[offerId].custodianVaultItems += _length;
+        offerLookups.custodianVaultItems += _length;
 
         FermionTypes.CustodianFee storage offerVault = pl.tokenLookups[offerId].vault;
         if (offerVault.period == 0) offerVault.period = block.timestamp;

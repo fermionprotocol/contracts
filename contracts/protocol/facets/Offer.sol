@@ -234,8 +234,13 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
         }
 
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        address wrapperAddress = pl.offerLookups[offerId].fermionFNFTAddress;
+        FermionStorage.TokenLookups storage tokenLookups;
+        address wrapperAddress;
+        {
+            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+            tokenLookups = pl.tokenLookups[_tokenId];
+            wrapperAddress = pl.offerLookups[offerId].fermionFNFTAddress;
+        }
 
         IBosonProtocol.PriceDiscovery memory _priceDiscovery;
         _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
@@ -282,7 +287,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
             }
 
-            pl.tokenLookups[_tokenId].itemPrice = _priceDiscovery.price - bosonProtocolFee;
+            tokenLookups.itemPrice = _priceDiscovery.price - bosonProtocolFee;
 
             BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
             BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
@@ -291,7 +296,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         uint256 itemVerificationTimeout = _verificationTimeout == 0
             ? block.timestamp + FermionStorage.protocolConfig().verificationTimeout
             : _verificationTimeout;
-        pl.tokenLookups[_tokenId].itemVerificationTimeout = itemVerificationTimeout;
+        tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
         emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId, itemVerificationTimeout);
     }
 
@@ -489,16 +494,16 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         FermionStorage.ProtocolStatus storage ps
     ) internal {
         address msgSender = _msgSender();
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
 
-        address wrapperAddress = pl.offerLookups[_offerId].fermionFNFTAddress;
+        address wrapperAddress = offerLookup.fermionFNFTAddress;
         if (wrapperAddress == address(0)) {
             // Currently, the wrapper is created for each offer, since BOSON_PROTOCOL.reserveRange can be called only once
             // so else path is not possible. This is here for future proofing.
 
             // create wrapper
             wrapperAddress = Clones.cloneDeterministic(ps.fermionFNFTBeaconProxy, bytes32(_offerId));
-            pl.offerLookups[_offerId].fermionFNFTAddress = wrapperAddress;
+            offerLookup.fermionFNFTAddress = wrapperAddress;
 
             address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
             IFermionFNFT(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken);
