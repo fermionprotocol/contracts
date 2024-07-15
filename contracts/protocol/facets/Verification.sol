@@ -73,7 +73,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
     function changeVerificationTimeout(
         uint256 _tokenId,
         uint256 _newTimeout
-    ) external notPaused(FermionTypes.PausableRegion.Verification) {
+    ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
@@ -109,7 +109,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         uint256 _tokenId,
         FermionTypes.VerificationStatus _verificationStatus,
         bool _afterTimeout
-    ) internal notPaused(FermionTypes.PausableRegion.Verification) {
+    ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 verifierId = offer.verifierId;
 

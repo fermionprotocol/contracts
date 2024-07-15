@@ -5,5 +5,6 @@ module.exports = {
     "external",
     "protocol/clients/FermionFractionsERC20Base.sol",
   ],
+  modifierWhitelist: ["nonReentrant"],
   istanbulReporter: ["html", "json-summary", "lcov", "text"],
 };

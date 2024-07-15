@@ -43,7 +43,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         uint256 _length,
         FermionTypes.CustodianVaultParameters memory _custodianVaultParameters,
         uint256 _depositAmount
-    ) external returns (uint256 returnedAmount) {
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant returns (uint256 returnedAmount) {
         returnedAmount = setupCustodianOfferVault(
             _firstTokenId,
             _length,
@@ -71,7 +71,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         uint256 _firstTokenId,
         uint256 _length,
         uint256 _depositAmount
-    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) returns (uint256 returnedAmount) {
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant returns (uint256 returnedAmount) {
         (, returnedAmount) = CustodyLib.addItemToCustodianOfferVault(
             _firstTokenId,
             _length,
@@ -99,7 +99,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
     function removeItemFromCustodianOfferVault(
         uint256 _tokenId,
         uint256 _buyoutAuctionEnd
-    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) returns (int256 released) {
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant returns (int256 released) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         // Only F-NFT contract can call it
         uint256 offerId;
@@ -162,7 +162,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
     function repayDebt(
         uint256 _tokenId,
         uint256 _repaidAmount
-    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         // Only F-NFT contract can call it
         uint256 offerId;
@@ -194,7 +194,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
     function topUpCustodianVault(
         uint256 _tokenOrOfferId,
         uint256 _amount
-    ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
+    ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant {
         if (_amount == 0) revert FundsErrors.ZeroDepositNotAllowed();
 
         FermionTypes.Offer storage offer;
@@ -234,6 +234,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
     )
         public
         notPaused(FermionTypes.PausableRegion.CustodyVault)
+        nonReentrant
         returns (uint256 amountToRelease, address exchangeToken)
     {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
@@ -318,7 +319,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
     function bid(
         uint256 _offerId,
         uint256 _bidAmount
-    ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) {
+    ) external payable notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
@@ -364,7 +365,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
      *
      * @param _offerId - offer ID associated with the vault
      */
-    function endAuction(uint256 _offerId) external notPaused(FermionTypes.PausableRegion.CustodyVault) {
+    function endAuction(uint256 _offerId) external notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.FractionAuction storage fractionAuction = pl.fractionAuction[_offerId];
 
@@ -436,7 +437,6 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             if (itemsInVault > 0) {
                 // vault exist already
                 IFermionFNFT(fermionFNFTAddress).mintFractions(_tokenId, 1, 0);
-
                 CustodyLib.addItemToCustodianOfferVault(_tokenId, 1, 0, false, pl);
             } else {
                 // no vault yet. Use the default parameters
@@ -536,7 +536,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         FermionTypes.CustodianVaultParameters memory _custodianVaultParameters,
         uint256 _depositAmount,
         bool _externalCall
-    ) internal notPaused(FermionTypes.PausableRegion.CustodyVault) returns (uint256 returnedAmount) {
+    ) internal returns (uint256 returnedAmount) {
         // Only F-NFT contract can call it
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 offerId;

@@ -40,7 +40,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setTreasuryAddress(
         address payable _treasuryAddress
-    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
         checkNonZeroAddress(_treasuryAddress);
         FermionStorage.protocolConfig().treasury = _treasuryAddress;
         emit TreasuryAddressChanged(_treasuryAddress);
@@ -71,7 +71,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setProtocolFeePercentage(
         uint16 _protocolFeePercentage
-    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
         // Make sure percentage is less than 10000
         checkMaxPercententage(_protocolFeePercentage);
 
@@ -104,7 +104,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setVerificationTimeout(
         uint256 _verificationTimeout
-    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
         // Make sure percentage is less than 10000
         checkNonZeroValue(_verificationTimeout);
 

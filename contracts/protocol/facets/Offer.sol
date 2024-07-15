@@ -49,7 +49,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      *
      * @param _offer Offer to list
      */
-    function createOffer(FermionTypes.Offer calldata _offer) external notPaused(FermionTypes.PausableRegion.Offer) {
+    function createOffer(
+        FermionTypes.Offer calldata _offer
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         if (
             _offer.sellerId != _offer.facilitatorId &&
             !FermionStorage.protocolLookups().isSellersFacilitator[_offer.sellerId][_offer.facilitatorId]
@@ -134,7 +136,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     function mintAndWrapNFTs(
         uint256 _offerId,
         uint256 _quantity
-    ) external notPaused(FermionTypes.PausableRegion.Offer) {
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
         wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
     }
@@ -222,7 +224,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         SeaportTypes.AdvancedOrder memory _buyerOrder,
         bool _selfSale,
         uint256 _verificationTimeout
-    ) internal notPaused(FermionTypes.PausableRegion.Offer) {
+    ) internal notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         address exchangeToken = offer.exchangeToken;
 
@@ -384,7 +386,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      *
      * @param _tokenAddress Token address
      */
-    function addSupportedToken(address _tokenAddress) external notPaused(FermionTypes.PausableRegion.Offer) {
+    function addSupportedToken(
+        address _tokenAddress
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         IBosonProtocol.DisputeResolverFee[] memory disputeResolverFees = new IBosonProtocol.DisputeResolverFee[](1);
         disputeResolverFees[0] = IBosonProtocol.DisputeResolverFee({
             tokenAddress: _tokenAddress,

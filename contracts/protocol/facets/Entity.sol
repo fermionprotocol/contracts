@@ -37,7 +37,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     function createEntity(
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
@@ -70,7 +70,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         address[] calldata _wallets,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.WalletRole[][][] calldata _walletRoles
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         addOrRemoveEntityWallets(_entityId, _wallets, _entityRoles, _walletRoles, true);
     }
 
@@ -96,7 +96,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         address[] calldata _wallets,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.WalletRole[][][] calldata _walletRoles
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         addOrRemoveEntityWallets(_entityId, _wallets, _entityRoles, _walletRoles, false);
     }
 
@@ -254,7 +254,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _newWallet - the new wallet address
      */
-    function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) {
+    function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
@@ -568,7 +568,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     function validateEntityAdmin(
         uint256 _entityId,
         FermionStorage.ProtocolLookups storage pl
-    ) internal notPaused(FermionTypes.PausableRegion.Entity) returns (address) {
+    ) internal notPaused(FermionTypes.PausableRegion.Entity) nonReentrant returns (address) {
         address msgSender = _msgSender();
         uint256 callerEntityId = pl.entityId[msgSender];
         if (callerEntityId == 0) {
