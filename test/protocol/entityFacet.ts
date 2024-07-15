@@ -176,7 +176,7 @@ describe("Entity", function () {
 
       it("Pending admin can update roles", async function () {
         const newAdmin = wallets[2];
-        await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
+        await entityFacet.setEntityAdmin(entityId, newAdmin.address);
 
         await expect(
           entityFacet
@@ -242,7 +242,7 @@ describe("Entity", function () {
 
       it("Pending admin can delete the entity", async function () {
         const newAdmin = wallets[2];
-        await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
+        await entityFacet.setEntityAdmin(entityId, newAdmin.address);
 
         await expect(entityFacet.connect(newAdmin).deleteEntity(entityId))
           .to.emit(entityFacet, "EntityDeleted")
@@ -725,21 +725,19 @@ describe("Entity", function () {
         const newAdmin = wallets[2];
 
         // test event
-        const tx = await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
-        await expect(tx)
-          .to.emit(entityFacet, "EntityWalletAdded")
-          .withArgs(entityId, newAdmin.address, [], [[WalletRole.Admin]]);
+        const tx = await entityFacet.setEntityAdmin(entityId, newAdmin.address);
+        await expect(tx).to.emit(entityFacet, "EntityAdminPending").withArgs(entityId, newAdmin.address);
 
-        // verify state
+        // verify state. The new admin does not get the roles yet
         for (const entityRole of enumIterator(EntityRole)) {
           const hasRole = await entityFacet.hasWalletRole(entityId, newAdmin.address, entityRole, WalletRole.Admin);
-          expect(hasRole).to.be.true;
+          expect(hasRole).to.be.false;
         }
       });
 
       it("When new admin perform first admin action, the entity admin is changed", async function () {
         const newAdmin = wallets[2];
-        await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
+        await entityFacet.setEntityAdmin(entityId, newAdmin.address);
         const entity = await entityFacet["getEntity(address)"](defaultSigner.address);
 
         // before new admin performs any action, the entity admin is the old admin
@@ -748,7 +746,14 @@ describe("Entity", function () {
           .withArgs(0);
 
         // make some action with the new admin
-        await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true)).to.not.be.reverted;
+        const tx = entityFacet.connect(newAdmin).setEntityAdmin(entityId, wallets[3].address);
+        await expect(tx).to.not.be.reverted;
+        await expect(tx)
+          .to.emit(entityFacet, "EntityWalletAdded")
+          .withArgs(entityId, newAdmin.address, [], [[WalletRole.Admin]]);
+        await expect(tx)
+          .to.emit(entityFacet, "EntityWalletRemoved")
+          .withArgs(entityId, defaultSigner.address, [], [[WalletRole.Admin]]);
 
         // entity is referenced by the new admin signer
         await verifyState(newAdmin, entityId, entity.roles, entity.metadataURI);
@@ -757,7 +762,7 @@ describe("Entity", function () {
           .withArgs(0);
 
         // old admin should not be able to perform entity admin actions, but can perform wallet admin actions
-        await expect(entityFacet.setEntityAdmin(entityId, newAdmin.address, true))
+        await expect(entityFacet.setEntityAdmin(entityId, newAdmin.address))
           .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
           .withArgs(entityId, defaultSigner.address);
 
@@ -779,13 +784,11 @@ describe("Entity", function () {
         const newAdmin = wallets[2];
 
         // first set it
-        await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
+        await entityFacet.setEntityAdmin(entityId, newAdmin.address);
 
         // unset it
-        const tx = await entityFacet.setEntityAdmin(entityId, newAdmin.address, false);
-        await expect(tx)
-          .to.emit(entityFacet, "EntityWalletRemoved")
-          .withArgs(entityId, newAdmin.address, [], [[WalletRole.Admin]]);
+        const tx = await entityFacet.setEntityAdmin(entityId, ZeroAddress);
+        await expect(tx).to.emit(entityFacet, "EntityAdminPending").withArgs(entityId, ZeroAddress);
 
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
@@ -794,7 +797,7 @@ describe("Entity", function () {
         }
 
         // New admin should not be able to perform admin actions
-        await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true))
+        await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address))
           .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
           .withArgs(entityId, newAdmin.address);
       });
@@ -803,7 +806,7 @@ describe("Entity", function () {
         it("Entity region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Entity]);
 
-          await expect(entityFacet.setEntityAdmin(entityId, ZeroAddress, true))
+          await expect(entityFacet.setEntityAdmin(entityId, ZeroAddress))
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Entity);
         });
@@ -811,11 +814,11 @@ describe("Entity", function () {
         it("Entity does not exist", async function () {
           const newAdmin = wallets[2];
 
-          await expect(entityFacet.setEntityAdmin(0, newAdmin.address, true))
+          await expect(entityFacet.setEntityAdmin(0, newAdmin.address))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(0);
 
-          await expect(entityFacet.setEntityAdmin(10, newAdmin.address, true))
+          await expect(entityFacet.setEntityAdmin(10, newAdmin.address))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(10);
         });
@@ -823,7 +826,7 @@ describe("Entity", function () {
         it("Caller is not an admin for the entity role", async function () {
           const newAdmin = wallets[2];
 
-          await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true))
+          await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address))
             .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
             .withArgs(entityId, newAdmin.address);
         });
@@ -833,7 +836,7 @@ describe("Entity", function () {
 
           await entityFacet.connect(newAdmin).createEntity([EntityRole.Seller, EntityRole.Custodian], metadataURI);
 
-          await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address, true))
+          await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address))
             .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
             .withArgs(entityId, newAdmin.address);
         });

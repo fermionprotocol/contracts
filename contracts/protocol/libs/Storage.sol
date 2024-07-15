@@ -59,8 +59,8 @@ library FermionStorage {
         mapping(address => uint256) entityId;
         // wallet => wallet id
         mapping(address => uint256) walletId;
-        // entity id => entity admin => pending status
-        mapping(uint256 => mapping(address => bool)) pendingEntityAdmin;
+        // entity id => pending entity admin
+        mapping(uint256 => address) pendingEntityAdmin;
         // offerId => wrapper address
         mapping(uint256 => address) fermionFNFTAddress;
         // tokenId => item price
