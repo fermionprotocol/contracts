@@ -49,6 +49,7 @@ contract FermionTypes {
     enum AuctionState {
         NotStarted,
         Ongoing,
+        Reserved,
         Finalized,
         Redeemed
     }

@@ -303,10 +303,11 @@ abstract contract FermionFractions is
      */
     function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        if (!$.isFractionalised[_tokenId]) revert TokenNotFractionalised(_tokenId);
+
         FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
-
-        if (!$.isFractionalised[_tokenId]) revert TokenNotFractionalised(_tokenId);
+        if (auctionDetails.state == FermionTypes.AuctionState.Reserved) revert AuctionReserved(_tokenId);
 
         uint256 minimalBid = (auctionDetails.maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
         if (_price < minimalBid) {
@@ -340,17 +341,16 @@ abstract contract FermionFractions is
         uint256 availableFractions = fractionsPerToken - votes.total; // available fractions to additionaly be used in bid
 
         address msgSender = _msgSender();
-        uint256 totalLockedFractions;
         uint256 bidAmount;
-        if (_fractions > availableFractions) {
+        if (_fractions >= availableFractions) {
             // bidder has enough fractions to claim a full NFT without paying anything. Bid amount is zero.
             _fractions = availableFractions;
-            // ToDo: lock for future bids/or redeem immediately
-            totalLockedFractions = _fractions + votes.individual[msgSender];
-        } else {
-            totalLockedFractions = _fractions + votes.individual[msgSender];
-            bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken;
+
+            if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuction(_tokenId);
+            auctionDetails.state = FermionTypes.AuctionState.Reserved;
         }
+        uint256 totalLockedFractions = _fractions + votes.individual[msgSender];
+        bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken;
 
         auctionDetails.maxBidder = msgSender;
         auctionDetails.lockedFractions = _fractions; // locked in addition to the votes. If outbid, this is released back to the bidder

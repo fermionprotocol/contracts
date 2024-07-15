@@ -125,6 +125,7 @@ interface FractionalisationErrors is AuctionErrors {
     error InvalidAmount();
     error TokenNotFractionalised(uint256 tokenId);
     error InvalidAuctionIndex(uint256 auctionIndex, uint256 numberOfAuctions); // auctionIndex should be less than numberOfAuctions
+    error AuctionReserved(uint256 tokenId);
 }
 
 interface FermionErrors is
