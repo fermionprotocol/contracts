@@ -25,6 +25,8 @@ library FermionStorage {
     bytes32 private constant META_TRANSACTION_POSITION =
         0x1b00ae0f5ca50b57738405440d11dc84d7b23d830f08bc0a651be8df02efae00;
 
+    // Protocol status storage
+    /// @custom:storage-location erc7201:fermion.protocol.status
     struct ProtocolStatus {
         // Current protocol version
         bytes32 version;
@@ -40,6 +42,8 @@ library FermionStorage {
         uint256 paused;
     }
 
+    // Protocol config storage
+    /// @custom:storage-location erc7201:fermion.protocol.config
     struct ProtocolConfig {
         // Protocol treasury address
         address payable treasury;
@@ -50,6 +54,7 @@ library FermionStorage {
     }
 
     // Protocol entities storage
+    /// @custom:storage-location erc7201:fermion.protocol.entities
     struct ProtocolEntities {
         // entity id => entity data
         mapping(uint256 => FermionTypes.EntityData) entityData;
@@ -60,6 +65,7 @@ library FermionStorage {
     }
 
     // Protocol lookup storage
+    /// @custom:storage-location erc7201:fermion.protocol.lookups
     struct ProtocolLookups {
         // entity counter
         uint256 entityCounter;
@@ -100,6 +106,7 @@ library FermionStorage {
     }
 
     // Storage related to Meta Transactions
+    /// @custom:storage-location erc7201:fermion.meta.transaction
     struct MetaTransaction {
         // The address of the protocol contract
         address fermionAddress;
