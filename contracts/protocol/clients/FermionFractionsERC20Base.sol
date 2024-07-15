@@ -20,6 +20,8 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  *   have different return types and cannot be overriden in the usual way.
  */
 abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors {
+    event FractionsTransfer(address indexed from, address indexed to, uint256 value);
+
     // ERC20
     /// @custom:storage-location erc7201:openzeppelin.storage.ERC20
     struct ERC20Storage {
@@ -185,7 +187,8 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
             }
         }
 
-        emit IERC721.Transfer(from, to, value); // ERC20 Transfer event and ERC721 Transfer events have the same signature
+        // NB: not emitting standard ERC20 transfer event since it clashes with ERC721 Transfer event and it could lead to inconsistentcies
+        emit FractionsTransfer(from, to, value);
     }
 
     /**
