@@ -1114,7 +1114,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: fractionsPerToken,
-          lockedFractions: votes,
+          lockedFractions: 0n, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.Ongoing),
         };
@@ -1148,7 +1148,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: 0n,
-          lockedFractions: votes,
+          lockedFractions: 0n, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.NotStarted),
         };
@@ -1237,7 +1237,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: fractionsPerToken,
-          lockedFractions: fractions + votes,
+          lockedFractions: fractions, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.Ongoing),
         };
@@ -1271,7 +1271,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: 0n,
-          lockedFractions: fractions + votes,
+          lockedFractions: fractions, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.NotStarted),
         };
@@ -1357,7 +1357,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: fractionsPerToken,
-          lockedFractions: fractionsPart + votes,
+          lockedFractions: fractionsPart, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.Ongoing),
         };
@@ -1395,7 +1395,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: fractionsPerToken,
-          lockedFractions: fractionsPerToken,
+          lockedFractions: fractionsPerToken - votes, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.Ongoing),
         };
@@ -1889,7 +1889,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount);
       expectedAuctionDetails.timer = auctionEnd;
       expectedAuctionDetails.lockedBidAmount = bidAmount;
-      expectedAuctionDetails.lockedFractions = votes;
+      expectedAuctionDetails.lockedFractions = 0n; // locked fractions do not include votes
       expect(await fermionFNFTProxy.getAuctionDetails(startTokenId)).to.eql(Object.values(expectedAuctionDetails));
       expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(0n); // all fractions used
       expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
@@ -1925,7 +1925,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount);
       expectedAuctionDetails.timer = auctionEnd;
       expectedAuctionDetails.lockedBidAmount = bidAmount;
-      expectedAuctionDetails.lockedFractions = fractions + votes;
+      expectedAuctionDetails.lockedFractions = fractions; // locked fractions do not include votes
       expect(await fermionFNFTProxy.getAuctionDetails(startTokenId)).to.eql(Object.values(expectedAuctionDetails));
       expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(0n); // all fractions used
       expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);

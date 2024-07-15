@@ -333,33 +333,34 @@ abstract contract FermionFractions is
         }
 
         // Return to the previous bidder the fractions and the bid
-        FermionTypes.Votes storage votes = auction.votes;
         address exchangeToken = $.exchangeToken;
-        {
-            payOutLastBidder(auctionDetails, votes, exchangeToken);
-        }
+        payOutLastBidder(auctionDetails, exchangeToken);
+
+        FermionTypes.Votes storage votes = auction.votes;
+        uint256 availableFractions = fractionsPerToken - votes.total; // available fractions to additionaly be used in bid
 
         address msgSender = _msgSender();
-        uint256 lockedIndividualVotes = votes.individual[msgSender];
-        uint256 bidderFractions = _fractions + lockedIndividualVotes;
-
+        uint256 totalLockedFractions;
         uint256 bidAmount;
-        if (bidderFractions > fractionsPerToken) {
-            // bidder has enough fractions to claim a full NFT without paying anything. Does a price matter in this case?
-            bidderFractions = fractionsPerToken;
+        if (_fractions > availableFractions) {
+            // bidder has enough fractions to claim a full NFT without paying anything. Bid amount is zero.
+            _fractions = availableFractions;
+            // ToDo: lock for future bids/or redeem immediately
+            totalLockedFractions = _fractions + votes.individual[msgSender];
         } else {
-            bidAmount = ((fractionsPerToken - bidderFractions) * _price) / fractionsPerToken;
+            totalLockedFractions = _fractions + votes.individual[msgSender];
+            bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken;
         }
 
         auctionDetails.maxBidder = msgSender;
-        auctionDetails.lockedFractions = bidderFractions;
+        auctionDetails.lockedFractions = _fractions; // locked in addition to the votes. If outbid, this is released back to the bidder
         auctionDetails.maxBid = _price;
 
-        if (_fractions > 0) _transferFractions(msgSender, address(this), bidderFractions - lockedIndividualVotes);
+        if (_fractions > 0) _transferFractions(msgSender, address(this), _fractions);
         if (bidAmount > 0) FundsLib.validateIncomingPayment(exchangeToken, bidAmount);
 
         auctionDetails.lockedBidAmount = bidAmount;
-        emit Bid(_tokenId, msgSender, _price, bidderFractions, bidAmount);
+        emit Bid(_tokenId, msgSender, _price, totalLockedFractions, bidAmount);
     }
 
     /**
@@ -389,7 +390,7 @@ abstract contract FermionFractions is
         }
 
         // auction has not started yet, and the timeout passed
-        payOutLastBidder(auctionDetails, auction.votes, $.exchangeToken);
+        payOutLastBidder(auctionDetails, $.exchangeToken);
 
         delete auction.details;
 
@@ -746,7 +747,19 @@ abstract contract FermionFractions is
 
         if (block.timestamp <= auctionDetails.timer) revert AuctionOngoing(_tokenId, auctionDetails.timer);
 
-        uint256 winnersLockedFractions = auctionDetails.lockedFractions;
+        FermionTypes.Votes storage votes = auction.votes;
+
+        uint256 winnersLockedFractions;
+        {
+            address maxBidder = auctionDetails.maxBidder;
+            uint256 winnersLockedVotes = votes.individual[maxBidder];
+            winnersLockedFractions = auctionDetails.lockedFractions + winnersLockedVotes;
+
+            votes.individual[maxBidder] = 0;
+            if (winnersLockedVotes > 0) votes.total -= winnersLockedVotes;
+            _burn(address(this), winnersLockedFractions);
+        }
+
         uint256 auctionProceeds = auctionDetails.lockedBidAmount;
         uint256 fractionsPerToken = auctionDetails.totalFractions;
         uint256 auctionIndex = $.lockedProceeds[_tokenId].length - 1;
@@ -769,16 +782,6 @@ abstract contract FermionFractions is
 
             FundsLib.transferFundsFromProtocol($.exchangeToken, payable(auctionDetails.maxBidder), claimAmount);
             auctionProceeds += (releasedFromVault - claimAmount);
-        }
-        FermionTypes.Votes storage votes = auction.votes;
-
-        if (winnersLockedFractions > 0) {
-            address maxBidder = auctionDetails.maxBidder;
-            uint256 winnersLockedVotes = votes.individual[maxBidder];
-            // add winners locked fractions to the votes, so they get their part
-            votes.individual[maxBidder] = 0;
-            if (winnersLockedVotes > 0) votes.total -= winnersLockedVotes;
-            _burn(address(this), winnersLockedFractions);
         }
 
         uint256 lockedVotes = votes.total;
@@ -839,19 +842,13 @@ abstract contract FermionFractions is
      *
      *
      * @param _auction The auction details
-     * @param _votes The votes for the auction
      * @param _exchangeToken The exchange token
      */
-    function payOutLastBidder(
-        FermionTypes.AuctionDetails storage _auction,
-        FermionTypes.Votes storage _votes,
-        address _exchangeToken
-    ) internal {
+    function payOutLastBidder(FermionTypes.AuctionDetails storage _auction, address _exchangeToken) internal {
         address bidder = _auction.maxBidder;
         if (bidder == address(0)) return; // no previous bidder
 
-        uint256 lockedIndividualVotes = _votes.individual[bidder];
-        uint256 lockedFractions = _auction.lockedFractions - lockedIndividualVotes;
+        uint256 lockedFractions = _auction.lockedFractions;
 
         // transfer to previus bidder if they used some of the fractions. Do not transfer the locked votes.
         if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
