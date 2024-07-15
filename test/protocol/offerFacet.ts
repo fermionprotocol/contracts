@@ -1204,14 +1204,14 @@ describe("Offer", function () {
 
               it("Zero available funds", async function () {
                 // Native currency offer - insufficient funds
-                await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit - 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(sellerDeposit, sellerDeposit - 1n);
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit - 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
 
                 // Native currency offer - too much sent
-                await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit + 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(sellerDeposit, sellerDeposit + 1n);
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit + 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
               it("Partially covered by available funds", async function () {
@@ -1221,14 +1221,14 @@ describe("Offer", function () {
                 });
 
                 // Native currency offer - insufficient funds
-                await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder - 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(remainder, remainder - 1n);
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder - 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
 
                 // Native currency offer - too much sent
-                await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder + 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(remainder, remainder + 1n);
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder + 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
             });
           });
@@ -1483,55 +1483,6 @@ describe("Offer", function () {
             bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
           });
 
-          it("Zero available funds", async function () {
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit });
-
-            // events:
-            // fermion
-            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
-            await expect(tx)
-              .to.emit(offerFacet, "VerificationInitiated")
-              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
-
-            // Boson:
-            await expect(tx)
-              .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, ZeroAddress, sellerDeposit, defaultCollectionAddress);
-
-            // State:
-            const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit);
-            expect(await fundsFacet.getAvailableFunds(sellerId, ZeroAddress)).to.equal(0);
-          });
-
-          it("Partially covered by available funds", async function () {
-            const remainder = sellerDeposit / 10n;
-            await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
-              value: sellerDeposit - remainder,
-            });
-
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: remainder });
-
-            // events:
-            // fermion
-            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
-            await expect(tx)
-              .to.emit(offerFacet, "VerificationInitiated")
-              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
-
-            // Boson:
-            await expect(tx)
-              .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, ZeroAddress, sellerDeposit, defaultCollectionAddress);
-
-            // State:
-            const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit);
-            expect(await fundsFacet.getAvailableFunds(sellerId, ZeroAddress)).to.equal(0);
-          });
-
           it("Fully covered by available funds", async function () {
             await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit, {
               value: sellerDeposit,
@@ -1690,19 +1641,41 @@ describe("Offer", function () {
                 await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
               });
 
-              it("Zero available funds", async function () {
+              it("Cannot deposit native - zero available funds", async function () {
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+              });
+
+              it("Cannot deposit native -  partially covered by available funds", async function () {
+                const remainder = sellerDeposit / 10n;
+                await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
+                  value: sellerDeposit - remainder,
+                });
+
+                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder })).to.be.revertedWithCustomError(
+                  fermionErrors,
+                  "NativeNotAllowed",
+                );
+              });
+
+              it.skip("Zero available funds", async function () {
+                // If we allow back the native currency offers, this test should be enabled
+
                 // Native currency offer - insufficient funds
                 await expect(
                   offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit - 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
 
                 // Native currency offer - too much sent
                 await expect(
                   offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit + 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
               });
 
-              it("Partially covered by available funds", async function () {
+              it.skip("Partially covered by available funds", async function () {
+                // If we allow back the native currency offers, this test should be enabled
+
                 const remainder = sellerDeposit / 10n;
                 await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
                   value: sellerDeposit - remainder,
@@ -1711,12 +1684,12 @@ describe("Offer", function () {
                 // Native currency offer - insufficient funds
                 await expect(
                   offerFacet.unwrapNFTToSelf(tokenId, { value: remainder - 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
 
                 // Native currency offer - too much sent
                 await expect(
                   offerFacet.unwrapNFTToSelf(tokenId, { value: remainder + 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
               });
             });
           });
