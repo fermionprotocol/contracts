@@ -244,7 +244,7 @@ abstract contract FermionFractions is
         votes.individual[msgSender] += _fractionAmount;
         votes.total += _fractionAmount;
 
-        if (votes.total > (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
+        if (votes.total >= (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
             startAuction(_tokenId);
         }
 

@@ -3020,6 +3020,15 @@ describe("FermionFNFT - fractionalisation tests", function () {
         expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(votes1 + votes2);
       });
 
+      it("When total votes match the threshold exactly, the auction starts", async function () {
+        await fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId, votes1);
+
+        const requiredVotes = applyPercentage(fractionsPerToken, auctionParameters.unlockThreshold) - votes1;
+
+        const tx = await fermionFNFTProxy.connect(bidders[1]).voteToStartAuction(startTokenId, requiredVotes);
+        await expect(tx).to.emit(fermionFNFTProxy, "AuctionStarted");
+      });
+
       it("Voting with more than available votes", async function () {
         // fractionalise another token and transfer the fractions to the bidder
         await fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit);
