@@ -93,8 +93,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         metaTx.functionName = _functionName;
         metaTx.functionSignature = _functionSignature;
 
-        if (!verify(_userAddress, hashMetaTransaction(metaTx), _sigR, _sigS, _sigV))
-            revert SignerAndSignatureDoNotMatch();
+        if (!verify(_userAddress, hashMetaTransaction(metaTx), _sigR, _sigS, _sigV)) revert SignatureValidationFailed();
 
         return executeTx(_userAddress, _functionName, _functionSignature, _nonce);
     }
@@ -334,10 +333,10 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             try IERC1271(_user).isValidSignature(_hashedMetaTx, abi.encodePacked(_sigR, _sigS, _sigV)) returns (
                 bytes4 magicValue
             ) {
-                if (magicValue != IERC1271.isValidSignature.selector) revert InvalidSignature();
+                if (magicValue != IERC1271.isValidSignature.selector) revert SignatureValidationFailed();
                 return true;
             } catch {
-                revert InvalidSignature();
+                revert SignatureValidationFailed();
             }
         }
 

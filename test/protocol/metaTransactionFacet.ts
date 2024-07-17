@@ -283,7 +283,7 @@ describe("MetaTransactions", function () {
                 s,
                 v,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "SignerAndSignatureDoNotMatch");
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
           it("Signature is invalid", async function () {
@@ -398,7 +398,7 @@ describe("MetaTransactions", function () {
                   s,
                   v,
                 ),
-            ).to.be.revertedWithCustomError(fermionErrors, "SignerAndSignatureDoNotMatch");
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
           it("Forwarded call reverts without a reason", async function () {
@@ -562,7 +562,7 @@ describe("MetaTransactions", function () {
                 ZeroHash,
                 0,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
 
             // Contract wallet reverts
             await entity.setValidity(2); // 2=revert
@@ -577,7 +577,7 @@ describe("MetaTransactions", function () {
                 ZeroHash,
                 0,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
           it("Contract does not implement `isValidSignature`", async function () {
@@ -600,7 +600,7 @@ describe("MetaTransactions", function () {
                 ZeroHash,
                 0,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
         });
       });
