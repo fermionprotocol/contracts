@@ -148,7 +148,7 @@ describe("Verification", function () {
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
     const tx = await offerFacet.unwrapNFTToSelf(tokenIdSelf);
     const timestamp = BigInt((await tx.getBlock()).timestamp);
-    itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.verificationTimeout);
+    itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.defaultVerificationTimeout);
 
     exchange.offerId = offerId;
     exchange.exchangeId = exchangeId;

@@ -30,7 +30,12 @@ describe("Entity", function () {
       expect(await configFacet.getProtocolFeePercentage()).to.equal(
         fermionConfig.protocolParameters.protocolFeePercentage,
       );
-      expect(await configFacet.getVerificationTimeout()).to.equal(fermionConfig.protocolParameters.verificationTimeout);
+      expect(await configFacet.getDefaultVerificationTimeout()).to.equal(
+        fermionConfig.protocolParameters.defaultVerificationTimeout,
+      );
+      expect(await configFacet.getMaxVerificationTimeout()).to.equal(
+        fermionConfig.protocolParameters.maxVerificationTimeout,
+      );
     });
 
     it("Set the treasury address", async function () {
@@ -49,12 +54,20 @@ describe("Entity", function () {
       expect(await configFacet.getProtocolFeePercentage()).to.equal(newPercentage);
     });
 
-    it("Set the verification timeout", async function () {
+    it("Set the default verification timeout", async function () {
       const newTimeout = 60n * 60n * 24n * 14n;
-      const tx = await configFacet.setVerificationTimeout(newTimeout);
-      await expect(tx).to.emit(configFacet, "VerificationTimeoutChanged").withArgs(newTimeout);
+      const tx = await configFacet.setDefaultVerificationTimeout(newTimeout);
+      await expect(tx).to.emit(configFacet, "DefaultVerificationTimeoutChanged").withArgs(newTimeout);
 
-      expect(await configFacet.getVerificationTimeout()).to.equal(newTimeout);
+      expect(await configFacet.getDefaultVerificationTimeout()).to.equal(newTimeout);
+    });
+
+    it("Set the max verification timeout", async function () {
+      const newTimeout = 60n * 60n * 24n * 60n;
+      const tx = await configFacet.setMaxVerificationTimeout(newTimeout);
+      await expect(tx).to.emit(configFacet, "MaxVerificationTimeoutChanged").withArgs(newTimeout);
+
+      expect(await configFacet.getMaxVerificationTimeout()).to.equal(newTimeout);
     });
 
     context("Revert reasons", function () {
@@ -72,7 +85,11 @@ describe("Entity", function () {
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
 
-        await expect(configFacet.connect(randomWallet).setVerificationTimeout(24n * 60n * 60n * 14n))
+        await expect(configFacet.connect(randomWallet).setDefaultVerificationTimeout(24n * 60n * 60n * 14n))
+          .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomWallet, adminRole);
+
+        await expect(configFacet.connect(randomWallet).setMaxVerificationTimeout(24n * 60n * 60n * 60n))
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
       });
@@ -88,7 +105,11 @@ describe("Entity", function () {
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
 
-        await expect(configFacet.setVerificationTimeout(24n * 60n * 60n * 14n))
+        await expect(configFacet.setDefaultVerificationTimeout(24n * 60n * 60n * 14n))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Config);
+
+        await expect(configFacet.setMaxVerificationTimeout(24n * 60n * 60n * 60n))
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
       });
@@ -107,8 +128,15 @@ describe("Entity", function () {
           .withArgs(percentage);
       });
 
-      it("Zero verification timeout", async function () {
-        await expect(configFacet.setVerificationTimeout(0n)).to.be.revertedWithCustomError(
+      it("Zero default verification timeout", async function () {
+        await expect(configFacet.setDefaultVerificationTimeout(0n)).to.be.revertedWithCustomError(
+          fermionErrors,
+          "ZeroNotAllowed",
+        );
+      });
+
+      it("Zero max verification timeout", async function () {
+        await expect(configFacet.setMaxVerificationTimeout(0n)).to.be.revertedWithCustomError(
           fermionErrors,
           "ZeroNotAllowed",
         );
