@@ -291,22 +291,22 @@ library EntityLib {
         uint256 _facilitatorId,
         address _walletAddress
     ) internal view {
-        bool isSellerOrFacilitator = hasWalletRole(
-            _sellerId,
-            _walletAddress,
-            FermionTypes.EntityRole.Seller,
-            FermionTypes.WalletRole.Assistant,
-            false
-        ) ||
-            hasWalletRole(
+        if (
+            !hasWalletRole(
+                _sellerId,
+                _walletAddress,
+                FermionTypes.EntityRole.Seller,
+                FermionTypes.WalletRole.Assistant,
+                false
+            ) &&
+            !hasWalletRole(
                 _facilitatorId,
                 _walletAddress,
                 FermionTypes.EntityRole.Seller,
                 FermionTypes.WalletRole.Assistant,
                 false
-            );
-
-        if (!isSellerOrFacilitator) {
+            )
+        ) {
             revert EntityErrors.WalletHasNoRole(
                 _sellerId,
                 _walletAddress,
