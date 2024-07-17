@@ -41,6 +41,7 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
      */
     function initializeWrapper(address _owner) internal virtual {
         initialize(_owner);
+        wrapOpenSea();
     }
 
     /**
@@ -151,6 +152,5 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
             _safeMint(_to, tokenId);
             Common.changeTokenState(tokenId, FermionTypes.TokenState.Wrapped);
         }
-        wrapOpenSea();
     }
 }
