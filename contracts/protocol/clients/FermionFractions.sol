@@ -723,7 +723,7 @@ abstract contract FermionFractions is
         FermionTypes.Auction[] storage auctions = $.auctions[_tokenId];
         if (auctions.length == 0) revert TokenNotFractionalised(_tokenId);
         unchecked {
-            auction = auctions[auctions.length - 1];
+            return auctions[auctions.length - 1];
         }
     }
 
