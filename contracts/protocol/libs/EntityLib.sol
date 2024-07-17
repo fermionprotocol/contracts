@@ -35,7 +35,7 @@ library EntityLib {
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
         FermionTypes.EntityData storage newEntity = pe.entityData[entityId];
 
-        EntityLib.storeEntity(entityId, _admin, newEntity, _roles, _metadata);
+        storeEntity(entityId, _admin, newEntity, _roles, _metadata);
         storeCompactWalletRole(entityId, _admin, 0xff << (31 * BYTE_SIZE), true, pl, pe); // compact role for all current and potential future roles
         emitAdminWalletAddedOrRemoved(entityId, _admin, true);
     }
