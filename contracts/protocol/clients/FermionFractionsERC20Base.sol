@@ -26,8 +26,6 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
         mapping(address account => uint256) _balances;
         mapping(address account => mapping(address spender => uint256)) _allowances;
         uint256 _totalSupply;
-        string _name;
-        string _symbol;
     }
 
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))

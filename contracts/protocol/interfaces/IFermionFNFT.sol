@@ -20,8 +20,9 @@ interface IFermionFNFT is IFermionWrapper, IFermionFractions {
      * @param _voucherAddress The address of the Boson Voucher contract
      * @param _owner The address of the owner
      * @param _exchangeToken The address of the exchange token
+     * @param _offerId The offer id
      */
-    function initialize(address _voucherAddress, address _owner, address _exchangeToken) external;
+    function initialize(address _voucherAddress, address _owner, address _exchangeToken, uint256 _offerId) external;
 
     /**
      * @notice Burns the token and returns the voucher owner

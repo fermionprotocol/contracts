@@ -13,6 +13,7 @@ import { Common } from "./Common.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @title Fermion F-NFT contract
@@ -36,8 +37,14 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
      * @param _voucherAddress The address of the Boson Voucher contract
      * @param _owner The address of the owner
      * @param _exchangeToken The address of the exchange token
+     * @param _offerId The offer id
      */
-    function initialize(address _voucherAddress, address _owner, address _exchangeToken) external initializer {
+    function initialize(
+        address _voucherAddress,
+        address _owner,
+        address _exchangeToken,
+        uint256 _offerId
+    ) external initializer {
         if (address(this) == THIS_CONTRACT) {
             revert InvalidInitialization();
         }
@@ -47,6 +54,9 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
 
         initializeWrapper(_owner);
         intializeFractions(_exchangeToken);
+
+        string memory _offerIdString = Strings.toString(_offerId);
+        __ERC721_init(string.concat("Fermion FNFT ", _offerIdString), string.concat("FFNFT_", _offerIdString));
     }
 
     /**

@@ -16,6 +16,7 @@ describe("FermionFNFT", function () {
   const startTokenId = 2n ** 128n + 1n;
   const quantity = 10n;
   const additionalDeposit = 0n;
+  const offerId = 123n;
 
   async function setupFermionFNFTTest() {
     wallets = await ethers.getSigners();
@@ -45,7 +46,12 @@ describe("FermionFNFT", function () {
     await mockBoson.mint(await fermionMock.getAddress(), startTokenId, quantity);
     await fermionFNFTProxy
       .attach(fermionMock)
-      .initialize(await mockBoson.getAddress(), wrapperContractOwner.address, await mockExchangeToken.getAddress());
+      .initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        await mockExchangeToken.getAddress(),
+        offerId,
+      );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
     await fermionFNFTProxy.attach(fermionMock).wrapForAuction(startTokenId, quantity, seller.address);
@@ -94,6 +100,16 @@ describe("FermionFNFT", function () {
       expect(await fermionFNFT.supportsInterface(FermionWrapperInterfaceID)).to.be.true;
       expect(await fermionFNFT.supportsInterface(FermionFractionsInterfaceID)).to.be.true;
       expect(await fermionFNFT.supportsInterface(FermionFNFTInterfaceID)).to.be.true;
+    });
+  });
+
+  context("ERC721/ERC20 methods", async function () {
+    it("name", async function () {
+      expect(await fermionFNFTProxy.name()).to.equal(`Fermion FNFT ${offerId}`);
+    });
+
+    it("symbol", async function () {
+      expect(await fermionFNFTProxy.symbol()).to.equal(`FFNFT_${offerId}`);
     });
   });
 
