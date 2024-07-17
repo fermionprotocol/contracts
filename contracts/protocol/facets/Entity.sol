@@ -251,6 +251,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity region is paused
      * - Caller is an entity admin
      * - Caller is not a wallet for any enitity
+     * - New wallet is already a wallet for an entity
      *
      * @param _newWallet - the new wallet address
      */
@@ -263,9 +264,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         uint256 walletId = pl.walletId[msgSender];
         if (walletId == 0) revert NoSuchEntity(0);
-
-        pl.walletId[_newWallet] = walletId;
         delete pl.walletId[msgSender];
+
+        if (pl.walletId[_newWallet] != 0) revert WalletAlreadyExists(_newWallet);
+        pl.walletId[_newWallet] = walletId;
 
         emit WalletChanged(msgSender, _newWallet);
     }

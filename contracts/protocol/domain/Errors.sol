@@ -38,6 +38,7 @@ interface EntityErrors {
     error ChangeNotAllowed();
     error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
     error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
+    error WalletAlreadyExists(address wallet);
 }
 
 interface OfferErrors {
