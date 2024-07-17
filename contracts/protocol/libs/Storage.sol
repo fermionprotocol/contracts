@@ -35,8 +35,10 @@ library FermionStorage {
         address payable treasury;
         // Protocol fee
         uint16 protocolFeePercentage;
-        // Verification timeout
-        uint256 verificationTimeout;
+        // Default verification timeout
+        uint256 defaultVerificationTimeout;
+        // Max verification timeout
+        uint256 maxVerificationTimeout;
     }
 
     // Protocol entities storage
@@ -87,6 +89,8 @@ library FermionStorage {
         mapping(uint256 => uint256) custodianVaultItems;
         // token id => verification timeout
         mapping(uint256 => uint256) itemVerificationTimeout;
+        // token id => max erification timeout
+        mapping(uint256 => uint256) itemMaxVerificationTimeout;
     }
 
     // Storage related to Meta Transactions

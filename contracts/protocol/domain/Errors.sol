@@ -50,6 +50,7 @@ interface OfferErrors {
 interface VerificationErrors {
     // Verification errors
     error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
+    error VerificationTimeoutTooLong(uint256 verificationTimeout, uint256 maxVerificationTimeout);
 }
 
 interface CustodyErrors {

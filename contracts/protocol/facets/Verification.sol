@@ -66,6 +66,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the seller's assistant or facilitator
+     * - New timeout is greater than the maximum timeout
      *
      * @param _tokenId - the token ID
      * @param _newTimeout - the new verification timeout
@@ -78,7 +79,13 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
 
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
 
-        FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId] = _newTimeout;
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        uint256 maxItemVerificationTimeout = pl.itemMaxVerificationTimeout[_tokenId];
+        if (_newTimeout > maxItemVerificationTimeout) {
+            revert VerificationErrors.VerificationTimeoutTooLong(_newTimeout, maxItemVerificationTimeout);
+        }
+
+        pl.itemVerificationTimeout[_tokenId] = _newTimeout;
 
         emit ItemVerificationTimeoutChanged(_tokenId, _newTimeout);
     }

@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
-import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors } from "../domain/Errors.sol";
+import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -191,7 +191,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      *
      * @param _tokenId - the token ID
      * @param _buyerOrder - the Seaport buyer order
-     * @param _verificationTimeout - the verification timeout
+     * @param _verificationTimeout - the verification timeout in UNIX timestamp
      */
     function unwrapNFTAndSetVerificationTimeout(
         uint256 _tokenId,
@@ -211,11 +211,12 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * - If seller deposit is non zero and there are not enough funds to cover it
      * - It is self sale and the caller does not provide the verification fee
      * - It is a normal sale and the price is not high enough to cover the verification fee
+     * - The verification timeout is too long
      *
      * @param _tokenId - the token ID
      * @param _buyerOrder - the Seaport buyer order (if not self sale)
      * @param _selfSale - if true, the NFT is unwrapped to the seller
-     * @param _verificationTimeout - the verification timeout
+     * @param _verificationTimeout - the verification timeout in UNIX timestamp
      */
     function unwrapNFT(
         uint256 _tokenId,
@@ -224,75 +225,100 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         uint256 _verificationTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Offer) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-        address exchangeToken = offer.exchangeToken;
-
-        // Check the caller is the the seller's assistant
-        {
-            uint256 sellerId = offer.sellerId;
-            EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
-
-            handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
-        }
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        address wrapperAddress = pl.fermionFNFTAddress[offerId];
-
-        IBosonProtocol.PriceDiscovery memory _priceDiscovery;
-        _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
-        _priceDiscovery.priceDiscoveryContract = wrapperAddress;
-        _priceDiscovery.conduit = wrapperAddress;
         {
-            uint256 bosonProtocolFee;
-            if (_selfSale) {
-                uint256 minimalPrice;
-                (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                    exchangeToken,
-                    offer.verifierFee,
-                    0
-                );
-                if (minimalPrice > 0) {
-                    FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-                    IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
-                }
+            address exchangeToken = offer.exchangeToken;
 
-                _priceDiscovery.price = minimalPrice;
-                _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                    IFermionWrapper.unwrapToSelf,
-                    (_tokenId, exchangeToken, minimalPrice)
-                );
-            } else {
-                if (_buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount) {
-                    revert InvalidOrder();
-                }
-                unchecked {
-                    _priceDiscovery.price =
-                        _buyerOrder.parameters.offer[0].startAmount -
-                        _buyerOrder.parameters.consideration[1].startAmount;
-                }
+            // Check the caller is the the seller's assistant
+            {
+                uint256 sellerId = offer.sellerId;
+                EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
 
-                uint256 minimalPrice;
-                (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                    exchangeToken,
-                    offer.verifierFee,
-                    _priceDiscovery.price
-                );
-                if (_priceDiscovery.price < minimalPrice) {
-                    revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
-                }
-                _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
+                handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
             }
 
-            pl.itemPrice[_tokenId] = _priceDiscovery.price - bosonProtocolFee;
+            address wrapperAddress = pl.fermionFNFTAddress[offerId];
 
-            BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
-            BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
+            IBosonProtocol.PriceDiscovery memory _priceDiscovery;
+            _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
+            _priceDiscovery.priceDiscoveryContract = wrapperAddress;
+            _priceDiscovery.conduit = wrapperAddress;
+            {
+                uint256 bosonProtocolFee;
+                if (_selfSale) {
+                    uint256 minimalPrice;
+                    (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                        exchangeToken,
+                        offer.verifierFee,
+                        0
+                    );
+                    if (minimalPrice > 0) {
+                        FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
+                        IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
+                    }
+
+                    _priceDiscovery.price = minimalPrice;
+                    _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+                        IFermionWrapper.unwrapToSelf,
+                        (_tokenId, exchangeToken, minimalPrice)
+                    );
+                } else {
+                    if (
+                        _buyerOrder.parameters.offer[0].startAmount <
+                        _buyerOrder.parameters.consideration[1].startAmount
+                    ) {
+                        revert InvalidOrder();
+                    }
+                    unchecked {
+                        _priceDiscovery.price =
+                            _buyerOrder.parameters.offer[0].startAmount -
+                            _buyerOrder.parameters.consideration[1].startAmount;
+                    }
+
+                    uint256 minimalPrice;
+                    (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                        exchangeToken,
+                        offer.verifierFee,
+                        _priceDiscovery.price
+                    );
+                    if (_priceDiscovery.price < minimalPrice) {
+                        revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
+                    }
+                    _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+                        IFermionWrapper.unwrap,
+                        (_tokenId, _buyerOrder)
+                    );
+                }
+
+                pl.itemPrice[_tokenId] = _priceDiscovery.price - bosonProtocolFee;
+
+                BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
+                BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
+            }
         }
 
-        uint256 itemVerificationTimeout = _verificationTimeout == 0
-            ? block.timestamp + FermionStorage.protocolConfig().verificationTimeout
-            : _verificationTimeout;
+        uint256 itemVerificationTimeout;
+        FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
+        uint256 maxItemVerificationTimeout = block.timestamp + pc.maxVerificationTimeout;
+        if (_verificationTimeout == 0) {
+            itemVerificationTimeout = block.timestamp + pc.defaultVerificationTimeout;
+        } else {
+            if (_verificationTimeout > maxItemVerificationTimeout) {
+                revert VerificationErrors.VerificationTimeoutTooLong(_verificationTimeout, maxItemVerificationTimeout);
+            }
+            itemVerificationTimeout = _verificationTimeout;
+        }
         pl.itemVerificationTimeout[_tokenId] = itemVerificationTimeout;
-        emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId, itemVerificationTimeout);
+        pl.itemMaxVerificationTimeout[_tokenId] = maxItemVerificationTimeout;
+
+        emit IVerificationEvents.VerificationInitiated(
+            offerId,
+            offer.verifierId,
+            _tokenId,
+            itemVerificationTimeout,
+            maxItemVerificationTimeout
+        );
     }
 
     /**
