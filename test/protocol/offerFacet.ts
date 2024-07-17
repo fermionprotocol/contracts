@@ -3,6 +3,7 @@ import {
   deployFermionProtocolFixture,
   deployMockTokens,
   deriveTokenId,
+  setNextBlockTimestamp,
   verifySellerAssistantRoleClosure,
 } from "../utils/common";
 import { getBosonHandler, getBosonVoucher } from "../utils/boson-protocol";
@@ -1298,6 +1299,23 @@ describe("Offer", function () {
               "InvalidOrder",
             );
           });
+
+          it("Custom verification timeout too long", async function () {
+            const nextBlockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp) + 10n;
+            const customItemVerificationTimeout =
+              nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout + 10n;
+
+            await setNextBlockTimestamp(String(nextBlockTimestamp));
+
+            await expect(
+              offerFacet.unwrapNFTAndSetVerificationTimeout(tokenId, buyerAdvancedOrder, customItemVerificationTimeout),
+            )
+              .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
+              .withArgs(
+                customItemVerificationTimeout,
+                nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout,
+              );
+          });
         });
 
         context("Seaport tests", function () {
@@ -1814,6 +1832,25 @@ describe("Offer", function () {
             await expect(offerFacet.unwrapNFTToSelf(tokenId)).to.be.revertedWith(
               "ERC20: transfer amount exceeds balance",
             ); // old error style
+          });
+
+          it("Custom verification timeout too long", async function () {
+            const nextBlockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp) + 10n;
+            const customItemVerificationTimeout =
+              nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout + 10n;
+
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+            await mockToken.approve(fermionProtocolAddress, minimalPrice);
+
+            await setNextBlockTimestamp(String(nextBlockTimestamp));
+
+            await expect(offerFacet.unwrapNFTToSelfAndSetVerificationTimeout(tokenId, customItemVerificationTimeout))
+              .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
+              .withArgs(
+                customItemVerificationTimeout,
+                nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout,
+              );
           });
         });
       });
