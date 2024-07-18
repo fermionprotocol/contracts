@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { ADMIN } from "../domain/Constants.sol";
-import { MetaTransactionErrors } from "../domain/Errors.sol";
+import { MetaTransactionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
@@ -37,6 +37,8 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
      * @param _fermionProtocolAddress - the address of the Fermion Protocol contract
      */
     constructor(address _fermionProtocolAddress) {
+        if (_fermionProtocolAddress == address(0)) revert FermionGeneralErrors.InvalidAddress();
+
         FERMION_PROTOCOL_ADDRESS = _fermionProtocolAddress;
         CHAIN_ID_CACHED = block.chainid;
 
@@ -329,9 +331,11 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         bytes32 _sigS,
         uint8 _sigV
     ) internal view returns (bool) {
+        bytes32 typedMessageHash = toTypedMessageHash(_hashedMetaTx);
+
         // Check if user is a contract implementing ERC1271
         if (_user.code.length > 0) {
-            try IERC1271(_user).isValidSignature(_hashedMetaTx, abi.encodePacked(_sigR, _sigS, _sigV)) returns (
+            try IERC1271(_user).isValidSignature(typedMessageHash, abi.encodePacked(_sigR, _sigS, _sigV)) returns (
                 bytes4 magicValue
             ) {
                 if (magicValue != IERC1271.isValidSignature.selector) revert InvalidSignature();
@@ -348,7 +352,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             (_sigV != 27 && _sigV != 28)
         ) revert InvalidSignature();
 
-        address signer = ecrecover(toTypedMessageHash(_hashedMetaTx), _sigV, _sigR, _sigS);
+        address signer = ecrecover(typedMessageHash, _sigV, _sigR, _sigS);
         if (signer == address(0)) revert InvalidSignature();
         return signer == _user;
     }

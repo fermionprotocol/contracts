@@ -23,10 +23,12 @@ contract AccessController is AccessControl, Context, FermionErrors {
      *
      * @param _defaultAdmin - the address to grant the ADMIN role to
      */
-    function initialize(address _defaultAdmin) external {
+    function initialize(address _defaultAdmin) external initializer {
         if (address(this) == THIS_ADDRESS) revert DirectInitializationNotAllowed();
-
         if (_defaultAdmin == address(0)) revert InvalidAddress();
+
+        __AccessControl_init();
+
         _grantRole(ADMIN, _defaultAdmin);
         _setRoleAdmin(ADMIN, ADMIN);
         _setRoleAdmin(PAUSER, ADMIN);

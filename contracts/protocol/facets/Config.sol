@@ -20,7 +20,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      *
      * @param _config - the protocol configuration parameters
      */
-    function init(FermionStorage.ProtocolConfig calldata _config) public {
+    function init(FermionStorage.ProtocolConfig calldata _config) external {
         // Initialize protocol config params
         setTreasuryAddressInternal(_config.treasury);
         setProtocolFeePercentageInternal(_config.protocolFeePercentage);
@@ -41,7 +41,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setTreasuryAddress(
         address payable _treasuryAddress
-    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
         setTreasuryAddressInternal(_treasuryAddress);
     }
 
@@ -70,7 +70,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setProtocolFeePercentage(
         uint16 _protocolFeePercentage
-    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
         setProtocolFeePercentageInternal(_protocolFeePercentage);
     }
 
@@ -96,7 +96,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setVerificationTimeout(
         uint256 _verificationTimeout
-    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
         setVerificationTimeoutInternal(_verificationTimeout);
     }
 
@@ -157,10 +157,10 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      * @param _verificationTimeout - the period after anyone can reject the verification
      */
     function setVerificationTimeoutInternal(uint256 _verificationTimeout) internal {
-        // Make sure percentage is less than 10000
+        // Make sure that verification timeout greater than 0
         checkNonZeroValue(_verificationTimeout);
 
-        // Store fee percentage
+        // Store the verification timeout
         FermionStorage.protocolConfig().verificationTimeout = _verificationTimeout;
 
         // Notify watchers of state change
