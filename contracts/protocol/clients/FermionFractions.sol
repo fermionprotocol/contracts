@@ -796,10 +796,6 @@ abstract contract FermionFractions is
         auctionDetails.state = FermionTypes.AuctionState.Finalized;
 
         $.isFractionalised[_tokenId] = false;
-        if ($.nftCount == 0) {
-            // allow fractionalisation with new parameters
-            delete $.auctionParameters;
-        }
     }
 
     /**
