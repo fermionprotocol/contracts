@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
+import { FermionGeneralErrors } from "../domain/Errors.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 
@@ -39,6 +40,8 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
         address _bosonPriceDiscovery,
         SeaportConfig memory _seaportConfig
     ) FermionFNFTBase(_bosonPriceDiscovery) {
+        if (_seaportConfig.seaport == address(0)) revert FermionGeneralErrors.InvalidAddress();
+
         SEAPORT = _seaportConfig.seaport;
         OS_CONDUIT = _seaportConfig.openSeaConduit == address(0)
             ? _seaportConfig.seaport
