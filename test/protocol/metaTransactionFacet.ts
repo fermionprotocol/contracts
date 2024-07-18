@@ -577,7 +577,7 @@ describe("MetaTransactions", function () {
                 ZeroHash,
                 0,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+            ).to.be.revertedWithCustomError(entity, "UnknownValidity");
           });
 
           it("Contract does not implement `isValidSignature`", async function () {
