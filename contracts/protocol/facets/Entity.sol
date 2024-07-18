@@ -249,6 +249,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * Reverts if:
      * - Entity region is paused
+     * - New and old wallet are the same
      * - Caller is an entity admin
      * - Caller is not a wallet for any enitity
      *
@@ -256,6 +257,8 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      */
     function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) {
         address msgSender = _msgSender();
+        if (msgSender == _newWallet) revert NewWalletSameAsOld();
+
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
 
