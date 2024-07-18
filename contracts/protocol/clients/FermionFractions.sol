@@ -204,6 +204,7 @@ abstract contract FermionFractions is
      * They need to lock their fractions to vote. The fractions can be unlocked before the auction starts.
      * The fractions can be used to bid in the auction.
      * The locked votes guarantee to get the proceeds from the auction for the specific token.
+     * It's possible to vote even if the auction is ongoing and locke to proceeds this way.
      * The auction is started when the total number of locked fractions reaches the unlock threshold.
      *
      * Emits a Voted event if successful.
@@ -227,15 +228,19 @@ abstract contract FermionFractions is
 
         if (!$.isFractionalised[_tokenId]) revert TokenNotFractionalised(_tokenId);
 
+        FermionTypes.AuctionState auctionState = auctionDetails.state;
+
         address msgSender = _msgSender();
         if (auctionDetails.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
-        if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing)
-            revert AuctionOngoing(_tokenId, auctionDetails.timer);
 
-        uint256 fractionsPerToken = liquidSupply() / $.nftCount;
+        uint256 fractionsPerToken = auctionState >= FermionTypes.AuctionState.Ongoing
+            ? auctionDetails.totalFractions
+            : liquidSupply() / $.nftCount;
 
         FermionTypes.Votes storage votes = auction.votes;
-        uint256 availableFractions = fractionsPerToken - votes.total;
+        uint256 availableFractions = fractionsPerToken - votes.total - auctionDetails.lockedFractions;
+
+        if (availableFractions == 0) revert NoFractionsAvailable(_tokenId);
 
         if (_fractionAmount > availableFractions) _fractionAmount = availableFractions;
 
@@ -244,8 +249,15 @@ abstract contract FermionFractions is
         votes.individual[msgSender] += _fractionAmount;
         votes.total += _fractionAmount;
 
-        if (votes.total > (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
-            startAuction(_tokenId);
+        if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) {
+            if (votes.total > (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
+                // NB: although in theory it's acceptable to start the auction without any bids, there could be
+                // a racing situation where one user bids under the exit price, another user votes to start the auction and the first
+                // user removes the bid. To avoid this, at least one bid must exist.
+                if (auctionDetails.maxBid == 0) revert NoBids(_tokenId);
+
+                startAuction(_tokenId);
+            }
         }
 
         emit Voted(_tokenId, msgSender, _fractionAmount);
