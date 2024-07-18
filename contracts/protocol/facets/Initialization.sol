@@ -200,7 +200,7 @@ contract InitializationFacet is InitializationErrors, IInitialziationEvents {
         bool _isSupported
     ) internal {
         for (uint256 i = 0; i < _interfaces.length; i++) {
-            ds.supportedInterfaces[(_interfaces[i])] = _isSupported;
+            ds.supportedInterfaces[_interfaces[i]] = _isSupported;
         }
     }
 
