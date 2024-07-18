@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import { FermionGeneralErrors } from "../../protocol/domain/Errors.sol";
 
 /**
  * @title FermionFNFTBase
@@ -19,6 +20,7 @@ contract FermionFNFTBase is ERC721 {
      *
      */
     constructor(address _bosonPriceDiscovery) {
+        if (_bosonPriceDiscovery == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BP_PRICE_DISCOVERY = _bosonPriceDiscovery;
     }
 }
