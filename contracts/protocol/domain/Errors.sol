@@ -45,7 +45,7 @@ interface OfferErrors {
     // Offer errors
     error InvalidQuantity(uint256 quantity);
     error NoSuchOffer(uint256 offerId);
-    error InvalidOrder();
+    error InvalidOpenSeaOrder();
 }
 
 interface VerificationErrors {

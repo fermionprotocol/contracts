@@ -66,6 +66,7 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
      * @notice Prepares data to finalize the auction using Seaport
      *
      * It ASSUMES that the buyer order matches the buyer order from OpenSea. If this changes, the contract must be updated.
+     * Buyer order parameters are validate in the Fermion Protocol before calling this function.
      *
      * @param _tokenId The token id.
      * @param _buyerOrder The Seaport buyer order.
