@@ -104,7 +104,7 @@ library CustodyLib {
                         returnedAmount -= diff;
                         balance = custodianPayoff + custodianFee.amount;
                     } else {
-                        revert CustodianVaultErrors.InssuficientBalanceToFractionalise(tokenId, diff);
+                        revert CustodianVaultErrors.InsufficientBalanceToFractionalise(tokenId, diff);
                     }
                 } else {
                     // If forceful fractionalisation, transfer the max amount available to the custodian
