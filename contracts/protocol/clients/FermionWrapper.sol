@@ -152,4 +152,6 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
         }
         wrapOpenSea();
     }
+
+    receive() external payable {}
 }

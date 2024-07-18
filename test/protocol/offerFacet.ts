@@ -1902,7 +1902,53 @@ describe("Offer", function () {
           // Boson:
           await expect(tx)
             .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+            .withArgs(bosonBuyerId, exchangeToken, minimalPrice, fermionProtocolAddress);
+
+          // State:
+          // Boson
+          const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+          expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
+        });
+
+        it.skip("Unwrapping - native", async function () {
+          const bosonOfferId = "2";
+          const exchangeId = quantity + 1n;
+          const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+
+          const fermionOffer = {
+            sellerId: "1",
+            sellerDeposit,
+            verifierId,
+            verifierFee,
+            custodianId: "3",
+            custodianFee,
+            facilitatorId: sellerId,
+            facilitatorFeePercent: "0",
+            exchangeToken: ZeroAddress,
+            metadataURI: "https://example.com/offer-metadata.json",
+            metadataHash: ZeroHash,
+          };
+
+          await offerFacet.createOffer(fermionOffer);
+          await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+
+          bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
+
+          // await mockToken.approve(fermionProtocolAddress, minimalPrice);
+          const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: minimalPrice });
+
+          // events:
+          // fermion
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
+
+          // Boson:
+          await expect(tx)
+            .to.emit(bosonExchangeHandler, "FundsEncumbered")
+            .withArgs(bosonBuyerId, ZeroAddress, minimalPrice, fermionProtocolAddress);
 
           // State:
           // Boson
