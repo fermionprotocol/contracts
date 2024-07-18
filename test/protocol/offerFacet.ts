@@ -1910,7 +1910,7 @@ describe("Offer", function () {
           expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
         });
 
-        it.skip("Unwrapping - native", async function () {
+        it("Unwrapping - native", async function () {
           const bosonOfferId = "2";
           const exchangeId = quantity + 1n;
           const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
@@ -1952,7 +1952,7 @@ describe("Offer", function () {
 
           // State:
           // Boson
-          const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+          const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
           expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
         });
 

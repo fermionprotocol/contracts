@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
+import { FermionGeneralErrors } from "../domain/Errors.sol";
 import { Common } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
@@ -9,6 +10,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IWrappedNative } from "../interfaces/IWrappedNative.sol";
 
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
@@ -21,6 +23,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  */
 contract FermionWrapper is SeaportWrapper, IFermionWrapper {
     using SafeERC20 for IERC20;
+    IWrappedNative private immutable WRAPPED_NATIVE;
 
     /**
      * @notice Constructor
@@ -28,8 +31,12 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
      */
     constructor(
         address _bosonPriceDiscovery,
-        SeaportConfig memory _seaportConfig
-    ) SeaportWrapper(_bosonPriceDiscovery, _seaportConfig) {}
+        SeaportConfig memory _seaportConfig,
+        address _wrappedNative
+    ) SeaportWrapper(_bosonPriceDiscovery, _seaportConfig) {
+        if (_wrappedNative == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        WRAPPED_NATIVE = IWrappedNative(_wrappedNative);
+    }
 
     /**
      * @notice Initializes the contract
@@ -86,7 +93,12 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
         unwrap(_tokenId);
 
         if (_verifierFee > 0) {
-            IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _verifierFee);
+            if (_exchangeToken == address(0)) {
+                WRAPPED_NATIVE.deposit{ value: _verifierFee }();
+                WRAPPED_NATIVE.transfer(BP_PRICE_DISCOVERY, _verifierFee);
+            } else {
+                IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _verifierFee);
+            }
         }
 
         Common._getFermionCommonStorage().exchangeToken = _exchangeToken;
