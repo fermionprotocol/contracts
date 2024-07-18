@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
-import { VerificationErrors } from "../domain/Errors.sol";
+import { VerificationErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -21,6 +21,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
     IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol) {
+        if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }
 
