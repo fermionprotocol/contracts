@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { ADMIN } from "../domain/Constants.sol";
-import { MetaTransactionErrors } from "../domain/Errors.sol";
+import { MetaTransactionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
@@ -37,6 +37,8 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
      * @param _fermionProtocolAddress - the address of the Fermion Protocol contract
      */
     constructor(address _fermionProtocolAddress) {
+        if (_fermionProtocolAddress == address(0)) revert FermionGeneralErrors.InvalidAddress();
+
         FERMION_PROTOCOL_ADDRESS = _fermionProtocolAddress;
         CHAIN_ID_CACHED = block.chainid;
 
