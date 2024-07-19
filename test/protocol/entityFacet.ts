@@ -1066,6 +1066,13 @@ describe("Entity", function () {
             .withArgs(PausableRegion.Entity);
         });
 
+        it("New wallet is the same as the old", async function () {
+          await expect(entityFacet.changeWallet(defaultSigner.address)).to.be.revertedWithCustomError(
+            fermionErrors,
+            "NewWalletSameAsOld",
+          );
+        });
+
         it("Caller is an entity admin", async function () {
           const newAdmin = wallets[2];
 
