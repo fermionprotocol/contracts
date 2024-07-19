@@ -168,13 +168,13 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Facilitator does not have a seller role
      * - Facilitator is already a facilitator for the seller
      *
-     * @dev Pausing modifier is enforced via `addOrRemoveFacilitatos`
+     * @dev Pausing modifier is enforced via `addOrRemoveFacilitators`
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
      */
     function addFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
-        addOrRemoveFacilitatos(_sellerId, _facilitatorIds, true);
+        addOrRemoveFacilitators(_sellerId, _facilitatorIds, true);
     }
 
     /** Remove seller's facilitator.
@@ -188,13 +188,13 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity does not exist
      * - Caller is not an entity admin
      *
-     * @dev Pausing modifier is enforced via `addOrRemoveFacilitatos`
+     * @dev Pausing modifier is enforced via `addOrRemoveFacilitators`
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
      */
     function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
-        addOrRemoveFacilitatos(_sellerId, _facilitatorIds, false);
+        addOrRemoveFacilitators(_sellerId, _facilitatorIds, false);
     }
 
     /** Add entity wide admin wallet.
@@ -241,6 +241,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * Reverts if:
      * - Entity region is paused
+     * - New and old wallet are the same
      * - Caller is an entity admin
      * - Caller is not a wallet for any enitity
      *
@@ -248,6 +249,8 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      */
     function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) {
         address msgSender = _msgSender();
+        if (msgSender == _newWallet) revert NewWalletSameAsOld();
+
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
 
@@ -288,31 +291,6 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
 
         EntityLib.storeEntity(_entityId, address(0), entityData, _roles, _metadata);
-    }
-
-    /**
-     * @notice Deletes an entity.
-     *
-     * Emits an EntityDeleted event if successful.
-     *
-     * Reverts if:
-     * - Entity region is paused
-     * - Entity does not exist
-     * - Caller is not an admin for the entity role
-     *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
-     *
-     * @param _entityId - the entity ID
-     */
-    function deleteEntity(uint256 _entityId) external {
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        EntityLib.validateEntityId(_entityId, pl);
-        address adminWallet = validateEntityAdmin(_entityId, pl);
-
-        delete FermionStorage.protocolEntities().entityData[_entityId];
-        delete pl.entityId[adminWallet];
-
-        emit EntityDeleted(_entityId, adminWallet);
     }
 
     /**
@@ -633,7 +611,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _facilitatorIds - the facilitator's entity IDs
      * @param _add - if true, the facilitator is added, if false, it is removed
      */
-    function addOrRemoveFacilitatos(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
+    function addOrRemoveFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_sellerId, pl);
         validateEntityAdmin(_sellerId, pl);
