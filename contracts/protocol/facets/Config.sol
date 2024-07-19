@@ -105,10 +105,10 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     function setVerificationTimeout(
         uint256 _verificationTimeout
     ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
-        // Make sure percentage is less than 10000
+        // Make sure that verification timeout greater than 0
         checkNonZeroValue(_verificationTimeout);
 
-        // Store fee percentage
+        // Store fee verification timeout
         FermionStorage.protocolConfig().verificationTimeout = _verificationTimeout;
 
         // Notify watchers of state change
