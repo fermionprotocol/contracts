@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { ADMIN, HUNDRED_PERCENT } from "../domain/Constants.sol";
-import { FermionGeneralErrors } from "../domain/Errors.sol";
+import { FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
@@ -24,8 +24,8 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
         // Initialize protocol config params
         setTreasuryAddress(_config.treasury);
         setProtocolFeePercentage(_config.protocolFeePercentage);
-        setDefaultVerificationTimeout(_config.defaultVerificationTimeout);
         setMaxVerificationTimeoutInternal(_config.maxVerificationTimeout);
+        setDefaultVerificationTimeout(_config.defaultVerificationTimeout);
     }
 
     /**
@@ -109,8 +109,17 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
         // Make sure that verification timeout greater than 0
         checkNonZeroValue(_defaultVerificationTimeout);
 
+        FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
+        uint256 maxItemVerificationTimeout = pc.maxVerificationTimeout;
+        if (_defaultVerificationTimeout > maxItemVerificationTimeout) {
+            revert VerificationErrors.VerificationTimeoutTooLong(
+                _defaultVerificationTimeout,
+                maxItemVerificationTimeout
+            );
+        }
+
         // Store verification timeout
-        FermionStorage.protocolConfig().defaultVerificationTimeout = _defaultVerificationTimeout;
+        pc.defaultVerificationTimeout = _defaultVerificationTimeout;
 
         // Notify watchers of state change
         emit DefaultVerificationTimeoutChanged(_defaultVerificationTimeout);

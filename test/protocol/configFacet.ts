@@ -141,6 +141,13 @@ describe("Entity", function () {
           "ZeroNotAllowed",
         );
       });
+
+      it("Default verification timeout is grater than max verification timeout", async function () {
+        const defaultVerificationTimeout = fermionConfig.protocolParameters.maxVerificationTimeout + 1n;
+        await expect(configFacet.setDefaultVerificationTimeout(defaultVerificationTimeout))
+          .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
+          .withArgs(defaultVerificationTimeout, fermionConfig.protocolParameters.maxVerificationTimeout);
+      });
     });
   });
 });
