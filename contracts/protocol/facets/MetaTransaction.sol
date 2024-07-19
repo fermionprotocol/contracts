@@ -180,21 +180,9 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         if (!mt.isAllowlisted[functionNameHash]) revert FunctionNotAllowlisted();
 
         // Function name must correspond to selector
-        bytes4 destinationFunctionSig = convertBytesToBytes4(_functionSignature);
+        bytes4 destinationFunctionSig = bytes4(_functionSignature);
         bytes4 functionNameSig = bytes4(functionNameHash);
         if (destinationFunctionSig != functionNameSig) revert InvalidFunctionName();
-    }
-
-    /**
-     * @notice Converts the given bytes to bytes4.
-     *
-     * @param _inBytes - the incoming bytes
-     * @return _outBytes4 -  The outgoing bytes4
-     */
-    function convertBytesToBytes4(bytes memory _inBytes) internal pure returns (bytes4 _outBytes4) {
-        assembly {
-            _outBytes4 := mload(add(_inBytes, 32))
-        }
     }
 
     /**
@@ -340,8 +328,15 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             ) {
                 if (magicValue != IERC1271.isValidSignature.selector) revert InvalidSignature();
                 return true;
-            } catch {
-                revert InvalidSignature();
+            } catch (bytes memory returnData) {
+                if (returnData.length == 0) {
+                    revert InvalidSignature();
+                } else {
+                    /// @solidity memory-safe-assembly
+                    assembly {
+                        revert(add(32, returnData), mload(returnData))
+                    }
+                }
             }
         }
 
