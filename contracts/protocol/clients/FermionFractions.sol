@@ -204,7 +204,7 @@ abstract contract FermionFractions is
      * They need to lock their fractions to vote. The fractions can be unlocked before the auction starts.
      * The fractions can be used to bid in the auction.
      * The locked votes guarantee to get the proceeds from the auction for the specific token.
-     * It's possible to vote even if the auction is ongoing and locke to proceeds this way.
+     * It's possible to vote even if the auction is ongoing and lock the auction proceeds this way.
      * The auction is started when the total number of locked fractions reaches the unlock threshold.
      *
      * Emits a Voted event if successful.
@@ -212,9 +212,11 @@ abstract contract FermionFractions is
      *
      * Reverts if:
      * - The caller is the current max bidder
-     * - The auction is already ongoing
      * - The number of fractions to vote is zero
      * - The caller does not have enough fractions to vote
+     * - The token is not fractionalised
+     * - All available fractions are already locked (either by vote or by the current winning bidder)
+     * - The cumulative total votes is enough to start the auction but there is no active bid
      *
      * @param _tokenId The token Id
      * @param _fractionAmount The number of tokens to use to vote
@@ -355,7 +357,8 @@ abstract contract FermionFractions is
         address msgSender = _msgSender();
         uint256 bidAmount;
         if (_fractions >= availableFractions) {
-            // bidder has enough fractions to claim a full NFT without paying anything. Bid amount is zero.
+            // Bidder has enough fractions to claim the remaining fractions. In this case they win the auction ath the current price.
+            // If the locked fractions belong to other users, the bidder must still pay the corresponding price.
             _fractions = availableFractions;
 
             if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuction(_tokenId);
