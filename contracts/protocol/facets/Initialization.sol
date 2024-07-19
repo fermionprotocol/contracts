@@ -106,7 +106,7 @@ contract InitializationFacet is InitializationErrors, IInitialziationEvents {
      *
      * Reverts if:
      * - Is invoked directly on the deployed contract (not via proxy)
-     * - Boson Protocol address is not set
+     * - Boson Protocol address is not set (function call to address 0 fails)
      * - FermionFNFT implementation is not set
      * - Call to Boson protocol reverts (because Boson Seller already exists or the protocol is paused)
      *
@@ -117,8 +117,7 @@ contract InitializationFacet is InitializationErrors, IInitialziationEvents {
         address _bosonProtocolAddress,
         address _fermionFNFTImplementation
     ) internal {
-        if (_bosonProtocolAddress == address(0) || _fermionFNFTImplementation == address(0))
-            revert FermionGeneralErrors.InvalidAddress();
+        if (_fermionFNFTImplementation == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         IBosonProtocol bosonProtocol = IBosonProtocol(_bosonProtocolAddress);
         uint256 bosonSellerId = bosonProtocol.getNextAccountId();
@@ -201,7 +200,7 @@ contract InitializationFacet is InitializationErrors, IInitialziationEvents {
         bool _isSupported
     ) internal {
         for (uint256 i = 0; i < _interfaces.length; i++) {
-            ds.supportedInterfaces[(_interfaces[i])] = _isSupported;
+            ds.supportedInterfaces[_interfaces[i]] = _isSupported;
         }
     }
 

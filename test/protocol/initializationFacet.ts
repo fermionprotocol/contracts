@@ -93,7 +93,7 @@ describe("Initialization", function () {
 
           await expect(
             makeDiamondCut(fermionProtocolAddress, [], initializationFacetImplementationAddress, initializeBosonSeller),
-          ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
+          ).to.be.reverted;
         });
 
         it("Wrapper implementation address is 0", async function () {
