@@ -148,8 +148,8 @@ describe("FermionFNFT", function () {
         .transferFrom(seller.address, approvedWallet.address, fractionsAmount);
 
       // Check balance
-      expect(await fermionFNFTProxy.balanceOf(approvedWallet.address)).to.equal(fractionsAmount);
-      expect(await fermionFNFTProxy.balanceOf(seller.address)).to.equal(0);
+      expect(await fermionFNFTProxy.balanceOfERC20(approvedWallet.address)).to.equal(fractionsAmount);
+      expect(await fermionFNFTProxy.balanceOfERC20(seller.address)).to.equal(0);
     });
 
     it("Reverts", async function () {

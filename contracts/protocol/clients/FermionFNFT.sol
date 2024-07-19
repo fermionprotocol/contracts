@@ -114,11 +114,11 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
     function balanceOf(
         address owner
     ) public view virtual override(IERC721, ERC721, FermionFractions) returns (uint256) {
-        return FermionFractions.balanceOf(owner);
+        return ERC721.balanceOf(owner);
     }
 
-    function balanceOfERC721(address owner) public view virtual returns (uint256) {
-        return ERC721.balanceOf(owner);
+    function balanceOfERC20(address owner) public view virtual returns (uint256) {
+        return FermionFractions.balanceOf(owner);
     }
 
     function transfer(
