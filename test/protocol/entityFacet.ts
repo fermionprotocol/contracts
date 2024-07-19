@@ -1151,7 +1151,7 @@ describe("Entity", function () {
             .withArgs(0);
         });
 
-        it.only("New wallet is already a wallet for an entity", async function () {
+        it("New wallet is already a wallet for an entity", async function () {
           const newWallet = wallets[3];
           await entityFacet.addEntityWallets(entityId, [newWallet.address], entityRoles, [[[], []]]);
 
