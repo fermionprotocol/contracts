@@ -106,7 +106,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     function setDefaultVerificationTimeout(
         uint256 _defaultVerificationTimeout
     ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
-        // Make sure verification timeout is greater than 0
+        // Make sure that verification timeout greater than 0
         checkNonZeroValue(_defaultVerificationTimeout);
 
         // Store verification timeout
