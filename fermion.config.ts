@@ -8,7 +8,8 @@ interface FermionConfig {
 interface ProtocolParameters {
   treasury: string;
   protocolFeePercentage: number;
-  verificationTimeout: bigint;
+  defaultVerificationTimeout: bigint;
+  maxVerificationTimeout: bigint;
 }
 
 interface SeaportConfigs {
@@ -25,7 +26,8 @@ const fermionConfig: FermionConfig = {
   protocolParameters: {
     treasury: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199", // dummy
     protocolFeePercentage: 500,
-    verificationTimeout: 60n * 60n * 24n * 7n,
+    defaultVerificationTimeout: 60n * 60n * 24n * 7n,
+    maxVerificationTimeout: 60n * 60n * 24n * 30n,
   },
   seaport: {
     hardhat: {

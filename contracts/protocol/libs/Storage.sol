@@ -49,8 +49,10 @@ library FermionStorage {
         address payable treasury;
         // Protocol fee
         uint16 protocolFeePercentage;
-        // Verification timeout
-        uint256 verificationTimeout;
+        // Default verification timeout
+        uint256 defaultVerificationTimeout;
+        // Max verification timeout
+        uint256 maxVerificationTimeout;
     }
 
     // Protocol entities storage
@@ -116,6 +118,8 @@ library FermionStorage {
         FermionTypes.CustodianFee vault;
         // verification timeout
         uint256 itemVerificationTimeout;
+        // max verification timeout
+        uint256 itemMaxVerificationTimeout;
     }
 
     struct SellerLookups {
