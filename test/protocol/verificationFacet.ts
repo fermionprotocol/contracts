@@ -66,6 +66,7 @@ describe("Verification", function () {
     exchangeId: "",
   };
   let itemVerificationTimeout: string;
+  let itemMaxVerificationTimeout: bigint;
 
   async function setupVerificationTest() {
     // Create three entities
@@ -148,7 +149,8 @@ describe("Verification", function () {
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
     const tx = await offerFacet.unwrapNFTToSelf(tokenIdSelf);
     const timestamp = BigInt((await tx.getBlock()).timestamp);
-    itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.verificationTimeout);
+    itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.defaultVerificationTimeout);
+    itemMaxVerificationTimeout = timestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
 
     exchange.offerId = offerId;
     exchange.exchangeId = exchangeId;
@@ -834,6 +836,14 @@ describe("Verification", function () {
       it("Caller is not the seller's assistant", async function () {
         const newTimeout = BigInt(itemVerificationTimeout) + 24n * 60n * 60n * 10n;
         await verifySellerAssistantRole("changeVerificationTimeout", [exchange.tokenId, newTimeout]);
+      });
+
+      it("New timeout is greater than the maximum timeout", async function () {
+        const newTimeout = itemMaxVerificationTimeout + 1n;
+
+        await expect(verificationFacet.changeVerificationTimeout(exchangeSelfSale.tokenId, newTimeout))
+          .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
+          .withArgs(newTimeout, itemMaxVerificationTimeout);
       });
     });
   });
