@@ -1437,7 +1437,7 @@ describe("CustodyVault", function () {
             wrapper
               .connect(buyer)
               .mintFractions(exchange.tokenId, 1, fractionsPerToken, auctionParameters, custodianVaultParameters, 0n),
-          ).to.be.revertedWithCustomError(fermionErrors, "InssuficientBalanceToFractionalise");
+          ).to.be.revertedWithCustomError(fermionErrors, "InsufficientBalanceToFractionalise");
         });
 
         it("Partial auction threshold is below custodian fee", async function () {
@@ -1872,7 +1872,7 @@ describe("CustodyVault", function () {
         it("Insufficient balance to fractionalise", async function () {
           await expect(wrapper.connect(buyer).mintFractions(exchange.tokenId, 1, 0n)).to.be.revertedWithCustomError(
             fermionErrors,
-            "InssuficientBalanceToFractionalise",
+            "InsufficientBalanceToFractionalise",
           );
         });
 
@@ -2356,7 +2356,6 @@ describe("CustodyVault", function () {
             const bidAmount = (-deficit * 3n) / 4n;
             await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
             const sellerFractions = await wrapper.balanceOf(buyer.address);
-            console.log("sellerFractions", sellerFractions);
             const tx = await wrapper.connect(buyer).voteToStartAuction(exchange.tokenId, sellerFractions); // bid is below exit price, original buyer votes to start auction
             const voteTime = BigInt((await tx.getBlock()).timestamp);
             const auctionEnd = voteTime + auctionParameters.duration + 1n;

@@ -24,10 +24,10 @@ describe("FermionFNFT", function () {
     const [mockConduit, mockBosonPriceDiscovery] = (await ethers.getSigners()).slice(9, 11);
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionFNFT = await FermionFNFT.deploy(mockBosonPriceDiscovery.address, {
-      seaport: ZeroAddress,
+      seaport: wallets[10].address, // dummy address
       openSeaConduit: mockConduit.address,
       openSeaConduitKey: ZeroHash,
-    }); // For these tests, zero constructor arguments are okay
+    });
 
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionFNFT.getAddress());

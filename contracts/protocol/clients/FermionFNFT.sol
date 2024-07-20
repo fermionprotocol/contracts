@@ -160,6 +160,9 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
         uint256 _tokenId,
         address _auth
     ) internal override(ERC721, SeaportWrapper) returns (address) {
-        return SeaportWrapper._update(_to, _tokenId, _auth);
+        address from = SeaportWrapper._update(_to, _tokenId, _auth);
+        if (from == address(0)) Common.changeTokenState(_tokenId, FermionTypes.TokenState.Wrapped);
+
+        return from;
     }
 }
