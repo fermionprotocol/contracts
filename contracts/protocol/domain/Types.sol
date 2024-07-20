@@ -49,6 +49,7 @@ contract FermionTypes {
     enum AuctionState {
         NotStarted,
         Ongoing,
+        Reserved,
         Finalized,
         Redeemed
     }
@@ -136,13 +137,17 @@ contract FermionTypes {
         uint256 nftCount; // number of fractionalised NFTs
         address exchangeToken;
         BuyoutAuctionParameters auctionParameters;
-        mapping(uint256 => bool) isFractionalised; // tokenId -> fractionalised
-        mapping(uint256 => Auction[]) auctions; // tokenId -> Auction
         uint256 pendingRedeemableSupply; // for tokens that auction started but not finalized yet
         uint256 unrestricedRedeemableSupply;
         uint256 unrestricedRedeemableAmount;
         uint256 lockedRedeemableSupply;
-        mapping(uint256 => int256[]) lockedProceeds; // tokenId -> auction index -> amount; locked for users that voted to start
+        mapping(uint256 => TokenAuctionInfo) tokenInfo;
+    }
+
+    struct TokenAuctionInfo {
+        bool isFractionalised;
+        Auction[] auctions;
+        int256[] lockedProceeds; // locked for users that voted to start
     }
 
     struct BuyoutAuctionParameters {

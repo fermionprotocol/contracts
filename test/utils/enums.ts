@@ -52,6 +52,7 @@ export enum PausableRegion {
 export enum AuctionState {
   NotStarted,
   Ongoing,
+  Reserved,
   Finalized,
   Redeemed,
 }
