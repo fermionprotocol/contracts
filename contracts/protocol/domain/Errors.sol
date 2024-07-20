@@ -104,8 +104,8 @@ interface MetaTransactionErrors {
     error NonceUsedAlready();
     error FunctionNotAllowlisted();
     error InvalidFunctionName();
-    error InvalidSignature();
-    error SignerAndSignatureDoNotMatch();
+    error InvalidSignature(); // Somethihing is wrong with the signature
+    error SignatureValidationFailed(); // Signature might be correct, but the validation failed
     error FunctionCallFailed();
 }
 
