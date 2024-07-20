@@ -2356,7 +2356,6 @@ describe("CustodyVault", function () {
             const bidAmount = (-deficit * 3n) / 4n;
             await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
             const sellerFractions = await wrapper.balanceOfERC20(buyer.address);
-            console.log("sellerFractions", sellerFractions);
             const tx = await wrapper.connect(buyer).voteToStartAuction(exchange.tokenId, sellerFractions); // bid is below exit price, original buyer votes to start auction
             const voteTime = BigInt((await tx.getBlock()).timestamp);
             const auctionEnd = voteTime + auctionParameters.duration + 1n;

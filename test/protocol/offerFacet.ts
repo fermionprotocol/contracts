@@ -1277,12 +1277,44 @@ describe("Offer", function () {
               .withArgs(minimalPrice - 1n, minimalPrice);
           });
 
+          it("Buyer order does not have 1 offer", async function () {
+            // two offers
+            buyerAdvancedOrder.parameters.offer.push(buyerAdvancedOrder.parameters.offer[0]);
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+
+            // 0 offers
+            buyerAdvancedOrder.parameters.offer = [];
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+          });
+
+          it("Buyer order have more than 2 considerations", async function () {
+            buyerAdvancedOrder.parameters.consideration.push(buyerAdvancedOrder.parameters.consideration[1]);
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+          });
+
           it("OS fee is greater than the price", async function () {
             buyerAdvancedOrder.parameters.offer[0].startAmount = verifierFee.toString();
             buyerAdvancedOrder.parameters.consideration[1].startAmount = (verifierFee + 1n).toString();
             await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
               fermionErrors,
-              "InvalidOrder",
+              "InvalidOpenSeaOrder",
+            );
+          });
+
+          it("OS fee is more than expected", async function () {
+            buyerAdvancedOrder.parameters.consideration[1].startAmount += 1n;
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
             );
           });
         });
@@ -1875,11 +1907,57 @@ describe("Offer", function () {
           // Boson:
           await expect(tx)
             .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+            .withArgs(bosonBuyerId, exchangeToken, minimalPrice, fermionProtocolAddress);
 
           // State:
           // Boson
           const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+          expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
+        });
+
+        it("Unwrapping - native", async function () {
+          const bosonOfferId = "2";
+          const exchangeId = quantity + 1n;
+          const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+
+          const fermionOffer = {
+            sellerId: "1",
+            sellerDeposit,
+            verifierId,
+            verifierFee,
+            custodianId: "3",
+            custodianFee,
+            facilitatorId: sellerId,
+            facilitatorFeePercent: "0",
+            exchangeToken: ZeroAddress,
+            metadataURI: "https://example.com/offer-metadata.json",
+            metadataHash: ZeroHash,
+          };
+
+          await offerFacet.createOffer(fermionOffer);
+          await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+
+          bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
+
+          // await mockToken.approve(fermionProtocolAddress, minimalPrice);
+          const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: minimalPrice });
+
+          // events:
+          // fermion
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
+
+          // Boson:
+          await expect(tx)
+            .to.emit(bosonExchangeHandler, "FundsEncumbered")
+            .withArgs(bosonBuyerId, ZeroAddress, minimalPrice, fermionProtocolAddress);
+
+          // State:
+          // Boson
+          const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
           expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
         });
 
