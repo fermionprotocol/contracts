@@ -140,6 +140,11 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
     }
 
     function approve(address to, uint256 tokenIdOrBalance) public virtual override(IERC721, ERC721) {
+        if (tokenIdOrBalance == type(uint256).max) {
+            // Unlimited approval in this contract should be represented by type(uint128).max
+            tokenIdOrBalance = type(uint128).max;
+        }
+
         if (tokenIdOrBalance > type(uint128).max) {
             ERC721.approve(to, tokenIdOrBalance);
         } else {
