@@ -91,14 +91,21 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("fnft")) {
-    const constructorArgs = [bosonPriceDiscoveryAddress, seaportConfig, wrappedNativeAddress]; // ToDo: handle wrappedNativeAddress for deployments to public networks
+    const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
+    const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
+    const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
 
+    const fermionFNFTConstructorArgs = [
+      bosonPriceDiscoveryAddress,
+      await fermionSeaportWrapper.getAddress(),
+      wrappedNativeAddress,
+    ]; // ToDo: handle wrappedNativeAddress for deployments to public networks
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
-    const fermionWrapper = await FermionFNFT.deploy(...constructorArgs);
+    const fermionWrapper = await FermionFNFT.deploy(...fermionFNFTConstructorArgs);
     await fermionWrapper.waitForDeployment();
     wrapperImplementationAddress = await fermionWrapper.getAddress();
 
-    deploymentComplete("FermionFNFT", wrapperImplementationAddress, constructorArgs, true);
+    deploymentComplete("FermionFNFT", wrapperImplementationAddress, fermionFNFTConstructorArgs, true);
   } else {
     deploymentData = await getDeploymentData(env);
     wrapperImplementationAddress = deploymentData.find((contract) => contract.name === "FermionFNFT")?.address;

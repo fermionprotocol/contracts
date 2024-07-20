@@ -47,15 +47,6 @@ contract SeaportWrapper is FermionFNFTBase {
         OS_CONDUIT_KEY = _seaportConfig.openSeaConduitKey;
     }
 
-    // /**
-    //  * @notice Initializes the contract
-    //  *
-    //  * @param _owner The address of the owner
-    //  */
-    // function initialize(address _owner) internal virtual {
-    //     __Ownable_init(_owner);
-    // }
-
     function wrapOpenSea() external {
         _setApprovalForAll(address(this), OS_CONDUIT, true);
     }
