@@ -150,6 +150,11 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
     }
 
     function approve(address to, uint256 tokenIdOrBalance) public virtual override(IERC721, ERC721) {
+        if (tokenIdOrBalance == type(uint256).max) {
+            // Unlimited approval in this contract should be represented by type(uint128).max
+            tokenIdOrBalance = type(uint128).max;
+        }
+
         if (tokenIdOrBalance > type(uint128).max) {
             ERC721.approve(to, tokenIdOrBalance);
         } else {
@@ -165,6 +170,9 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
         uint256 _tokenId,
         address _auth
     ) internal override(ERC721, SeaportWrapper) returns (address) {
-        return SeaportWrapper._update(_to, _tokenId, _auth);
+        address from = SeaportWrapper._update(_to, _tokenId, _auth);
+        if (from == address(0)) Common.changeTokenState(_tokenId, FermionTypes.TokenState.Wrapped);
+
+        return from;
     }
 }

@@ -20,6 +20,8 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  *   have different return types and cannot be overriden in the usual way.
  */
 abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors {
+    event FractionsTransfer(address indexed from, address indexed to, uint256 value);
+
     // ERC20
     /// @custom:storage-location erc7201:openzeppelin.storage.ERC20
     struct ERC20Storage {
@@ -86,7 +88,9 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      * @dev See {IERC20-allowance}.
      */
     function allowance(address owner, address spender) public view virtual returns (uint256) {
-        return _getERC20Storage()._allowances[owner][spender];
+        uint256 spenderAllowance = _getERC20Storage()._allowances[owner][spender];
+        if (spenderAllowance == type(uint128).max) spenderAllowance = type(uint256).max; // Update the value to make allowance consistent with standard approaches for infinite allowance
+        return spenderAllowance;
     }
 
     /**
@@ -183,7 +187,8 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
             }
         }
 
-        emit IERC721.Transfer(from, to, value); // ERC20 Transfer event and ERC721 Transfer events have the same signature
+        // NB: not emitting standard ERC20 transfer event since it clashes with ERC721 Transfer event and it could lead to inconsistentcies
+        emit FractionsTransfer(from, to, value);
     }
 
     /**
@@ -260,6 +265,9 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
             revert ERC20InvalidSpender(address(0));
         }
         _getERC20Storage()._allowances[owner][spender] = value;
+
+        if (value == type(uint128).max) value = type(uint256).max; // Update the value to make events consistent with standard approaches for infinite allowance
+
         if (emitEvent) {
             emit IERC721.Approval(owner, spender, value);
         }
