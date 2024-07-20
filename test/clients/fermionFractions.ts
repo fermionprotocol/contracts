@@ -1089,7 +1089,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           totalFractions: fractionsPerToken,
           lockedFractions: fractionsPerToken,
           lockedBidAmount: bidAmount,
-          state: BigInt(AuctionState.Ongoing),
+          state: BigInt(AuctionState.Reserved),
         };
 
         expect(await fermionFNFTProxy.getAuctionDetails(startTokenId)).to.eql(Object.values(expectedAuctionDetails));
@@ -1132,7 +1132,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: fractionsPerToken,
-          lockedFractions: votes,
+          lockedFractions: 0n, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.Ongoing),
         };
@@ -1166,7 +1166,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: 0n,
-          lockedFractions: votes,
+          lockedFractions: 0n, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.NotStarted),
         };
@@ -1255,7 +1255,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: fractionsPerToken,
-          lockedFractions: fractions + votes,
+          lockedFractions: fractions, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.Ongoing),
         };
@@ -1289,7 +1289,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: 0n,
-          lockedFractions: fractions + votes,
+          lockedFractions: fractions, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.NotStarted),
         };
@@ -1375,7 +1375,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: fractionsPerToken,
-          lockedFractions: fractionsPart + votes,
+          lockedFractions: fractionsPart, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
           state: BigInt(AuctionState.Ongoing),
         };
@@ -1413,9 +1413,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
           maxBid: price,
           maxBidder: bidders[0].address,
           totalFractions: fractionsPerToken,
-          lockedFractions: fractionsPerToken,
+          lockedFractions: fractionsPerToken - votes, // locked fractions do not include votes
           lockedBidAmount: bidAmount,
-          state: BigInt(AuctionState.Ongoing),
+          state: BigInt(AuctionState.Reserved),
         };
 
         expect(await fermionFNFTProxy.getAuctionDetails(startTokenId)).to.eql(Object.values(expectedAuctionDetails));
@@ -1423,6 +1423,42 @@ describe("FermionFNFT - fractionalisation tests", function () {
         expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount);
         expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(fractions + votes); // total balance before was fractions + fractionsPerToken + votes
         expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(fractionsPerToken);
+      });
+
+      it("Bid with  more than 100% fractions starts the auction even if below the price", async function () {
+        // Testing that only the fractions used for the bid are returned
+        // fractionalise another token and transfer the fractions to the bidder
+        await fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit);
+        await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, fractionsPerToken);
+
+        const price = exitPrice - parseEther("0.01");
+        const fractionsPart = fractions + fractionsPerToken; // more than 1 token
+        const bidAmount = 0n; // amount to pay
+
+        const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, price, fractionsPart);
+
+        await expect(tx)
+          .to.emit(fermionFNFTProxy, "Bid")
+          .withArgs(startTokenId, bidders[0].address, price, fractionsPerToken, bidAmount);
+
+        const blockTimeStamp = (await tx.getBlock()).timestamp;
+        const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+        await expect(tx).to.emit(fermionFNFTProxy, "AuctionStarted").withArgs(startTokenId, auctionEnd);
+
+        // state
+        const expectedAuctionDetails = {
+          timer: auctionEnd,
+          maxBid: price,
+          maxBidder: bidders[0].address,
+          totalFractions: fractionsPerToken,
+          lockedFractions: fractionsPerToken - votes,
+          lockedBidAmount: bidAmount,
+          state: BigInt(AuctionState.Reserved),
+        };
+
+        expect(await fermionFNFTProxy.getAuctionDetails(startTokenId)).to.eql(Object.values(expectedAuctionDetails));
+        expect(await mockExchangeToken.balanceOf(bidders[0].address)).to.equal(parseEther("1000") - bidAmount);
+        expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount);
       });
     });
 
@@ -1516,6 +1552,23 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
         await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount, fractions))
           .to.be.revertedWithCustomError(fermionFNFTProxy, "TokenNotFractionalised")
+          .withArgs(startTokenId);
+      });
+
+      it("Token is reserved", async function () {
+        // fractionalise another token and transfer the fractions to the bidder
+        await fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit);
+        await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, fractions + fractionsPerToken);
+
+        const price = exitPrice + parseEther("0.1");
+        const fractionsPart = fractions + fractionsPerToken; // more than 1 token
+
+        await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, price, fractionsPart);
+
+        const bidAmount2 = price + parseEther("0.1");
+        await mockExchangeToken.connect(bidders[1]).approve(await fermionFNFTProxy.getAddress(), bidAmount2);
+        await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount2, 0n))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "AuctionReserved")
           .withArgs(startTokenId);
       });
     });
@@ -1621,30 +1674,6 @@ describe("FermionFNFT - fractionalisation tests", function () {
         expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(fractions);
         expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
       });
-
-      it("Bid with  more than 100% fractions", async function () {
-        // Testing that only the fractions used for the bid are returned
-        // fractionalise another token and transfer the fractions to the bidder
-        await fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit);
-        await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, fractionsPerToken);
-
-        const fractionsPart = fractions + fractionsPerToken; // more than 1 token
-
-        const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, price, fractionsPart);
-        const blockTimeStamp = (await tx.getBlock()).timestamp;
-        const topBidLockTime = BigInt(blockTimeStamp) + auctionParameters.topBidLockTime;
-        await setNextBlockTimestamp(String(topBidLockTime + 1n));
-
-        const tx2 = await fermionFNFTProxy.connect(bidders[0]).removeBid(startTokenId);
-        await expect(tx2)
-          .to.emit(fermionFNFTProxy, "FractionsTransfer")
-          .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, fractionsPerToken);
-
-        expect(await mockExchangeToken.balanceOf(bidders[0].address)).to.equal(parseEther("1000"));
-        expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
-        expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(fractionsPart);
-        expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
-      });
     });
 
     context("Bid with votes", function () {
@@ -1716,37 +1745,6 @@ describe("FermionFNFT - fractionalisation tests", function () {
         expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(fractions); // only fractions are returned, votes not
         expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(votes);
       });
-
-      it("Bid with  more than 100% fractions", async function () {
-        // Testing that only the fractions used for the bid are returned
-        // fractionalise another token and transfer the fractions to the bidder
-        await fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit);
-        await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, fractionsPerToken);
-
-        const fractionsPart = fractions + fractionsPerToken; // more than 1 token
-        const bidAmount = 0n; // amount to pay
-
-        const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, price, fractionsPart);
-
-        await expect(tx)
-          .to.emit(fermionFNFTProxy, "Bid")
-          .withArgs(startTokenId, bidders[0].address, price, fractionsPerToken, bidAmount);
-
-        const blockTimeStamp = (await tx.getBlock()).timestamp;
-        const topBidLockTime = BigInt(blockTimeStamp) + auctionParameters.topBidLockTime;
-        await setNextBlockTimestamp(String(topBidLockTime + 1n));
-
-        const tx2 = await fermionFNFTProxy.connect(bidders[0]).removeBid(startTokenId);
-
-        await expect(tx2)
-          .to.emit(fermionFNFTProxy, "FractionsTransfer")
-          .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, fractionsPerToken - votes);
-
-        expect(await mockExchangeToken.balanceOf(bidders[0].address)).to.equal(parseEther("1000"));
-        expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
-        expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(fractionsPart);
-        expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(votes);
-      });
     });
 
     context("Revert reasons", function () {
@@ -1787,6 +1785,23 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(fermionFNFTProxy.connect(bidders[1]).removeBid(startTokenId))
           .to.be.revertedWithCustomError(fermionFNFTProxy, "NotMaxBidder")
           .withArgs(startTokenId, bidders[1].address, bidders[0].address);
+      });
+
+      it("Token is reserved", async function () {
+        // Testing that only the fractions used for the bid are returned
+        // fractionalise another token and transfer the fractions to the bidder
+        await fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit);
+        await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, fractionsPerToken);
+
+        const fractions = (fractionsPerToken * 20n) / 100n; // 20% of bid paid with fractions
+        const price = exitPrice - parseEther("0.01");
+        const fractionsPart = fractions + fractionsPerToken; // more than 1 token
+
+        await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, price, fractionsPart);
+
+        await expect(fermionFNFTProxy.connect(bidders[0]).removeBid(startTokenId))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "BidRemovalNotAllowed")
+          .withArgs(startTokenId);
       });
     });
   });
@@ -1922,7 +1937,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount);
       expectedAuctionDetails.timer = auctionEnd;
       expectedAuctionDetails.lockedBidAmount = bidAmount;
-      expectedAuctionDetails.lockedFractions = votes;
+      expectedAuctionDetails.lockedFractions = 0n; // locked fractions do not include votes
       expect(await fermionFNFTProxy.getAuctionDetails(startTokenId)).to.eql(Object.values(expectedAuctionDetails));
       expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(0n); // all fractions used
       expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
@@ -1958,7 +1973,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount);
       expectedAuctionDetails.timer = auctionEnd;
       expectedAuctionDetails.lockedBidAmount = bidAmount;
-      expectedAuctionDetails.lockedFractions = fractions + votes;
+      expectedAuctionDetails.lockedFractions = fractions; // locked fractions do not include votes
       expect(await fermionFNFTProxy.getAuctionDetails(startTokenId)).to.eql(Object.values(expectedAuctionDetails));
       expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(0n); // all fractions used
       expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(0n);
@@ -2474,10 +2489,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
         const votes = (fractionsPerToken * 9n) / 10n; // seller locks in 90% of first token sale
 
         beforeEach(async function () {
-          await fermionFNFTProxy.connect(seller).voteToStartAuction(startTokenId, votes);
-
           await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), price1 + price2);
           await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, price1, fractions);
+          await fermionFNFTProxy.connect(seller).voteToStartAuction(startTokenId, votes);
+
           const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId + 1n, price2, fractions);
           const blockTimeStamp = (await tx.getBlock()).timestamp;
           const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
@@ -3033,6 +3048,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
       });
 
       it("When total votes exceeds threshold, the auction starts", async function () {
+        const bidAmount = exitPrice - parseEther("0.01");
+        await mockExchangeToken.connect(bidders[2]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        await fermionFNFTProxy.connect(bidders[2]).bid(startTokenId, bidAmount, 0n);
+
         const tx = await fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId, votes1);
         await expect(tx).to.not.emit(fermionFNFTProxy, "AuctionStarted");
 
@@ -3054,6 +3073,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
       });
 
       it("When total votes match the threshold exactly, the auction starts", async function () {
+        const bidAmount = exitPrice - parseEther("0.01");
+        await mockExchangeToken.connect(bidders[2]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        await fermionFNFTProxy.connect(bidders[2]).bid(startTokenId, bidAmount, 0n);
+
         await fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId, votes1);
 
         const requiredVotes = applyPercentage(fractionsPerToken, auctionParameters.unlockThreshold) - votes1;
@@ -3063,6 +3086,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
       });
 
       it("Voting with more than available votes", async function () {
+        const bidAmount = exitPrice - parseEther("0.01");
+        await mockExchangeToken.connect(bidders[2]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        await fermionFNFTProxy.connect(bidders[2]).bid(startTokenId, bidAmount, 0n);
+
         // fractionalise another token and transfer the fractions to the bidder
         await fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit);
         await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, fractionsPerToken);
@@ -3082,6 +3109,16 @@ describe("FermionFNFT - fractionalisation tests", function () {
         expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(fractionsPerToken);
       });
 
+      it("It's possible to vote after the auction started", async function () {
+        const bidAmount = exitPrice + parseEther("0.01");
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, 0n);
+
+        await expect(fermionFNFTProxy.connect(bidders[1]).voteToStartAuction(startTokenId, votes2))
+          .to.emit(fermionFNFTProxy, "Voted")
+          .withArgs(startTokenId, bidders[1].address, votes2);
+      });
+
       context("Revert reasons", function () {
         it("Amount to lock is 0", async function () {
           const votes = 0;
@@ -3090,7 +3127,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           ).to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidAmount");
         });
 
-        it("Token is not fracionalised", async function () {
+        it("Token is not fractionalised", async function () {
           await expect(fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId + 1n, votes1))
             .to.be.revertedWithCustomError(fermionFNFTProxy, "TokenNotFractionalised")
             .withArgs(startTokenId + 1n);
@@ -3106,28 +3143,43 @@ describe("FermionFNFT - fractionalisation tests", function () {
             .withArgs(startTokenId);
         });
 
-        it("Auction already started - via payment above exit price", async function () {
-          const bidAmount = exitPrice + parseEther("0.01");
-          await mockExchangeToken.connect(bidders[3]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
-          const tx = await fermionFNFTProxy.connect(bidders[3]).bid(startTokenId, bidAmount, 0n);
-          const blockTimeStamp = (await tx.getBlock()).timestamp;
-          const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
-
-          await expect(fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId, votes1))
-            .to.be.revertedWithCustomError(fermionFNFTProxy, "AuctionOngoing")
-            .withArgs(startTokenId, auctionEnd);
-        });
-
-        it("Auction already started - via vote over threshold", async function () {
+        it("No bids available", async function () {
           await fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId, votes1);
 
-          const tx = await fermionFNFTProxy.connect(bidders[1]).voteToStartAuction(startTokenId, votes2);
-          const blockTimeStamp = (await tx.getBlock()).timestamp;
-          const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+          await expect(fermionFNFTProxy.connect(bidders[1]).voteToStartAuction(startTokenId, votes2))
+            .to.be.revertedWithCustomError(fermionFNFTProxy, "NoBids")
+            .withArgs(startTokenId);
+        });
 
-          await expect(fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId, votes1))
-            .to.be.revertedWithCustomError(fermionFNFTProxy, "AuctionOngoing")
-            .withArgs(startTokenId, auctionEnd);
+        context("No votes available", function () {
+          beforeEach(async function () {
+            // mint additional fractions
+            await fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit);
+          });
+
+          it("All consumed by votes", async function () {
+            const bidAmount = exitPrice + parseEther("0.01");
+            await mockExchangeToken.connect(bidders[1]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+            await fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount, 0n);
+
+            await fermionFNFTProxy.connect(seller).voteToStartAuction(startTokenId, fractionsPerToken);
+
+            await expect(fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId, votes1))
+              .to.be.revertedWithCustomError(fermionFNFTProxy, "NoFractionsAvailable")
+              .withArgs(startTokenId);
+          });
+
+          it("Partially consumed by bid-locked votes", async function () {
+            const bidAmount = exitPrice + parseEther("0.01");
+            await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+            await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, votes1);
+
+            await fermionFNFTProxy.connect(seller).voteToStartAuction(startTokenId, fractionsPerToken);
+
+            await expect(fermionFNFTProxy.connect(bidders[1]).voteToStartAuction(startTokenId, votes2))
+              .to.be.revertedWithCustomError(fermionFNFTProxy, "NoFractionsAvailable")
+              .withArgs(startTokenId);
+          });
         });
 
         it("The voter does not have enough fractions", async function () {
@@ -3222,6 +3274,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
         });
 
         it("Auction already started - via vote over threshold", async function () {
+          const bidAmount = exitPrice - parseEther("0.01");
+          await mockExchangeToken.connect(bidders[3]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+          await fermionFNFTProxy.connect(bidders[3]).bid(startTokenId, bidAmount, 0n);
+
           const tx = await fermionFNFTProxy.connect(bidders[1]).voteToStartAuction(startTokenId, votes2);
           const blockTimeStamp = (await tx.getBlock()).timestamp;
           const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
