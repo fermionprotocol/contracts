@@ -66,21 +66,19 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
      * @notice Prepares data to finalize the auction using Seaport
      *
      * It ASSUMES that the buyer order matches the buyer order from OpenSea. If this changes, the contract must be updated.
+     * Buyer order parameters are validate in the Fermion Protocol before calling this function.
      *
      * @param _tokenId The token id.
      * @param _buyerOrder The Seaport buyer order.
      */
-    function finalizeOpenSeaAuction(
-        uint256 _tokenId,
-        SeaportTypes.AdvancedOrder calldata _buyerOrder
-    ) internal returns (uint256 reducedPrice, address exchangeToken) {
+    function finalizeOpenSeaAuction(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) internal {
         address wrappedVoucherOwner = _ownerOf(_tokenId); // tokenId can be taken from buyer order
 
         uint256 _price = _buyerOrder.parameters.offer[0].startAmount;
         uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount;
-        reducedPrice = _price - _openSeaFee;
+        uint256 reducedPrice = _price - _openSeaFee;
 
-        exchangeToken = _buyerOrder.parameters.offer[0].token;
+        address exchangeToken = _buyerOrder.parameters.offer[0].token;
 
         // prepare match advanced order. Can this be optimized with some simpler order?
         // caller must supply buyers signed order (_buyerOrder)
@@ -162,8 +160,6 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
             fulfillments,
             address(this)
         );
-
-        reducedPrice = 0; // it was already transferred to BP_PRICE_DISCOVERY, no need for wrapper to do it again is transferred to BP_PRICE_DISCOVERY
     }
 
     /**

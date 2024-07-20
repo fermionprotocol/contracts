@@ -222,7 +222,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         validateEntityAdmin(_entityId, pl);
 
         // set the pending admin
-        pl.pendingEntityAdmin[_entityId] = _wallet;
+        pl.entityLookups[_entityId].pendingEntityAdmin = _wallet;
 
         emit EntityAdminPending(_entityId, _wallet);
     }
@@ -244,6 +244,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - New and old wallet are the same
      * - Caller is an entity admin
      * - Caller is not a wallet for any enitity
+     * - New wallet is already a wallet for an entity
      *
      * @param _newWallet - the new wallet address
      */
@@ -258,9 +259,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         uint256 walletId = pl.walletId[msgSender];
         if (walletId == 0) revert NoSuchEntity(0);
-
-        pl.walletId[_newWallet] = walletId;
         delete pl.walletId[msgSender];
+
+        if (pl.walletId[_newWallet] != 0) revert WalletAlreadyExists(_newWallet);
+        pl.walletId[_newWallet] = walletId;
 
         emit WalletChanged(msgSender, _newWallet);
     }
@@ -309,7 +311,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      */
     function transferWrapperContractOwnership(uint256 _offerId, address _newOwner) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        address wrapperAddress = pl.fermionFNFTAddress[_offerId];
+        address wrapperAddress = pl.offerLookups[_offerId].fermionFNFTAddress;
         if (wrapperAddress == address(0)) revert OfferErrors.NoSuchOffer(_offerId);
 
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
@@ -318,7 +320,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
-        FermionWrapper(wrapperAddress).transferOwnership(_newOwner);
+        FermionWrapper(payable(wrapperAddress)).transferOwnership(_newOwner);
     }
 
     /**
@@ -368,7 +370,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @return facilitatorIds - the facilitator's entity IDs
      */
     function getSellersFacilitators(uint256 _sellerId) external view returns (uint256[] memory facilitatorIds) {
-        return FermionStorage.protocolLookups().sellerFacilitators[_sellerId];
+        return FermionStorage.protocolLookups().sellerLookups[_sellerId].sellerFacilitators;
     }
 
     /** Tells if the entity is seller's factiliator.
@@ -381,7 +383,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         uint256 _sellerId,
         uint256 _facilitatorId
     ) external view returns (bool isSellersFcilitator) {
-        return FermionStorage.protocolLookups().isSellersFacilitator[_sellerId][_facilitatorId];
+        return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersFacilitator[_facilitatorId];
     }
 
     /**
@@ -560,9 +562,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _entityId - the entity ID
      */
     function acceptAdminRole(uint256 _entityId, address _wallet, FermionStorage.ProtocolLookups storage pl) internal {
-        if (pl.pendingEntityAdmin[_entityId] != _wallet) revert NotEntityAdmin(_entityId, _wallet);
+        FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
+        if (entityLookups.pendingEntityAdmin != _wallet) revert NotEntityAdmin(_entityId, _wallet);
 
-        delete pl.pendingEntityAdmin[_entityId];
+        delete entityLookups.pendingEntityAdmin;
 
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
         address previousAdmin = entityData.admin;
@@ -616,8 +619,9 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         EntityLib.validateEntityId(_sellerId, pl);
         validateEntityAdmin(_sellerId, pl);
 
-        uint256[] storage facilitators = pl.sellerFacilitators[_sellerId];
-        mapping(uint256 => bool) storage isFacilitator = pl.isSellersFacilitator[_sellerId];
+        FermionStorage.SellerLookups storage sellerLookups = pl.sellerLookups[_sellerId];
+        uint256[] storage facilitators = sellerLookups.sellerFacilitators;
+        mapping(uint256 => bool) storage isFacilitator = sellerLookups.isSellersFacilitator;
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
         for (uint256 i = 0; i < _facilitatorIds.length; i++) {

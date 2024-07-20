@@ -204,6 +204,16 @@ describe("Funds", function () {
           fundsFacet.depositFunds(sellerId, mockToken1Address, amount, { value: amount }),
         ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
       });
+
+      it("ERC721 deposit is not allowed", async function () {
+        const [mockToken] = await deployMockTokens(["ERC721"]);
+        const tokenId = 1n;
+        await mockToken.mint(defaultSigner.address, tokenId, 1);
+
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "ERC721NotAllowed")
+          .withArgs(await mockToken.getAddress());
+      });
     });
   });
 

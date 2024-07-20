@@ -7,7 +7,7 @@ import { vars } from "hardhat/config";
 
 import { initBosonProtocolFixture, getBosonHandler } from "./../test/utils/boson-protocol";
 import { initSeaportFixture } from "./../test/utils/seaport";
-import { Contract, ZeroAddress } from "ethers";
+import { BaseContract, Contract, ZeroAddress } from "ethers";
 import fermionConfig from "./../fermion.config";
 
 const version = "0.0.1";
@@ -36,14 +36,18 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   // if deploying with hardhat, first deploy the boson protocol
   let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, bosonTokenAddress: string;
   let seaportAddress: string, seaportContract: Contract;
+  let wrappedNativeAddress: string;
   const seaportConfig = fermionConfig.seaport[network.name];
   if (network.name === "hardhat" || network.name === "localhost") {
     const isForking = hre.config.networks["hardhat"].forking;
     const deployerBalance = isForking ? await ethers.provider.getBalance(deployerAddress) : 0n;
 
-    ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress } = await initBosonProtocolFixture(false));
+    let weth: BaseContract;
+    ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress, weth } =
+      await initBosonProtocolFixture(false));
     ({ seaportAddress, seaportContract } = await initSeaportFixture());
     seaportConfig.seaport = seaportAddress;
+    wrappedNativeAddress = await weth.getAddress();
 
     if (isForking) {
       await network.provider.send("hardhat_setBalance", [deployerAddress, "0x" + deployerBalance.toString(16)]);
@@ -87,7 +91,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("fnft")) {
-    const constructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
+    const constructorArgs = [bosonPriceDiscoveryAddress, seaportConfig, wrappedNativeAddress]; // ToDo: handle wrappedNativeAddress for deployments to public networks
 
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(...constructorArgs);
