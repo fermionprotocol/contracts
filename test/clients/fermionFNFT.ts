@@ -176,8 +176,8 @@ describe("FermionFNFT", function () {
         expect(await fermionFNFTProxy.allowance(seller.address, approvedWallet.address)).to.equal(0);
 
         // Check balance
-        expect(await fermionFNFTProxy.balanceOf(approvedWallet.address)).to.equal(fractionsAmount);
-        expect(await fermionFNFTProxy.balanceOf(seller.address)).to.equal(0);
+        expect(await fermionFNFTProxy.balanceOfERC20(approvedWallet.address)).to.equal(fractionsAmount);
+        expect(await fermionFNFTProxy.balanceOfERC20(seller.address)).to.equal(0);
       });
 
       it("Unlimited ERC20 approval", async function () {
@@ -199,8 +199,8 @@ describe("FermionFNFT", function () {
         expect(await fermionFNFTProxy.allowance(seller.address, approvedWallet.address)).to.equal(unlimitedFractions);
 
         // Check balance
-        expect(await fermionFNFTProxy.balanceOf(approvedWallet.address)).to.equal(fractionsAmount);
-        expect(await fermionFNFTProxy.balanceOf(seller.address)).to.equal(0);
+        expect(await fermionFNFTProxy.balanceOfERC20(approvedWallet.address)).to.equal(fractionsAmount);
+        expect(await fermionFNFTProxy.balanceOfERC20(seller.address)).to.equal(0);
       });
     });
 
