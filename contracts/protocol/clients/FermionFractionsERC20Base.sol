@@ -90,7 +90,9 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      * @dev See {IERC20-allowance}.
      */
     function allowance(address owner, address spender) public view virtual returns (uint256) {
-        return _getERC20Storage()._allowances[owner][spender];
+        uint256 spenderAllowance = _getERC20Storage()._allowances[owner][spender];
+        if (spenderAllowance == type(uint128).max) spenderAllowance = type(uint256).max; // Update the value to make allowance consistent with standard approaches for infinite allowance
+        return spenderAllowance;
     }
 
     /**
@@ -265,6 +267,9 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
             revert ERC20InvalidSpender(address(0));
         }
         _getERC20Storage()._allowances[owner][spender] = value;
+
+        if (value == type(uint128).max) value = type(uint256).max; // Update the value to make events consistent with standard approaches for infinite allowance
+
         if (emitEvent) {
             emit IERC721.Approval(owner, spender, value);
         }

@@ -37,10 +37,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionFNFT = await FermionFNFT.deploy(mockBosonPriceDiscovery.address, {
-      seaport: ZeroAddress,
+      seaport: wallets[10].address, // dummy address,
       openSeaConduit: mockConduit.address,
       openSeaConduitKey: ZeroHash,
-    }); // For these tests, zero constructor arguments are okay
+    });
 
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
@@ -1439,6 +1439,21 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .withArgs(startTokenId, bidAmount2, minimalBid);
       });
 
+      it("The bid matches minimal bid, but it's equal to current bid", async function () {
+        // Special case - minimal bid equals current bid
+        const bidAmount = 1n;
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
+
+        const minimalBid = (bidAmount * (10000n + MINIMAL_BID_INCREMENT)) / 10000n;
+        const bidAmount2 = minimalBid;
+        await mockExchangeToken.connect(bidders[1]).approve(await fermionFNFTProxy.getAddress(), bidAmount2);
+
+        await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount2, fractions))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidBid")
+          .withArgs(startTokenId, bidAmount2, minimalBid + 1n);
+      });
+
       it("Auction ended", async function () {
         const bidAmount = exitPrice + parseEther("0.1");
         await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
@@ -1734,7 +1749,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       const fractions = 0n;
 
       it("The time lock is not over yet", async function () {
-        const bidAmount = exitPrice - parseEther("0.1");
+        const bidAmount = exitPrice - parseEther("0.01");
         await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
         await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
 
@@ -1754,7 +1769,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       });
 
       it("The caller is not the max bidder", async function () {
-        const bidAmount = exitPrice - parseEther("0.1");
+        const bidAmount = exitPrice - parseEther("0.01");
         await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
 
         const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
@@ -2021,7 +2036,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
       it("The auction has not started", async function () {
         const fractions = 0n;
-        const bidAmount = exitPrice - parseEther("0.1");
+        const bidAmount = exitPrice - parseEther("0.01");
         await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
 
         await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
