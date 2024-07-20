@@ -17,13 +17,17 @@ describe("FermionFNFT - wrapper tests", function () {
   let mockBoson: Contract;
 
   async function setupFermionWrapperTest() {
-    const [mockConduit, mockBosonPriceDiscovery] = (await ethers.getSigners()).slice(9, 11);
+    wallets = await ethers.getSigners();
+    fermionProtocolSigner = wallets[1]; // wallet that simulates the fermion protocol
+    wrapperContractOwner = wallets[2];
+
+    const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(mockBosonPriceDiscovery.address, {
-      seaport: ZeroAddress,
+      seaport: wallets[10].address, // dummy address
       openSeaConduit: mockConduit.address,
       openSeaConduitKey: ZeroHash,
-    }); // For these tests, zero constructor arguments are okay
+    });
 
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionWrapper.getAddress());
@@ -37,9 +41,6 @@ describe("FermionFNFT - wrapper tests", function () {
   before(async function () {
     ({ fermionWrapper, fermionWrapperProxy, mockBoson, mockBosonPriceDiscovery } =
       await loadFixture(setupFermionWrapperTest));
-    wallets = await ethers.getSigners();
-    fermionProtocolSigner = wallets[1]; // wallet that simulates the fermion protocol
-    wrapperContractOwner = wallets[2];
 
     fermionWrapperProxy = fermionWrapperProxy.connect(fermionProtocolSigner);
   });

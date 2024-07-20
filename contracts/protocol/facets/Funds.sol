@@ -168,13 +168,17 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
         if (_offset >= tokenCount) {
             return new address[](0);
         } else if (_offset + _limit > tokenCount) {
-            _limit = tokenCount - _offset;
+            unchecked {
+                _limit = tokenCount - _offset;
+            }
         }
 
         tokenList = new address[](_limit);
 
-        for (uint256 i = 0; i < _limit; i++) {
-            tokenList[i] = tokens[_offset++];
+        unchecked {
+            for (uint256 i = 0; i < _limit; i++) {
+                tokenList[i] = tokens[_offset++];
+            }
         }
 
         return tokenList;

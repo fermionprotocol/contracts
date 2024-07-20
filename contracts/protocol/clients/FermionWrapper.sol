@@ -149,7 +149,6 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
 
             // Mint to the specified address
             _safeMint(_to, tokenId);
-            Common.changeTokenState(tokenId, FermionTypes.TokenState.Wrapped);
         }
         wrapOpenSea();
     }

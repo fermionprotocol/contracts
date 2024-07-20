@@ -72,12 +72,14 @@ contract PauseFacet is Access, PauseErrors, IPauseEvents {
         } else {
             uint256 count = 0;
 
-            for (uint256 i = 0; i < totalRegions; i++) {
-                // Check if the region is paused by bitwise AND operation with shifted 1
-                if (status.paused & (1 << i) != 0) {
-                    regions[count] = FermionTypes.PausableRegion(i);
+            unchecked {
+                for (uint256 i = 0; i < totalRegions; i++) {
+                    // Check if the region is paused by bitwise AND operation with shifted 1
+                    if (status.paused & (1 << i) != 0) {
+                        regions[count] = FermionTypes.PausableRegion(i);
 
-                    count++;
+                        count++;
+                    }
                 }
             }
 
@@ -107,15 +109,15 @@ contract PauseFacet is Access, PauseErrors, IPauseEvents {
             return;
         }
 
-        uint256 region;
         uint256 incomingPaused;
 
         // Calculate the incoming paused status as the sum of individual regions
         // Use "or" to get the correct value even if the same region is specified more than once
-        for (uint256 i = 0; i < _regions.length; i++) {
-            // Get enum value as power of 2
-            region = 1 << uint256(_regions[i]);
-            incomingPaused |= region;
+        unchecked {
+            for (uint256 i = 0; i < _regions.length; i++) {
+                // Get enum value as power of 2
+                incomingPaused |= 1 << uint256(_regions[i]);
+            }
         }
 
         // Store the paused status

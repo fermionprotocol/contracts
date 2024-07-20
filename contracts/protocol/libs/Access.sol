@@ -34,10 +34,9 @@ contract Access is Context {
 
     modifier onlyRole(bytes32 _role) {
         address account = _msgSender();
-        AccessControlStorage storage $ = _getAccessControlStorage();
-        bool hasRole = $._roles[_role].hasRole[account];
 
-        if (!hasRole) revert IAccessControl.AccessControlUnauthorizedAccount(account, _role);
+        if (!_getAccessControlStorage()._roles[_role].hasRole[account])
+            revert IAccessControl.AccessControlUnauthorizedAccount(account, _role);
         _;
     }
 
