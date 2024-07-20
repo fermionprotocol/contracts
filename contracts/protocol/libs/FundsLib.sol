@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FundsErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -57,6 +58,13 @@ library FundsLib {
      * @param _amount - amount to be transferred
      */
     function transferFundsToProtocol(address _tokenAddress, address _from, uint256 _amount) internal {
+        // prevent ERC721 deposits
+        try IERC721(_tokenAddress).supportsInterface(type(IERC721).interfaceId) returns (bool isErc721) {
+            if (isErc721) revert FundsErrors.ERC721NotAllowed(_tokenAddress);
+        } catch {
+            // do nothing, the contract is not ERC721
+        }
+
         // protocol balance before the transfer
         uint256 protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
 
@@ -84,9 +92,10 @@ library FundsLib {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
         // if the current amount of token is 0, the token address must be added to the token list
-        mapping(address => uint256) storage availableFunds = pl.availableFunds[_entityId];
+        FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
+        mapping(address => uint256) storage availableFunds = entityLookups.availableFunds;
         if (availableFunds[_tokenAddress] == 0) {
-            address[] storage tokenList = pl.tokenList[_entityId];
+            address[] storage tokenList = entityLookups.tokenList;
             tokenList.push(_tokenAddress);
             //Set index mapping. Should be index in tokenList array + 1
             pl.tokenIndexByAccount[_entityId][_tokenAddress] = tokenList.length;
@@ -169,7 +178,8 @@ library FundsLib {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
         // get available funds from storage
-        mapping(address => uint256) storage availableFunds = pl.availableFunds[_entityId];
+        FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
+        mapping(address => uint256) storage availableFunds = entityLookups.availableFunds;
         uint256 entityFunds = availableFunds[_tokenAddress];
 
         // make sure that seller has enough funds in the pool and reduce the available funds
@@ -183,7 +193,7 @@ library FundsLib {
         // if available funds are totally emptied, the token address is removed from the seller's tokenList
         if (entityFunds == _amount) {
             // Get the index in the tokenList array, which is 1 less than the tokenIndexByAccount index
-            address[] storage tokenList = pl.tokenList[_entityId];
+            address[] storage tokenList = entityLookups.tokenList;
             uint256 lastTokenIndex = tokenList.length - 1;
             mapping(address => uint256) storage entityTokens = pl.tokenIndexByAccount[_entityId];
             uint256 index = entityTokens[_tokenAddress] - 1;

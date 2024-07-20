@@ -85,6 +85,7 @@ interface FundsErrors {
     // Funds errors
     error WrongValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
+    error ERC721NotAllowed(address tokenAddress);
     error PriceTooLow(uint256 price, uint256 minimumPrice);
     error ZeroDepositNotAllowed();
     error NothingToWithdraw();
