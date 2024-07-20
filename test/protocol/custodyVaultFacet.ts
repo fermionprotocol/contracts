@@ -1437,7 +1437,7 @@ describe("CustodyVault", function () {
             wrapper
               .connect(buyer)
               .mintFractions(exchange.tokenId, 1, fractionsPerToken, auctionParameters, custodianVaultParameters, 0n),
-          ).to.be.revertedWithCustomError(fermionErrors, "InssuficientBalanceToFractionalise");
+          ).to.be.revertedWithCustomError(fermionErrors, "InsufficientBalanceToFractionalise");
         });
 
         it("Partial auction threshold is below custodian fee", async function () {
@@ -1872,7 +1872,7 @@ describe("CustodyVault", function () {
         it("Insufficient balance to fractionalise", async function () {
           await expect(wrapper.connect(buyer).mintFractions(exchange.tokenId, 1, 0n)).to.be.revertedWithCustomError(
             fermionErrors,
-            "InssuficientBalanceToFractionalise",
+            "InsufficientBalanceToFractionalise",
           );
         });
 
