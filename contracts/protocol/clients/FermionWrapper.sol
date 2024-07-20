@@ -41,6 +41,7 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
      */
     function initializeWrapper(address _owner) internal virtual {
         initialize(_owner);
+        wrapOpenSea();
     }
 
     /**
@@ -144,6 +145,5 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
             // Mint to the specified address
             _safeMint(_to, tokenId);
         }
-        wrapOpenSea();
     }
 }
