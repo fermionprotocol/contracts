@@ -12,8 +12,6 @@ library Common {
     struct CommonStorage {
         // Token state
         mapping(uint256 => FermionTypes.TokenState) tokenState;
-        // Exchange token
-        address exchangeToken;
     }
 
     // keccak256(abi.encode(uint256(keccak256("fermion.common.storage")) - 1)) & ~bytes32(uint256(0xff))
