@@ -8,13 +8,14 @@ pragma solidity 0.8.24;
  */
 contract ReentrancyGuard {
     uint256 internal constant GUARD_SLOT = 0;
-    error Reentrered();
+    error Reentered();
 
     modifier nonReentrant() {
-        if (msg.sender != address(this)) {
+        bool notSelf = msg.sender != address(this);
+        if (notSelf) {
             assembly {
                 if tload(GUARD_SLOT) {
-                    mstore(0, 0x6cee810b) // ReentrancyGuard.Reentrered.selector
+                    mstore(0, 0xb5dfd9e5) // ReentrancyGuard.Reentered.selector
                     revert(0x1c, 0x04)
                 }
                 tstore(GUARD_SLOT, 1)
@@ -23,8 +24,10 @@ contract ReentrancyGuard {
         _;
         // Unlocks the guard, making the pattern composable.
         // After the function exits, it can be called again, even in the same transaction.
-        assembly {
-            tstore(GUARD_SLOT, 0)
+        if (notSelf) {
+            assembly {
+                tstore(GUARD_SLOT, 0)
+            }
         }
     }
 }

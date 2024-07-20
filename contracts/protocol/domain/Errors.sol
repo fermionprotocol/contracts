@@ -38,6 +38,7 @@ interface EntityErrors {
     error ChangeNotAllowed();
     error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
     error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
+    error NewWalletSameAsOld();
 }
 
 interface OfferErrors {
@@ -76,7 +77,7 @@ interface CustodianVaultErrors is AuctionErrors {
     error InactiveVault(uint256 tokenId);
     error PeriodNotOver(uint256 tokenId, uint256 periodEnd);
     error InvalidPartialAuctionThreshold();
-    error InssuficientBalanceToFractionalise(uint256 tokenId, uint256 minimalDeposit);
+    error InsufficientBalanceToFractionalise(uint256 tokenId, uint256 minimalDeposit);
 }
 
 interface FundsErrors {

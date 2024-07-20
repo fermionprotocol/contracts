@@ -51,7 +51,10 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
             FermionTypes.WalletRole.Assistant
         );
 
-        IFermionFNFT(pl.fermionFNFTAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
+        IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).pushToNextTokenState(
+            _tokenId,
+            FermionTypes.TokenState.CheckedIn
+        );
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
@@ -96,7 +99,10 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
 
-        IFermionFNFT(pl.fermionFNFTAddress[offerId]).pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedOut);
+        IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).pushToNextTokenState(
+            _tokenId,
+            FermionTypes.TokenState.CheckedOut
+        );
     }
 
     /**
@@ -122,7 +128,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         address msgSender = _msgSender();
-        IFermionFNFT(pl.fermionFNFTAddress[offerId]).transferFrom(msgSender, address(this), _tokenId);
+        IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).transferFrom(msgSender, address(this), _tokenId);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequested;
         checkoutRequest.buyer = msgSender;
@@ -225,7 +231,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
      * @param _tokenId - the token ID
      */
     function getTaxAmount(uint256 _tokenId) external view returns (uint256) {
-        return FermionStorage.protocolLookups().checkoutRequest[_tokenId].taxAmount;
+        return FermionStorage.protocolLookups().tokenLookups[_tokenId].checkoutRequest.taxAmount;
     }
 
     /**
@@ -243,7 +249,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         FermionTypes.CheckoutRequestStatus _expectedStatus,
         FermionStorage.ProtocolLookups storage pl
     ) internal view returns (FermionTypes.CheckoutRequest storage) {
-        FermionTypes.CheckoutRequest storage checkoutRequest = pl.checkoutRequest[_tokenId];
+        FermionTypes.CheckoutRequest storage checkoutRequest = pl.tokenLookups[_tokenId].checkoutRequest;
 
         if (checkoutRequest.status != _expectedStatus)
             revert InvalidCheckoutRequestStatus(_tokenId, _expectedStatus, checkoutRequest.status);
