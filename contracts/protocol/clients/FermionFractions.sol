@@ -310,7 +310,15 @@ abstract contract FermionFractions is
 
         if (!$.isFractionalised[_tokenId]) revert TokenNotFractionalised(_tokenId);
 
-        uint256 minimalBid = (auctionDetails.maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
+        uint256 minimalBid;
+        {
+            uint256 maxBid = auctionDetails.maxBid;
+            minimalBid = (maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
+
+            // due to rounding errors, the minimal bid can be equal to the max bid. Ensure strict increase.
+            if (minimalBid == maxBid) minimalBid += 1;
+        }
+
         if (_price < minimalBid) {
             revert InvalidBid(_tokenId, _price, minimalBid);
         }
