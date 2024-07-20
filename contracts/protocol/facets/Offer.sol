@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
+import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
 import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
@@ -54,7 +54,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     function createOffer(FermionTypes.Offer calldata _offer) external notPaused(FermionTypes.PausableRegion.Offer) {
         if (
             _offer.sellerId != _offer.facilitatorId &&
-            !FermionStorage.protocolLookups().isSellersFacilitator[_offer.sellerId][_offer.facilitatorId]
+            !FermionStorage.protocolLookups().sellerLookups[_offer.sellerId].isSellersFacilitator[_offer.facilitatorId]
         ) {
             revert EntityErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
         }
@@ -213,6 +213,11 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * - If seller deposit is non zero and there are not enough funds to cover it
      * - It is self sale and the caller does not provide the verification fee
      * - It is a normal sale and the price is not high enough to cover the verification fee
+     * - The buyer order validation fails:
+     *   - There is more than 1 offer in the order
+     *   - There are more than 2 considerations in the order
+     *   - OpenSea fee is higher than the price
+     *   - OpenSea fee is higher than the expected fee
      * - The verification timeout is too long
      *
      * @param _tokenId - the token ID
@@ -229,71 +234,82 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
         {
-            address exchangeToken = offer.exchangeToken;
-
-            // Check the caller is the the seller's assistant
             {
-                uint256 sellerId = offer.sellerId;
-                EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
+                address exchangeToken = offer.exchangeToken;
 
-                handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
-            }
+                // Check the caller is the the seller's assistant
+                {
+                    uint256 sellerId = offer.sellerId;
+                    EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
 
-            address wrapperAddress = pl.fermionFNFTAddress[offerId];
-
-            IBosonProtocol.PriceDiscovery memory _priceDiscovery;
-            _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
-            _priceDiscovery.priceDiscoveryContract = wrapperAddress;
-            _priceDiscovery.conduit = wrapperAddress;
-            {
-                uint256 bosonProtocolFee;
-                if (_selfSale) {
-                    uint256 minimalPrice;
-                    (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                        exchangeToken,
-                        offer.verifierFee,
-                        0
-                    );
-                    if (minimalPrice > 0) {
-                        FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-                        IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
-                    }
-
-                    _priceDiscovery.price = minimalPrice;
-                    _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                        IFermionWrapper.unwrapToSelf,
-                        (_tokenId, exchangeToken, minimalPrice)
-                    );
-                } else {
-                    if (
-                        _buyerOrder.parameters.offer[0].startAmount <
-                        _buyerOrder.parameters.consideration[1].startAmount
-                    ) {
-                        revert InvalidOrder();
-                    }
-                    unchecked {
-                        _priceDiscovery.price =
-                            _buyerOrder.parameters.offer[0].startAmount -
-                            _buyerOrder.parameters.consideration[1].startAmount;
-                    }
-
-                    uint256 minimalPrice;
-                    (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                        exchangeToken,
-                        offer.verifierFee,
-                        _priceDiscovery.price
-                    );
-                    if (_priceDiscovery.price < minimalPrice) {
-                        revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
-                    }
-                    _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                        IFermionWrapper.unwrap,
-                        (_tokenId, _buyerOrder)
-                    );
+                    handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
                 }
 
-                pl.itemPrice[_tokenId] = _priceDiscovery.price - bosonProtocolFee;
+                address wrapperAddress = pl.offerLookups[offerId].fermionFNFTAddress;
+
+                IBosonProtocol.PriceDiscovery memory _priceDiscovery;
+                _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
+                _priceDiscovery.priceDiscoveryContract = wrapperAddress;
+                _priceDiscovery.conduit = wrapperAddress;
+                {
+                    uint256 bosonProtocolFee;
+                    if (_selfSale) {
+                        uint256 minimalPrice;
+                        (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                            exchangeToken,
+                            offer.verifierFee,
+                            0
+                        );
+                        if (minimalPrice > 0) {
+                            FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
+                            FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), minimalPrice);
+                        }
+
+                        _priceDiscovery.price = minimalPrice;
+                        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+                            IFermionWrapper.unwrapToSelf,
+                            (_tokenId, exchangeToken, minimalPrice)
+                        );
+                    } else {
+                        if (
+                            _buyerOrder.parameters.offer.length != 1 ||
+                            _buyerOrder.parameters.consideration.length > 2 ||
+                            _buyerOrder.parameters.offer[0].startAmount <
+                            _buyerOrder.parameters.consideration[1].startAmount
+                        ) {
+                            revert InvalidOpenSeaOrder();
+                        }
+                        unchecked {
+                            _priceDiscovery.price =
+                                _buyerOrder.parameters.offer[0].startAmount -
+                                _buyerOrder.parameters.consideration[1].startAmount;
+                        }
+                        if (
+                            _buyerOrder.parameters.consideration[1].startAmount >
+                            (_priceDiscovery.price * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 // allow +1 in case they round up; minimal exposure
+                        ) {
+                            revert InvalidOpenSeaOrder();
+                        }
+
+                        uint256 minimalPrice;
+                        (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                            exchangeToken,
+                            offer.verifierFee,
+                            _priceDiscovery.price
+                        );
+                        if (_priceDiscovery.price < minimalPrice) {
+                            revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
+                        }
+                        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+                            IFermionWrapper.unwrap,
+                            (_tokenId, _buyerOrder)
+                        );
+                    }
+
+                    tokenLookups.itemPrice = _priceDiscovery.price - bosonProtocolFee;
+                }
 
                 BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
                 BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
@@ -311,8 +327,8 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             }
             itemVerificationTimeout = _verificationTimeout;
         }
-        pl.itemVerificationTimeout[_tokenId] = itemVerificationTimeout;
-        pl.itemMaxVerificationTimeout[_tokenId] = maxItemVerificationTimeout;
+        tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
+        tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
 
         emit IVerificationEvents.VerificationInitiated(
             offerId,
@@ -345,7 +361,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         if (_sellerDeposit > 0) {
             // Use the available funds first
             // If there is not enough, the seller must provide the missing amount
-            uint256 availableFunds = FermionStorage.protocolLookups().availableFunds[_sellerId][_exchangeToken];
+            uint256 availableFunds = FermionStorage.protocolLookups().entityLookups[_sellerId].availableFunds[
+                _exchangeToken
+            ];
 
             if (availableFunds >= _sellerDeposit) {
                 FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
@@ -519,16 +537,16 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         FermionStorage.ProtocolStatus storage ps
     ) internal {
         address msgSender = _msgSender();
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
 
-        address wrapperAddress = pl.fermionFNFTAddress[_offerId];
+        address wrapperAddress = offerLookup.fermionFNFTAddress;
         if (wrapperAddress == address(0)) {
             // Currently, the wrapper is created for each offer, since BOSON_PROTOCOL.reserveRange can be called only once
             // so else path is not possible. This is here for future proofing.
 
             // create wrapper
             wrapperAddress = Clones.cloneDeterministic(ps.fermionFNFTBeaconProxy, bytes32(_offerId));
-            pl.fermionFNFTAddress[_offerId] = wrapperAddress;
+            offerLookup.fermionFNFTAddress = wrapperAddress;
 
             address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
             IFermionFNFT(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken);

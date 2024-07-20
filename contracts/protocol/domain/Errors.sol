@@ -38,6 +38,7 @@ interface EntityErrors {
     error ChangeNotAllowed();
     error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
     error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
+    error WalletAlreadyExists(address wallet);
     error NewWalletSameAsOld();
 }
 
@@ -45,7 +46,7 @@ interface OfferErrors {
     // Offer errors
     error InvalidQuantity(uint256 quantity);
     error NoSuchOffer(uint256 offerId);
-    error InvalidOrder();
+    error InvalidOpenSeaOrder();
 }
 
 interface VerificationErrors {
@@ -85,6 +86,7 @@ interface FundsErrors {
     // Funds errors
     error WrongValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
+    error ERC721NotAllowed(address tokenAddress);
     error PriceTooLow(uint256 price, uint256 minimumPrice);
     error ZeroDepositNotAllowed();
     error NothingToWithdraw();
@@ -103,8 +105,8 @@ interface MetaTransactionErrors {
     error NonceUsedAlready();
     error FunctionNotAllowlisted();
     error InvalidFunctionName();
-    error InvalidSignature();
-    error SignerAndSignatureDoNotMatch();
+    error InvalidSignature(); // Somethihing is wrong with the signature
+    error SignatureValidationFailed(); // Signature might be correct, but the validation failed
     error FunctionCallFailed();
 }
 

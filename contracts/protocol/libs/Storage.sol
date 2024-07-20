@@ -9,12 +9,24 @@ import { FermionTypes } from "../domain/Types.sol";
  * @notice Provides access to the protocol storage
  */
 library FermionStorage {
-    bytes32 internal constant PROTOCOL_STATUS_POSITION = keccak256("fermion.protocol.status");
-    bytes32 internal constant PROTOCOL_CONFIG_POSITION = keccak256("fermion.protocol.config");
-    bytes32 internal constant PROTOCOL_ENTITIES_POSITION = keccak256("fermion.protocol.entities");
-    bytes32 internal constant PROTOCOL_LOOKUPS_POSITION = keccak256("fermion.protocol.lookups");
-    bytes32 internal constant META_TRANSACTION_POSITION = keccak256("fermion.meta.transaction");
+    // keccak256(abi.encode(uint256(keccak256("fermion.protocol.status")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant PROTOCOL_STATUS_POSITION =
+        0x3144091ebb938ccd9d751b466db575a8de4d70fb2eb8b40620da838c2583fa00;
+    // keccak256(abi.encode(uint256(keccak256("fermion.protocol.config")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant PROTOCOL_CONFIG_POSITION =
+        0x6ef45f7257a99921155f075ce9a6791d74a06c7aef2321d25e643f688d1e3d00;
+    // keccak256(abi.encode(uint256(keccak256("fermion.protocol.entities")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant PROTOCOL_ENTITIES_POSITION =
+        0x88d4ceef162f03fe6cb4afc6ec9059995e2e55e4c807661ebd7d646b852a9700;
+    // keccak256(abi.encode(uint256(keccak256("fermion.protocol.lookups")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant PROTOCOL_LOOKUPS_POSITION =
+        0x769aa294c8d03dc2ae011ff448d15e722e87cfb823b4b4d6339267d1c690d900;
+    // keccak256(abi.encode(uint256(keccak256("fermion.meta.transaction")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant META_TRANSACTION_POSITION =
+        0x1b00ae0f5ca50b57738405440d11dc84d7b23d830f08bc0a651be8df02efae00;
 
+    // Protocol status storage
+    /// @custom:storage-location erc7201:fermion.protocol.status
     struct ProtocolStatus {
         // Current protocol version
         bytes32 version;
@@ -30,6 +42,8 @@ library FermionStorage {
         uint256 paused;
     }
 
+    // Protocol config storage
+    /// @custom:storage-location erc7201:fermion.protocol.config
     struct ProtocolConfig {
         // Protocol treasury address
         address payable treasury;
@@ -42,6 +56,7 @@ library FermionStorage {
     }
 
     // Protocol entities storage
+    /// @custom:storage-location erc7201:fermion.protocol.entities
     struct ProtocolEntities {
         // entity id => entity data
         mapping(uint256 => FermionTypes.EntityData) entityData;
@@ -52,6 +67,7 @@ library FermionStorage {
     }
 
     // Protocol lookup storage
+    /// @custom:storage-location erc7201:fermion.protocol.lookups
     struct ProtocolLookups {
         // entity counter
         uint256 entityCounter;
@@ -61,39 +77,60 @@ library FermionStorage {
         mapping(address => uint256) entityId;
         // wallet => wallet id
         mapping(address => uint256) walletId;
-        // entity id => entity admin => pending status
-        mapping(uint256 => mapping(address => bool)) pendingEntityAdmin;
-        // offerId => wrapper address
-        mapping(uint256 => address) fermionFNFTAddress;
-        // tokenId => item price
-        mapping(uint256 => uint256) itemPrice;
-        // entity id => token address => amount
-        mapping(uint256 => mapping(address => uint256)) availableFunds;
-        // entity id => all tokens with balance > 0
-        mapping(uint256 => address[]) tokenList;
         // account id => token address => index on token addresses list
         mapping(uint256 => mapping(address => uint256)) tokenIndexByAccount;
-        // token id => checkout request
-        mapping(uint256 => FermionTypes.CheckoutRequest) checkoutRequest;
-        // seller id => facilitator id => status
-        mapping(uint256 => mapping(uint256 => bool)) isSellersFacilitator;
-        // seller id => list of facilitators
-        mapping(uint256 => uint256[]) sellerFacilitators;
-        // token id => vault amount
-        mapping(uint256 => FermionTypes.CustodianFee) vault;
-        // offer id => fraction auction details
-        mapping(uint256 => FermionTypes.FractionAuction) fractionAuction;
-        // offer id => custodianVaultParameters
-        mapping(uint256 => FermionTypes.CustodianVaultParameters) custodianVaultParameters;
-        // offer id => number of items in custodian vault
-        mapping(uint256 => uint256) custodianVaultItems;
-        // token id => verification timeout
-        mapping(uint256 => uint256) itemVerificationTimeout;
-        // token id => max erification timeout
-        mapping(uint256 => uint256) itemMaxVerificationTimeout;
+        // entity id => entity lookups
+        mapping(uint256 => EntityLookups) entityLookups;
+        // offer id => offer lookups
+        mapping(uint256 => OfferLookups) offerLookups;
+        // token id => token lookups
+        mapping(uint256 => TokenLookups) tokenLookups;
+        // entity id => seller lookups
+        mapping(uint256 => SellerLookups) sellerLookups;
+    }
+
+    struct EntityLookups {
+        // entity admin => pending status
+        mapping(address => bool) pendingEntityAdmin;
+        // token address => amount
+        mapping(address => uint256) availableFunds;
+        // all tokens with balance > 0
+        address[] tokenList;
+    }
+
+    struct OfferLookups {
+        // fermion FNFT address
+        address fermionFNFTAddress;
+        // fraction auction details
+        FermionTypes.FractionAuction fractionAuction;
+        // custodianVaultParameters
+        FermionTypes.CustodianVaultParameters custodianVaultParameters;
+        // number of items in custodian vault
+        uint256 custodianVaultItems;
+    }
+
+    struct TokenLookups {
+        // item price
+        uint256 itemPrice;
+        // checkout request
+        FermionTypes.CheckoutRequest checkoutRequest;
+        // vault amount
+        FermionTypes.CustodianFee vault;
+        // verification timeout
+        uint256 itemVerificationTimeout;
+        // max verification timeout
+        uint256 itemMaxVerificationTimeout;
+    }
+
+    struct SellerLookups {
+        // facilitator id => status
+        mapping(uint256 => bool) isSellersFacilitator;
+        // list of facilitators
+        uint256[] sellerFacilitators;
     }
 
     // Storage related to Meta Transactions
+    /// @custom:storage-location erc7201:fermion.meta.transaction
     struct MetaTransaction {
         // The address of the protocol contract
         address fermionAddress;
@@ -109,9 +146,8 @@ library FermionStorage {
      * @return ps - the protocol status slot
      */
     function protocolStatus() internal pure returns (ProtocolStatus storage ps) {
-        bytes32 position = PROTOCOL_STATUS_POSITION;
         assembly {
-            ps.slot := position
+            ps.slot := PROTOCOL_STATUS_POSITION
         }
     }
 
@@ -121,9 +157,8 @@ library FermionStorage {
      * @return pc - the protocol config slot
      */
     function protocolConfig() internal pure returns (ProtocolConfig storage pc) {
-        bytes32 position = PROTOCOL_CONFIG_POSITION;
         assembly {
-            pc.slot := position
+            pc.slot := PROTOCOL_CONFIG_POSITION
         }
     }
 
@@ -133,9 +168,8 @@ library FermionStorage {
      * @return pe - the protocol entities slot
      */
     function protocolEntities() internal pure returns (ProtocolEntities storage pe) {
-        bytes32 position = PROTOCOL_ENTITIES_POSITION;
         assembly {
-            pe.slot := position
+            pe.slot := PROTOCOL_ENTITIES_POSITION
         }
     }
 
@@ -145,9 +179,8 @@ library FermionStorage {
      * @return pl - the protocol lookups slot
      */
     function protocolLookups() internal pure returns (ProtocolLookups storage pl) {
-        bytes32 position = PROTOCOL_LOOKUPS_POSITION;
         assembly {
-            pl.slot := position
+            pl.slot := PROTOCOL_LOOKUPS_POSITION
         }
     }
 
@@ -157,9 +190,8 @@ library FermionStorage {
      * @return mt - the meta transaction slot
      */
     function metaTransaction() internal pure returns (MetaTransaction storage mt) {
-        bytes32 position = META_TRANSACTION_POSITION;
         assembly {
-            mt.slot := position
+            mt.slot := META_TRANSACTION_POSITION
         }
     }
 

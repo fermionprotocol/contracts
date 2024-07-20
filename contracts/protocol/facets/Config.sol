@@ -20,12 +20,12 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      *
      * @param _config - the protocol configuration parameters
      */
-    function init(FermionStorage.ProtocolConfig calldata _config) public {
+    function init(FermionStorage.ProtocolConfig calldata _config) external {
         // Initialize protocol config params
-        setTreasuryAddress(_config.treasury);
-        setProtocolFeePercentage(_config.protocolFeePercentage);
+        setTreasuryAddressInternal(_config.treasury);
+        setProtocolFeePercentageInternal(_config.protocolFeePercentage);
         setMaxVerificationTimeoutInternal(_config.maxVerificationTimeout);
-        setDefaultVerificationTimeout(_config.defaultVerificationTimeout);
+        setDefaultVerificationTimeoutInternal(_config.defaultVerificationTimeout);
     }
 
     /**
@@ -33,18 +33,17 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      *
      * Emits a TreasuryAddressChanged event if successful.
      *
-     * Reverts if _treasuryAddress is the zero address
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The _treasuryAddress is the zero address
      *
-     * @dev Caller must have ADMIN role.
      *
      * @param _treasuryAddress - the the multi-sig wallet address
      */
     function setTreasuryAddress(
         address payable _treasuryAddress
-    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
-        checkNonZeroAddress(_treasuryAddress);
-        FermionStorage.protocolConfig().treasury = _treasuryAddress;
-        emit TreasuryAddressChanged(_treasuryAddress);
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+        setTreasuryAddressInternal(_treasuryAddress);
     }
 
     /**
@@ -61,9 +60,9 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      *
      * Emits a ProtocolFeePercentageChanged event if successful.
      *
-     * Reverts if the _protocolFeePercentage is greater than 10000.
-     *
-     * @dev Caller must have ADMIN role.
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The _protocolFeePercentage is greater than 10000
      *
      * @param _protocolFeePercentage - the percentage that will be taken as a fee from the net of a Boson Protocol sale or auction (after royalties)
      *
@@ -72,15 +71,8 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setProtocolFeePercentage(
         uint16 _protocolFeePercentage
-    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
-        // Make sure percentage is less than 10000
-        checkMaxPercententage(_protocolFeePercentage);
-
-        // Store fee percentage
-        FermionStorage.protocolConfig().protocolFeePercentage = _protocolFeePercentage;
-
-        // Notify watchers of state change
-        emit ProtocolFeePercentageChanged(_protocolFeePercentage);
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+        setProtocolFeePercentageInternal(_protocolFeePercentage);
     }
 
     /**
@@ -97,7 +89,9 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      *
      * Emits a DefaultVerificationTimeoutChanged event if successful.
      *
-     * Reverts if the _defaultVerificationTimeout is 0.
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The _defaultVerificationTimeout is 0
      *
      * @dev Caller must have ADMIN role.
      *
@@ -106,23 +100,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     function setDefaultVerificationTimeout(
         uint256 _defaultVerificationTimeout
     ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
-        // Make sure that verification timeout greater than 0
-        checkNonZeroValue(_defaultVerificationTimeout);
-
-        FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
-        uint256 maxItemVerificationTimeout = pc.maxVerificationTimeout;
-        if (_defaultVerificationTimeout > maxItemVerificationTimeout) {
-            revert VerificationErrors.VerificationTimeoutTooLong(
-                _defaultVerificationTimeout,
-                maxItemVerificationTimeout
-            );
-        }
-
-        // Store verification timeout
-        pc.defaultVerificationTimeout = _defaultVerificationTimeout;
-
-        // Notify watchers of state change
-        emit DefaultVerificationTimeoutChanged(_defaultVerificationTimeout);
+        setDefaultVerificationTimeoutInternal(_defaultVerificationTimeout);
     }
 
     /**
@@ -180,6 +158,73 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
 
         // Notify watchers of state change
         emit MaxVerificationTimeoutChanged(_maxVerificationTimeout);
+    }
+
+    /**
+     * @notice Sets the Boson Protocol multi-sig wallet address.
+     *
+     * Emits a TreasuryAddressChanged event if successful.
+     *
+     * Reverts if _treasuryAddress is the zero address
+     *
+     * @param _treasuryAddress - the the multi-sig wallet address
+     */
+    function setTreasuryAddressInternal(address payable _treasuryAddress) internal {
+        checkNonZeroAddress(_treasuryAddress);
+        FermionStorage.protocolConfig().treasury = _treasuryAddress;
+        emit TreasuryAddressChanged(_treasuryAddress);
+    }
+
+    /**
+     * @notice Sets the protocol fee percentage.
+     *
+     * Emits a ProtocolFeePercentageChanged event if successful.
+     *
+     * Reverts if the _protocolFeePercentage is greater than 10000.
+     *
+     * @param _protocolFeePercentage - the percentage that will be taken as a fee from the net of a Boson Protocol sale or auction (after royalties)
+     *
+     * N.B. Represent percentage value as an unsigned int by multiplying the percentage by 100:
+     * e.g, 1.75% = 175, 100% = 10000
+     */
+    function setProtocolFeePercentageInternal(uint16 _protocolFeePercentage) internal {
+        // Make sure percentage is less than 10000
+        checkMaxPercententage(_protocolFeePercentage);
+
+        // Store fee percentage
+        FermionStorage.protocolConfig().protocolFeePercentage = _protocolFeePercentage;
+
+        // Notify watchers of state change
+        emit ProtocolFeePercentageChanged(_protocolFeePercentage);
+    }
+
+    /**
+     * @notice Sets the verification timeout.
+     *
+     * Emits a DefaultVerificationTimeoutChanged event if successful.
+     *
+     * Reverts if the _defaultVerificationTimeout is 0.
+     *
+     * @param _defaultVerificationTimeout - the period after anyone can reject the verification
+     */
+    function setDefaultVerificationTimeoutInternal(uint256 _defaultVerificationTimeout) internal {
+        // Make sure that verification timeout greater than 0
+        checkNonZeroValue(_defaultVerificationTimeout);
+
+        FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
+        uint256 maxItemVerificationTimeout = pc.maxVerificationTimeout;
+        if (_defaultVerificationTimeout > maxItemVerificationTimeout) {
+            revert VerificationErrors.VerificationTimeoutTooLong(
+                _defaultVerificationTimeout,
+                maxItemVerificationTimeout
+            );
+        }
+
+        // Store the verification timeout
+        pc.defaultVerificationTimeout = _defaultVerificationTimeout;
+
+        // Notify watchers of state change
+        emit DefaultVerificationTimeoutChanged(_defaultVerificationTimeout);
     }
 
     /**
