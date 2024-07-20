@@ -1204,14 +1204,14 @@ describe("Offer", function () {
 
               it("Zero available funds", async function () {
                 // Native currency offer - insufficient funds
-                await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit - 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(sellerDeposit, sellerDeposit - 1n);
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit - 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
 
                 // Native currency offer - too much sent
-                await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit + 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(sellerDeposit, sellerDeposit + 1n);
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit + 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
               it("Partially covered by available funds", async function () {
@@ -1221,14 +1221,14 @@ describe("Offer", function () {
                 });
 
                 // Native currency offer - insufficient funds
-                await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder - 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(remainder, remainder - 1n);
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder - 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
 
                 // Native currency offer - too much sent
-                await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder + 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(remainder, remainder + 1n);
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder + 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
             });
           });
@@ -1277,12 +1277,44 @@ describe("Offer", function () {
               .withArgs(minimalPrice - 1n, minimalPrice);
           });
 
+          it("Buyer order does not have 1 offer", async function () {
+            // two offers
+            buyerAdvancedOrder.parameters.offer.push(buyerAdvancedOrder.parameters.offer[0]);
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+
+            // 0 offers
+            buyerAdvancedOrder.parameters.offer = [];
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+          });
+
+          it("Buyer order have more than 2 considerations", async function () {
+            buyerAdvancedOrder.parameters.consideration.push(buyerAdvancedOrder.parameters.consideration[1]);
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+          });
+
           it("OS fee is greater than the price", async function () {
             buyerAdvancedOrder.parameters.offer[0].startAmount = verifierFee.toString();
             buyerAdvancedOrder.parameters.consideration[1].startAmount = (verifierFee + 1n).toString();
             await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
               fermionErrors,
-              "InvalidOrder",
+              "InvalidOpenSeaOrder",
+            );
+          });
+
+          it("OS fee is more than expected", async function () {
+            buyerAdvancedOrder.parameters.consideration[1].startAmount += 1n;
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
             );
           });
         });
@@ -1483,55 +1515,6 @@ describe("Offer", function () {
             bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
           });
 
-          it("Zero available funds", async function () {
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit });
-
-            // events:
-            // fermion
-            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
-            await expect(tx)
-              .to.emit(offerFacet, "VerificationInitiated")
-              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
-
-            // Boson:
-            await expect(tx)
-              .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, ZeroAddress, sellerDeposit, defaultCollectionAddress);
-
-            // State:
-            const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit);
-            expect(await fundsFacet.getAvailableFunds(sellerId, ZeroAddress)).to.equal(0);
-          });
-
-          it("Partially covered by available funds", async function () {
-            const remainder = sellerDeposit / 10n;
-            await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
-              value: sellerDeposit - remainder,
-            });
-
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: remainder });
-
-            // events:
-            // fermion
-            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-            const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
-            await expect(tx)
-              .to.emit(offerFacet, "VerificationInitiated")
-              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
-
-            // Boson:
-            await expect(tx)
-              .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, ZeroAddress, sellerDeposit, defaultCollectionAddress);
-
-            // State:
-            const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit);
-            expect(await fundsFacet.getAvailableFunds(sellerId, ZeroAddress)).to.equal(0);
-          });
-
           it("Fully covered by available funds", async function () {
             await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit, {
               value: sellerDeposit,
@@ -1690,33 +1673,55 @@ describe("Offer", function () {
                 await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
               });
 
-              it("Zero available funds", async function () {
-                // Native currency offer - insufficient funds
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit - 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(sellerDeposit, sellerDeposit - 1n);
-
-                // Native currency offer - too much sent
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit + 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(sellerDeposit, sellerDeposit + 1n);
+              it("Cannot deposit native - zero available funds", async function () {
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
-              it("Partially covered by available funds", async function () {
+              it("Cannot deposit native -  partially covered by available funds", async function () {
+                const remainder = sellerDeposit / 10n;
+                await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
+                  value: sellerDeposit - remainder,
+                });
+
+                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder })).to.be.revertedWithCustomError(
+                  fermionErrors,
+                  "NativeNotAllowed",
+                );
+              });
+
+              it.skip("Zero available funds", async function () {
+                // If we allow back the native currency offers, this test should be enabled
+
+                // Native currency offer - insufficient funds
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit - 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
+
+                // Native currency offer - too much sent
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit + 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
+              });
+
+              it.skip("Partially covered by available funds", async function () {
+                // If we allow back the native currency offers, this test should be enabled
+
                 const remainder = sellerDeposit / 10n;
                 await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
                   value: sellerDeposit - remainder,
                 });
 
                 // Native currency offer - insufficient funds
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder - 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(remainder, remainder - 1n);
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: remainder - 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
 
                 // Native currency offer - too much sent
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder + 1n }))
-                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                  .withArgs(remainder, remainder + 1n);
+                await expect(
+                  offerFacet.unwrapNFTToSelf(tokenId, { value: remainder + 1n }),
+                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
               });
             });
           });
@@ -1902,11 +1907,57 @@ describe("Offer", function () {
           // Boson:
           await expect(tx)
             .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+            .withArgs(bosonBuyerId, exchangeToken, minimalPrice, fermionProtocolAddress);
 
           // State:
           // Boson
           const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+          expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
+        });
+
+        it("Unwrapping - native", async function () {
+          const bosonOfferId = "2";
+          const exchangeId = quantity + 1n;
+          const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+
+          const fermionOffer = {
+            sellerId: "1",
+            sellerDeposit,
+            verifierId,
+            verifierFee,
+            custodianId: "3",
+            custodianFee,
+            facilitatorId: sellerId,
+            facilitatorFeePercent: "0",
+            exchangeToken: ZeroAddress,
+            metadataURI: "https://example.com/offer-metadata.json",
+            metadataHash: ZeroHash,
+          };
+
+          await offerFacet.createOffer(fermionOffer);
+          await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+
+          bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
+
+          // await mockToken.approve(fermionProtocolAddress, minimalPrice);
+          const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: minimalPrice });
+
+          // events:
+          // fermion
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.verificationTimeout;
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout);
+
+          // Boson:
+          await expect(tx)
+            .to.emit(bosonExchangeHandler, "FundsEncumbered")
+            .withArgs(bosonBuyerId, ZeroAddress, minimalPrice, fermionProtocolAddress);
+
+          // State:
+          // Boson
+          const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
           expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
         });
 

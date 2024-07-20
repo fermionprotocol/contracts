@@ -168,13 +168,13 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Facilitator does not have a seller role
      * - Facilitator is already a facilitator for the seller
      *
-     * @dev Pausing modifier is enforced via `addOrRemoveFacilitatos`
+     * @dev Pausing modifier is enforced via `addOrRemoveFacilitators`
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
      */
     function addFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
-        addOrRemoveFacilitatos(_sellerId, _facilitatorIds, true);
+        addOrRemoveFacilitators(_sellerId, _facilitatorIds, true);
     }
 
     /** Remove seller's facilitator.
@@ -188,13 +188,13 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity does not exist
      * - Caller is not an entity admin
      *
-     * @dev Pausing modifier is enforced via `addOrRemoveFacilitatos`
+     * @dev Pausing modifier is enforced via `addOrRemoveFacilitators`
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
      */
     function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
-        addOrRemoveFacilitatos(_sellerId, _facilitatorIds, false);
+        addOrRemoveFacilitators(_sellerId, _facilitatorIds, false);
     }
 
     /** Add entity wide admin wallet.
@@ -222,7 +222,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         validateEntityAdmin(_entityId, pl);
 
         // set the pending admin
-        pl.pendingEntityAdmin[_entityId][_wallet] = _status;
+        pl.entityLookups[_entityId].pendingEntityAdmin[_wallet] = _status;
 
         EntityLib.storeCompactWalletRole(
             _entityId,
@@ -249,13 +249,17 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * Reverts if:
      * - Entity region is paused
+     * - New and old wallet are the same
      * - Caller is an entity admin
      * - Caller is not a wallet for any enitity
+     * - New wallet is already a wallet for an entity
      *
      * @param _newWallet - the new wallet address
      */
     function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) {
         address msgSender = _msgSender();
+        if (msgSender == _newWallet) revert NewWalletSameAsOld();
+
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
 
@@ -263,9 +267,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         uint256 walletId = pl.walletId[msgSender];
         if (walletId == 0) revert NoSuchEntity(0);
-
-        pl.walletId[_newWallet] = walletId;
         delete pl.walletId[msgSender];
+
+        if (pl.walletId[_newWallet] != 0) revert WalletAlreadyExists(_newWallet);
+        pl.walletId[_newWallet] = walletId;
 
         emit WalletChanged(msgSender, _newWallet);
     }
@@ -299,31 +304,6 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-     * @notice Deletes an entity.
-     *
-     * Emits an EntityDeleted event if successful.
-     *
-     * Reverts if:
-     * - Entity region is paused
-     * - Entity does not exist
-     * - Caller is not an admin for the entity role
-     *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
-     *
-     * @param _entityId - the entity ID
-     */
-    function deleteEntity(uint256 _entityId) external {
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        EntityLib.validateEntityId(_entityId, pl);
-        address adminWallet = validateEntityAdmin(_entityId, pl);
-
-        delete FermionStorage.protocolEntities().entityData[_entityId];
-        delete pl.entityId[adminWallet];
-
-        emit EntityDeleted(_entityId, adminWallet);
-    }
-
-    /**
      * @notice Updates the owner of the wrapper contract, associated with the offer id
      *
      * Reverts if:
@@ -339,7 +319,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      */
     function transferWrapperContractOwnership(uint256 _offerId, address _newOwner) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        address wrapperAddress = pl.fermionFNFTAddress[_offerId];
+        address wrapperAddress = pl.offerLookups[_offerId].fermionFNFTAddress;
         if (wrapperAddress == address(0)) revert OfferErrors.NoSuchOffer(_offerId);
 
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
@@ -348,7 +328,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
-        FermionWrapper(wrapperAddress).transferOwnership(_newOwner);
+        FermionWrapper(payable(wrapperAddress)).transferOwnership(_newOwner);
     }
 
     /**
@@ -398,7 +378,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @return facilitatorIds - the facilitator's entity IDs
      */
     function getSellersFacilitators(uint256 _sellerId) external view returns (uint256[] memory facilitatorIds) {
-        return FermionStorage.protocolLookups().sellerFacilitators[_sellerId];
+        return FermionStorage.protocolLookups().sellerLookups[_sellerId].sellerFacilitators;
     }
 
     /** Tells if the entity is seller's factiliator.
@@ -411,7 +391,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         uint256 _sellerId,
         uint256 _facilitatorId
     ) external view returns (bool isSellersFcilitator) {
-        return FermionStorage.protocolLookups().isSellersFacilitator[_sellerId][_facilitatorId];
+        return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersFacilitator[_facilitatorId];
     }
 
     /**
@@ -590,9 +570,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _entityId - the entity ID
      */
     function acceptAdminRole(uint256 _entityId, address _wallet, FermionStorage.ProtocolLookups storage pl) internal {
-        if (!pl.pendingEntityAdmin[_entityId][_wallet]) revert NotEntityAdmin(_entityId, _wallet);
+        mapping(address => bool) storage pendingEntityAdmin = pl.entityLookups[_entityId].pendingEntityAdmin;
+        if (!pendingEntityAdmin[_wallet]) revert NotEntityAdmin(_entityId, _wallet);
 
-        delete pl.pendingEntityAdmin[_entityId][_wallet];
+        delete pendingEntityAdmin[_wallet];
         pl.entityId[_wallet] = _entityId;
 
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
@@ -617,13 +598,14 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _facilitatorIds - the facilitator's entity IDs
      * @param _add - if true, the facilitator is added, if false, it is removed
      */
-    function addOrRemoveFacilitatos(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
+    function addOrRemoveFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_sellerId, pl);
         validateEntityAdmin(_sellerId, pl);
 
-        uint256[] storage facilitators = pl.sellerFacilitators[_sellerId];
-        mapping(uint256 => bool) storage isFacilitator = pl.isSellersFacilitator[_sellerId];
+        FermionStorage.SellerLookups storage sellerLookups = pl.sellerLookups[_sellerId];
+        uint256[] storage facilitators = sellerLookups.sellerFacilitators;
+        mapping(uint256 => bool) storage isFacilitator = sellerLookups.isSellersFacilitator;
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
         for (uint256 i = 0; i < _facilitatorIds.length; i++) {

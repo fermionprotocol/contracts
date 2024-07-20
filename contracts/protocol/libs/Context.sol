@@ -44,7 +44,9 @@ library ContextLib {
 
         // Get sender from the storage if this is a meta transaction
         if (msg.sender == protocolAddress && msgDataLength >= ADDRESS_LENGTH) {
-            return address(bytes20(msg.data[msgDataLength - ADDRESS_LENGTH:]));
+            unchecked {
+                return address(bytes20(msg.data[msgDataLength - ADDRESS_LENGTH:]));
+            }
         } else {
             return msg.sender;
         }

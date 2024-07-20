@@ -252,7 +252,7 @@ abstract contract FermionFractions is
         votes.total += _fractionAmount;
 
         if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) {
-            if (votes.total > (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
+            if (votes.total >= (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
                 // NB: although in theory it's acceptable to start the auction without any bids, there could be
                 // a racing situation where one user bids under the exit price, another user votes to start the auction and the first
                 // user removes the bid. To avoid this, at least one bid must exist.
@@ -295,8 +295,10 @@ abstract contract FermionFractions is
         }
         _transferFractions(address(this), msgSender, _fractionAmount);
 
-        votes.individual[msgSender] -= _fractionAmount;
-        votes.total -= _fractionAmount;
+        unchecked {
+            votes.individual[msgSender] -= _fractionAmount;
+            votes.total -= _fractionAmount;
+        }
 
         emit VoteRemoved(_tokenId, msgSender, _fractionAmount);
     }
@@ -323,7 +325,15 @@ abstract contract FermionFractions is
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
         if (auctionDetails.state == FermionTypes.AuctionState.Reserved) revert AuctionReserved(_tokenId);
 
-        uint256 minimalBid = (auctionDetails.maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
+        uint256 minimalBid;
+        {
+            uint256 maxBid = auctionDetails.maxBid;
+            minimalBid = (maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
+
+            // due to rounding errors, the minimal bid can be equal to the max bid. Ensure strict increase.
+            if (minimalBid == maxBid) minimalBid += 1;
+        }
+
         if (_price < minimalBid) {
             revert InvalidBid(_tokenId, _price, minimalBid);
         }
@@ -357,15 +367,19 @@ abstract contract FermionFractions is
         address msgSender = _msgSender();
         uint256 bidAmount;
         if (_fractions >= availableFractions) {
-            // Bidder has enough fractions to claim the remaining fractions. In this case they win the auction ath the current price.
+            // Bidder has enough fractions to claim the remaining fractions. In this case they win the auction at the current price.
             // If the locked fractions belong to other users, the bidder must still pay the corresponding price.
             _fractions = availableFractions;
 
             if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuction(_tokenId);
             auctionDetails.state = FermionTypes.AuctionState.Reserved;
         }
-        uint256 totalLockedFractions = _fractions + votes.individual[msgSender];
-        bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken;
+
+        uint256 totalLockedFractions;
+        unchecked {
+            totalLockedFractions = _fractions + votes.individual[msgSender]; // cannot overflow, since _fractions <= availableFractions = fractionsPerToken - votes.total
+            bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken; // cannot overflow, since fractionsPerToken >= totalLockedFractions
+        }
 
         auctionDetails.maxBidder = msgSender;
         auctionDetails.lockedFractions = _fractions; // locked in addition to the votes. If outbid, this is released back to the bidder
@@ -736,7 +750,9 @@ abstract contract FermionFractions is
     ) internal view returns (FermionTypes.Auction storage auction) {
         FermionTypes.Auction[] storage auctions = $.tokenInfo[_tokenId].auctions;
         if (auctions.length == 0) revert TokenNotFractionalised(_tokenId);
-        return auctions[auctions.length - 1];
+        unchecked {
+            return auctions[auctions.length - 1];
+        }
     }
 
     /**
@@ -817,10 +833,6 @@ abstract contract FermionFractions is
         auctionDetails.state = FermionTypes.AuctionState.Finalized;
 
         tokenInfo.isFractionalised = false;
-        if ($.nftCount == 0) {
-            // allow fractionalisation with new parameters
-            delete $.auctionParameters;
-        }
     }
 
     /**
@@ -849,8 +861,10 @@ abstract contract FermionFractions is
         }
 
         claimAmount = ($.unrestricedRedeemableAmount * burnedFractions) / availableSupply;
-        $.unrestricedRedeemableSupply -= burnedFractions;
-        $.unrestricedRedeemableAmount -= claimAmount;
+        unchecked {
+            $.unrestricedRedeemableSupply -= burnedFractions;
+            $.unrestricedRedeemableAmount -= claimAmount;
+        }
 
         _burn(_from, burnedFractions);
     }
