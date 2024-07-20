@@ -6,8 +6,6 @@ import { FermionGeneralErrors } from "../domain/Errors.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 
-import { OwnableUpgradeable as Ownable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
@@ -19,7 +17,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * Fixed price sales are not supported yet.
  *
  */
-contract SeaportWrapper is Ownable, FermionFNFTBase {
+contract SeaportWrapper is FermionFNFTBase {
     struct SeaportConfig {
         address seaport;
         address openSeaConduit;
@@ -49,16 +47,16 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
         OS_CONDUIT_KEY = _seaportConfig.openSeaConduitKey;
     }
 
-    /**
-     * @notice Initializes the contract
-     *
-     * @param _owner The address of the owner
-     */
-    function initialize(address _owner) internal virtual {
-        __Ownable_init(_owner);
-    }
+    // /**
+    //  * @notice Initializes the contract
+    //  *
+    //  * @param _owner The address of the owner
+    //  */
+    // function initialize(address _owner) internal virtual {
+    //     __Ownable_init(_owner);
+    // }
 
-    function wrapOpenSea() internal {
+    function wrapOpenSea() external {
         _setApprovalForAll(address(this), OS_CONDUIT, true);
     }
 
@@ -71,7 +69,7 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
      * @param _tokenId The token id.
      * @param _buyerOrder The Seaport buyer order.
      */
-    function finalizeOpenSeaAuction(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) internal {
+    function finalizeOpenSeaAuction(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
         address wrappedVoucherOwner = _ownerOf(_tokenId); // tokenId can be taken from buyer order
 
         uint256 _price = _buyerOrder.parameters.offer[0].startAmount;
@@ -163,23 +161,6 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
     }
 
     /**
-     * @notice Transfers the contract ownership to a new owner
-     *
-     * Reverts if:
-     * - Caller is not the Fermion Protocol
-     *
-     * N.B. transferring ownership to 0 are allowed, since they can still be change via Fermion Protocol
-     *
-     * @param _newOwner The address of the new owner
-     */
-    function transferOwnership(address _newOwner) public override {
-        if (fermionProtocol != _msgSender()) {
-            revert OwnableUnauthorizedAccount(_msgSender());
-        }
-        _transferOwnership(_newOwner);
-    }
-
-    /**
      * @notice Wrapped vouchers cannot be transferred. To transfer them, invoke a function that unwraps them first.
      *
      *
@@ -187,7 +168,7 @@ contract SeaportWrapper is Ownable, FermionFNFTBase {
      * @param _tokenId The token id.
      * @param _auth The address that is allowed to transfer the token.
      */
-    function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
+    function updateHook(address _to, uint256 _tokenId, address _auth) external virtual returns (address) {
         FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
         if (state == FermionTypes.TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
             revert InvalidStateOrCaller(_tokenId, _msgSender(), FermionTypes.TokenState.Wrapped);

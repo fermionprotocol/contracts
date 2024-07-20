@@ -6,11 +6,14 @@ import { FermionGeneralErrors } from "../domain/Errors.sol";
 import { Common } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IWrappedNative } from "../interfaces/IWrappedNative.sol";
+import { OwnableUpgradeable as Ownable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
@@ -21,9 +24,11 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-contract FermionWrapper is SeaportWrapper, IFermionWrapper {
+contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     using SafeERC20 for IERC20;
+    using Address for address;
     IWrappedNative private immutable WRAPPED_NATIVE;
+    address private immutable SEAPORT_WRAPPER;
 
     /**
      * @notice Constructor
@@ -31,11 +36,12 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
      */
     constructor(
         address _bosonPriceDiscovery,
-        SeaportConfig memory _seaportConfig,
+        address _seaportWrapper,
         address _wrappedNative
-    ) SeaportWrapper(_bosonPriceDiscovery, _seaportConfig) {
+    ) FermionFNFTBase(_bosonPriceDiscovery) {
         if (_wrappedNative == address(0)) revert FermionGeneralErrors.InvalidAddress();
         WRAPPED_NATIVE = IWrappedNative(_wrappedNative);
+        SEAPORT_WRAPPER = _seaportWrapper;
     }
 
     /**
@@ -47,8 +53,26 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
      * @param _owner The address of the owner
      */
     function initializeWrapper(address _owner) internal virtual {
-        initialize(_owner);
-        wrapOpenSea();
+        // initialize(_owner);
+        __Ownable_init(_owner);
+        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
+    }
+
+    /**
+     * @notice Transfers the contract ownership to a new owner
+     *
+     * Reverts if:
+     * - Caller is not the Fermion Protocol
+     *
+     * N.B. transferring ownership to 0 are allowed, since they can still be change via Fermion Protocol
+     *
+     * @param _newOwner The address of the new owner
+     */
+    function transferOwnership(address _newOwner) public override {
+        if (fermionProtocol != _msgSender()) {
+            revert OwnableUnauthorizedAccount(_msgSender());
+        }
+        _transferOwnership(_newOwner);
     }
 
     /**
@@ -136,7 +160,25 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
             return;
         }
 
-        return finalizeOpenSeaAuction(_tokenId, _buyerOrder);
+        SEAPORT_WRAPPER.functionDelegateCall(
+            abi.encodeCall(SeaportWrapper.finalizeOpenSeaAuction, (_tokenId, _buyerOrder))
+        );
+    }
+
+    /**
+     * @notice Wrapped vouchers cannot be transferred. To transfer them, invoke a function that unwraps them first.
+     *
+     *
+     * @param _to The address to transfer the wrapped tokens to.
+     * @param _tokenId The token id.
+     * @param _auth The address that is allowed to transfer the token.
+     */
+    function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
+        return
+            abi.decode(
+                SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.updateHook, (_to, _tokenId, _auth))),
+                (address)
+            );
     }
 
     /**
