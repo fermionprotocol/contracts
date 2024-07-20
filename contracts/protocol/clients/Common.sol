@@ -8,6 +8,7 @@ error InvalidStateOrCaller(uint256 tokenId, address sender, FermionTypes.TokenSt
 event TokenStateChange(uint256 indexed tokenId, FermionTypes.TokenState state);
 
 library Common {
+    /// @custom:storage-location erc7201:fermion.common.storage
     struct CommonStorage {
         // Token state
         mapping(uint256 => FermionTypes.TokenState) tokenState;
