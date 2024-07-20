@@ -531,7 +531,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             offerLookup.fermionFNFTAddress = wrapperAddress;
 
             address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
-            IFermionFNFT(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken);
+            IFermionFNFT(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken, _offerId);
         }
 
         // wrap NFTs

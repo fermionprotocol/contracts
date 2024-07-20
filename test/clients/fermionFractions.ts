@@ -61,9 +61,15 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const fermionMockAddress = await fermionMock.getAddress();
 
     await mockBoson.mint(fermionMockAddress, startTokenId, quantity);
+    const offerId = 1n;
     await fermionFNFTProxy
       .attach(fermionMock)
-      .initialize(await mockBoson.getAddress(), wrapperContractOwner.address, await mockExchangeToken.getAddress());
+      .initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        await mockExchangeToken.getAddress(),
+        offerId,
+      );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
     await fermionFNFTProxy.attach(fermionMock).wrapForAuction(startTokenId, quantity, seller.address);
