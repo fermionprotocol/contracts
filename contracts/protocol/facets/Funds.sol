@@ -135,7 +135,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
      * @return tokenList - list of token addresses
      */
     function getTokenList(uint256 _entityId) external view returns (address[] memory tokenList) {
-        return FermionStorage.protocolLookups().tokenList[_entityId];
+        return FermionStorage.protocolLookups().entityLookups[_entityId].tokenList;
     }
 
     /**
@@ -146,7 +146,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
      * @return amount - the amount available to withdraw
      */
     function getAvailableFunds(uint256 _entityId, address _token) external view returns (uint256 amount) {
-        return FermionStorage.protocolLookups().availableFunds[_entityId][_token];
+        return FermionStorage.protocolLookups().entityLookups[_entityId].availableFunds[_token];
     }
 
     /**
@@ -162,7 +162,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
         uint256 _limit,
         uint256 _offset
     ) external view returns (address[] memory tokenList) {
-        address[] storage tokens = FermionStorage.protocolLookups().tokenList[_entityId];
+        address[] storage tokens = FermionStorage.protocolLookups().entityLookups[_entityId].tokenList;
         uint256 tokenCount = tokens.length;
 
         if (_offset >= tokenCount) {
@@ -220,13 +220,14 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             // Withdraw everything
 
             // Get list of all user's tokens
-            address[] memory tokenList = pl.tokenList[_entityId];
+            FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
+            address[] memory tokenList = entityLookups.tokenList;
 
             // Make sure that at least something will be withdrawn
             if (tokenList.length == 0) revert NothingToWithdraw();
 
             // Get entity's availableFunds storage pointer
-            mapping(address => uint256) storage entityFunds = pl.availableFunds[_entityId];
+            mapping(address => uint256) storage entityFunds = entityLookups.availableFunds;
 
             // Transfer funds
             for (uint256 i = 0; i < tokenList.length; i++) {

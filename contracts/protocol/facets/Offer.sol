@@ -54,7 +54,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     function createOffer(FermionTypes.Offer calldata _offer) external notPaused(FermionTypes.PausableRegion.Offer) {
         if (
             _offer.sellerId != _offer.facilitatorId &&
-            !FermionStorage.protocolLookups().isSellersFacilitator[_offer.sellerId][_offer.facilitatorId]
+            !FermionStorage.protocolLookups().sellerLookups[_offer.sellerId].isSellersFacilitator[_offer.facilitatorId]
         ) {
             revert EntityErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
         }
@@ -236,8 +236,13 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
         }
 
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        address wrapperAddress = pl.fermionFNFTAddress[offerId];
+        FermionStorage.TokenLookups storage tokenLookups;
+        address wrapperAddress;
+        {
+            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+            tokenLookups = pl.tokenLookups[_tokenId];
+            wrapperAddress = pl.offerLookups[offerId].fermionFNFTAddress;
+        }
 
         IBosonProtocol.PriceDiscovery memory _priceDiscovery;
         _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
@@ -284,7 +289,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
             }
 
-            pl.itemPrice[_tokenId] = _priceDiscovery.price - bosonProtocolFee;
+            tokenLookups.itemPrice = _priceDiscovery.price - bosonProtocolFee;
 
             BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
             BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
@@ -293,7 +298,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         uint256 itemVerificationTimeout = _verificationTimeout == 0
             ? block.timestamp + FermionStorage.protocolConfig().verificationTimeout
             : _verificationTimeout;
-        pl.itemVerificationTimeout[_tokenId] = itemVerificationTimeout;
+        tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
         emit IVerificationEvents.VerificationInitiated(offerId, offer.verifierId, _tokenId, itemVerificationTimeout);
     }
 
@@ -319,7 +324,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         if (_sellerDeposit > 0) {
             // Use the available funds first
             // If there is not enough, the seller must provide the missing amount
-            uint256 availableFunds = FermionStorage.protocolLookups().availableFunds[_sellerId][_exchangeToken];
+            uint256 availableFunds = FermionStorage.protocolLookups().entityLookups[_sellerId].availableFunds[
+                _exchangeToken
+            ];
 
             if (availableFunds >= _sellerDeposit) {
                 FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
@@ -493,16 +500,16 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         FermionStorage.ProtocolStatus storage ps
     ) internal {
         address msgSender = _msgSender();
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
 
-        address wrapperAddress = pl.fermionFNFTAddress[_offerId];
+        address wrapperAddress = offerLookup.fermionFNFTAddress;
         if (wrapperAddress == address(0)) {
             // Currently, the wrapper is created for each offer, since BOSON_PROTOCOL.reserveRange can be called only once
             // so else path is not possible. This is here for future proofing.
 
             // create wrapper
             wrapperAddress = Clones.cloneDeterministic(ps.fermionFNFTBeaconProxy, bytes32(_offerId));
-            pl.fermionFNFTAddress[_offerId] = wrapperAddress;
+            offerLookup.fermionFNFTAddress = wrapperAddress;
 
             address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
             IFermionFNFT(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken);
