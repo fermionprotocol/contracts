@@ -221,67 +221,6 @@ describe("Entity", function () {
       });
     });
 
-    context("deleteEntity", function () {
-      const entityId = "1";
-
-      beforeEach(async function () {
-        await entityFacet.createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI);
-      });
-
-      it("Delete an entity", async function () {
-        // test event
-        await expect(entityFacet.deleteEntity(entityId))
-          .to.emit(entityFacet, "EntityDeleted")
-          .withArgs(entityId, defaultSigner.address);
-
-        // verify state
-        await expect(verifyState(defaultSigner, entityId, [], ""))
-          .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
-          .withArgs(0);
-      });
-
-      it("Pending admin can delete the entity", async function () {
-        const newAdmin = wallets[2];
-        await entityFacet.setEntityAdmin(entityId, newAdmin.address, true);
-
-        await expect(entityFacet.connect(newAdmin).deleteEntity(entityId))
-          .to.emit(entityFacet, "EntityDeleted")
-          .withArgs(entityId, newAdmin.address);
-
-        // verify state
-        await expect(verifyState(newAdmin, entityId, [], ""))
-          .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
-          .withArgs(0);
-      });
-
-      context("Revert reasons", function () {
-        it("Entity region is paused", async function () {
-          await pauseFacet.pause([PausableRegion.Entity]);
-
-          await expect(entityFacet.deleteEntity(entityId))
-            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
-            .withArgs(PausableRegion.Entity);
-        });
-
-        it("An entity does not exist", async function () {
-          await expect(entityFacet.deleteEntity(0))
-            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
-            .withArgs(0);
-
-          await expect(entityFacet.deleteEntity(10))
-            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
-            .withArgs(10);
-        });
-
-        it("Caller is not the admin", async function () {
-          const signer2 = wallets[2];
-          await expect(entityFacet.connect(signer2).deleteEntity(entityId))
-            .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
-            .withArgs(entityId, signer2.address);
-        });
-      });
-    });
-
     context("addEntityWallets", function () {
       const entityId = 1;
       const entityRolesAll = [EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian];
@@ -1149,6 +1088,15 @@ describe("Entity", function () {
           await expect(entityFacet.connect(wallet).changeWallet(wallets[2].address))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(0);
+        });
+
+        it("New wallet is already a wallet for an entity", async function () {
+          const newWallet = wallets[3];
+          await entityFacet.addEntityWallets(entityId, [newWallet.address], entityRoles, [[[], []]]);
+
+          await expect(entityFacet.connect(wallet).changeWallet(newWallet.address))
+            .to.be.revertedWithCustomError(fermionErrors, "WalletAlreadyExists")
+            .withArgs(newWallet.address);
         });
       });
     });

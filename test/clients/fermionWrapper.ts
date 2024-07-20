@@ -23,11 +23,15 @@ describe("FermionFNFT - wrapper tests", function () {
 
     const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
-    const fermionWrapper = await FermionFNFT.deploy(mockBosonPriceDiscovery.address, {
-      seaport: wallets[10].address, // dummy address
-      openSeaConduit: mockConduit.address,
-      openSeaConduitKey: ZeroHash,
-    });
+    const fermionWrapper = await FermionFNFT.deploy(
+      mockBosonPriceDiscovery.address,
+      {
+        seaport: wallets[10].address, // dummy address
+        openSeaConduit: mockConduit.address,
+        openSeaConduitKey: ZeroHash,
+      },
+      wallets[10].address,
+    ); // dummy address
 
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionWrapper.getAddress());
