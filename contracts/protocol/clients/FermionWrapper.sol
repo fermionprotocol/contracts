@@ -48,6 +48,7 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
      */
     function initializeWrapper(address _owner) internal virtual {
         initialize(_owner);
+        wrapOpenSea();
     }
 
     /**
@@ -73,15 +74,14 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
     function unwrap(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
         unwrap(_tokenId);
 
-        (, address _exchangeToken) = finalizeAuction(_tokenId, _buyerOrder);
+        finalizeAuction(_tokenId, _buyerOrder);
 
         // Transfer token to protocol
         // N.B. currently price is always 0. This is a placeholder for future use, when other PD mechanisms will be supported
-        // if (price > 0) {
-        //     IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
+        // _exchangeToken and _price should be returned from finalizeAuction
+        // if (_price > 0) {
+        //     IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _price);
         // }
-
-        Common._getFermionCommonStorage().exchangeToken = _exchangeToken;
     }
 
     /**
@@ -100,8 +100,6 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
                 IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _verifierFee);
             }
         }
-
-        Common._getFermionCommonStorage().exchangeToken = _exchangeToken;
     }
 
     /**
@@ -124,10 +122,7 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
      * @param _tokenId The token id.
      * @param _buyerOrder The Seaport buyer order.
      */
-    function finalizeAuction(
-        uint256 _tokenId,
-        SeaportTypes.AdvancedOrder calldata _buyerOrder
-    ) internal returns (uint256 reducedPrice, address exchangeToken) {
+    function finalizeAuction(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) internal {
         address wrappedVoucherOwner = ownerOf(_tokenId); // tokenId can be taken from buyer order
 
         uint256 _price = _buyerOrder.parameters.offer[0].startAmount;
@@ -138,7 +133,7 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
             // In practice, OpensSea will not allow this, since they do not allow 0 price auctions
             address buyer = _buyerOrder.parameters.offerer;
             _safeTransfer(wrappedVoucherOwner, buyer, _tokenId);
-            return (0, address(0));
+            return;
         }
 
         return finalizeOpenSeaAuction(_tokenId, _buyerOrder);
@@ -162,7 +157,6 @@ contract FermionWrapper is SeaportWrapper, IFermionWrapper {
             // Mint to the specified address
             _safeMint(_to, tokenId);
         }
-        wrapOpenSea();
     }
 
     receive() external payable {}
