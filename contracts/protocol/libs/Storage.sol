@@ -88,8 +88,8 @@ library FermionStorage {
     }
 
     struct EntityLookups {
-        // entity admin => pending status
-        mapping(address => bool) pendingEntityAdmin;
+        // pending entity admin
+        address pendingEntityAdmin;
         // token address => amount
         mapping(address => uint256) availableFunds;
         // all tokens with balance > 0
