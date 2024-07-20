@@ -53,7 +53,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * @param _tokenId - the token ID
      */
     function verificationTimeout(uint256 _tokenId) external {
-        uint256 timeout = FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId];
+        uint256 timeout = FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout;
         if (block.timestamp < timeout) revert VerificationTimeoutNotPassed(timeout, block.timestamp);
 
         submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, true);
@@ -79,7 +79,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
 
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
 
-        FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId] = _newTimeout;
+        FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout = _newTimeout;
 
         emit ItemVerificationTimeoutChanged(_tokenId, _newTimeout);
     }
@@ -90,7 +90,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * @param _tokenId - the token ID
      */
     function getItemVerificationTimeout(uint256 _tokenId) external view returns (uint256) {
-        return FermionStorage.protocolLookups().itemVerificationTimeout[_tokenId];
+        return FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout;
     }
 
     /**
@@ -129,7 +129,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address exchangeToken = offer.exchangeToken;
         uint256 sellerDeposit = offer.sellerDeposit;
-        uint256 offerPrice = pl.itemPrice[_tokenId];
+        uint256 offerPrice = pl.tokenLookups[_tokenId].itemPrice;
 
         {
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
@@ -164,12 +164,12 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
 
             // transfer the remainder to the seller
             FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
-            IFermionFNFT(pl.fermionFNFTAddress[offerId]).pushToNextTokenState(
+            IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).pushToNextTokenState(
                 _tokenId,
                 FermionTypes.TokenState.Verified
             );
         } else {
-            address buyerAddress = IFermionFNFT(pl.fermionFNFTAddress[offerId]).burn(_tokenId);
+            address buyerAddress = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).burn(_tokenId);
 
             uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 
