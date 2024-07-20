@@ -15,7 +15,6 @@ interface IEntityEvents {
         FermionTypes.EntityRole[] roles,
         string metadata
     );
-    event EntityDeleted(uint256 indexed entityId, address indexed adminWallet);
     event EntityWalletAdded(
         uint256 indexed entityId,
         address indexed wallet,

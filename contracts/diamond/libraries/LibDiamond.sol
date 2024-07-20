@@ -155,7 +155,9 @@ library LibDiamond {
         if (_init == address(0)) {
             return;
         }
-        enforceHasContractCode(_init, "LibDiamondCut: _init address has no code");
+        if (_init != address(this)) {
+            enforceHasContractCode(_init, "LibDiamondCut: _init address has no code");
+        }
         (bool success, bytes memory error) = _init.delegatecall(_calldata);
         if (!success) {
             if (error.length > 0) {
