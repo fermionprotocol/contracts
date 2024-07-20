@@ -127,7 +127,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .withArgs(seller.address, await fermionFNFTProxy.getAddress(), startTokenId);
 
       // mint fractions (erc20 mint)
-      await expect(tx).to.emit(fermionFNFTProxy, "Transfer").withArgs(ZeroAddress, seller.address, fractionsAmount);
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
+        .withArgs(ZeroAddress, seller.address, fractionsAmount);
 
       await expect(tx)
         .to.emit(fermionFNFTProxy, "FractionsSetup")
@@ -173,7 +175,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
       }
 
       // mint fractions (erc20 mint)
-      await expect(tx).to.emit(fermionFNFTProxy, "Transfer").withArgs(ZeroAddress, seller.address, totalFractions);
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
+        .withArgs(ZeroAddress, seller.address, totalFractions);
 
       await expect(tx)
         .to.emit(fermionFNFTProxy, "FractionsSetup")
@@ -241,7 +245,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .withArgs(seller.address, await fermionFNFTProxy.getAddress(), startTokenId);
 
       // mint fractions (erc20 mint)
-      await expect(tx).to.emit(fermionFNFTProxy, "Transfer").withArgs(ZeroAddress, seller.address, fractionsAmount);
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
+        .withArgs(ZeroAddress, seller.address, fractionsAmount);
 
       await expect(tx)
         .to.emit(fermionFNFTProxy, "FractionsSetup")
@@ -525,7 +531,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .withArgs(seller.address, await fermionFNFTProxy.getAddress(), startTokenId2);
 
       // mint fractions (erc20 mint)
-      await expect(tx).to.emit(fermionFNFTProxy, "Transfer").withArgs(ZeroAddress, seller.address, fractionsAmount);
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
+        .withArgs(ZeroAddress, seller.address, fractionsAmount);
 
       await expect(tx).to.not.emit(fermionFNFTProxy, "FractionsSetup");
 
@@ -555,7 +563,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
       }
 
       // mint fractions (erc20 mint)
-      await expect(tx).to.emit(fermionFNFTProxy, "Transfer").withArgs(ZeroAddress, seller.address, totalFractions);
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
+        .withArgs(ZeroAddress, seller.address, totalFractions);
 
       await expect(tx).to.not.emit(fermionFNFTProxy, "FractionsSetup");
 
@@ -576,7 +586,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .withArgs(seller.address, await fermionFNFTProxy.getAddress(), startTokenId2);
 
       // mint fractions (erc20 mint)
-      await expect(tx).to.emit(fermionFNFTProxy, "Transfer").withArgs(ZeroAddress, seller.address, fractionsAmount);
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
+        .withArgs(ZeroAddress, seller.address, fractionsAmount);
 
       await expect(tx).to.not.emit(fermionFNFTProxy, "FractionsSetup");
 
@@ -603,7 +615,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .withArgs(buyer.address, await fermionFNFTProxy.getAddress(), startTokenId2);
 
       // mint fractions (erc20 mint)
-      await expect(tx).to.emit(fermionFNFTProxy, "Transfer").withArgs(ZeroAddress, buyer.address, fractionsAmount);
+      await expect(tx)
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
+        .withArgs(ZeroAddress, buyer.address, fractionsAmount);
 
       await expect(tx).to.not.emit(fermionFNFTProxy, "FractionsSetup");
 
@@ -719,7 +733,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
       // mint fractions (erc20 mint)
       await expect(tx)
-        .to.emit(fermionFNFTProxy, "Transfer")
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
         .withArgs(ZeroAddress, await fermionMock.getAddress(), additionalAmount);
 
       // state
@@ -982,7 +996,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .to.emit(mockExchangeToken, "Transfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, bidAmount);
         await expect(tx)
-          .to.emit(fermionFNFTProxy, "Transfer")
+          .to.emit(fermionFNFTProxy, "FractionsTransfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, fractions);
 
         expect(await mockExchangeToken.balanceOf(bidders[0].address)).to.equal(parseEther("1000"));
@@ -1000,7 +1014,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .to.emit(mockExchangeToken, "Transfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[1].address, bidAmount2);
         await expect(tx2)
-          .to.emit(fermionFNFTProxy, "Transfer")
+          .to.emit(fermionFNFTProxy, "FractionsTransfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[1].address, fractions2);
 
         expect(await mockExchangeToken.balanceOf(bidders[1].address)).to.equal(parseEther("1000"));
@@ -1305,7 +1319,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .to.emit(mockExchangeToken, "Transfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, bidAmount);
         await expect(tx)
-          .to.emit(fermionFNFTProxy, "Transfer")
+          .to.emit(fermionFNFTProxy, "FractionsTransfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, fractions);
 
         expect(await mockExchangeToken.balanceOf(bidders[0].address)).to.equal(parseEther("1000"));
@@ -1325,7 +1339,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .to.emit(mockExchangeToken, "Transfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[1].address, bidAmount2);
         await expect(tx2)
-          .to.emit(fermionFNFTProxy, "Transfer")
+          .to.emit(fermionFNFTProxy, "FractionsTransfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[1].address, fractions2);
 
         expect(await mockExchangeToken.balanceOf(bidders[1].address)).to.equal(parseEther("1000"));
@@ -1423,6 +1437,21 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount2, fractions))
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidBid")
           .withArgs(startTokenId, bidAmount2, minimalBid);
+      });
+
+      it("The bid matches minimal bid, but it's equal to current bid", async function () {
+        // Special case - minimal bid equals current bid
+        const bidAmount = 1n;
+        await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+        await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
+
+        const minimalBid = (bidAmount * (10000n + MINIMAL_BID_INCREMENT)) / 10000n;
+        const bidAmount2 = minimalBid;
+        await mockExchangeToken.connect(bidders[1]).approve(await fermionFNFTProxy.getAddress(), bidAmount2);
+
+        await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount2, fractions))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidBid")
+          .withArgs(startTokenId, bidAmount2, minimalBid + 1n);
       });
 
       it("Auction ended", async function () {
@@ -1579,7 +1608,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .to.emit(mockExchangeToken, "Transfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, bidAmount);
         await expect(tx2)
-          .to.emit(fermionFNFTProxy, "Transfer")
+          .to.emit(fermionFNFTProxy, "FractionsTransfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, fractions);
         await expect(tx2).to.emit(fermionFNFTProxy, "Bid").withArgs(0, ZeroAddress, 0n, 0n, 0n);
 
@@ -1604,7 +1633,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
         const tx2 = await fermionFNFTProxy.connect(bidders[0]).removeBid(startTokenId);
         await expect(tx2)
-          .to.emit(fermionFNFTProxy, "Transfer")
+          .to.emit(fermionFNFTProxy, "FractionsTransfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, fractionsPerToken);
 
         expect(await mockExchangeToken.balanceOf(bidders[0].address)).to.equal(parseEther("1000"));
@@ -1675,7 +1704,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           .to.emit(mockExchangeToken, "Transfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, bidAmount);
         await expect(tx2)
-          .to.emit(fermionFNFTProxy, "Transfer")
+          .to.emit(fermionFNFTProxy, "FractionsTransfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, fractions);
 
         expect(await mockExchangeToken.balanceOf(bidders[0].address)).to.equal(parseEther("1000"));
@@ -1706,7 +1735,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         const tx2 = await fermionFNFTProxy.connect(bidders[0]).removeBid(startTokenId);
 
         await expect(tx2)
-          .to.emit(fermionFNFTProxy, "Transfer")
+          .to.emit(fermionFNFTProxy, "FractionsTransfer")
           .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, fractionsPerToken - votes);
 
         expect(await mockExchangeToken.balanceOf(bidders[0].address)).to.equal(parseEther("1000"));
@@ -1720,7 +1749,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       const fractions = 0n;
 
       it("The time lock is not over yet", async function () {
-        const bidAmount = exitPrice - parseEther("0.1");
+        const bidAmount = exitPrice - parseEther("0.01");
         await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
         await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
 
@@ -1740,7 +1769,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       });
 
       it("The caller is not the max bidder", async function () {
-        const bidAmount = exitPrice - parseEther("0.1");
+        const bidAmount = exitPrice - parseEther("0.01");
         await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
 
         const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
@@ -1845,7 +1874,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .to.emit(fermionFNFTProxy, "Transfer")
         .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, startTokenId);
       await expect(tx2)
-        .to.emit(fermionFNFTProxy, "Transfer")
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
         .withArgs(await fermionFNFTProxy.getAddress(), ZeroAddress, fractions); // burn fractions
 
       expect(await fermionFNFTProxy.ownerOf(startTokenId)).to.equal(bidders[0].address);
@@ -1881,7 +1910,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .to.emit(fermionFNFTProxy, "Transfer")
         .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, startTokenId);
       await expect(tx2)
-        .to.emit(fermionFNFTProxy, "Transfer")
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
         .withArgs(await fermionFNFTProxy.getAddress(), ZeroAddress, votes); // burn votes
 
       expect(await fermionFNFTProxy.ownerOf(startTokenId)).to.equal(bidders[0].address);
@@ -1918,7 +1947,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .to.emit(fermionFNFTProxy, "Transfer")
         .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, startTokenId);
       await expect(tx2)
-        .to.emit(fermionFNFTProxy, "Transfer")
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
         .withArgs(await fermionFNFTProxy.getAddress(), ZeroAddress, fractions + votes); // burn votes and fractions
 
       expect(await fermionFNFTProxy.ownerOf(startTokenId)).to.equal(bidders[0].address);
@@ -1949,7 +1978,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         .to.emit(fermionFNFTProxy, "Transfer")
         .withArgs(await fermionFNFTProxy.getAddress(), bidders[0].address, startTokenId);
       await expect(tx2)
-        .to.emit(fermionFNFTProxy, "Transfer")
+        .to.emit(fermionFNFTProxy, "FractionsTransfer")
         .withArgs(await fermionFNFTProxy.getAddress(), ZeroAddress, fractions); // burn fractions
 
       expect(await fermionFNFTProxy.ownerOf(startTokenId)).to.equal(bidders[0].address);
@@ -2007,7 +2036,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
       it("The auction has not started", async function () {
         const fractions = 0n;
-        const bidAmount = exitPrice - parseEther("0.1");
+        const bidAmount = exitPrice - parseEther("0.01");
         await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
 
         await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
@@ -3018,6 +3047,15 @@ describe("FermionFNFT - fractionalisation tests", function () {
         expect(await fermionFNFTProxy.balanceOf(bidders[0].address)).to.equal(0n);
         expect(await fermionFNFTProxy.balanceOf(bidders[1].address)).to.equal(0n);
         expect(await fermionFNFTProxy.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(votes1 + votes2);
+      });
+
+      it("When total votes match the threshold exactly, the auction starts", async function () {
+        await fermionFNFTProxy.connect(bidders[0]).voteToStartAuction(startTokenId, votes1);
+
+        const requiredVotes = applyPercentage(fractionsPerToken, auctionParameters.unlockThreshold) - votes1;
+
+        const tx = await fermionFNFTProxy.connect(bidders[1]).voteToStartAuction(startTokenId, requiredVotes);
+        await expect(tx).to.emit(fermionFNFTProxy, "AuctionStarted");
       });
 
       it("Voting with more than available votes", async function () {
