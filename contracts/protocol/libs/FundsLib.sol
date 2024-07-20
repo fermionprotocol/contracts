@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { FundsErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -57,6 +58,13 @@ library FundsLib {
      * @param _amount - amount to be transferred
      */
     function transferFundsToProtocol(address _tokenAddress, address _from, uint256 _amount) internal {
+        // prevent ERC721 deposits
+        try IERC721(_tokenAddress).supportsInterface(type(IERC721).interfaceId) returns (bool isErc721) {
+            if (isErc721) revert FundsErrors.ERC721NotAllowed(_tokenAddress);
+        } catch {
+            // do nothing, the contract is not ERC721
+        }
+
         // protocol balance before the transfer
         uint256 protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
 
