@@ -1277,12 +1277,44 @@ describe("Offer", function () {
               .withArgs(minimalPrice - 1n, minimalPrice);
           });
 
+          it("Buyer order does not have 1 offer", async function () {
+            // two offers
+            buyerAdvancedOrder.parameters.offer.push(buyerAdvancedOrder.parameters.offer[0]);
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+
+            // 0 offers
+            buyerAdvancedOrder.parameters.offer = [];
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+          });
+
+          it("Buyer order have more than 2 considerations", async function () {
+            buyerAdvancedOrder.parameters.consideration.push(buyerAdvancedOrder.parameters.consideration[1]);
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
+            );
+          });
+
           it("OS fee is greater than the price", async function () {
             buyerAdvancedOrder.parameters.offer[0].startAmount = verifierFee.toString();
             buyerAdvancedOrder.parameters.consideration[1].startAmount = (verifierFee + 1n).toString();
             await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
               fermionErrors,
-              "InvalidOrder",
+              "InvalidOpenSeaOrder",
+            );
+          });
+
+          it("OS fee is more than expected", async function () {
+            buyerAdvancedOrder.parameters.consideration[1].startAmount += 1n;
+            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
+              fermionErrors,
+              "InvalidOpenSeaOrder",
             );
           });
         });
