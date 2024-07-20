@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
+import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
 import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
@@ -213,6 +213,11 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * - If seller deposit is non zero and there are not enough funds to cover it
      * - It is self sale and the caller does not provide the verification fee
      * - It is a normal sale and the price is not high enough to cover the verification fee
+     * - The buyer order validation fails:
+     *   - There is more than 1 offer in the order
+     *   - There are more than 2 considerations in the order
+     *   - OpenSea fee is higher than the price
+     *   - OpenSea fee is higher than the expected fee
      *
      * @param _tokenId - the token ID
      * @param _buyerOrder - the Seaport buyer order (if not self sale)
@@ -259,7 +264,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 );
                 if (minimalPrice > 0) {
                     FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-                    IERC20(exchangeToken).safeTransfer(wrapperAddress, minimalPrice);
+                    FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), minimalPrice);
                 }
 
                 _priceDiscovery.price = minimalPrice;
@@ -268,13 +273,23 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                     (_tokenId, exchangeToken, minimalPrice)
                 );
             } else {
-                if (_buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount) {
-                    revert InvalidOrder();
+                if (
+                    _buyerOrder.parameters.offer.length != 1 ||
+                    _buyerOrder.parameters.consideration.length > 2 ||
+                    _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount
+                ) {
+                    revert InvalidOpenSeaOrder();
                 }
                 unchecked {
                     _priceDiscovery.price =
                         _buyerOrder.parameters.offer[0].startAmount -
                         _buyerOrder.parameters.consideration[1].startAmount;
+                }
+                if (
+                    _buyerOrder.parameters.consideration[1].startAmount >
+                    (_priceDiscovery.price * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 // allow +1 in case they round up; minimal exposure
+                ) {
+                    revert InvalidOpenSeaOrder();
                 }
 
                 uint256 minimalPrice;

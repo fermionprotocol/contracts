@@ -25,8 +25,9 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
 
     constructor(
         address _bosonPriceDiscovery,
-        SeaportConfig memory _seaportConfig
-    ) FermionWrapper(_bosonPriceDiscovery, _seaportConfig) {}
+        SeaportConfig memory _seaportConfig,
+        address _wrappedNative
+    ) FermionWrapper(_bosonPriceDiscovery, _seaportConfig, _wrappedNative) {}
 
     /**
      * @notice Initializes the contract

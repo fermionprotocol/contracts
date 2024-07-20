@@ -328,7 +328,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
-        FermionWrapper(wrapperAddress).transferOwnership(_newOwner);
+        FermionWrapper(payable(wrapperAddress)).transferOwnership(_newOwner);
     }
 
     /**
