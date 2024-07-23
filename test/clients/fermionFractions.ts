@@ -35,14 +35,22 @@ describe("FermionFNFT - fractionalisation tests", function () {
     bidders = wallets.slice(4, 8);
 
     const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
-    const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
-    const fermionFNFT = await FermionFNFT.deploy(
+
+    const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
       {
-        seaport: wallets[10].address, // dummy address,
+        seaport: wallets[10].address, // dummy address
         openSeaConduit: mockConduit.address,
         openSeaConduitKey: ZeroHash,
       },
+    ];
+    const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
+    const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+
+    const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
+    const fermionFNFT = await FermionFNFT.deploy(
+      mockBosonPriceDiscovery.address,
+      await fermionSeaportWrapper.getAddress(),
       wallets[10].address,
     ); // dummy address
 

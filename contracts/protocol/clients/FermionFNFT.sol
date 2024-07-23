@@ -8,7 +8,6 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
-import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { Common } from "./Common.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -25,9 +24,9 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
 
     constructor(
         address _bosonPriceDiscovery,
-        SeaportConfig memory _seaportConfig,
+        address _seaportWrapper,
         address _wrappedNative
-    ) FermionWrapper(_bosonPriceDiscovery, _seaportConfig, _wrappedNative) {}
+    ) FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative) {}
 
     /**
      * @notice Initializes the contract
@@ -170,8 +169,8 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
         address _to,
         uint256 _tokenId,
         address _auth
-    ) internal override(ERC721, SeaportWrapper) returns (address) {
-        address from = SeaportWrapper._update(_to, _tokenId, _auth);
+    ) internal override(ERC721, FermionWrapper) returns (address) {
+        address from = FermionWrapper._update(_to, _tokenId, _auth);
         if (from == address(0)) Common.changeTokenState(_tokenId, FermionTypes.TokenState.Wrapped);
 
         return from;
