@@ -4,7 +4,7 @@ import {
   removeSelectors,
   findAddressPositionInFacets,
 } from "../../scripts/libraries/diamond";
-import { assert } from "chai";
+import { assert, expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
@@ -37,6 +37,14 @@ describe("DiamondTest", async function () {
     }
     console.log({ addresses });
     assert.equal(addresses.length, 13); // default facets: [diamondCut, diamondLoupe, accessControl, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause, config, custodyVault]
+  });
+
+  it("static calls work", async () => {
+    const reentracyContract = await ethers.getContractFactory("ReentrancyTest");
+    const reentrancyTest = await reentracyContract.deploy();
+    await reentrancyTest.waitForDeployment();
+
+    expect(await reentrancyTest.testStaticCall(diamondAddress)).to.not.be.reverted;
   });
 
   it("facets should have the right function selectors -- call to facetFunctionSelectors function", async () => {

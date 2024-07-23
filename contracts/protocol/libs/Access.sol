@@ -6,13 +6,14 @@ import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "./Storage.sol";
 import { PauseErrors } from "../domain/Errors.sol";
 import { Context } from "./Context.sol";
+import { ReentrancyGuard } from "./ReentrancyGuard.sol";
 
 /**
  * @title Access control
  *
  * @notice Provides access to the protocol
  */
-contract Access is Context {
+contract Access is Context, ReentrancyGuard {
     struct RoleData {
         mapping(address account => bool) hasRole;
         bytes32 adminRole;

@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { ADMIN, HUNDRED_PERCENT } from "../domain/Constants.sol";
-import { FermionGeneralErrors } from "../domain/Errors.sol";
+import { FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
@@ -24,7 +24,8 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
         // Initialize protocol config params
         setTreasuryAddressInternal(_config.treasury);
         setProtocolFeePercentageInternal(_config.protocolFeePercentage);
-        setVerificationTimeoutInternal(_config.verificationTimeout);
+        setMaxVerificationTimeoutInternal(_config.maxVerificationTimeout);
+        setDefaultVerificationTimeoutInternal(_config.defaultVerificationTimeout);
     }
 
     /**
@@ -41,7 +42,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setTreasuryAddress(
         address payable _treasuryAddress
-    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
         setTreasuryAddressInternal(_treasuryAddress);
     }
 
@@ -70,7 +71,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setProtocolFeePercentage(
         uint16 _protocolFeePercentage
-    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
         setProtocolFeePercentageInternal(_protocolFeePercentage);
     }
 
@@ -84,29 +85,79 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
-     * @notice Sets the verification timeout.
+     * @notice Sets the default verification timeout.
      *
-     * Emits a VerificationTimeoutChanged event if successful.
+     * Emits a DefaultVerificationTimeoutChanged event if successful.
      *
      * Reverts if:
      * - The caller is not a protocol admin
-     * - The _verificationTimeout is 0
+     * - The _defaultVerificationTimeout is 0
      *
-     * @param _verificationTimeout - the default period after anyone can reject the verification
+     * @dev Caller must have ADMIN role.
+     *
+     * @param _defaultVerificationTimeout - the period after anyone can reject the verification
      */
-    function setVerificationTimeout(
-        uint256 _verificationTimeout
-    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
-        setVerificationTimeoutInternal(_verificationTimeout);
+    function setDefaultVerificationTimeout(
+        uint256 _defaultVerificationTimeout
+    ) public onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) {
+        setDefaultVerificationTimeoutInternal(_defaultVerificationTimeout);
     }
 
     /**
-     * @notice Gets the current verification timeout.
+     * @notice Gets the current default verification timeout.
      *
-     * @return the verification timeout
+     * @return the default verification timeout
      */
-    function getVerificationTimeout() external view returns (uint256) {
-        return FermionStorage.protocolConfig().verificationTimeout;
+    function getDefaultVerificationTimeout() external view returns (uint256) {
+        return FermionStorage.protocolConfig().defaultVerificationTimeout;
+    }
+
+    /**
+     * @notice Sets the max verification timeout.
+     *
+     * Emits a MaxVerificationTimeoutChanged event if successful.
+     *
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The _maxVerificationTimeout is 0
+     *
+     * @dev Caller must have ADMIN role.
+     *
+     * @param _maxVerificationTimeout - the period after anyone can reject the verification
+     */
+    function setMaxVerificationTimeout(
+        uint256 _maxVerificationTimeout
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
+        setMaxVerificationTimeoutInternal(_maxVerificationTimeout);
+    }
+
+    /**
+     * @notice Gets the current maximal  verification timeout.
+     *
+     * @return the maximal verification timeout
+     */
+    function getMaxVerificationTimeout() external view returns (uint256) {
+        return FermionStorage.protocolConfig().maxVerificationTimeout;
+    }
+
+    /**
+     * @notice Sets the max verification timeout.
+     *
+     * Emits a MaxVerificationTimeoutChanged event if successful.
+     *
+     * Reverts if the _maxVerificationTimeout is 0.
+     *
+     * @param _maxVerificationTimeout - the period after anyone can reject the verification
+     */
+    function setMaxVerificationTimeoutInternal(uint256 _maxVerificationTimeout) internal {
+        // Make sure verification timeout is greater than 0
+        checkNonZeroValue(_maxVerificationTimeout);
+
+        // Store verification timeout
+        FermionStorage.protocolConfig().maxVerificationTimeout = _maxVerificationTimeout;
+
+        // Notify watchers of state change
+        emit MaxVerificationTimeoutChanged(_maxVerificationTimeout);
     }
 
     /**
@@ -150,21 +201,30 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     /**
      * @notice Sets the verification timeout.
      *
-     * Emits a VerificationTimeoutChanged event if successful.
+     * Emits a DefaultVerificationTimeoutChanged event if successful.
      *
-     * Reverts if the _protocolFeePercentage is 0.
+     * Reverts if the _defaultVerificationTimeout is 0.
      *
-     * @param _verificationTimeout - the period after anyone can reject the verification
+     * @param _defaultVerificationTimeout - the period after anyone can reject the verification
      */
-    function setVerificationTimeoutInternal(uint256 _verificationTimeout) internal {
+    function setDefaultVerificationTimeoutInternal(uint256 _defaultVerificationTimeout) internal {
         // Make sure that verification timeout greater than 0
-        checkNonZeroValue(_verificationTimeout);
+        checkNonZeroValue(_defaultVerificationTimeout);
+
+        FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
+        uint256 maxItemVerificationTimeout = pc.maxVerificationTimeout;
+        if (_defaultVerificationTimeout > maxItemVerificationTimeout) {
+            revert VerificationErrors.VerificationTimeoutTooLong(
+                _defaultVerificationTimeout,
+                maxItemVerificationTimeout
+            );
+        }
 
         // Store the verification timeout
-        FermionStorage.protocolConfig().verificationTimeout = _verificationTimeout;
+        pc.defaultVerificationTimeout = _defaultVerificationTimeout;
 
         // Notify watchers of state change
-        emit VerificationTimeoutChanged(_verificationTimeout);
+        emit DefaultVerificationTimeoutChanged(_defaultVerificationTimeout);
     }
 
     /**
