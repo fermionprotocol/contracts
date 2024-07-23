@@ -37,7 +37,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     function createEntity(
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
@@ -70,7 +70,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         address[] calldata _wallets,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.WalletRole[][][] calldata _walletRoles
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         addOrRemoveEntityWallets(_entityId, _wallets, _entityRoles, _walletRoles, true);
     }
 
@@ -96,7 +96,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         address[] calldata _wallets,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.WalletRole[][][] calldata _walletRoles
-    ) external notPaused(FermionTypes.PausableRegion.Entity) {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         addOrRemoveEntityWallets(_entityId, _wallets, _entityRoles, _walletRoles, false);
     }
 
@@ -204,7 +204,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * A wallet can be an entity-wide admin for only one entity. This is not checked here, but
      * only when the new admin makes its first entity admin action.
      *
-     * Emits an EntityWalletAdded event if successful.
+     * Emits an EntityAdminPending event if successful.
      *
      * Reverts if:
      * - Entity region is paused
@@ -216,23 +216,15 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _entityId - the entity ID
      * @param _wallet - the admin wallet address
      */
-    function setEntityAdmin(uint256 _entityId, address _wallet, bool _status) external {
+    function setEntityAdmin(uint256 _entityId, address _wallet) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
         validateEntityAdmin(_entityId, pl);
 
         // set the pending admin
-        pl.entityLookups[_entityId].pendingEntityAdmin[_wallet] = _status;
+        pl.entityLookups[_entityId].pendingEntityAdmin = _wallet;
 
-        EntityLib.storeCompactWalletRole(
-            _entityId,
-            _wallet,
-            0xff << (31 * BYTE_SIZE),
-            _status,
-            pl,
-            FermionStorage.protocolEntities()
-        ); // compact role for all current and potential future roles
-        EntityLib.emitAdminWalletAddedOrRemoved(_entityId, _wallet, _status);
+        emit EntityAdminPending(_entityId, _wallet);
     }
 
     /**
@@ -256,7 +248,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _newWallet - the new wallet address
      */
-    function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) {
+    function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         address msgSender = _msgSender();
         if (msgSender == _newWallet) revert NewWalletSameAsOld();
 
@@ -548,7 +540,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     function validateEntityAdmin(
         uint256 _entityId,
         FermionStorage.ProtocolLookups storage pl
-    ) internal notPaused(FermionTypes.PausableRegion.Entity) returns (address) {
+    ) internal notPaused(FermionTypes.PausableRegion.Entity) nonReentrant returns (address) {
         address msgSender = _msgSender();
         uint256 callerEntityId = pl.entityId[msgSender];
         if (callerEntityId == 0) {
@@ -570,16 +562,40 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _entityId - the entity ID
      */
     function acceptAdminRole(uint256 _entityId, address _wallet, FermionStorage.ProtocolLookups storage pl) internal {
-        mapping(address => bool) storage pendingEntityAdmin = pl.entityLookups[_entityId].pendingEntityAdmin;
-        if (!pendingEntityAdmin[_wallet]) revert NotEntityAdmin(_entityId, _wallet);
+        FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
+        if (entityLookups.pendingEntityAdmin != _wallet) revert NotEntityAdmin(_entityId, _wallet);
 
-        delete pendingEntityAdmin[_wallet];
-        pl.entityId[_wallet] = _entityId;
+        delete entityLookups.pendingEntityAdmin;
 
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
-        delete pl.entityId[entityData.admin];
+        address previousAdmin = entityData.admin;
+        delete pl.entityId[previousAdmin];
 
         entityData.admin = _wallet;
+        pl.entityId[_wallet] = _entityId;
+
+        // add new admin wallet
+        EntityLib.storeCompactWalletRole(
+            _entityId,
+            _wallet,
+            0xff << (31 * BYTE_SIZE),
+            true,
+            pl,
+            FermionStorage.protocolEntities()
+        ); // compact role for all current and potential future roles
+
+        // strip old wallet of all privileges
+        EntityLib.storeCompactWalletRole(
+            _entityId,
+            previousAdmin,
+            0xff << (31 * BYTE_SIZE),
+            true,
+            pl,
+            FermionStorage.protocolEntities()
+        );
+
+        EntityLib.emitAdminWalletAddedOrRemoved(_entityId, _wallet, true);
+        EntityLib.emitAdminWalletAddedOrRemoved(_entityId, previousAdmin, false);
     }
 
     /** Remove seller's facilitator.

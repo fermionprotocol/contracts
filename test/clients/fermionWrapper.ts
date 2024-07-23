@@ -62,8 +62,10 @@ describe("FermionFNFT - wrapper tests", function () {
   });
 
   context("initialize", function () {
+    const offerId = 1n;
+
     it("Initialization via proxy sets the new owner", async function () {
-      await expect(fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress))
+      await expect(fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId))
         .to.emit(fermionWrapperProxy, "OwnershipTransferred")
         .withArgs(ZeroAddress, wrapperContractOwner.address);
 
@@ -73,23 +75,24 @@ describe("FermionFNFT - wrapper tests", function () {
     context("Revert reasons", function () {
       it("Direct initialization fails", async function () {
         await expect(
-          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress),
+          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId),
         ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
 
       it("Second initialization via proxy fails", async function () {
-        await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress);
+        await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId);
 
         await expect(
-          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress),
+          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId),
         ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
     });
   });
 
   context("transferOwnership", function () {
+    const offerId = 1n;
     beforeEach(async function () {
-      await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress);
+      await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId);
     });
 
     it("Initialization caller can transfer the ownership", async function () {
@@ -125,10 +128,16 @@ describe("FermionFNFT - wrapper tests", function () {
     let seller: HardhatEthersSigner;
     const startTokenId = 2n ** 128n + 1n;
     const quantity = 10n;
+    const offerId = 1n;
     beforeEach(async function () {
       await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
 
-      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address, ZeroAddress);
+      await fermionWrapperProxy.initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerId,
+      );
 
       seller = wallets[3];
     });
@@ -174,12 +183,18 @@ describe("FermionFNFT - wrapper tests", function () {
     let seller: HardhatEthersSigner;
     const startTokenId = 1;
     const quantity = 10;
+    const offerId = 1n;
 
     beforeEach(async function () {
       seller = wallets[3];
 
       await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
-      await fermionWrapperProxy.initialize(await mockBoson.getAddress(), wrapperContractOwner.address, ZeroAddress);
+      await fermionWrapperProxy.initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerId,
+      );
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
       await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
     });

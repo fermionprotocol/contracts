@@ -84,7 +84,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         bytes32 _sigR,
         bytes32 _sigS,
         uint8 _sigV
-    ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) returns (bytes memory) {
+    ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
         address userAddress = _userAddress; // stack too deep workaround. ToDo: Consider using a struct for signature
         validateTx(_functionName, _functionSignature, _nonce, userAddress);
 
@@ -126,7 +126,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
     function setAllowlistedFunctions(
         bytes32[] calldata _functionNameHashes,
         bool _isAllowlisted
-    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.MetaTransaction) {
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant {
         setAllowlistedFunctionsInternal(_functionNameHashes, _isAllowlisted);
     }
 

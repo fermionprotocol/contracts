@@ -67,6 +67,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the seller's assistant or facilitator
+     * - New timeout is greater than the maximum timeout
      *
      * @param _tokenId - the token ID
      * @param _newTimeout - the new verification timeout
@@ -74,12 +75,18 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
     function changeVerificationTimeout(
         uint256 _tokenId,
         uint256 _newTimeout
-    ) external notPaused(FermionTypes.PausableRegion.Verification) {
+    ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
 
-        FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout = _newTimeout;
+        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
+        uint256 maxItemVerificationTimeout = tokenLookups.itemMaxVerificationTimeout;
+        if (_newTimeout > maxItemVerificationTimeout) {
+            revert VerificationErrors.VerificationTimeoutTooLong(_newTimeout, maxItemVerificationTimeout);
+        }
+
+        tokenLookups.itemVerificationTimeout = _newTimeout;
 
         emit ItemVerificationTimeoutChanged(_tokenId, _newTimeout);
     }
@@ -110,7 +117,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         uint256 _tokenId,
         FermionTypes.VerificationStatus _verificationStatus,
         bool _afterTimeout
-    ) internal notPaused(FermionTypes.PausableRegion.Verification) {
+    ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 verifierId = offer.verifierId;
 

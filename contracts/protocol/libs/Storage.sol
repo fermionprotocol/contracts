@@ -49,8 +49,10 @@ library FermionStorage {
         address payable treasury;
         // Protocol fee
         uint16 protocolFeePercentage;
-        // Verification timeout
-        uint256 verificationTimeout;
+        // Default verification timeout
+        uint256 defaultVerificationTimeout;
+        // Max verification timeout
+        uint256 maxVerificationTimeout;
     }
 
     // Protocol entities storage
@@ -88,8 +90,8 @@ library FermionStorage {
     }
 
     struct EntityLookups {
-        // entity admin => pending status
-        mapping(address => bool) pendingEntityAdmin;
+        // pending entity admin
+        address pendingEntityAdmin;
         // token address => amount
         mapping(address => uint256) availableFunds;
         // all tokens with balance > 0
@@ -116,6 +118,8 @@ library FermionStorage {
         FermionTypes.CustodianFee vault;
         // verification timeout
         uint256 itemVerificationTimeout;
+        // max verification timeout
+        uint256 itemMaxVerificationTimeout;
     }
 
     struct SellerLookups {

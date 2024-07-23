@@ -38,6 +38,7 @@ const config: HardhatUserConfig = {
     hardhat: {
       gasPrice: 0,
       initialBaseFeePerGas: 0,
+      allowUnlimitedContractSize: true, // Temporary enabled to finish the development, until Fermion Wrapper is refactored
     },
     amoy: {
       url: vars.get("RPC_PROVIDER_AMOY", "https://rpc-amoy.polygon.technology"),

@@ -9,5 +9,6 @@ pragma solidity 0.8.24;
 interface IConfigEvents {
     event TreasuryAddressChanged(address indexed newTreasuryAddress);
     event ProtocolFeePercentageChanged(uint16 newProtocolFeePercentage);
-    event VerificationTimeoutChanged(uint256 newVerificationTimeout);
+    event DefaultVerificationTimeoutChanged(uint256 newVerificationTimeout);
+    event MaxVerificationTimeoutChanged(uint256 newMaxVerificationTimeout);
 }

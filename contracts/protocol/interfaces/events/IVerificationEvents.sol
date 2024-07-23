@@ -13,7 +13,8 @@ interface IVerificationEvents {
         uint256 indexed bosonOfferId,
         uint256 indexed verifierId,
         uint256 nftId,
-        uint256 itemVerificationTimeout
+        uint256 itemVerificationTimeout,
+        uint256 maxVerificationTimeout
     );
     event ItemVerificationTimeoutChanged(uint256 indexed nftId, uint256 itemVerificationTimeout);
     event VerdictSubmitted(

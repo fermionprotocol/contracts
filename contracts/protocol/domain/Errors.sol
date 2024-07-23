@@ -52,6 +52,7 @@ interface OfferErrors {
 interface VerificationErrors {
     // Verification errors
     error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
+    error VerificationTimeoutTooLong(uint256 verificationTimeout, uint256 maxVerificationTimeout);
 }
 
 interface CustodyErrors {
@@ -71,6 +72,8 @@ interface AuctionErrors {
     error AuctionNotStarted(uint256 tokenId);
     error AuctionOngoing(uint256 tokenId, uint256 validUntil);
     error AuctionFinalized(uint256 tokenId);
+    error NoFractionsAvailable(uint256 tokenId);
+    error NoBids(uint256 tokenId);
 }
 
 interface CustodianVaultErrors is AuctionErrors {
@@ -128,6 +131,7 @@ interface FractionalisationErrors is AuctionErrors {
     error InvalidAmount();
     error TokenNotFractionalised(uint256 tokenId);
     error InvalidAuctionIndex(uint256 auctionIndex, uint256 numberOfAuctions); // auctionIndex should be less than numberOfAuctions
+    error AuctionReserved(uint256 tokenId);
 }
 
 interface FermionErrors is

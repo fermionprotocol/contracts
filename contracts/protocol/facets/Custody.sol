@@ -32,7 +32,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
      *
      * @param _tokenId - the token ID
      */
-    function checkIn(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) {
+    function checkIn(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
@@ -75,7 +75,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
      *
      * @param _tokenId - the token ID
      */
-    function checkOut(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) {
+    function checkOut(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
@@ -117,7 +117,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
      *
      * @param _tokenId - the token ID
      */
-    function requestCheckOut(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) {
+    function requestCheckOut(uint256 _tokenId) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
@@ -156,7 +156,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
     function submitTaxAmount(
         uint256 _tokenId,
         uint256 _taxAmount
-    ) external notPaused(FermionTypes.PausableRegion.Custody) {
+    ) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,
             FermionTypes.CheckoutRequestStatus.CheckOutRequested,
@@ -193,7 +193,9 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
      *
      * @param _tokenId - the token ID
      */
-    function clearCheckoutRequest(uint256 _tokenId) external payable notPaused(FermionTypes.PausableRegion.Custody) {
+    function clearCheckoutRequest(
+        uint256 _tokenId
+    ) external payable notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
             _tokenId,

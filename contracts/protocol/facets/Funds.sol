@@ -40,7 +40,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
         uint256 _entityId,
         address _tokenAddress,
         uint256 _amount
-    ) external payable notPaused(FermionTypes.PausableRegion.Funds) {
+    ) external payable notPaused(FermionTypes.PausableRegion.Funds) nonReentrant {
         if (_amount == 0) revert ZeroDepositNotAllowed();
 
         // Check that entity exists. Funds to protocol entity (0) are allowed too.
@@ -207,7 +207,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
         address payable _destinationAddress,
         address[] memory _tokenList,
         uint256[] memory _tokenAmounts
-    ) internal notPaused(FermionTypes.PausableRegion.Funds) {
+    ) internal notPaused(FermionTypes.PausableRegion.Funds) nonReentrant {
         // Cache protocol lookups for reference
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
