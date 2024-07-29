@@ -51,9 +51,10 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * - Contract is already initialized
      *
      * @param _owner The address of the owner
+     * @param _metadataUri The metadata URI, used for all tokens and contract URI
      */
-    function initializeWrapper(address _owner) internal virtual {
-        // initialize(_owner);
+    function initializeWrapper(address _owner, string memory _metadataUri) internal virtual {
+        Common._getFermionCommonStorage().metadataUri = _metadataUri;
         __Ownable_init(_owner);
         SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
     }
@@ -124,6 +125,24 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
                 IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _verifierFee);
             }
         }
+    }
+
+    /**
+     * @dev See {IERC721Metadata-tokenURI}.
+     */
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        _requireOwned(tokenId);
+
+        return contractURI();
+    }
+
+    /**
+     * @notice Returns storefront-level metadata used by OpenSea.
+     *
+     * @return Contract metadata URI
+     */
+    function contractURI() public view returns (string memory) {
+        return Common._getFermionCommonStorage().metadataUri;
     }
 
     /**
