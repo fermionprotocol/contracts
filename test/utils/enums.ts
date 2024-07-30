@@ -20,7 +20,7 @@ export enum TokenState {
 }
 
 export enum AccountRole {
-  Admin,
+  Manager,
   Assistant,
   Treasury,
 }

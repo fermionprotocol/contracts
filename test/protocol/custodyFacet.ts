@@ -258,15 +258,15 @@ describe("Custody", function () {
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(custodianId, defaultSigner.address, EntityRole.Custodian, AccountRole.Assistant);
 
-        // an entity-wide Treasury or admin wallet (not Assistant)
+        // an entity-wide Treasury or Manager wallet (not Assistant)
         await entityFacet
           .connect(custodian)
-          .addEntityAccounts(custodianId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Admin]]]);
+          .addEntityAccounts(custodianId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
         await expect(custodyFacet.connect(wallet).checkIn(exchange.tokenId))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(custodianId, wallet.address, EntityRole.Custodian, AccountRole.Assistant);
 
-        // a Custodian specific Treasury or Admin wallet
+        // a Custodian specific Treasury or Manager wallet
         const wallet2 = wallets[10];
         await entityFacet
           .connect(custodian)
@@ -274,7 +274,7 @@ describe("Custody", function () {
             custodianId,
             [wallet2],
             [[EntityRole.Custodian]],
-            [[[AccountRole.Treasury, AccountRole.Admin]]],
+            [[[AccountRole.Treasury, AccountRole.Manager]]],
           );
         await expect(custodyFacet.connect(wallet2).checkIn(exchange.tokenId))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
@@ -1189,15 +1189,15 @@ describe("Custody", function () {
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(custodianId, defaultSigner.address, EntityRole.Custodian, AccountRole.Assistant);
 
-        // an entity-wide Treasury or admin wallet (not Assistant)
+        // an entity-wide Treasury or Manager wallet (not Assistant)
         await entityFacet
           .connect(custodian)
-          .addEntityAccounts(custodianId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Admin]]]);
+          .addEntityAccounts(custodianId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
         await expect(custodyFacet.connect(wallet).checkOut(exchange.tokenId))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(custodianId, wallet.address, EntityRole.Custodian, AccountRole.Assistant);
 
-        // a Custodian specific Treasury or Admin wallet
+        // a Custodian specific Treasury or Manager wallet
         const wallet2 = wallets[10];
         await entityFacet
           .connect(custodian)
@@ -1205,7 +1205,7 @@ describe("Custody", function () {
             custodianId,
             [wallet2],
             [[EntityRole.Custodian]],
-            [[[AccountRole.Treasury, AccountRole.Admin]]],
+            [[[AccountRole.Treasury, AccountRole.Manager]]],
           );
         await expect(custodyFacet.connect(wallet2).checkOut(exchange.tokenId))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")

@@ -451,8 +451,8 @@ describe("Funds", function () {
           .to.be.revertedWithCustomError(fermionErrors, "NotEntityAssistant")
           .withArgs(sellerId, wallet.address);
 
-        // an entity-wide Treasury or admin wallet (not Assistant)
-        await entityFacet.addEntityAccounts(sellerId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Admin]]]);
+        // an entity-wide Treasury or Manager wallet (not Assistant)
+        await entityFacet.addEntityAccounts(sellerId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
         await expect(fundsFacet.connect(wallet).withdrawFunds(sellerId, defaultSigner.address, [], []))
           .to.be.revertedWithCustomError(fermionErrors, "NotEntityAssistant")
           .withArgs(sellerId, wallet.address);
@@ -472,8 +472,13 @@ describe("Funds", function () {
           .to.be.revertedWithCustomError(fermionErrors, "NotEntityTreasury")
           .withArgs(sellerId, treasury);
 
-        // an entity-wide Assistant or admin wallet (not Assistant)
-        await entityFacet.addEntityAccounts(sellerId, [treasury], [[]], [[[AccountRole.Assistant, AccountRole.Admin]]]);
+        // an entity-wide Assistant or Manager wallet (not Assistant)
+        await entityFacet.addEntityAccounts(
+          sellerId,
+          [treasury],
+          [[]],
+          [[[AccountRole.Assistant, AccountRole.Manager]]],
+        );
         await expect(fundsFacet.withdrawFunds(sellerId, treasury, [], []))
           .to.be.revertedWithCustomError(fermionErrors, "NotEntityTreasury")
           .withArgs(sellerId, treasury);
@@ -585,8 +590,8 @@ describe("Funds", function () {
     it("Withdraw all", async function () {
       const entityAvailableFundsNative = await fundsFacet.getAvailableFunds(protocolId, ZeroAddress);
       const entityAvailableFundsMockToken1 = await fundsFacet.getAvailableFunds(protocolId, mockToken1Address);
-      const adminBalanceNative = await ethers.provider.getBalance(protocolTreasury);
-      const adminBalanceMockToken1 = await mockToken1.balanceOf(protocolTreasury);
+      const treasuryBalanceNative = await ethers.provider.getBalance(protocolTreasury);
+      const treasuryBalanceMockToken1 = await mockToken1.balanceOf(protocolTreasury);
 
       // Withdraw funds
       const tx = await fundsFacet.connect(feeCollector).withdrawProtocolFees([], [], { gasPrice: 0 });
@@ -606,8 +611,8 @@ describe("Funds", function () {
       expect(await fundsFacet.getAvailableFunds(protocolId, ZeroAddress)).to.equal(
         entityAvailableFundsMockToken1 - amountMockToken,
       );
-      expect(await ethers.provider.getBalance(protocolTreasury)).to.equal(adminBalanceNative + amountNative);
-      expect(await mockToken1.balanceOf(protocolTreasury)).to.equal(adminBalanceMockToken1 + amountMockToken);
+      expect(await ethers.provider.getBalance(protocolTreasury)).to.equal(treasuryBalanceNative + amountNative);
+      expect(await mockToken1.balanceOf(protocolTreasury)).to.equal(treasuryBalanceMockToken1 + amountMockToken);
     });
 
     it("Token list is updated correctly", async function () {

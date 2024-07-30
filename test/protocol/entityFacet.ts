@@ -54,13 +54,13 @@ describe("Entity", function () {
 
           await expect(tx)
             .to.emit(entityFacet, "EntityAccountAdded")
-            .withArgs(entityId, signer.address, [], [[AccountRole.Admin]]);
+            .withArgs(entityId, signer.address, [], [[AccountRole.Manager]]);
 
           // verify state
           await verifyState(signer, entityId, [EntityRole[role]], metadataURI);
 
           for (const entityRole of enumIterator(EntityRole)) {
-            const hasRole = await entityFacet.hasAccountRole(entityId, signer.address, entityRole, AccountRole.Admin);
+            const hasRole = await entityFacet.hasAccountRole(entityId, signer.address, entityRole, AccountRole.Manager);
             expect(hasRole).to.be.true;
           }
         }
@@ -176,7 +176,7 @@ describe("Entity", function () {
 
       it("Pending admin can update roles", async function () {
         const newAdmin = wallets[2];
-        await entityFacet.setEntityAdmin(entityId, newAdmin.address);
+        await entityFacet.setAdmin(entityId, newAdmin.address);
 
         await expect(
           entityFacet
@@ -215,7 +215,7 @@ describe("Entity", function () {
         it("Caller is not the admin", async function () {
           const signer2 = wallets[2];
           await expect(entityFacet.connect(signer2).updateEntity(entityId, [EntityRole.Seller], metadataURI))
-            .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+            .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
             .withArgs(entityId, signer2.address);
         });
       });
@@ -232,7 +232,7 @@ describe("Entity", function () {
       it("Add entity wallets", async function () {
         const newAccounts = wallets.slice(2, 4).map((wallet) => wallet.address);
         const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
-        const walletRoles = [[[AccountRole.Assistant], []], [[AccountRole.Treasury, AccountRole.Admin]]];
+        const walletRoles = [[[AccountRole.Assistant], []], [[AccountRole.Treasury, AccountRole.Manager]]];
 
         // test event
         const tx = await entityFacet.addEntityAccounts(entityId, newAccounts, entityRoles, walletRoles);
@@ -250,14 +250,14 @@ describe("Entity", function () {
         expectedRoles[wallet0][EntityRole.Verifier] = {};
         expectedRoles[wallet0][EntityRole.Verifier][AccountRole.Assistant] = true;
         expectedRoles[wallet0][EntityRole.Custodian] = {};
-        expectedRoles[wallet0][EntityRole.Custodian][AccountRole.Admin] = true;
+        expectedRoles[wallet0][EntityRole.Custodian][AccountRole.Manager] = true;
         expectedRoles[wallet0][EntityRole.Custodian][AccountRole.Assistant] = true;
         expectedRoles[wallet0][EntityRole.Custodian][AccountRole.Treasury] = true;
 
         const wallet1 = newAccounts[1];
         expectedRoles[wallet1] = {};
         expectedRoles[wallet1][EntityRole.Seller] = {};
-        expectedRoles[wallet1][EntityRole.Seller][AccountRole.Admin] = true;
+        expectedRoles[wallet1][EntityRole.Seller][AccountRole.Manager] = true;
         expectedRoles[wallet1][EntityRole.Seller][AccountRole.Treasury] = true;
 
         for (const wallet of newAccounts) {
@@ -330,7 +330,7 @@ describe("Entity", function () {
             .withArgs(10);
         });
 
-        it("Caller is not an admin for the entity role", async function () {
+        it("Caller is not a manager for the entity role", async function () {
           const wallet = wallets[2];
 
           await expect(
@@ -340,36 +340,36 @@ describe("Entity", function () {
                 entityId,
                 [wallet.address],
                 [[EntityRole.Verifier, EntityRole.Custodian]],
-                [[[AccountRole.Admin], []]],
+                [[[AccountRole.Manager], []]],
               ),
           )
-            .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
+            .to.be.revertedWithCustomError(fermionErrors, "NotManager")
             .withArgs(wallet.address, entityId, EntityRole.Verifier);
         });
 
-        it("Caller is not an entity admin", async function () {
+        it("Caller is not an entity-wide manager", async function () {
           const wallet = wallets[2];
 
-          // make the wallet an admin for all roles, but not an entity-wide admin
+          // make the wallet an manager for all roles, but not an entity-wide manager
           await entityFacet.addEntityAccounts(
             entityId,
             [wallet.address],
             [[EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian]],
-            [[[AccountRole.Admin], [AccountRole.Admin], [AccountRole.Admin]]],
+            [[[AccountRole.Manager], [AccountRole.Manager], [AccountRole.Manager]]],
           ),
             await expect(
               entityFacet
                 .connect(wallet)
                 .addEntityAccounts(entityId, [wallets[3].address], [[]], [[[AccountRole.Assistant]]]),
             )
-              .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+              .to.be.revertedWithCustomError(fermionErrors, "NotEntityManager")
               .withArgs(entityId, wallet.address);
         });
 
         it("Array mismatch", async function () {
           const newAccounts = [wallets[2].address];
           const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
-          const walletRoles = [[[AccountRole.Admin]]];
+          const walletRoles = [[[AccountRole.Manager]]];
 
           await expect(entityFacet.addEntityAccounts(entityId, newAccounts, entityRoles, walletRoles))
             .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
@@ -387,7 +387,7 @@ describe("Entity", function () {
               entityId,
               newAccounts,
               [[]],
-              [[[AccountRole.Admin], [AccountRole.Assistant]]],
+              [[[AccountRole.Manager], [AccountRole.Assistant]]],
             ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
@@ -398,7 +398,7 @@ describe("Entity", function () {
               entityId,
               newAccounts,
               [[EntityRole.Verifier, EntityRole.Custodian, EntityRole.Seller]],
-              [[[AccountRole.Admin], [AccountRole.Assistant]]],
+              [[[AccountRole.Manager], [AccountRole.Assistant]]],
             ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
@@ -407,7 +407,9 @@ describe("Entity", function () {
 
         it("Entity does not have the role", async function () {
           const wallet = wallets[2].address;
-          await expect(entityFacet.addEntityAccounts(entityId, [wallet], [[EntityRole.Buyer]], [[[AccountRole.Admin]]]))
+          await expect(
+            entityFacet.addEntityAccounts(entityId, [wallet], [[EntityRole.Buyer]], [[[AccountRole.Manager]]]),
+          )
             .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
             .withArgs(entityId, EntityRole.Buyer);
         });
@@ -425,14 +427,14 @@ describe("Entity", function () {
 
         entityAccounts = wallets.slice(2, 4).map((wallet) => wallet.address);
         const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
-        const walletRoles = [[[AccountRole.Assistant], []], [[AccountRole.Treasury, AccountRole.Admin]]];
+        const walletRoles = [[[AccountRole.Assistant], []], [[AccountRole.Treasury, AccountRole.Manager]]];
 
         await entityFacet.addEntityAccounts(entityId, entityAccounts, entityRoles, walletRoles);
       });
 
       it("Remove entity wallets", async function () {
         const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
-        const walletRoles = [[[], [AccountRole.Admin]], [[AccountRole.Treasury]]];
+        const walletRoles = [[[], [AccountRole.Manager]], [[AccountRole.Treasury]]];
 
         // test event
         const tx = await entityFacet.removeEntityAccounts(entityId, entityAccounts, entityRoles, walletRoles);
@@ -454,7 +456,7 @@ describe("Entity", function () {
         const wallet1 = entityAccounts[1];
         expectedRoles[wallet1] = {};
         expectedRoles[wallet1][EntityRole.Seller] = {};
-        expectedRoles[wallet1][EntityRole.Seller][AccountRole.Admin] = true;
+        expectedRoles[wallet1][EntityRole.Seller][AccountRole.Manager] = true;
 
         for (const wallet of entityAccounts) {
           for (const entityRole of enumIterator(EntityRole)) {
@@ -542,7 +544,7 @@ describe("Entity", function () {
         const walletRoles = [[[AccountRole.Assistant]]];
 
         // check the assigned roles
-        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Admin)).to.be.true;
+        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Manager)).to.be.true;
         expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Assistant)).to.be
           .false;
         expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Treasury)).to.be.true;
@@ -553,7 +555,7 @@ describe("Entity", function () {
           .withArgs(entityId, wallet, entityRoles[0], walletRoles[0]);
 
         // verify state, nothing should change
-        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Admin)).to.be.true;
+        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Manager)).to.be.true;
         expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Assistant)).to.be
           .false;
         expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Treasury)).to.be.true;
@@ -578,7 +580,7 @@ describe("Entity", function () {
             .withArgs(10);
         });
 
-        it("Caller is not an admin for the entity role", async function () {
+        it("Caller is not a manager for the entity role", async function () {
           const wallet = wallets[2];
 
           await expect(
@@ -588,36 +590,36 @@ describe("Entity", function () {
                 entityId,
                 [wallet.address],
                 [[EntityRole.Verifier, EntityRole.Custodian]],
-                [[[AccountRole.Admin], []]],
+                [[[AccountRole.Manager], []]],
               ),
           )
-            .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
+            .to.be.revertedWithCustomError(fermionErrors, "NotManager")
             .withArgs(wallet.address, entityId, EntityRole.Verifier);
         });
 
-        it("Caller is not an entity admin", async function () {
+        it("Caller is not an entity-wide manager", async function () {
           const wallet = wallets[2];
 
-          // make the wallet an admin for all roles, but not an entity-wide admin
+          // make the wallet a manager for all roles, but not an entity-wide manager
           await entityFacet.addEntityAccounts(
             entityId,
             [wallet.address],
             [[EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian]],
-            [[[AccountRole.Admin], [AccountRole.Admin], [AccountRole.Admin]]],
+            [[[AccountRole.Manager], [AccountRole.Manager], [AccountRole.Manager]]],
           ),
             await expect(
               entityFacet
                 .connect(wallet)
                 .removeEntityAccounts(entityId, [wallets[3].address], [[]], [[[AccountRole.Assistant]]]),
             )
-              .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+              .to.be.revertedWithCustomError(fermionErrors, "NotEntityManager")
               .withArgs(entityId, wallet.address);
         });
 
         it("Array mismatch", async function () {
           const newAccounts = [wallets[2].address];
           const entityRoles = [[EntityRole.Verifier, EntityRole.Custodian], [EntityRole.Seller]];
-          const walletRoles = [[[AccountRole.Admin]]];
+          const walletRoles = [[[AccountRole.Manager]]];
 
           await expect(entityFacet.removeEntityAccounts(entityId, newAccounts, entityRoles, walletRoles))
             .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
@@ -635,7 +637,7 @@ describe("Entity", function () {
               entityId,
               newAccounts,
               [[]],
-              [[[AccountRole.Admin], [AccountRole.Assistant]]],
+              [[[AccountRole.Manager], [AccountRole.Assistant]]],
             ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
@@ -646,7 +648,7 @@ describe("Entity", function () {
               entityId,
               newAccounts,
               [[EntityRole.Verifier, EntityRole.Custodian, EntityRole.Seller]],
-              [[[AccountRole.Admin], [AccountRole.Assistant]]],
+              [[[AccountRole.Manager], [AccountRole.Assistant]]],
             ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
@@ -656,7 +658,7 @@ describe("Entity", function () {
         it("Entity does not have the role", async function () {
           const wallet = wallets[2].address;
           await expect(
-            entityFacet.removeEntityAccounts(entityId, [wallet], [[EntityRole.Buyer]], [[[AccountRole.Admin]]]),
+            entityFacet.removeEntityAccounts(entityId, [wallet], [[EntityRole.Buyer]], [[[AccountRole.Manager]]]),
           )
             .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
             .withArgs(entityId, EntityRole.Buyer);
@@ -664,7 +666,7 @@ describe("Entity", function () {
       });
     });
 
-    context("setEntityAdmin", function () {
+    context("setAdmin", function () {
       const entityId = 1;
       const metadataURI = "https://example.com/metadata.json";
 
@@ -676,19 +678,19 @@ describe("Entity", function () {
         const newAdmin = wallets[2];
 
         // test event
-        const tx = await entityFacet.setEntityAdmin(entityId, newAdmin.address);
-        await expect(tx).to.emit(entityFacet, "EntityAdminPending").withArgs(entityId, newAdmin.address);
+        const tx = await entityFacet.setAdmin(entityId, newAdmin.address);
+        await expect(tx).to.emit(entityFacet, "AdminPending").withArgs(entityId, newAdmin.address);
 
         // verify state. The new admin does not get the roles yet
         for (const entityRole of enumIterator(EntityRole)) {
-          const hasRole = await entityFacet.hasAccountRole(entityId, newAdmin.address, entityRole, AccountRole.Admin);
+          const hasRole = await entityFacet.hasAccountRole(entityId, newAdmin.address, entityRole, AccountRole.Manager);
           expect(hasRole).to.be.false;
         }
       });
 
       it("When new admin perform first admin action, the entity admin is changed", async function () {
         const newAdmin = wallets[2];
-        await entityFacet.setEntityAdmin(entityId, newAdmin.address);
+        await entityFacet.setAdmin(entityId, newAdmin.address);
         const entity = await entityFacet["getEntity(address)"](defaultSigner.address);
 
         // before new admin performs any action, the entity admin is the old admin
@@ -697,14 +699,14 @@ describe("Entity", function () {
           .withArgs(0);
 
         // make some action with the new admin
-        const tx = entityFacet.connect(newAdmin).setEntityAdmin(entityId, wallets[3].address);
+        const tx = entityFacet.connect(newAdmin).setAdmin(entityId, wallets[3].address);
         await expect(tx).to.not.be.reverted;
         await expect(tx)
           .to.emit(entityFacet, "EntityAccountAdded")
-          .withArgs(entityId, newAdmin.address, [], [[AccountRole.Admin]]);
+          .withArgs(entityId, newAdmin.address, [], [[AccountRole.Manager]]);
         await expect(tx)
           .to.emit(entityFacet, "EntityAccountRemoved")
-          .withArgs(entityId, defaultSigner.address, [], [[AccountRole.Admin]]);
+          .withArgs(entityId, defaultSigner.address, [], [[AccountRole.Manager]]);
 
         // entity is referenced by the new admin signer
         await verifyState(newAdmin, entityId, entity.roles, entity.metadataURI);
@@ -713,8 +715,8 @@ describe("Entity", function () {
           .withArgs(0);
 
         // old admin should not be able to perform entity admin actions, but can perform wallet admin actions
-        await expect(entityFacet.setEntityAdmin(entityId, newAdmin.address))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+        await expect(entityFacet.setAdmin(entityId, newAdmin.address))
+          .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
           .withArgs(entityId, defaultSigner.address);
 
         await expect(
@@ -735,21 +737,21 @@ describe("Entity", function () {
         const newAdmin = wallets[2];
 
         // first set it
-        await entityFacet.setEntityAdmin(entityId, newAdmin.address);
+        await entityFacet.setAdmin(entityId, newAdmin.address);
 
         // unset it
-        const tx = await entityFacet.setEntityAdmin(entityId, ZeroAddress);
-        await expect(tx).to.emit(entityFacet, "EntityAdminPending").withArgs(entityId, ZeroAddress);
+        const tx = await entityFacet.setAdmin(entityId, ZeroAddress);
+        await expect(tx).to.emit(entityFacet, "AdminPending").withArgs(entityId, ZeroAddress);
 
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
-          const hasRole = await entityFacet.hasAccountRole(entityId, newAdmin.address, entityRole, AccountRole.Admin);
+          const hasRole = await entityFacet.hasAccountRole(entityId, newAdmin.address, entityRole, AccountRole.Manager);
           expect(hasRole).to.be.false;
         }
 
         // New admin should not be able to perform admin actions
-        await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+        await expect(entityFacet.connect(newAdmin).setAdmin(entityId, newAdmin.address))
+          .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
           .withArgs(entityId, newAdmin.address);
       });
 
@@ -757,7 +759,7 @@ describe("Entity", function () {
         it("Entity region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Entity]);
 
-          await expect(entityFacet.setEntityAdmin(entityId, ZeroAddress))
+          await expect(entityFacet.setAdmin(entityId, ZeroAddress))
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Entity);
         });
@@ -765,11 +767,11 @@ describe("Entity", function () {
         it("Entity does not exist", async function () {
           const newAdmin = wallets[2];
 
-          await expect(entityFacet.setEntityAdmin(0, newAdmin.address))
+          await expect(entityFacet.setAdmin(0, newAdmin.address))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(0);
 
-          await expect(entityFacet.setEntityAdmin(10, newAdmin.address))
+          await expect(entityFacet.setAdmin(10, newAdmin.address))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(10);
         });
@@ -777,8 +779,8 @@ describe("Entity", function () {
         it("Caller is not an admin for the entity role", async function () {
           const newAdmin = wallets[2];
 
-          await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address))
-            .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+          await expect(entityFacet.connect(newAdmin).setAdmin(entityId, newAdmin.address))
+            .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
             .withArgs(entityId, newAdmin.address);
         });
 
@@ -787,8 +789,8 @@ describe("Entity", function () {
 
           await entityFacet.connect(newAdmin).createEntity([EntityRole.Seller, EntityRole.Custodian], metadataURI);
 
-          await expect(entityFacet.connect(newAdmin).setEntityAdmin(entityId, newAdmin.address))
-            .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+          await expect(entityFacet.connect(newAdmin).setAdmin(entityId, newAdmin.address))
+            .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
             .withArgs(entityId, newAdmin.address);
         });
       });
@@ -876,11 +878,11 @@ describe("Entity", function () {
               .withArgs(10);
           });
 
-          it("Caller is not an admin for the entity role", async function () {
+          it("Caller is not an admin", async function () {
             const newAdmin = wallets[2];
 
             await expect(entityFacet.connect(newAdmin).addFacilitators(sellerId, []))
-              .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+              .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
               .withArgs(sellerId, newAdmin.address);
           });
 
@@ -1027,11 +1029,11 @@ describe("Entity", function () {
               .withArgs(10);
           });
 
-          it("Caller is not an admin for the entity role", async function () {
+          it("Caller is not an admin", async function () {
             const newAdmin = wallets[2];
 
             await expect(entityFacet.connect(newAdmin).removeFacilitators(sellerId, []))
-              .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+              .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
               .withArgs(sellerId, newAdmin.address);
           });
         });
@@ -1228,7 +1230,7 @@ describe("Entity", function () {
         it("Caller is not the admin", async function () {
           const signer2 = wallets[2];
           await expect(entityFacet.connect(signer2).transferWrapperContractOwnership(bosonOfferId, ZeroAddress))
-            .to.be.revertedWithCustomError(fermionErrors, "NotEntityAdmin")
+            .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
             .withArgs(entityId, signer2.address);
         });
 
@@ -1333,13 +1335,13 @@ describe("Entity", function () {
         let hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Verifier, AccountRole.Assistant);
         expect(hasRole).to.be.true;
 
-        hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Verifier, AccountRole.Admin);
+        hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Verifier, AccountRole.Manager);
         expect(hasRole).to.be.false;
       });
 
       it("Account does not belong to an entity", async function () {
         const wallet = wallets[3];
-        const hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Buyer, AccountRole.Admin);
+        const hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Buyer, AccountRole.Manager);
 
         expect(hasRole).to.equal(false);
       });
@@ -1347,11 +1349,11 @@ describe("Entity", function () {
       context("Revert reasons", function () {
         it("An entity does not exist", async function () {
           const wallet = wallets[3];
-          await expect(entityFacet.hasAccountRole(0, wallet, EntityRole.Buyer, AccountRole.Admin))
+          await expect(entityFacet.hasAccountRole(0, wallet, EntityRole.Buyer, AccountRole.Manager))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(0);
 
-          await expect(entityFacet.hasAccountRole(10, wallet, EntityRole.Buyer, AccountRole.Admin))
+          await expect(entityFacet.hasAccountRole(10, wallet, EntityRole.Buyer, AccountRole.Manager))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(10);
         });

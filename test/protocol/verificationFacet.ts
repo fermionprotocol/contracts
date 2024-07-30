@@ -576,15 +576,15 @@ describe("Verification", function () {
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(verifierId, defaultSigner.address, EntityRole.Verifier, AccountRole.Assistant);
 
-        // an entity-wide Treasury or admin wallet (not Assistant)
+        // an entity-wide Treasury or Manager wallet (not Assistant)
         await entityFacet
           .connect(verifier)
-          .addEntityAccounts(verifierId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Admin]]]);
+          .addEntityAccounts(verifierId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
         await expect(verificationFacet.connect(wallet).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(verifierId, wallet.address, EntityRole.Verifier, AccountRole.Assistant);
 
-        // a Verifier specific Treasury or Admin wallet
+        // a Verifier specific Treasury or Manager wallet
         const wallet2 = wallets[10];
         await entityFacet
           .connect(verifier)
@@ -592,7 +592,7 @@ describe("Verification", function () {
             verifierId,
             [wallet2],
             [[EntityRole.Verifier]],
-            [[[AccountRole.Treasury, AccountRole.Admin]]],
+            [[[AccountRole.Treasury, AccountRole.Manager]]],
           );
         await expect(verificationFacet.connect(wallet2).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")

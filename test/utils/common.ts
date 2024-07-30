@@ -151,19 +151,19 @@ export function verifySellerAssistantRoleClosure(
       .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
       .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
 
-    // an entity-wide Treasury or admin wallet (not Assistant)
-    await entityFacet.addEntityAccounts(sellerId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Admin]]]);
+    // an entity-wide Treasury or Manager wallet (not Assistant)
+    await entityFacet.addEntityAccounts(sellerId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
     await expect(facet.connect(wallet)[method](...args))
       .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
       .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
 
-    // a Seller specific Treasury or Admin wallet
+    // a Seller specific Treasury or Manager wallet
     const wallet2 = wallets[10];
     await entityFacet.addEntityAccounts(
       sellerId,
       [wallet2],
       [[EntityRole.Seller]],
-      [[[AccountRole.Treasury, AccountRole.Admin]]],
+      [[[AccountRole.Treasury, AccountRole.Manager]]],
     );
     await expect(facet.connect(wallet2)[method](...args))
       .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")

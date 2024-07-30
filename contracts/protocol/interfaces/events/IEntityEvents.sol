@@ -30,5 +30,5 @@ interface IEntityEvents {
     event AccountChanged(address indexed oldAccount, address indexed newAccount);
     event FacilitatorAdded(uint256 indexed entityId, uint256 indexed facilitatorIds);
     event FacilitatorRemoved(uint256 indexed entityId, uint256 indexed facilitatorIds);
-    event EntityAdminPending(uint256 indexed entityId, address indexed account);
+    event AdminPending(uint256 indexed entityId, address indexed account);
 }

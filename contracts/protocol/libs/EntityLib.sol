@@ -37,7 +37,7 @@ library EntityLib {
 
         storeEntity(entityId, _admin, newEntity, _roles, _metadata);
         storeCompactAccountRole(entityId, _admin, 0xff << (31 * BYTE_SIZE), true, pl, pe); // compact role for all current and potential future roles
-        emitAdminAccountAddedOrRemoved(entityId, _admin, true);
+        emitManagerAccountAddedOrRemoved(entityId, _admin, true);
     }
 
     /**
@@ -103,16 +103,16 @@ library EntityLib {
     }
 
     /**
-     * @notice Creates event arguments and emits EntityAccountAdded, when entity-wide admin is added or removed.
+     * @notice Creates event arguments and emits EntityAccountAdded, when entity-wide manager is added or removed.
      *
      * @param _entityId - the entity ID
      * @param _account - the admin account address
      * @param _added - if true, the account is added, if false, it is removed
      */
-    function emitAdminAccountAddedOrRemoved(uint256 _entityId, address _account, bool _added) internal {
+    function emitManagerAccountAddedOrRemoved(uint256 _entityId, address _account, bool _added) internal {
         FermionTypes.AccountRole[][] memory adminAccount = new FermionTypes.AccountRole[][](1);
         adminAccount[0] = new FermionTypes.AccountRole[](1);
-        adminAccount[0][0] = FermionTypes.AccountRole.Admin;
+        adminAccount[0][0] = FermionTypes.AccountRole.Manager;
         if (_added) {
             emit IEntityEvents.EntityAccountAdded(_entityId, _account, new FermionTypes.EntityRole[](0), adminAccount);
         } else {

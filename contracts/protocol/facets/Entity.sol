@@ -164,7 +164,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an entity admin
+     * - Caller is not the entity's admin
      * - Facilitator does not have a seller role
      * - Facilitator is already a facilitator for the seller
      *
@@ -186,7 +186,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an entity admin
+     * - Caller is not the entity's admin
      *
      * @dev Pausing modifier is enforced via `addOrRemoveFacilitators`
      *
@@ -199,39 +199,39 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
     /** Add entity wide admin account.
      *
-     * This is different from adding a account with admin role for each entity role.
-     * The account is given the admin role for all entity roles, even for roles that do not exist yet.
+     * This is different from adding a account with manager role for each entity role.
+     * The account is given the manager role for all entity roles, even for roles that do not exist yet.
      * A account can be an entity-wide admin for only one entity. This is not checked here, but
      * only when the new admin makes its first entity admin action.
      *
-     * Emits an EntityAdminPending event if successful.
+     * Emits an AdminPending event if successful.
      *
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an entity admin
+     * - Caller is not the entity's admin
      *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     * @dev Pausing modifier is enforced via `validateAdmin`
      *
      * @param _entityId - the entity ID
      * @param _account - the admin account address
      */
-    function setEntityAdmin(uint256 _entityId, address _account) external {
+    function setAdmin(uint256 _entityId, address _account) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
-        validateEntityAdmin(_entityId, pl);
+        validateAdmin(_entityId, pl);
 
         // set the pending admin
-        pl.entityLookups[_entityId].pendingEntityAdmin = _account;
+        pl.entityLookups[_entityId].pendingAdmin = _account;
 
-        emit EntityAdminPending(_entityId, _account);
+        emit AdminPending(_entityId, _account);
     }
 
     /**
      * @notice Change the account address, i.e. transfers all account roles to the new address.
      *
-     * If the account is an entity admin, it cannot change using this function.
-     * It should use setEntityAdmin to set a new account and then revoke the old admin.
+     * If the account is the entity's admin, it cannot change using this function.
+     * It should use setAdmin to set a new account and then revoke the old admin.
      *
      * If the account is used for multiple entities, the change will affect all entities.
      * If you want to change the account only for one entity, you need to remove the account from the entity
@@ -242,7 +242,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - New and old account are the same
-     * - Caller is an entity admin
+     * - Caller is the entity's admin
      * - Caller is not a account for any enitity
      * - New account is already a account for an entity
      *
@@ -255,7 +255,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
 
-        if (entityId != 0) revert ChangeNotAllowed(); // to change the entity admin, use setEntityAdmin and then revoke the old admin
+        if (entityId != 0) revert ChangeNotAllowed(); // to change the entity admin, use setAdmin and then revoke the old admin
 
         uint256 accountId = pl.accountId[msgSender];
         if (accountId == 0) revert NoSuchEntity(0);
@@ -277,7 +277,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     * @dev Pausing modifier is enforced via `validateAdmin`
      *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
@@ -289,7 +289,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     ) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
-        validateEntityAdmin(_entityId, pl);
+        validateAdmin(_entityId, pl);
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
 
         EntityLib.storeEntity(_entityId, address(0), entityData, _roles, _metadata);
@@ -301,10 +301,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an admin for the entity role
+     * - Caller is not the entity admin
      * - New owner is not the seller's assistant or facilitator
      *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     * @dev Pausing modifier is enforced via `validateAdmin`
      *
      * @param _offerId - the offer ID
      * @param _newOwner - the new owner address
@@ -316,7 +316,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
         uint256 entityId = offer.sellerId;
-        validateEntityAdmin(entityId, pl);
+        validateAdmin(entityId, pl);
 
         EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
@@ -495,16 +495,16 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         if (_entityRoles.length == 0) {
             if (_accountRoles.length != 1) revert FermionGeneralErrors.ArrayLengthMismatch(1, _accountRoles.length);
 
-            // To set entity-wide account roles, the caller must have entity-wide admin role
+            // To set entity-wide account roles, the caller must have entity-wide manager role
             if (
                 !EntityLib.hasAccountRole(
                     _entityId,
                     msgSender,
                     FermionTypes.EntityRole(0),
-                    FermionTypes.AccountRole.Admin,
+                    FermionTypes.AccountRole.Manager,
                     true
                 )
-            ) revert NotEntityAdmin(_entityId, msgSender);
+            ) revert NotEntityManager(_entityId, msgSender);
 
             uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[0]);
             compactAccountRole = compactAccountRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
@@ -516,8 +516,9 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                 // Check that the entity has the role
                 EntityLib.validateEntityRole(_entityId, _compactEntityRoles, entityRole);
 
-                if (!EntityLib.hasAccountRole(_entityId, msgSender, entityRole, FermionTypes.AccountRole.Admin, false))
-                    revert NotAdmin(msgSender, _entityId, entityRole);
+                if (
+                    !EntityLib.hasAccountRole(_entityId, msgSender, entityRole, FermionTypes.AccountRole.Manager, false)
+                ) revert NotManager(msgSender, _entityId, entityRole);
 
                 uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[i]);
 
@@ -537,7 +538,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _entityId - the entity ID
      */
-    function validateEntityAdmin(
+    function validateAdmin(
         uint256 _entityId,
         FermionStorage.ProtocolLookups storage pl
     ) internal notPaused(FermionTypes.PausableRegion.Entity) nonReentrant returns (address) {
@@ -547,7 +548,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
             // Try to accept the admin role
             acceptAdminRole(_entityId, msgSender, pl);
         } else {
-            if (callerEntityId != _entityId) revert NotEntityAdmin(_entityId, msgSender);
+            if (callerEntityId != _entityId) revert NotAdmin(_entityId, msgSender);
         }
         return msgSender;
     }
@@ -563,9 +564,9 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      */
     function acceptAdminRole(uint256 _entityId, address _account, FermionStorage.ProtocolLookups storage pl) internal {
         FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
-        if (entityLookups.pendingEntityAdmin != _account) revert NotEntityAdmin(_entityId, _account);
+        if (entityLookups.pendingAdmin != _account) revert NotAdmin(_entityId, _account);
 
-        delete entityLookups.pendingEntityAdmin;
+        delete entityLookups.pendingAdmin;
 
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
         address previousAdmin = entityData.admin;
@@ -594,8 +595,8 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
             FermionStorage.protocolEntities()
         );
 
-        EntityLib.emitAdminAccountAddedOrRemoved(_entityId, _account, true);
-        EntityLib.emitAdminAccountAddedOrRemoved(_entityId, previousAdmin, false);
+        EntityLib.emitManagerAccountAddedOrRemoved(_entityId, _account, true);
+        EntityLib.emitManagerAccountAddedOrRemoved(_entityId, previousAdmin, false);
     }
 
     /** Remove seller's facilitator.
@@ -605,10 +606,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an entity admin
+     * - Caller is not the entity's admin
      * - When adding, if the facilitator does not have a seller role
      *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     * @dev Pausing modifier is enforced via `validateAdmin`
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
@@ -617,7 +618,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     function addOrRemoveFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_sellerId, pl);
-        validateEntityAdmin(_sellerId, pl);
+        validateAdmin(_sellerId, pl);
 
         FermionStorage.SellerLookups storage sellerLookups = pl.sellerLookups[_sellerId];
         uint256[] storage facilitators = sellerLookups.sellerFacilitators;
