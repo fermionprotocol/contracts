@@ -442,20 +442,20 @@ describe("Funds", function () {
 
         // completely random wallet
         await expect(fundsFacet.connect(wallet).withdrawFunds(sellerId, defaultSigner.address, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityAssistant")
-          .withArgs(sellerId, wallet.address);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(wallet.address, sellerId, AccountRole.Assistant);
 
         // seller's assistant (not entity wide)
         await entityFacet.addEntityAccounts(sellerId, [wallet], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
         await expect(fundsFacet.connect(wallet).withdrawFunds(sellerId, defaultSigner.address, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityAssistant")
-          .withArgs(sellerId, wallet.address);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(wallet.address, sellerId, AccountRole.Assistant);
 
         // an entity-wide Treasury or Manager wallet (not Assistant)
         await entityFacet.addEntityAccounts(sellerId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
         await expect(fundsFacet.connect(wallet).withdrawFunds(sellerId, defaultSigner.address, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityAssistant")
-          .withArgs(sellerId, wallet.address);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(wallet.address, sellerId, AccountRole.Assistant);
       });
 
       it("Treasury is not entity's treasury", async function () {
@@ -463,14 +463,14 @@ describe("Funds", function () {
 
         // completely random wallet
         await expect(fundsFacet.withdrawFunds(sellerId, treasury, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityTreasury")
-          .withArgs(sellerId, treasury);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(treasury, sellerId, AccountRole.Treasury);
 
         // seller's treasury (not entity wide)
         await entityFacet.addEntityAccounts(sellerId, [treasury], [[EntityRole.Seller]], [[[AccountRole.Treasury]]]);
         await expect(fundsFacet.withdrawFunds(sellerId, treasury, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityTreasury")
-          .withArgs(sellerId, treasury);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(treasury, sellerId, AccountRole.Treasury);
 
         // an entity-wide Assistant or Manager wallet (not Assistant)
         await entityFacet.addEntityAccounts(
@@ -480,8 +480,8 @@ describe("Funds", function () {
           [[[AccountRole.Assistant, AccountRole.Manager]]],
         );
         await expect(fundsFacet.withdrawFunds(sellerId, treasury, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityTreasury")
-          .withArgs(sellerId, treasury);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(treasury, sellerId, AccountRole.Treasury);
       });
 
       it("Token list and token amounts length mismatch", async function () {

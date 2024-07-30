@@ -23,11 +23,9 @@ interface EntityErrors {
     // Entity errors
     error EntityAlreadyExists();
     error NoSuchEntity(uint256 entityId);
-    error NotManager(address manager, uint256 entityId, FermionTypes.EntityRole role); // ToDo
+    error NotRoleManager(address manager, uint256 entityId, FermionTypes.EntityRole role);
+    error NotEntityWideRole(address account, uint256 entityId, FermionTypes.AccountRole role);
     error NotAdmin(uint256 entityId, address admin);
-    error NotEntityManager(uint256 entityId, address manager);
-    error NotEntityTreasury(uint256 entityId, address treasury);
-    error NotEntityAssistant(uint256 entityId, address assistant);
     error AlreadyAdmin(uint256 entityId, address admin);
     error EntityHasNoRole(uint256 entityId, FermionTypes.EntityRole role);
     error AccountHasNoRole(

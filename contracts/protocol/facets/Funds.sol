@@ -88,7 +88,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                 FermionTypes.AccountRole.Treasury,
                 true
             )
-        ) revert EntityErrors.NotEntityTreasury(_entityId, _treasury);
+        ) revert EntityErrors.NotEntityWideRole(_treasury, _entityId, FermionTypes.AccountRole.Treasury);
 
         address msgSender = _msgSender();
         if (
@@ -99,7 +99,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                 FermionTypes.AccountRole.Assistant,
                 true
             )
-        ) revert EntityErrors.NotEntityAssistant(_entityId, msgSender);
+        ) revert EntityErrors.NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Assistant);
 
         withdrawFundsInternal(_entityId, _treasury, _tokenList, _tokenAmounts);
     }

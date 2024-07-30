@@ -504,7 +504,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                     FermionTypes.AccountRole.Manager,
                     true
                 )
-            ) revert NotEntityManager(_entityId, msgSender);
+            ) revert NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Manager);
 
             uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[0]);
             compactAccountRole = compactAccountRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
@@ -518,7 +518,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
                 if (
                     !EntityLib.hasAccountRole(_entityId, msgSender, entityRole, FermionTypes.AccountRole.Manager, false)
-                ) revert NotManager(msgSender, _entityId, entityRole);
+                ) revert NotRoleManager(msgSender, _entityId, entityRole);
 
                 uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[i]);
 

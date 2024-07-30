@@ -343,7 +343,7 @@ describe("Entity", function () {
                 [[[AccountRole.Manager], []]],
               ),
           )
-            .to.be.revertedWithCustomError(fermionErrors, "NotManager")
+            .to.be.revertedWithCustomError(fermionErrors, "NotRoleManager")
             .withArgs(wallet.address, entityId, EntityRole.Verifier);
         });
 
@@ -362,8 +362,8 @@ describe("Entity", function () {
                 .connect(wallet)
                 .addEntityAccounts(entityId, [wallets[3].address], [[]], [[[AccountRole.Assistant]]]),
             )
-              .to.be.revertedWithCustomError(fermionErrors, "NotEntityManager")
-              .withArgs(entityId, wallet.address);
+              .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+              .withArgs(wallet.address, entityId, AccountRole.Manager);
         });
 
         it("Array mismatch", async function () {
@@ -593,7 +593,7 @@ describe("Entity", function () {
                 [[[AccountRole.Manager], []]],
               ),
           )
-            .to.be.revertedWithCustomError(fermionErrors, "NotManager")
+            .to.be.revertedWithCustomError(fermionErrors, "NotRoleManager")
             .withArgs(wallet.address, entityId, EntityRole.Verifier);
         });
 
@@ -612,8 +612,8 @@ describe("Entity", function () {
                 .connect(wallet)
                 .removeEntityAccounts(entityId, [wallets[3].address], [[]], [[[AccountRole.Assistant]]]),
             )
-              .to.be.revertedWithCustomError(fermionErrors, "NotEntityManager")
-              .withArgs(entityId, wallet.address);
+              .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+              .withArgs(wallet.address, entityId, AccountRole.Manager);
         });
 
         it("Array mismatch", async function () {
