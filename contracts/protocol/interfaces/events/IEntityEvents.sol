@@ -11,24 +11,24 @@ import { FermionTypes } from "../../domain/Types.sol";
 interface IEntityEvents {
     event EntityStored(
         uint256 indexed entityId,
-        address indexed adminWallet,
+        address indexed adminAccount,
         FermionTypes.EntityRole[] roles,
         string metadata
     );
-    event EntityWalletAdded(
+    event EntityAccountAdded(
         uint256 indexed entityId,
-        address indexed wallet,
+        address indexed account,
         FermionTypes.EntityRole[] entityRoles,
-        FermionTypes.WalletRole[][] walletRole
+        FermionTypes.AccountRole[][] accountRole
     );
-    event EntityWalletRemoved(
+    event EntityAccountRemoved(
         uint256 indexed entityId,
-        address indexed wallet,
+        address indexed account,
         FermionTypes.EntityRole[] entityRoles,
-        FermionTypes.WalletRole[][] walletRole
+        FermionTypes.AccountRole[][] accountRole
     );
-    event WalletChanged(address indexed oldWallet, address indexed newWallet);
+    event AccountChanged(address indexed oldAccount, address indexed newAccount);
     event FacilitatorAdded(uint256 indexed entityId, uint256 indexed facilitatorIds);
     event FacilitatorRemoved(uint256 indexed entityId, uint256 indexed facilitatorIds);
-    event EntityAdminPending(uint256 indexed entityId, address indexed wallet);
+    event EntityAdminPending(uint256 indexed entityId, address indexed account);
 }

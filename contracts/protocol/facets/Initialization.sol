@@ -147,7 +147,7 @@ contract InitializationFacet is InitializationErrors, IInitialziationEvents {
         // Create a buyer
         IBosonProtocol.Buyer memory buyer = IBosonProtocol.Buyer({
             id: bosonSellerId + 1,
-            wallet: payable(address(this)),
+            account: payable(address(this)),
             active: true
         });
 

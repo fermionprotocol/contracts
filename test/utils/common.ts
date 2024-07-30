@@ -6,7 +6,7 @@ import { deploySuite } from "../../scripts/deploy";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { BigNumberish, Contract, Interface, toBeHex } from "ethers";
 import { subtask } from "hardhat/config";
-import { EntityRole, WalletRole } from "./enums";
+import { EntityRole, AccountRole } from "./enums";
 import { expect } from "chai";
 
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
@@ -148,32 +148,32 @@ export function verifySellerAssistantRoleClosure(
 
     // completely random wallet
     await expect(facet.connect(wallet)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
+      .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+      .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
 
     // an entity-wide Treasury or admin wallet (not Assistant)
-    await entityFacet.addEntityWallets(sellerId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
+    await entityFacet.addEntityAccounts(sellerId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Admin]]]);
     await expect(facet.connect(wallet)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet.address, EntityRole.Seller, WalletRole.Assistant);
+      .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+      .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
 
     // a Seller specific Treasury or Admin wallet
     const wallet2 = wallets[10];
-    await entityFacet.addEntityWallets(
+    await entityFacet.addEntityAccounts(
       sellerId,
       [wallet2],
       [[EntityRole.Seller]],
-      [[[WalletRole.Treasury, WalletRole.Admin]]],
+      [[[AccountRole.Treasury, AccountRole.Admin]]],
     );
     await expect(facet.connect(wallet2)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
+      .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+      .withArgs(sellerId, wallet2.address, EntityRole.Seller, AccountRole.Assistant);
 
     // an Assistant of another role than Seller
-    await entityFacet.addEntityWallets(sellerId, [wallet2], [[EntityRole.Verifier]], [[[WalletRole.Assistant]]]);
+    await entityFacet.addEntityAccounts(sellerId, [wallet2], [[EntityRole.Verifier]], [[[AccountRole.Assistant]]]);
     await expect(facet.connect(wallet2)[method](...args))
-      .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-      .withArgs(sellerId, wallet2.address, EntityRole.Seller, WalletRole.Assistant);
+      .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+      .withArgs(sellerId, wallet2.address, EntityRole.Seller, AccountRole.Assistant);
   };
 }
 

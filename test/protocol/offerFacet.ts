@@ -11,7 +11,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, TokenState, WalletRole } from "../utils/enums";
+import { EntityRole, PausableRegion, TokenState, AccountRole } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
 import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
@@ -224,11 +224,11 @@ describe("Offer", function () {
       const entityAssistant = wallets[4]; // entity-wide Assistant
       const sellerAssistant = wallets[5]; // Seller-specific Assistant
 
-      await entityFacet.addEntityWallets(
+      await entityFacet.addEntityAccounts(
         sellerId,
         [entityAssistant, sellerAssistant],
         [[], [EntityRole.Seller]],
-        [[[WalletRole.Assistant]], [[WalletRole.Assistant]]],
+        [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
       );
 
       // test event
@@ -258,7 +258,7 @@ describe("Offer", function () {
 
       await entityFacet
         .connect(facilitator)
-        .addEntityWallets(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[WalletRole.Assistant]]]);
+        .addEntityAccounts(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
 
       // test event
       await expect(offerFacet.connect(facilitator).createOffer(fermionOffer))
@@ -341,8 +341,8 @@ describe("Offer", function () {
         const fermionOffer2 = { ...fermionOffer, facilitatorId: facilitator2Id };
         // test event
         await expect(offerFacet.connect(facilitator).createOffer({ ...fermionOffer2 }))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(sellerId, facilitator.address, EntityRole.Seller, WalletRole.Assistant);
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(sellerId, facilitator.address, EntityRole.Seller, AccountRole.Assistant);
       });
 
       it("Facilitator fee percentage is more than 100%", async function () {
@@ -530,11 +530,11 @@ describe("Offer", function () {
       const entityAssistant = wallets[4]; // entity-wide Assistant
       const sellerAssistant = wallets[5]; // Seller-specific Assistant
 
-      await entityFacet.addEntityWallets(
+      await entityFacet.addEntityAccounts(
         sellerId,
         [entityAssistant, sellerAssistant],
         [[], [EntityRole.Seller]],
-        [[[WalletRole.Assistant]], [[WalletRole.Assistant]]],
+        [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
       );
 
       const totalSellerDeposit = sellerDeposit * quantity;
@@ -557,7 +557,7 @@ describe("Offer", function () {
 
       await entityFacet
         .connect(facilitator)
-        .addEntityWallets(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[WalletRole.Assistant]]]);
+        .addEntityAccounts(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
 
       // test event
       await expect(offerFacet.connect(facilitator).mintAndWrapNFTs(bosonOfferId, quantity)).to.emit(
@@ -586,8 +586,8 @@ describe("Offer", function () {
 
       it("Caller is not the facilitator defined in the offer", async function () {
         await expect(offerFacet.connect(facilitator2).mintAndWrapNFTs(bosonOfferId, quantity))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(sellerId, facilitator2.address, EntityRole.Seller, WalletRole.Assistant);
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
       });
 
       it("Quantity is zero", async function () {
@@ -1121,8 +1121,8 @@ describe("Offer", function () {
 
           it("Caller is not the facilitator defined in the offer", async function () {
             await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, buyerAdvancedOrder))
-              .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-              .withArgs(sellerId, facilitator2.address, EntityRole.Seller, WalletRole.Assistant);
+              .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+              .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
           });
 
           context("Boson deposit not covered", async function () {
@@ -1617,8 +1617,8 @@ describe("Offer", function () {
 
           it("Caller is not the facilitator defined in the offer", async function () {
             await expect(offerFacet.connect(facilitator2).unwrapNFTToSelf(tokenId))
-              .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-              .withArgs(sellerId, facilitator2.address, EntityRole.Seller, WalletRole.Assistant);
+              .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+              .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
           });
 
           context("Boson deposit not covered", async function () {

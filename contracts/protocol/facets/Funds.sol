@@ -61,7 +61,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
      * - Funds region is paused
      * - Entity does not exist
      * - Caller is not associated with the entity id
-     * - Treasury wallet is not associated with the entity id
+     * - Treasury account is not associated with the entity id
      * - Token list length does not match amount list length
      * - Caller tries to withdraw more that they have in available funds
      * - There is nothing to withdraw
@@ -70,7 +70,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
      * N.B. currently works only with entity-wide treasury and assistants. Funds handling for individual entity roles is not supported.
      *
      * @param _entityId - id of entity for which funds should be withdrawn
-     * @param _treasury - wallet that will receive funds (must be entity's treasury)
+     * @param _treasury - account that will receive funds (must be entity's treasury)
      * @param _tokenList - list of contract addresses of tokens that are being withdrawn
      * @param _tokenAmounts - list of amounts to be withdrawn, corresponding to tokens in tokenList
      */
@@ -81,22 +81,22 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
         uint256[] memory _tokenAmounts
     ) external {
         if (
-            !EntityLib.hasWalletRole(
+            !EntityLib.hasAccountRole(
                 _entityId,
                 _treasury,
                 FermionTypes.EntityRole(0),
-                FermionTypes.WalletRole.Treasury,
+                FermionTypes.AccountRole.Treasury,
                 true
             )
         ) revert EntityErrors.NotEntityTreasury(_entityId, _treasury);
 
         address msgSender = _msgSender();
         if (
-            !EntityLib.hasWalletRole(
+            !EntityLib.hasAccountRole(
                 _entityId,
                 msgSender,
                 FermionTypes.EntityRole(0),
-                FermionTypes.WalletRole.Assistant,
+                FermionTypes.AccountRole.Assistant,
                 true
             )
         ) revert EntityErrors.NotEntityAssistant(_entityId, msgSender);
@@ -197,7 +197,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
      * - There is nothing to withdraw
      * - Transfer of funds is not successful
      *
-     * @param _destinationAddress - wallet that will receive funds
+     * @param _destinationAddress - account that will receive funds
      * @param _entityId - entity id
      * @param _tokenList - list of contract addresses of tokens that are being withdrawn
      * @param _tokenAmounts - list of amounts to be withdrawn, corresponding to tokens in tokenList

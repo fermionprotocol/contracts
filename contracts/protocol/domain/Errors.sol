@@ -29,17 +29,17 @@ interface EntityErrors {
     error NotEntityAssistant(uint256 entityId, address assistant);
     error AlreadyAdmin(uint256 entityId, address admin);
     error EntityHasNoRole(uint256 entityId, FermionTypes.EntityRole role);
-    error WalletHasNoRole(
+    error AccountHasNoRole(
         uint256 entityId,
-        address wallet,
+        address account,
         FermionTypes.EntityRole entityRole,
-        FermionTypes.WalletRole walletRole
+        FermionTypes.AccountRole accountRole
     );
     error ChangeNotAllowed();
     error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
     error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
-    error WalletAlreadyExists(address wallet);
-    error NewWalletSameAsOld();
+    error AccountAlreadyExists(address account);
+    error NewAccountSameAsOld();
 }
 
 interface OfferErrors {

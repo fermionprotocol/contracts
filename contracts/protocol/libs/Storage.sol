@@ -60,8 +60,8 @@ library FermionStorage {
     struct ProtocolEntities {
         // entity id => entity data
         mapping(uint256 => FermionTypes.EntityData) entityData;
-        // wallet id => entity id => wallet permissions (compact)
-        mapping(uint256 => mapping(uint256 => uint256)) walletRole;
+        // account id => entity id => account permissions (compact)
+        mapping(uint256 => mapping(uint256 => uint256)) accountRole;
         // offer id => fermion properties
         mapping(uint256 => FermionTypes.Offer) offer;
     }
@@ -71,12 +71,12 @@ library FermionStorage {
     struct ProtocolLookups {
         // entity counter
         uint256 entityCounter;
-        // wallets counter
-        uint256 walletsCounter;
+        // accounts counter
+        uint256 accountsCounter;
         // entity admin => entity id
         mapping(address => uint256) entityId;
-        // wallet => wallet id
-        mapping(address => uint256) walletId;
+        // account => account id
+        mapping(address => uint256) accountId;
         // account id => token address => index on token addresses list
         mapping(uint256 => mapping(address => uint256)) tokenIndexByAccount;
         // entity id => entity lookups
