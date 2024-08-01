@@ -9,13 +9,26 @@ contract ContractWallet is IERC1271 {
     enum Validity {
         Invalid,
         Valid,
-        Unknown
+        Revert
+    }
+
+    enum RevertReason {
+        CustomError,
+        ErrorString,
+        ArbitraryBytes,
+        DivisionByZero,
+        OutOfBounds
     }
 
     Validity private validity;
+    RevertReason private revertReason;
 
     function setValidity(Validity _validity) external {
         validity = _validity;
+    }
+
+    function setRevertReason(RevertReason _revertReason) external {
+        revertReason = _revertReason;
     }
 
     /**
@@ -29,7 +42,23 @@ contract ContractWallet is IERC1271 {
             return 0xffffffff;
         }
 
-        revert UnknownValidity();
+        // Revert with different reasons
+        if (revertReason == RevertReason.CustomError) {
+            revert UnknownValidity();
+        } else if (revertReason == RevertReason.ErrorString) {
+            revert("Error string");
+        } else if (revertReason == RevertReason.ArbitraryBytes) {
+            assembly {
+                mstore(0, 0xdeadbeefdeadbeef000000000000000000000000000000000000000000000000)
+                revert(0, 16)
+            }
+        } else if (revertReason == RevertReason.DivisionByZero) {
+            uint256 a = 0; // division by zero
+            uint256 b = 1 / a;
+        } else if (revertReason == RevertReason.OutOfBounds) {
+            uint256[] memory arr = new uint256[](1);
+            arr[1] = 1; // out of bounds
+        }
     }
 }
 

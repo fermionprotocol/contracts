@@ -327,13 +327,13 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             ) {
                 if (magicValue != IERC1271.isValidSignature.selector) revert SignatureValidationFailed();
                 return true;
-            } catch (bytes memory returnData) {
-                if (returnData.length == 0) {
+            } catch (bytes memory revertData) {
+                if (revertData.length == 0) {
                     revert SignatureValidationFailed();
                 } else {
                     /// @solidity memory-safe-assembly
                     assembly {
-                        revert(add(32, returnData), mload(returnData))
+                        revert(add(32, revertData), mload(revertData))
                     }
                 }
             }
