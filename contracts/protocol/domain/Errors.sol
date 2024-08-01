@@ -10,6 +10,7 @@ interface FermionGeneralErrors {
     error AccessDenied(address caller);
     error InvalidPercentage(uint256 percentage);
     error ZeroNotAllowed();
+    error UnexpectedDataReturned(bytes data);
 }
 
 interface InitializationErrors {
@@ -110,7 +111,6 @@ interface MetaTransactionErrors {
     error InvalidSignature(); // Somethihing is wrong with the signature
     error SignatureValidationFailed(); // Signature might be correct, but the validation failed
     error FunctionCallFailed();
-    error UnexpectedDataReturned(bytes data);
 }
 
 interface FractionalisationErrors is AuctionErrors {

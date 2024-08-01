@@ -4,8 +4,9 @@ pragma solidity 0.8.24;
 import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { FundsErrors } from "../domain/Errors.sol";
+import { FundsErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { ContextLib } from "../libs/Context.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
@@ -59,10 +60,33 @@ library FundsLib {
      */
     function transferFundsToProtocol(address _tokenAddress, address _from, uint256 _amount) internal {
         // prevent ERC721 deposits
-        try IERC721(_tokenAddress).supportsInterface(type(IERC721).interfaceId) returns (bool isErc721) {
-            if (isErc721) revert FundsErrors.ERC721NotAllowed(_tokenAddress);
-        } catch {
-            // do nothing, the contract is not ERC721
+        (bool success, bytes memory returndata) = _tokenAddress.staticcall(
+            abi.encodeCall(IERC165.supportsInterface, (type(IERC721).interfaceId))
+        );
+
+        if (success) {
+            if (returndata.length != 32) {
+                revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
+            } else {
+                // If returned value equals 1 (= true), the contract is ERC721 and we should revert
+                uint256 result = abi.decode(returndata, (uint256)); // decoding into uint256 not bool to cover all cases
+                if (result == 1) {
+                    revert FundsErrors.ERC721NotAllowed(_tokenAddress);
+                } else if (result > 1) {
+                    revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
+                }
+                // If returned value equals 0 (= false), the contract is not ERC721 and we can continue.
+            }
+        } else {
+            if (returndata.length == 0) {
+                // Do nothing. ERC20 not implementing IERC721 interface is expected to revert without reason
+            } else {
+                // If an actual error message is returned, revert with it
+                /// @solidity memory-safe-assembly
+                assembly {
+                    revert(add(32, returndata), mload(returndata))
+                }
+            }
         }
 
         // protocol balance before the transfer

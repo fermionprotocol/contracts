@@ -328,11 +328,11 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
 
             if (success) {
                 if (returndata.length != 32) {
-                    revert UnexpectedDataReturned(returndata);
+                    revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
                 } else {
                     // Make sure that the lowest 224 bits (28 bytes) are not set
                     if (uint256(bytes32(returndata)) & type(uint224).max != 0) {
-                        revert UnexpectedDataReturned(returndata);
+                        revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
                     }
                     return abi.decode(returndata, (bytes4)) == IERC1271.isValidSignature.selector;
                 }

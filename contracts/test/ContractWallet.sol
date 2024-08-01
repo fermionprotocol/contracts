@@ -37,7 +37,7 @@ contract ContractWallet is IERC1271 {
     /**
      * @notice Different possible reutnrs, depending on the validity state
      */
-    function isValidSignature(bytes32, bytes calldata) external view override returns (bytes4) {
+    function isValidSignature(bytes32, bytes calldata) public view override returns (bytes4) {
         // Validate signatures
         if (validity == Validity.Valid) {
             return IERC1271.isValidSignature.selector;
@@ -72,7 +72,7 @@ contract ContractWallet is IERC1271 {
             }
         } else if (revertReason == RevertReason.PollutedData) {
             assembly {
-                mstore(0, 0x1626ba7e00000000000000abcde000000000000000000000000000000000000) //  IERC1271.isValidSignature.selector with some other data
+                mstore(0, 0x1626ba7e000000000000000abcde000000000000000000000000000000000000) //  IERC1271.isValidSignature.selector with some other data
                 return(0, 32)
             }
         }

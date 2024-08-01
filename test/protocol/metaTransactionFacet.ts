@@ -651,7 +651,7 @@ describe("MetaTransactions", function () {
 
             // Contract wallet returns invalid data
             await entity.setValidity(2); // 2=revert
-            await entity.setRevertReason(5); // 1=return too short
+            await entity.setRevertReason(5); // 5=return too short
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
