@@ -17,7 +17,10 @@ contract ContractWallet is IERC1271 {
         ErrorString,
         ArbitraryBytes,
         DivisionByZero,
-        OutOfBounds
+        OutOfBounds,
+        ReturnTooShort,
+        ReturnTooLong,
+        PollutedData
     }
 
     Validity private validity;
@@ -58,6 +61,20 @@ contract ContractWallet is IERC1271 {
         } else if (revertReason == RevertReason.OutOfBounds) {
             uint256[] memory arr = new uint256[](1);
             arr[1] = 1; // out of bounds
+        } else if (revertReason == RevertReason.ReturnTooShort) {
+            assembly {
+                return(0, 1)
+            }
+        } else if (revertReason == RevertReason.ReturnTooLong) {
+            assembly {
+                mstore(0, 0x1626ba7e00000000000000000000000000000000000000000000000000000000) //  IERC1271.isValidSignature.selector
+                return(0, 33)
+            }
+        } else if (revertReason == RevertReason.PollutedData) {
+            assembly {
+                mstore(0, 0x1626ba7e00000000000000abcde000000000000000000000000000000000000) //  IERC1271.isValidSignature.selector with some other data
+                return(0, 32)
+            }
         }
     }
 }

@@ -322,18 +322,27 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
 
         // Check if user is a contract implementing ERC1271
         if (_user.code.length > 0) {
-            try IERC1271(_user).isValidSignature(typedMessageHash, abi.encodePacked(_sigR, _sigS, _sigV)) returns (
-                bytes4 magicValue
-            ) {
-                if (magicValue != IERC1271.isValidSignature.selector) revert SignatureValidationFailed();
-                return true;
-            } catch (bytes memory revertData) {
-                if (revertData.length == 0) {
+            (bool success, bytes memory returndata) = _user.staticcall(
+                abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encodePacked(_sigR, _sigS, _sigV)))
+            );
+
+            if (success) {
+                if (returndata.length != 32) {
+                    revert UnexpectedDataReturned(returndata);
+                } else {
+                    // Make sure that the lowest 224 bits (28 bytes) are not set
+                    if (uint256(bytes32(returndata)) & type(uint224).max != 0) {
+                        revert UnexpectedDataReturned(returndata);
+                    }
+                    return abi.decode(returndata, (bytes4)) == IERC1271.isValidSignature.selector;
+                }
+            } else {
+                if (returndata.length == 0) {
                     revert SignatureValidationFailed();
                 } else {
                     /// @solidity memory-safe-assembly
                     assembly {
-                        revert(add(32, revertData), mload(revertData))
+                        revert(add(32, returndata), mload(returndata))
                     }
                 }
             }
