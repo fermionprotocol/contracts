@@ -60,31 +60,31 @@ library FundsLib {
      */
     function transferFundsToProtocol(address _tokenAddress, address _from, uint256 _amount) internal {
         // prevent ERC721 deposits
-        (bool success, bytes memory returndata) = _tokenAddress.staticcall(
+        (bool success, bytes memory returnData) = _tokenAddress.staticcall(
             abi.encodeCall(IERC165.supportsInterface, (type(IERC721).interfaceId))
         );
 
         if (success) {
-            if (returndata.length != 32) {
-                revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
+            if (returnData.length != 32) {
+                revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
             } else {
                 // If returned value equals 1 (= true), the contract is ERC721 and we should revert
-                uint256 result = abi.decode(returndata, (uint256)); // decoding into uint256 not bool to cover all cases
+                uint256 result = abi.decode(returnData, (uint256)); // decoding into uint256 not bool to cover all cases
                 if (result == 1) {
                     revert FundsErrors.ERC721NotAllowed(_tokenAddress);
                 } else if (result > 1) {
-                    revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
+                    revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
                 }
                 // If returned value equals 0 (= false), the contract is not ERC721 and we can continue.
             }
         } else {
-            if (returndata.length == 0) {
+            if (returnData.length == 0) {
                 // Do nothing. ERC20 not implementing IERC721 interface is expected to revert without reason
             } else {
                 // If an actual error message is returned, revert with it
                 /// @solidity memory-safe-assembly
                 assembly {
-                    revert(add(32, returndata), mload(returndata))
+                    revert(add(32, returnData), mload(returnData))
                 }
             }
         }
