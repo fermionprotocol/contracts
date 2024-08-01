@@ -563,6 +563,11 @@ describe("MetaTransactions", function () {
                 0,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+          });
+
+          it("Contract reverts", async function () {
+            // Prepare the function signature for the facet function.
+            message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
 
             // Contract wallet reverts
             await entity.setValidity(2); // 2=revert
@@ -578,6 +583,123 @@ describe("MetaTransactions", function () {
                 0,
               ),
             ).to.be.revertedWithCustomError(entity, "UnknownValidity");
+
+            // Error string
+            await entity.setRevertReason(1); // 1=error string
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                adminWallet,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                ZeroHash,
+                0,
+              ),
+            ).to.be.revertedWith("Error string");
+
+            // Arbitrary bytes
+            await entity.setRevertReason(2); // 2=arbitrary bytes
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                adminWallet,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                ZeroHash,
+                0,
+              ),
+            ).to.be.reverted;
+
+            // Divide by zero
+            await entity.setRevertReason(3); // 3=divide by zero
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                adminWallet,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                ZeroHash,
+                0,
+              ),
+            ).to.be.revertedWithPanic("0x12");
+
+            // Out of bounds
+            await entity.setRevertReason(4); // 4=out of bounds
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                adminWallet,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                ZeroHash,
+                0,
+              ),
+            ).to.be.revertedWithPanic("0x32");
+          });
+
+          it("Contract returns invalid data", async function () {
+            // Prepare the function signature for the facet function.
+            message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
+
+            // Contract wallet returns invalid data
+            await entity.setValidity(2); // 2=revert
+            await entity.setRevertReason(5); // 5=return too short
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                adminWallet,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                ZeroHash,
+                0,
+              ),
+            )
+              .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
+              .withArgs("0x00");
+
+            // Too long return
+            await entity.setRevertReason(6); // 6=return too long
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                adminWallet,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                ZeroHash,
+                0,
+              ),
+            )
+              .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
+              .withArgs("0x1626ba7e0000000000000000000000000000000000000000000000000000000000");
+
+            // Polluted return
+            await entity.setRevertReason(7); // 7=more data than bytes4
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                adminWallet,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                ZeroHash,
+                0,
+              ),
+            )
+              .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
+              .withArgs("0x1626ba7e000000000000000abcde000000000000000000000000000000000000");
           });
 
           it("Contract does not implement `isValidSignature`", async function () {

@@ -214,6 +214,59 @@ describe("Funds", function () {
           .to.be.revertedWithCustomError(fermionErrors, "ERC721NotAllowed")
           .withArgs(await mockToken.getAddress());
       });
+
+      it("Token contract returns unexpected data", async function () {
+        const [mockToken] = await deployMockTokens(["ERC721"]);
+        const tokenId = 1n;
+        await mockToken.mint(defaultSigner.address, tokenId, 1);
+
+        await mockToken.setRevertReason(1); // 1=revert with custom error
+        await expect(
+          fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId),
+        ).to.be.revertedWithCustomError(mockToken, "CustomError");
+
+        await mockToken.setRevertReason(2); // 2=error string
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId)).to.be.revertedWith(
+          "Error string",
+        );
+
+        await mockToken.setRevertReason(3); // 3=arbitrary bytes
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId)).to.be.reverted;
+
+        await mockToken.setRevertReason(4); // 4=divide by zero
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId)).to.be.revertedWithPanic(
+          "0x12",
+        );
+
+        await mockToken.setRevertReason(5); // 4=out of bounds
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId)).to.be.revertedWithPanic(
+          "0x32",
+        );
+      });
+
+      it("Token contract returns unexpected data", async function () {
+        const [mockToken] = await deployMockTokens(["ERC721"]);
+        const tokenId = 1n;
+        await mockToken.mint(defaultSigner.address, tokenId, 1);
+
+        await mockToken.setRevertReason(6); // 6=return too short
+
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "UnexpectedDataReturned")
+          .withArgs("0x00");
+
+        await mockToken.setRevertReason(7); // 7=return too long
+
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "UnexpectedDataReturned")
+          .withArgs("0x000000000000000000000000000000000000000000000000000000000000000100");
+
+        await mockToken.setRevertReason(8); // 8=true with some other data
+
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "UnexpectedDataReturned")
+          .withArgs("0x1626ba7e000000000000000abcde000000000000000000000000000000000001");
+      });
     });
   });
 
