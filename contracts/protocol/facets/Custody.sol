@@ -20,8 +20,6 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  * @notice Handles RWA custody.
  */
 contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsEvents {
-    // using FermionFNFTLib for IFermionFNFT;
-
     /**
      * @notice Notifies the protocol that an RWA has been checked in
      *

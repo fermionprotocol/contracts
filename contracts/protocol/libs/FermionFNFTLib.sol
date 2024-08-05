@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-// import { FermionGeneralErrors, CustodianVaultErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-// import { FermionStorage } from "../libs/Storage.sol";
-// import { FundsLib } from "../libs/FundsLib.sol";
-// import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
