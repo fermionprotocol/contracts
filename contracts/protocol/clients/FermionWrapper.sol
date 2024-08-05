@@ -68,7 +68,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      *
      * @param _newOwner The address of the new owner
      */
-    function transferOwnership(address _newOwner) public override {
+    function transferOwnership(address _newOwner) public virtual override(Ownable, IFermionWrapper) {
         if (fermionProtocol != _msgSender()) {
             revert OwnableUnauthorizedAccount(_msgSender());
         }

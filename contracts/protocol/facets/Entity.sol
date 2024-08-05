@@ -10,7 +10,9 @@ import { Context } from "../libs/Context.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
 
-import { FermionWrapper } from "../clients/FermionWrapper.sol";
+// import { FermionWrapper } from "../clients/FermionWrapper.sol";
+import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
 /**
  * @title EntityFacet
@@ -320,7 +322,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
-        FermionWrapper(payable(wrapperAddress)).transferOwnership(_newOwner);
+        FermionFNFTLib.transferOwnership(IFermionWrapper(payable(wrapperAddress)), _newOwner);
     }
 
     /**

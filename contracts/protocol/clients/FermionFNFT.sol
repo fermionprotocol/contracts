@@ -10,6 +10,8 @@ import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { Common } from "./Common.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
@@ -19,14 +21,14 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
  * @notice Wrapping, unwrapping, fractionalisation, buyout auction and claiming of Boson Vouchers
  *
  */
-contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
+contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermionFNFT {
     address private immutable THIS_CONTRACT = address(this);
 
     constructor(
         address _bosonPriceDiscovery,
         address _seaportWrapper,
         address _wrappedNative
-    ) FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative) {}
+    ) FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative) ERC2771Context(address(0)) {}
 
     /**
      * @notice Initializes the contract
@@ -174,5 +176,25 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
         if (from == address(0)) Common.changeTokenState(_tokenId, FermionTypes.TokenState.Wrapped);
 
         return from;
+    }
+
+    function trustedForwarder() public view virtual override returns (address) {
+        return fermionProtocol;
+    }
+
+    function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address) {
+        return ERC2771Context._msgSender();
+    }
+
+    function _msgData() internal view virtual override(Context, ERC2771Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+
+    function _contextSuffixLength() internal view virtual override(Context, ERC2771Context) returns (uint256) {
+        return ERC2771Context._contextSuffixLength();
+    }
+
+    function transferOwnership(address _newOwner) public override(FermionWrapper, IFermionWrapper) {
+        super.transferOwnership(_newOwner);
     }
 }

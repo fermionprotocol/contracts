@@ -11,6 +11,7 @@ import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
+import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
 /**
  * @title VerificationFacet
@@ -118,7 +119,8 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         FermionTypes.VerificationStatus _verificationStatus,
         bool _afterTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        uint256 tokenId = _tokenId;
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
         uint256 verifierId = offer.verifierId;
 
         if (!_afterTimeout) {
@@ -131,12 +133,12 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             );
         }
 
-        BOSON_PROTOCOL.completeExchange(_tokenId & type(uint128).max);
+        BOSON_PROTOCOL.completeExchange(tokenId & type(uint128).max);
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address exchangeToken = offer.exchangeToken;
         uint256 sellerDeposit = offer.sellerDeposit;
-        uint256 offerPrice = pl.tokenLookups[_tokenId].itemPrice;
+        uint256 offerPrice = pl.tokenLookups[tokenId].itemPrice;
 
         {
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
@@ -171,12 +173,17 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
 
             // transfer the remainder to the seller
             FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
-            IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).pushToNextTokenState(
-                _tokenId,
+            // IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).pushToNextTokenState(
+            //     tokenId,
+            //     FermionTypes.TokenState.Verified
+            // );
+            FermionFNFTLib.pushToNextTokenState(
+                IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress),
+                tokenId,
                 FermionTypes.TokenState.Verified
             );
         } else {
-            address buyerAddress = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).burn(_tokenId);
+            address buyerAddress = FermionFNFTLib.burn(pl.offerLookups[offerId].fermionFNFTAddress, tokenId);
 
             uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 
@@ -188,6 +195,6 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
         }
 
-        emit VerdictSubmitted(verifierId, _tokenId, _verificationStatus);
+        emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
     }
 }

@@ -20,6 +20,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
 /**
  * @title OfferFacet
@@ -555,7 +556,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
         // wrap NFTs
         _bosonVoucher.setApprovalForAll(wrapperAddress, true);
-        IFermionWrapper(wrapperAddress).wrapForAuction(_startingNFTId, _quantity, msgSender);
+        FermionFNFTLib.wrapForAuction(IFermionWrapper(wrapperAddress), _startingNFTId, _quantity, msgSender);
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);
