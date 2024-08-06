@@ -41,17 +41,18 @@ library Common {
      *
      * @param _tokenId The token id
      * @param _expectedState The expected state
+     * @param _caller The caller
      * @param _expectedCaller The expected caller
      */
     function checkStateAndCaller(
         uint256 _tokenId,
         FermionTypes.TokenState _expectedState,
+        address _caller,
         address _expectedCaller
     ) internal view {
         FermionTypes.TokenState state = _getFermionCommonStorage().tokenState[_tokenId];
-        // checkStateAndCaller is called only in methods invoked by Fermion or Boson contracts, so no need to use _msgSender()
-        if (state != _expectedState || msg.sender != _expectedCaller) {
-            revert InvalidStateOrCaller(_tokenId, msg.sender, state);
+        if (state != _expectedState || _caller != _expectedCaller) {
+            revert InvalidStateOrCaller(_tokenId, _caller, state);
         }
     }
 

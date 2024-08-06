@@ -56,11 +56,38 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         FermionStorage.metaTransaction().fermionAddress = address(this);
     }
 
+    struct Signature {
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+    }
+
+    function executeMetaTransaction(
+        address _userAddress,
+        string calldata _functionName,
+        bytes calldata _functionSignature,
+        uint256 _nonce,
+        bytes32 r,
+        bytes32 s,
+        uint8 v
+    ) external {
+        executeMetaTransaction(
+            address(this),
+            _userAddress,
+            _functionName,
+            _functionSignature,
+            _nonce,
+            Signature(r, s, v),
+            0
+        );
+    }
+
     /**
      * @notice Handles the incoming meta transaction.
      *
      * Reverts if:
      * - Metatransaction region is paused
+     * - The contract address is neither this contract nor one of FermionFNFTs
      * - Nonce is already used by the msg.sender for another transaction
      * - Function is not allowlisted to be called using metatransactions
      * - Function name does not match the bytes4 version of the function signature
@@ -68,36 +95,37 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
      * - Any code executed in the signed transaction reverts
      * - Signature is invalid
      *
+     * @param _contractAddress - the address of the contract to be called, either this contract or one of FermionFNFTs
      * @param _userAddress - the sender of the transaction
      * @param _functionName - the name of the function to be executed
      * @param _functionSignature - the function signature
      * @param _nonce - the nonce value of the transaction
-     * @param _sigR - r part of the signer's signature
-     * @param _sigS - s part of the signer's signature
-     * @param _sigV - v part of the signer's signature
+     * @param _sig - meta transaction signature, r, s, v
+     * @param _offerId - the offer ID, if FermionFNFT is called. 0 for this contract.
      */
     function executeMetaTransaction(
+        address _contractAddress,
         address _userAddress,
         string calldata _functionName,
         bytes calldata _functionSignature,
         uint256 _nonce,
-        bytes32 _sigR,
-        bytes32 _sigS,
-        uint8 _sigV
-    ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
-        address userAddress = _userAddress; // stack too deep workaround. ToDo: Consider using a struct for signature
-        validateTx(_functionName, _functionSignature, _nonce, userAddress);
+        Signature memory _sig,
+        uint256 _offerId
+    ) public payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
+        address userAddress = _userAddress; // stack too deep workaround.
+        validateTx(_contractAddress, _offerId, _functionName, _functionSignature, _nonce, userAddress);
 
         FermionTypes.MetaTransaction memory metaTx;
         metaTx.nonce = _nonce;
         metaTx.from = _userAddress;
-        metaTx.contractAddress = address(this);
+        metaTx.contractAddress = _contractAddress;
         metaTx.functionName = _functionName;
         metaTx.functionSignature = _functionSignature;
 
-        if (!verify(_userAddress, hashMetaTransaction(metaTx), _sigR, _sigS, _sigV)) revert SignatureValidationFailed();
+        if (!verify(_userAddress, hashMetaTransaction(metaTx), _sig.r, _sig.s, _sig.v))
+            revert SignatureValidationFailed();
 
-        return executeTx(_userAddress, _functionName, _functionSignature, _nonce);
+        return executeTx(_contractAddress, _userAddress, _functionName, _functionSignature, _nonce);
     }
 
     /**
@@ -154,22 +182,33 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
      * @notice Validates the nonce and function signature.
      *
      * Reverts if:
+     * - The contract address is neither this contract nor one of FermionFNFTs
      * - Nonce is already used by the msg.sender for another transaction
      * - Function is not allowlisted to be called using metatransactions
      * - Function name does not match the bytes4 version of the function signature
      *
+     * @param _contractAddress - the address of the contract to be called, either this contract or one of FermionFNFTs
+     * @param _offerId - the offer ID, if FermionFNFT is called. 0 for this contract.
      * @param _functionName - the function name that we want to execute
      * @param _functionSignature - the function signature
      * @param _nonce - the nonce value of the transaction
      * @param _userAddress - the sender of the transaction
      */
     function validateTx(
+        address _contractAddress,
+        uint256 _offerId,
         string calldata _functionName,
         bytes calldata _functionSignature,
         uint256 _nonce,
         address _userAddress
     ) internal view {
         FermionStorage.MetaTransaction storage mt = FermionStorage.metaTransaction();
+
+        if (
+            (_offerId == 0 && _contractAddress != address(this)) ||
+            (_offerId > 0 &&
+                FermionStorage.protocolLookups().offerLookups[_offerId].fermionFNFTAddress != _contractAddress)
+        ) revert InvalidContractAddress(_contractAddress);
 
         // Nonce should be unused
         if (mt.usedNonce[_userAddress][_nonce]) revert NonceUsedAlready();
@@ -210,12 +249,14 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
      * Reverts if:
      * - Any code executed in the signed transaction reverts
      *
+     * @param _contractAddress - the address of the contract to be called, either this contract or one of FermionFNFTs
      * @param _userAddress - the sender of the transaction
      * @param _functionName - the name of the function to be executed
      * @param _functionSignature - the function signature
      * @param _nonce - the nonce value of the transaction
      */
     function executeTx(
+        address _contractAddress,
         address _userAddress,
         string calldata _functionName,
         bytes calldata _functionSignature,
@@ -225,7 +266,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         FermionStorage.metaTransaction().usedNonce[_userAddress][_nonce] = true;
 
         // Invoke local function with an external call
-        (bool success, bytes memory returnData) = address(this).call{ value: msg.value }(
+        (bool success, bytes memory returnData) = address(_contractAddress).call{ value: msg.value }(
             abi.encodePacked(_functionSignature, _userAddress)
         );
 

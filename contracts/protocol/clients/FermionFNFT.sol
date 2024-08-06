@@ -85,7 +85,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
      * @param _tokenId The token id.
      */
     function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner) {
-        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unverified, fermionProtocol);
+        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unverified, _msgSender(), fermionProtocol);
 
         wrappedVoucherOwner = ownerOf(_tokenId);
 
@@ -105,7 +105,12 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
      * @param _tokenId The token id.
      */
     function pushToNextTokenState(uint256 _tokenId, FermionTypes.TokenState _newState) external {
-        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState(uint8(_newState) - 1), fermionProtocol);
+        Common.checkStateAndCaller(
+            _tokenId,
+            FermionTypes.TokenState(uint8(_newState) - 1),
+            _msgSender(),
+            fermionProtocol
+        );
         Common.changeTokenState(_tokenId, _newState);
         if (_newState == FermionTypes.TokenState.CheckedOut) {
             _burn(_tokenId);
