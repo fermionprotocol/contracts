@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
+import { FermionGeneralErrors } from "../domain/Errors.sol";
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
@@ -32,7 +33,12 @@ library FermionFNFTLib {
     }
 
     function transfer(address _fnft, address to, uint256 value) internal returns (bool) {
-        _fnft.functionCallWithAddress(abi.encodeWithSignature("transfer(address,uint256)", to, value));
+        bytes memory returndata = _fnft.functionCallWithAddress(
+            abi.encodeWithSignature("transfer(address,uint256)", to, value)
+        );
+
+        if (returndata.length != 32) revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
+        return abi.decode(returndata, (bool));
     }
 
     function mintFractions(address _fnft, uint256 _firstTokenId, uint256 _length, uint256 _depositAmount) internal {
@@ -77,8 +83,9 @@ library FermionFNFTLib {
 
     function burn(address _fnft, uint256 _tokenId) internal returns (address wrappedVoucherOwner) {
         bytes memory returndata = address(_fnft).functionCallWithAddress(abi.encodeCall(IFermionFNFT.burn, (_tokenId)));
+
+        if (returndata.length != 32) revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
         wrappedVoucherOwner = abi.decode(returndata, (address));
-        // require(returndata.length == 0 || abi.decode(returndata, (address)), "SafeERC20: ERC20 operation did not succeed");
     }
 
     function appendAddress(bytes memory data) internal view returns (bytes memory) {
