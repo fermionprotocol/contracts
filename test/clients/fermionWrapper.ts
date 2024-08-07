@@ -200,6 +200,9 @@ describe("FermionFNFT - wrapper tests", function () {
     });
 
     it("Boson price discovery can unwrap", async function () {
+      await fermionWrapperProxy
+        .connect(fermionProtocolSigner)
+        .pushToNextTokenState(startTokenId, TokenState.Unwrapping);
       const tx = await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
 
       await expect(tx)
@@ -230,6 +233,9 @@ describe("FermionFNFT - wrapper tests", function () {
       });
 
       it("Only wrapped tokens can be unwrapped", async function () {
+        await fermionWrapperProxy
+          .connect(fermionProtocolSigner)
+          .pushToNextTokenState(startTokenId, TokenState.Unwrapping);
         await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
 
         await expect(fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0))
