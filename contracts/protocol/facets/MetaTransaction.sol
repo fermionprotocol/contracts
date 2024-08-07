@@ -15,6 +15,12 @@ import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEve
  * @notice Handles meta-transaction requests.
  */
 contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransactionEvents {
+    struct Signature {
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+    }
+
     string private constant PROTOCOL_NAME = "Fermion Protocol";
     string private constant PROTOCOL_VERSION = "V0";
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
@@ -56,20 +62,36 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         FermionStorage.metaTransaction().fermionAddress = address(this);
     }
 
-    struct Signature {
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-    }
-
+    /**
+     * @notice Handles the incoming meta transaction.
+     *
+     * Kept for backward compatibility. It can be used only for the methods behind the diamond.
+     *
+     * Reverts if:
+     * - Metatransaction region is paused
+     * - Nonce is already used by the msg.sender for another transaction
+     * - Function is not allowlisted to be called using metatransactions
+     * - Function name does not match the bytes4 version of the function signature
+     * - Sender does not match the recovered signer
+     * - Any code executed in the signed transaction reverts
+     * - Signature is invalid
+     *
+     * @param _userAddress - the sender of the transaction
+     * @param _functionName - the name of the function to be executed
+     * @param _functionSignature - the function signature
+     * @param _nonce - the nonce value of the transaction
+     * @param _sigR - r part of the signer's signature
+     * @param _sigS - s part of the signer's signature
+     * @param _sigV - v part of the signer's signature
+     */
     function executeMetaTransaction(
         address _userAddress,
         string calldata _functionName,
         bytes calldata _functionSignature,
         uint256 _nonce,
-        bytes32 r,
-        bytes32 s,
-        uint8 v
+        bytes32 _sigR,
+        bytes32 _sigS,
+        uint8 _sigV
     ) external {
         executeMetaTransaction(
             address(this),
@@ -77,7 +99,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             _functionName,
             _functionSignature,
             _nonce,
-            Signature(r, s, v),
+            Signature(_sigR, _sigS, _sigV),
             0
         );
     }
@@ -122,8 +144,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         metaTx.functionName = _functionName;
         metaTx.functionSignature = _functionSignature;
 
-        if (!verify(_userAddress, hashMetaTransaction(metaTx), _sig.r, _sig.s, _sig.v))
-            revert SignatureValidationFailed();
+        if (!verify(_userAddress, hashMetaTransaction(metaTx), _sig)) revert SignatureValidationFailed();
 
         return executeTx(_contractAddress, _userAddress, _functionName, _functionSignature, _nonce);
     }
@@ -347,24 +368,16 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
      *
      * @param _user  - the sender of the transaction
      * @param _hashedMetaTx - hashed meta transaction
-     * @param _sigR - r part of the signer's signature
-     * @param _sigS - s part of the signer's signature
-     * @param _sigV - v part of the signer's signature
+     * @param _sig - meta transaction signature, r, s, v
      * @return true if signer is same as _user parameter
      */
-    function verify(
-        address _user,
-        bytes32 _hashedMetaTx,
-        bytes32 _sigR,
-        bytes32 _sigS,
-        uint8 _sigV
-    ) internal view returns (bool) {
+    function verify(address _user, bytes32 _hashedMetaTx, Signature memory _sig) internal view returns (bool) {
         bytes32 typedMessageHash = toTypedMessageHash(_hashedMetaTx);
 
         // Check if user is a contract implementing ERC1271
         if (_user.code.length > 0) {
             (bool success, bytes memory returnData) = _user.staticcall(
-                abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encodePacked(_sigR, _sigS, _sigV)))
+                abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encode(_sig)))
             );
 
             if (success) {
@@ -392,11 +405,11 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         // Ensure signature is unique
         // See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/04695aecbd4d17dddfd55de766d10e3805d6f42f/contracts/cryptography/ECDSA.sol#63
         if (
-            uint256(_sigS) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
-            (_sigV != 27 && _sigV != 28)
+            uint256(_sig.s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
+            (_sig.v != 27 && _sig.v != 28)
         ) revert InvalidSignature();
 
-        address signer = ecrecover(typedMessageHash, _sigV, _sigR, _sigS);
+        address signer = ecrecover(typedMessageHash, _sig.v, _sig.r, _sig.s);
         if (signer == address(0)) revert InvalidSignature();
         return signer == _user;
     }

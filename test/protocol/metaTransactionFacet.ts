@@ -1180,6 +1180,80 @@ describe("MetaTransactions", function () {
           });
         });
       });
+
+      context("Test msgData", function () {
+        let fermionSeaportWrapper: Contract;
+        let trustedForwarder: HardhatEthersSigner;
+        let data: string, dataWithAddress: string;
+        let seaportWrapperConstructorArgs: any[];
+
+        beforeEach(async function () {
+          const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
+
+          seaportWrapperConstructorArgs = [
+            mockBosonPriceDiscovery.address,
+            {
+              seaport: wallets[10].address, // dummy address
+              openSeaConduit: mockConduit.address,
+              openSeaConduitKey: ZeroHash,
+            },
+          ];
+
+          trustedForwarder = wallets[1];
+        });
+
+        it("msg.data includes the sender, _msgData() does not - fermion FNFT", async function () {
+          const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
+          fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+
+          const MetaTxTestFactory = await getContractFactory("MetaTxTest");
+          const dummyAddress = await fermionFNFT.getAddress();
+
+          const metaTxTest = await MetaTxTestFactory.deploy(
+            dummyAddress,
+            await fermionSeaportWrapper.getAddress(),
+            dummyAddress,
+          );
+
+          const Proxy = await ethers.getContractFactory("MockProxy");
+          const proxy = await Proxy.deploy(await metaTxTest.getAddress());
+          const metaTxTestProxy = await ethers.getContractAt("MetaTxTest", await proxy.getAddress());
+          await metaTxTestProxy.connect(trustedForwarder).initialize(dummyAddress, dummyAddress, dummyAddress, "1");
+
+          data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
+          dataWithAddress = data + buyer.address.slice(2).toLowerCase();
+
+          const tx = await trustedForwarder.sendTransaction({
+            to: metaTxTestProxy.getAddress(),
+            data: dataWithAddress,
+          });
+
+          // Verify the event
+          await expect(tx).to.emit(metaTxTestProxy, "IncomingData").withArgs(data);
+
+          // Verify the state
+          expect(await metaTxTestProxy.data()).to.equal(dataWithAddress);
+        });
+
+        it("msg.data includes the sender, _msgData() does not - seaport wrapper", async function () {
+          const MetaTxTestFactory = await getContractFactory("MetaTxTestSeaport");
+          const metaTxTest = await MetaTxTestFactory.deploy(...seaportWrapperConstructorArgs, trustedForwarder.address);
+
+          data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
+          dataWithAddress = data + buyer.address.slice(2).toLowerCase();
+
+          const tx = await trustedForwarder.sendTransaction({
+            to: metaTxTest.getAddress(),
+            data: dataWithAddress,
+          });
+
+          // Verify the event
+          await expect(tx).to.emit(metaTxTest, "IncomingData").withArgs(data);
+
+          // Verify the state
+          expect(await metaTxTest.data()).to.equal(dataWithAddress);
+        });
+      });
     });
 
     context("Allowlisted functions", function () {
