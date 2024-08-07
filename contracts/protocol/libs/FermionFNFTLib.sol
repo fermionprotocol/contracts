@@ -15,44 +15,34 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
  */
 library FermionFNFTLib {
     using Address for address;
+    using FermionFNFTLib for address;
 
-    // function pushToNextTokenState(IFermionFNFT _fnft)
-    function pushToNextTokenState(IFermionFNFT _fnft, uint256 _tokenId, FermionTypes.TokenState _newState) internal {
-        address(_fnft).functionCall(
-            appendAddress(abi.encodeCall(IFermionFNFT.pushToNextTokenState, (_tokenId, _newState)))
+    function functionCallWithAddress(address _fnft, bytes memory data) internal returns (bytes memory) {
+        return _fnft.functionCall(appendAddress(data));
+    }
+
+    function pushToNextTokenState(address _fnft, uint256 _tokenId, FermionTypes.TokenState _newState) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionFNFT.pushToNextTokenState, (_tokenId, _newState)));
+    }
+
+    function transferFrom(address _fnft, address from, address to, uint256 tokenId) internal {
+        _fnft.functionCallWithAddress(
+            abi.encodeWithSignature("transferFrom(address,address,uint256)", from, to, tokenId)
         );
     }
 
-    function transferFrom(IFermionFNFT _fnft, address from, address to, uint256 tokenId) internal {
-        address(_fnft).functionCall(
-            appendAddress(abi.encodeWithSignature("transferFrom(address,address,uint256)", from, to, tokenId))
-        );
+    function transfer(address _fnft, address to, uint256 value) internal returns (bool) {
+        _fnft.functionCallWithAddress(abi.encodeWithSignature("transfer(address,uint256)", to, value));
     }
 
-    function transfer(IFermionFNFT _fnft, address to, uint256 value) internal returns (bool) {
-        address(_fnft).functionCall(appendAddress(abi.encodeWithSignature("transfer(address,uint256)", to, value)));
-    }
-
-    function mintFractions(
-        IFermionFNFT _fnft,
-        uint256 _firstTokenId,
-        uint256 _length,
-        uint256 _depositAmount
-    ) internal {
-        address(_fnft).functionCall(
-            appendAddress(
-                abi.encodeWithSignature(
-                    "mintFractions(uint256,uint256,uint256)",
-                    _firstTokenId,
-                    _length,
-                    _depositAmount
-                )
-            )
+    function mintFractions(address _fnft, uint256 _firstTokenId, uint256 _length, uint256 _depositAmount) internal {
+        _fnft.functionCallWithAddress(
+            abi.encodeWithSignature("mintFractions(uint256,uint256,uint256)", _firstTokenId, _length, _depositAmount)
         );
     }
 
     function mintFractions(
-        IFermionFNFT _fnft,
+        address _fnft,
         uint256 _firstTokenId,
         uint256 _length,
         uint256 _fractionsAmount,
@@ -60,41 +50,33 @@ library FermionFNFTLib {
         FermionTypes.CustodianVaultParameters memory _custodianVaultParameters,
         uint256 _depositAmount
     ) internal {
-        address(_fnft).functionCall(
-            appendAddress(
-                abi.encodeWithSignature(
-                    "mintFractions(uint256,uint256,uint256,(uint256,uint256,uint256,uint256),(uint256,uint256,uint256,uint256),uint256)",
-                    _firstTokenId,
-                    _length,
-                    _fractionsAmount,
-                    _buyoutAuctionParameters,
-                    _custodianVaultParameters,
-                    _depositAmount
-                )
+        _fnft.functionCallWithAddress(
+            abi.encodeWithSignature(
+                "mintFractions(uint256,uint256,uint256,(uint256,uint256,uint256,uint256),(uint256,uint256,uint256,uint256),uint256)",
+                _firstTokenId,
+                _length,
+                _fractionsAmount,
+                _buyoutAuctionParameters,
+                _custodianVaultParameters,
+                _depositAmount
             )
         );
     }
 
-    function mintAdditionalFractions(IFermionFNFT _fnft, uint256 _amount) internal {
-        address(_fnft).functionCall(
-            appendAddress(abi.encodeCall(IFermionFractions.mintAdditionalFractions, (_amount)))
-        );
+    function mintAdditionalFractions(address _fnft, uint256 _amount) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionFractions.mintAdditionalFractions, (_amount)));
     }
 
-    function transferOwnership(IFermionWrapper _fnft, address _newOwner) internal {
-        address(_fnft).functionCall(appendAddress(abi.encodeCall(IFermionWrapper.transferOwnership, (_newOwner))));
+    function transferOwnership(address _fnft, address _newOwner) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.transferOwnership, (_newOwner)));
     }
 
-    function wrapForAuction(IFermionWrapper _fnft, uint256 _firstTokenId, uint256 _length, address _to) internal {
-        address(_fnft).functionCall(
-            appendAddress(abi.encodeCall(IFermionWrapper.wrapForAuction, (_firstTokenId, _length, _to)))
-        );
+    function wrapForAuction(address _fnft, uint256 _firstTokenId, uint256 _length, address _to) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.wrapForAuction, (_firstTokenId, _length, _to)));
     }
 
     function burn(address _fnft, uint256 _tokenId) internal returns (address wrappedVoucherOwner) {
-        bytes memory returndata = address(_fnft).functionCall(
-            appendAddress(abi.encodeCall(IFermionFNFT.burn, (_tokenId)))
-        );
+        bytes memory returndata = address(_fnft).functionCallWithAddress(abi.encodeCall(IFermionFNFT.burn, (_tokenId)));
         wrappedVoucherOwner = abi.decode(returndata, (address));
         // require(returndata.length == 0 || abi.decode(returndata, (address)), "SafeERC20: ERC20 operation did not succeed");
     }

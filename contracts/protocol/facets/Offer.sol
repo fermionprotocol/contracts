@@ -29,6 +29,7 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  */
 contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     using SafeERC20 for IERC20;
+    using FermionFNFTLib for address;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
@@ -556,7 +557,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
         // wrap NFTs
         _bosonVoucher.setApprovalForAll(wrapperAddress, true);
-        FermionFNFTLib.wrapForAuction(IFermionWrapper(wrapperAddress), _startingNFTId, _quantity, msgSender);
+        wrapperAddress.wrapForAuction(_startingNFTId, _quantity, msgSender);
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);

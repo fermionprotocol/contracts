@@ -10,7 +10,6 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
-import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
 /**
@@ -20,6 +19,7 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  */
 contract VerificationFacet is Context, Access, VerificationErrors, IVerificationEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
+    using FermionFNFTLib for address;
 
     constructor(address _bosonProtocol) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
@@ -173,13 +173,9 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
 
             // transfer the remainder to the seller
             FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
-            FermionFNFTLib.pushToNextTokenState(
-                IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress),
-                tokenId,
-                FermionTypes.TokenState.Verified
-            );
+            pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(tokenId, FermionTypes.TokenState.Verified);
         } else {
-            address buyerAddress = FermionFNFTLib.burn(pl.offerLookups[offerId].fermionFNFTAddress, tokenId);
+            address buyerAddress = pl.offerLookups[offerId].fermionFNFTAddress.burn(tokenId);
 
             uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 

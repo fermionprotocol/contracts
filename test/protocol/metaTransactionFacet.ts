@@ -895,8 +895,9 @@ describe("MetaTransactions", function () {
                 [r, s, v],
                 offerId,
               ),
-            ).to.be.revertedWithCustomError(fermionFNFT, "InvalidStateOrCaller")
-            .withArgs(tokenId,entity.address,TokenState.Unverified);
+            )
+              .to.be.revertedWithCustomError(fermionFNFT, "InvalidStateOrCaller")
+              .withArgs(tokenId, entity.address, TokenState.Unverified);
           });
         });
 
@@ -1144,7 +1145,7 @@ describe("MetaTransactions", function () {
                 .attach(diamondAddress)
                 [
                   "executeMetaTransaction(address,address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
-                ](diamondAddress, entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v],0),
+                ](diamondAddress, entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], 0),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
@@ -1163,19 +1164,19 @@ describe("MetaTransactions", function () {
               .to.be.revertedWithCustomError(fermionErrors, "InvalidContractAddress")
               .withArgs(fermionFNFTAddress);
 
-              await expect(
-                metaTransactionFacet.executeMetaTransaction(
-                  fermionProtocolAddress,
-                  ZeroAddress,
-                  "testFunction",
-                  ZeroHash,
-                  ZeroHash,
-                  [ZeroHash, ZeroHash, 0],
-                  1,
-                ),
-              )
-                .to.be.revertedWithCustomError(fermionErrors, "InvalidContractAddress")
-                .withArgs(fermionProtocolAddress);
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                fermionProtocolAddress,
+                ZeroAddress,
+                "testFunction",
+                ZeroHash,
+                ZeroHash,
+                [ZeroHash, ZeroHash, 0],
+                1,
+              ),
+            )
+              .to.be.revertedWithCustomError(fermionErrors, "InvalidContractAddress")
+              .withArgs(fermionProtocolAddress);
           });
         });
       });

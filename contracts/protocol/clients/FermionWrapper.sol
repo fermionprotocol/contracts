@@ -53,7 +53,6 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * @param _owner The address of the owner
      */
     function initializeWrapper(address _owner) internal virtual {
-        // initialize(_owner);
         __Ownable_init(_owner);
         SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
     }

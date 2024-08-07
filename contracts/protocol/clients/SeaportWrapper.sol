@@ -36,6 +36,7 @@ contract SeaportWrapper is FermionFNFTBase, ERC2771Context {
     /**
      * @notice Constructor
      *
+     * @dev construct ERC2771Context with address 0 and override `trustedForwarder` to return the fermionProtocol address
      */
     constructor(
         address _bosonPriceDiscovery,
@@ -170,6 +171,7 @@ contract SeaportWrapper is FermionFNFTBase, ERC2771Context {
         return super._update(_to, _tokenId, _auth);
     }
 
+    ///////// overrides ///////////
     function trustedForwarder() public view virtual override returns (address) {
         return fermionProtocol;
     }

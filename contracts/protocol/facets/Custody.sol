@@ -9,7 +9,6 @@ import { CustodyLib } from "../libs/CustodyLib.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
-import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
@@ -20,6 +19,8 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  * @notice Handles RWA custody.
  */
 contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsEvents {
+    using FermionFNFTLib for address;
+
     /**
      * @notice Notifies the protocol that an RWA has been checked in
      *
@@ -52,11 +53,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
             FermionTypes.WalletRole.Assistant
         );
 
-        FermionFNFTLib.pushToNextTokenState(
-            IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress),
-            _tokenId,
-            FermionTypes.TokenState.CheckedIn
-        );
+        pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
@@ -101,11 +98,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
 
-        FermionFNFTLib.pushToNextTokenState(
-            IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress),
-            _tokenId,
-            FermionTypes.TokenState.CheckedOut
-        );
+        pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedOut);
     }
 
     /**
@@ -131,12 +124,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         address msgSender = _msgSender();
-        FermionFNFTLib.transferFrom(
-            IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress),
-            msgSender,
-            address(this),
-            _tokenId
-        );
+        pl.offerLookups[offerId].fermionFNFTAddress.transferFrom(msgSender, address(this), _tokenId);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequested;
         checkoutRequest.buyer = msgSender;

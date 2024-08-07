@@ -24,6 +24,11 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermionFNFT {
     address private immutable THIS_CONTRACT = address(this);
 
+    /**
+     * @notice Constructor
+     *
+     * @dev construct ERC2771Context with address 0 and override `trustedForwarder` to return the fermionProtocol address
+     */
     constructor(
         address _bosonPriceDiscovery,
         address _seaportWrapper,
