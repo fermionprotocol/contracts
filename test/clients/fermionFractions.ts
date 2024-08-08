@@ -84,7 +84,8 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
     for (let i = 0n; i < quantity; i++) {
       const tokenId = startTokenId + i;
-      await fermionFNFTProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId + i, ZeroAddress, 0);
+      await fermionFNFTProxy.attach(fermionMock).pushToNextTokenState(tokenId, TokenState.Unwrapping);
+      await fermionFNFTProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(tokenId, ZeroAddress, 0);
       if (i < quantity - 1n) {
         await fermionFNFTProxy.attach(fermionMock).pushToNextTokenState(tokenId, TokenState.Verified);
         await fermionFNFTProxy.attach(fermionMock).pushToNextTokenState(tokenId, TokenState.CheckedIn);
