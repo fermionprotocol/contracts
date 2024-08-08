@@ -27,6 +27,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
   const startTokenId = 2n ** 128n + 1n;
   const quantity = 10n;
   const additionalDeposit = 0n;
+  const metadataURI = "https://example.com";
 
   async function setupFermionFractionsTest() {
     wallets = await ethers.getSigners();
@@ -77,6 +78,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         wrapperContractOwner.address,
         await mockExchangeToken.getAddress(),
         offerId,
+        metadataURI,
       );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
@@ -84,7 +86,8 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
     for (let i = 0n; i < quantity; i++) {
       const tokenId = startTokenId + i;
-      await fermionFNFTProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId + i, ZeroAddress, 0);
+      await fermionFNFTProxy.attach(fermionMock).pushToNextTokenState(tokenId, TokenState.Unwrapping);
+      await fermionFNFTProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(tokenId, ZeroAddress, 0);
       if (i < quantity - 1n) {
         await fermionFNFTProxy.attach(fermionMock).pushToNextTokenState(tokenId, TokenState.Verified);
         await fermionFNFTProxy.attach(fermionMock).pushToNextTokenState(tokenId, TokenState.CheckedIn);

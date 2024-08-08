@@ -236,6 +236,12 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+
+        IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).pushToNextTokenState(
+            _tokenId,
+            FermionTypes.TokenState.Unwrapping
+        );
+
         FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
         {
             {
@@ -549,8 +555,14 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             wrapperAddress = Clones.cloneDeterministic(ps.fermionFNFTBeaconProxy, bytes32(_offerId));
             offerLookup.fermionFNFTAddress = wrapperAddress;
 
-            address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
-            IFermionFNFT(wrapperAddress).initialize(address(_bosonVoucher), msgSender, exchangeToken, _offerId);
+            FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+            IFermionFNFT(wrapperAddress).initialize(
+                address(_bosonVoucher),
+                msgSender,
+                offer.exchangeToken,
+                _offerId,
+                offer.metadataURI
+            );
         }
 
         // wrap NFTs

@@ -57,6 +57,7 @@ contract FermionTypes {
     enum TokenState {
         Inexistent,
         Wrapped,
+        Unwrapping,
         Unverified,
         Verified,
         CheckedIn,

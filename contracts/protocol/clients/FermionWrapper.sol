@@ -51,9 +51,10 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * - Contract is already initialized
      *
      * @param _owner The address of the owner
+     * @param _metadataUri The metadata URI, used for all tokens and contract URI
      */
-    function initializeWrapper(address _owner) internal virtual {
-        // initialize(_owner);
+    function initializeWrapper(address _owner, string memory _metadataUri) internal virtual {
+        Common._getFermionCommonStorage().metadataUri = _metadataUri;
         __Ownable_init(_owner);
         SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
     }
@@ -127,12 +128,30 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     }
 
     /**
+     * @dev See {IERC721Metadata-tokenURI}.
+     */
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        _requireOwned(tokenId);
+
+        return contractURI();
+    }
+
+    /**
+     * @notice Returns storefront-level metadata used by OpenSea.
+     *
+     * @return Contract metadata URI
+     */
+    function contractURI() public view returns (string memory) {
+        return Common._getFermionCommonStorage().metadataUri;
+    }
+
+    /**
      * @notice Puts the F-NFT from wrapped to unverified state and transfers Boson rNFT to fermion protocol
      *
      * @param _tokenId The token id.
      */
     function unwrap(uint256 _tokenId) internal {
-        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Wrapped, BP_PRICE_DISCOVERY);
+        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unwrapping, BP_PRICE_DISCOVERY);
 
         Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
 

@@ -15,6 +15,7 @@ describe("FermionFNFT - wrapper tests", function () {
   let wrapperContractOwner: HardhatEthersSigner;
   let mockBosonPriceDiscovery: HardhatEthersSigner;
   let mockBoson: Contract;
+  const metadataURI = "https://example.com";
 
   async function setupFermionWrapperTest() {
     wallets = await ethers.getSigners();
@@ -64,26 +65,35 @@ describe("FermionFNFT - wrapper tests", function () {
   context("initialize", function () {
     const offerId = 1n;
 
-    it("Initialization via proxy sets the new owner", async function () {
-      await expect(fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId))
+    it("Initialization via proxy sets the new owner and metadataURI", async function () {
+      await expect(
+        fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId, metadataURI),
+      )
         .to.emit(fermionWrapperProxy, "OwnershipTransferred")
         .withArgs(ZeroAddress, wrapperContractOwner.address);
 
       expect(await fermionWrapperProxy.owner()).to.equal(wrapperContractOwner.address);
+      expect(await fermionWrapperProxy.contractURI()).to.equal(metadataURI);
     });
 
     context("Revert reasons", function () {
       it("Direct initialization fails", async function () {
         await expect(
-          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId),
+          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId, metadataURI),
         ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
 
       it("Second initialization via proxy fails", async function () {
-        await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId);
+        await fermionWrapperProxy.initialize(
+          ZeroAddress,
+          wrapperContractOwner.address,
+          ZeroAddress,
+          offerId,
+          metadataURI,
+        );
 
         await expect(
-          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId),
+          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId, metadataURI),
         ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
     });
@@ -92,7 +102,13 @@ describe("FermionFNFT - wrapper tests", function () {
   context("transferOwnership", function () {
     const offerId = 1n;
     beforeEach(async function () {
-      await fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId);
+      await fermionWrapperProxy.initialize(
+        ZeroAddress,
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerId,
+        metadataURI,
+      );
     });
 
     it("Initialization caller can transfer the ownership", async function () {
@@ -137,6 +153,7 @@ describe("FermionFNFT - wrapper tests", function () {
         wrapperContractOwner.address,
         ZeroAddress,
         offerId,
+        metadataURI,
       );
 
       seller = wallets[3];
@@ -194,12 +211,16 @@ describe("FermionFNFT - wrapper tests", function () {
         wrapperContractOwner.address,
         ZeroAddress,
         offerId,
+        metadataURI,
       );
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
       await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
     });
 
     it("Boson price discovery can unwrap", async function () {
+      await fermionWrapperProxy
+        .connect(fermionProtocolSigner)
+        .pushToNextTokenState(startTokenId, TokenState.Unwrapping);
       const tx = await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
 
       await expect(tx)
@@ -230,11 +251,67 @@ describe("FermionFNFT - wrapper tests", function () {
       });
 
       it("Only wrapped tokens can be unwrapped", async function () {
+        await fermionWrapperProxy
+          .connect(fermionProtocolSigner)
+          .pushToNextTokenState(startTokenId, TokenState.Unwrapping);
         await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
 
         await expect(fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0))
           .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
           .withArgs(startTokenId, mockBosonPriceDiscovery.address, TokenState.Unverified);
+      });
+    });
+  });
+
+  context("tokenURI", function () {
+    const startTokenId = 2n ** 128n + 1n;
+    const quantity = 10n;
+    const offerId = 1n;
+
+    beforeEach(async function () {
+      await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
+
+      await fermionWrapperProxy.initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerId,
+        metadataURI,
+      );
+    });
+
+    it("All tokens have the same URI", async function () {
+      const seller = wallets[3];
+      await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
+      await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
+
+      for (let i = 0n; i < quantity; i++) {
+        const tokenId = startTokenId + i;
+        expect(await fermionWrapperProxy.tokenURI(tokenId)).to.equal(metadataURI);
+      }
+    });
+
+    context("Revert reasons", function () {
+      it("Minted, but not wrapped", async function () {
+        for (let i = 0n; i < quantity; i++) {
+          const tokenId = startTokenId + i;
+          await expect(fermionWrapperProxy.tokenURI(tokenId))
+            .to.be.revertedWithCustomError(fermionWrapper, "ERC721NonexistentToken")
+            .withArgs(tokenId);
+        }
+      });
+
+      it("Non existent", async function () {
+        let tokenId = 0n;
+        await expect(fermionWrapperProxy.tokenURI(tokenId))
+          .to.be.revertedWithCustomError(fermionWrapper, "ERC721NonexistentToken")
+          .withArgs(tokenId);
+
+        tokenId = startTokenId + quantity;
+        await expect(fermionWrapperProxy.tokenURI(tokenId)).to.be.revertedWithCustomError(
+          fermionWrapper,
+          "ERC721NonexistentToken",
+        );
       });
     });
   });

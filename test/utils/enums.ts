@@ -12,6 +12,7 @@ export enum EntityRole {
 export enum TokenState {
   Inexistent,
   Wrapped,
+  Unwrapping,
   Unverified,
   Verified,
   CheckedIn,
