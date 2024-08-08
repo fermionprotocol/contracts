@@ -131,7 +131,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * @param _tokenId The token id.
      */
     function unwrap(uint256 _tokenId) internal {
-        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Wrapped, msg.sender, BP_PRICE_DISCOVERY); // No need to use _msgSender(). BP_PRICE_DISCOVERY does not use meta transactions
+        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unwrapping, msg.sender, BP_PRICE_DISCOVERY); // No need to use _msgSender(). BP_PRICE_DISCOVERY does not use meta transactions
 
         Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
 

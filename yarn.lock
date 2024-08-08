@@ -2055,6 +2055,13 @@ eastasianwidth@^0.2.0:
   resolved "https://registry.yarnpkg.com/eastasianwidth/-/eastasianwidth-0.2.0.tgz#696ce2ec0aa0e6ea93a397ffcf24aa7840c827cb"
   integrity sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==
 
+eip55@^2.1.1:
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/eip55/-/eip55-2.1.1.tgz#28b743c4701ac3c811b1e9fe67e39cf1d0781b96"
+  integrity sha512-WcagVAmNu2Ww2cDUfzuWVntYwFxbvZ5MvIyLZpMjTTkjD6sCvkGOiS86jTppzu9/gWsc8isLHAeMBWK02OnZmA==
+  dependencies:
+    keccak "^3.0.3"
+
 elliptic@6.5.4:
   version "6.5.4"
   resolved "https://registry.yarnpkg.com/elliptic/-/elliptic-6.5.4.tgz#da37cebd31e79a1367e941b592ed1fbebd58abbb"
@@ -3300,7 +3307,7 @@ jsonschema@^1.2.4:
   resolved "https://registry.yarnpkg.com/jsonschema/-/jsonschema-1.4.1.tgz#cc4c3f0077fb4542982973d8a083b6b34f482dab"
   integrity sha512-S6cATIPVv1z0IlxdN+zUk5EPjkGCdnhN4wVSBlvoUO1tOLJootbo9CquNJmbIh4yikWHiUedhRYrNPn1arpEmQ==
 
-keccak@^3.0.0, keccak@^3.0.2:
+keccak@^3.0.0, keccak@^3.0.2, keccak@^3.0.3:
   version "3.0.4"
   resolved "https://registry.yarnpkg.com/keccak/-/keccak-3.0.4.tgz#edc09b89e633c0549da444432ecf062ffadee86d"
   integrity sha512-3vKuW0jV8J3XNTzvfyicFR5qvxrSAGl7KIhvgOu5cmWwM7tZRj3fMbj/pfIf4be7aznbc+prBWGjywox/g2Y6Q==

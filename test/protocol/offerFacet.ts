@@ -7,6 +7,8 @@ import {
   verifySellerAssistantRoleClosure,
 } from "../utils/common";
 import { getBosonHandler, getBosonVoucher } from "../utils/boson-protocol";
+import PriceDiscovery from "@bosonprotocol/boson-protocol-contracts/scripts/domain/PriceDiscovery.js";
+import Side from "@bosonprotocol/boson-protocol-contracts/scripts/domain/Side.js";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
@@ -1347,6 +1349,78 @@ describe("Offer", function () {
                 customItemVerificationTimeout,
                 nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout,
               );
+          });
+
+          it("Unwrapping directly through the Boson contract", async function () {
+            const attackerWallet = wallets[6];
+
+            const openSea = wallets[5]; // a mock OS address
+            openSeaAddress = openSea.address;
+            const attackerAddress = attackerWallet.address;
+            const seaport = new Seaport(attackerWallet, {
+              overrides: { seaportVersion: "1.6", contractAddress: seaportAddress },
+            });
+
+            const { executeAllActions } = await seaport.createOrder(
+              {
+                offer: [
+                  {
+                    itemType: ItemType.ERC20,
+                    token: exchangeToken,
+                    amount: "0",
+                  },
+                ],
+                consideration: [
+                  {
+                    itemType: ItemType.ERC721,
+                    token: wrapperAddress,
+                    identifier: tokenId,
+                  },
+                  {
+                    itemType: ItemType.ERC20,
+                    token: exchangeToken,
+                    amount: "0",
+                    recipient: openSeaAddress,
+                  },
+                ],
+              },
+              attackerAddress,
+            );
+
+            const buyerOrder = await executeAllActions();
+
+            buyerAdvancedOrder = {
+              ...buyerOrder,
+              numerator: 1n,
+              denominator: 1n,
+              extraData: "0x",
+            };
+
+            const priceDiscoveryContractAddress = await fermionWrapper.getAddress(); // wrapper address
+            const priceDiscoveryData = fermionWrapper.interface.encodeFunctionData("unwrap", [
+              tokenId,
+              buyerAdvancedOrder,
+            ]);
+            const price = "0";
+            const priceDiscovery = new PriceDiscovery(
+              price,
+              Side.Wrapper,
+              priceDiscoveryContractAddress,
+              priceDiscoveryContractAddress,
+              priceDiscoveryData,
+            );
+
+            const configHandler = await getBosonHandler("IBosonConfigHandler");
+            const bosonPriceDiscoveryClientAddress = await configHandler.getPriceDiscoveryAddress();
+            const priceDiscoveryHandler = await getBosonHandler("IBosonPriceDiscoveryHandler");
+
+            await expect(
+              priceDiscoveryHandler
+                .connect(attackerWallet)
+                .commitToPriceDiscoveryOffer(attackerWallet.address, tokenId, priceDiscovery),
+            )
+              .to.be.revertedWithCustomError(fermionWrapper, "InvalidStateOrCaller")
+              .withArgs(tokenId, bosonPriceDiscoveryClientAddress, TokenState.Wrapped);
           });
         });
 
