@@ -233,7 +233,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             for (uint256 i = 0; i < tokenList.length; i++) {
                 // Get available funds from storage
                 uint256 availableFunds = entityFunds[tokenList[i]];
-                FundsLib.transferFundsFromProtocol(_entityId, tokenList[i], _destinationAddress, availableFunds);
+                FundsLib.transferERC20FromProtocol(_entityId, tokenList[i], _destinationAddress, availableFunds);
             }
         } else {
             for (uint256 i = 0; i < _tokenList.length; i++) {
@@ -241,7 +241,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                 if (_tokenAmounts[i] == 0) revert NothingToWithdraw();
 
                 // Transfer funds
-                FundsLib.transferFundsFromProtocol(_entityId, _tokenList[i], _destinationAddress, _tokenAmounts[i]);
+                FundsLib.transferERC20FromProtocol(_entityId, _tokenList[i], _destinationAddress, _tokenAmounts[i]);
             }
         }
     }

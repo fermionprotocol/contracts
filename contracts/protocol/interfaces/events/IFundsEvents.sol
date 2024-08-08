@@ -14,4 +14,6 @@ interface IFundsEvents {
         address indexed tokenAddress,
         uint256 amount
     );
+    event ERC721Deposited(address indexed tokenAddress, uint256 indexed tokenId, address indexed from);
+    event ERC721Withdrawn(address indexed tokenAddress, uint256 indexed tokenId, address indexed withdrawnTo);
 }

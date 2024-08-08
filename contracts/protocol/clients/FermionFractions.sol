@@ -130,7 +130,7 @@ abstract contract FermionFractions is
                 _depositAmount
             );
             if (returnedAmount > 0)
-                FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
+                FundsLib.transferERC20FromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
         }
     }
 
@@ -173,7 +173,7 @@ abstract contract FermionFractions is
                 _depositAmount
             );
             if (returnedAmount > 0)
-                FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
+                FundsLib.transferERC20FromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
         }
     }
 
@@ -510,7 +510,7 @@ abstract contract FermionFractions is
             claimAmount += additionalClaimAmount;
         }
 
-        FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        FundsLib.transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
         emit Claimed(msgSender, lockedIndividualVotes + _additionalFractions, claimAmount);
     }
 
@@ -536,7 +536,7 @@ abstract contract FermionFractions is
         address msgSender = _msgSender();
         (uint256 claimAmount, uint256 burnedFractions) = burnUnrestrictedFractions(msgSender, _fractions, $);
 
-        FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        FundsLib.transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
         emit Claimed(msgSender, burnedFractions, claimAmount);
     }
 
@@ -805,7 +805,7 @@ abstract contract FermionFractions is
                 // the debt in the protocol is higher than the auction proceeds
                 debtFromVault = auctionProceeds;
             }
-            FundsLib.transferFundsFromProtocol($.exchangeToken, payable(fermionProtocol), debtFromVault);
+            FundsLib.transferERC20FromProtocol($.exchangeToken, payable(fermionProtocol), debtFromVault);
             IFermionCustodyVault(fermionProtocol).repayDebt(_tokenId, debtFromVault);
             auctionProceeds -= debtFromVault;
         } else {
@@ -814,7 +814,7 @@ abstract contract FermionFractions is
             uint256 releasedFromVault = uint256(lockedProceeds);
             uint256 claimAmount = (releasedFromVault * winnersLockedFractions) / fractionsPerToken;
 
-            FundsLib.transferFundsFromProtocol($.exchangeToken, payable(auctionDetails.maxBidder), claimAmount);
+            FundsLib.transferERC20FromProtocol($.exchangeToken, payable(auctionDetails.maxBidder), claimAmount);
             auctionProceeds += (releasedFromVault - claimAmount);
         }
 
@@ -884,7 +884,7 @@ abstract contract FermionFractions is
 
         // transfer to previus bidder if they used some of the fractions. Do not transfer the locked votes.
         if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
-        FundsLib.transferFundsFromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
+        FundsLib.transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
     }
 
     /**
@@ -900,7 +900,7 @@ abstract contract FermionFractions is
         if (_depositAmount > 0) {
             address exchangeToken = $.exchangeToken;
             FundsLib.validateIncomingPayment(exchangeToken, _depositAmount);
-            FundsLib.transferFundsFromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
+            FundsLib.transferERC20FromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
         }
     }
 }

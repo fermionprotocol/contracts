@@ -272,7 +272,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                         );
                         if (minimalPrice > 0) {
                             FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-                            FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), minimalPrice);
+                            FundsLib.transferERC20FromProtocol(exchangeToken, payable(wrapperAddress), minimalPrice);
                         }
 
                         _priceDiscovery.price = minimalPrice;

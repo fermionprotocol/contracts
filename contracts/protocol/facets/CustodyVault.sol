@@ -136,7 +136,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
                 FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
                 uint256 immediateTransfer = itemBalance - custodianPayoff;
                 if (immediateTransfer > 0)
-                    FundsLib.transferFundsFromProtocol(exchangeToken, payable(msg.sender), immediateTransfer);
+                    FundsLib.transferERC20FromProtocol(exchangeToken, payable(msg.sender), immediateTransfer);
             }
 
             if (itemCount == 1) {

@@ -211,8 +211,8 @@ describe("Funds", function () {
         await mockToken.mint(defaultSigner.address, tokenId, 1);
 
         await expect(fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "ERC721NotAllowed")
-          .withArgs(await mockToken.getAddress());
+          .to.be.revertedWithCustomError(fermionErrors, "ERC721CheckFailed")
+          .withArgs(await mockToken.getAddress(), false);
       });
 
       it("Token contract returns unexpected data", async function () {

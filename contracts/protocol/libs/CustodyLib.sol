@@ -125,7 +125,7 @@ library CustodyLib {
         offerVault.amount += amountToTransferToOfferVault;
 
         if (_externalCall && returnedAmount > 0) {
-            FundsLib.transferFundsFromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
+            FundsLib.transferERC20FromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
         }
         emit ICustodyEvents.VaultBalanceUpdated(offerId, offerVault.amount);
     }

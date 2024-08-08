@@ -89,12 +89,13 @@ interface FundsErrors {
     // Funds errors
     error WrongValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
-    error ERC721NotAllowed(address tokenAddress);
     error PriceTooLow(uint256 price, uint256 minimumPrice);
     error ZeroDepositNotAllowed();
     error NothingToWithdraw();
     error TokenTransferFailed(address to, uint256 amount, bytes errorMessage);
     error InsufficientAvailableFunds(uint256 availableFunds, uint256 requestedFunds);
+    error ERC721CheckFailed(address tokenAddress, bool erc721expected);
+    error ERC721TokenNotTransferred(address tokenAddress, uint256 tokenId);
 }
 
 interface PauseErrors {
