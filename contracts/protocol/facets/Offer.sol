@@ -239,10 +239,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
-        IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).pushToNextTokenState(
-            _tokenId,
-            FermionTypes.TokenState.Unwrapping
-        );
+        pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(_tokenId, FermionTypes.TokenState.Unwrapping);
 
         FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
         {
