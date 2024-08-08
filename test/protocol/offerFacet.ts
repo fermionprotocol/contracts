@@ -1316,8 +1316,8 @@ describe("Offer", function () {
           });
 
           it("OS fee is greater than the price", async function () {
-            buyerAdvancedOrder.parameters.offer[0].startAmount = verifierFee.toString();
-            buyerAdvancedOrder.parameters.consideration[1].startAmount = (verifierFee + 1n).toString();
+            buyerAdvancedOrder.parameters.offer[0].startAmount = "0";
+            buyerAdvancedOrder.parameters.consideration[1].startAmount = "1";
             await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
               fermionErrors,
               "InvalidOpenSeaOrder",

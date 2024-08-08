@@ -10,6 +10,7 @@ interface FermionGeneralErrors {
     error AccessDenied(address caller);
     error InvalidPercentage(uint256 percentage);
     error ZeroNotAllowed();
+    error UnexpectedDataReturned(bytes data);
 }
 
 interface InitializationErrors {
