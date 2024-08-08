@@ -17,6 +17,7 @@ describe("FermionFNFT", function () {
   const quantity = 10n;
   const additionalDeposit = 0n;
   const offerId = 123n;
+  const metadataURI = "https://example.com";
 
   async function setupFermionFNFTTest() {
     wallets = await ethers.getSigners();
@@ -64,6 +65,7 @@ describe("FermionFNFT", function () {
         wrapperContractOwner.address,
         await mockExchangeToken.getAddress(),
         offerId,
+        metadataURI,
       );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);

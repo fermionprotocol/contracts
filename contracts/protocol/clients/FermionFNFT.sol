@@ -38,12 +38,14 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
      * @param _owner The address of the owner
      * @param _exchangeToken The address of the exchange token
      * @param _offerId The offer id
+     * @param _metadataUri The metadata URI, used for all tokens and contract URI
      */
     function initialize(
         address _voucherAddress,
         address _owner,
         address _exchangeToken,
-        uint256 _offerId
+        uint256 _offerId,
+        string memory _metadataUri
     ) external initializer {
         if (address(this) == THIS_CONTRACT) {
             revert InvalidInitialization();
@@ -52,7 +54,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
         fermionProtocol = msg.sender;
         voucherAddress = _voucherAddress;
 
-        initializeWrapper(_owner);
+        initializeWrapper(_owner, _metadataUri);
         intializeFractions(_exchangeToken);
 
         string memory _offerIdString = Strings.toString(_offerId);
@@ -163,6 +165,13 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
                 return(success, 32)
             }
         }
+    }
+
+    /**
+     * @dev See {IERC721Metadata-tokenURI}.
+     */
+    function tokenURI(uint256 tokenId) public view virtual override(FermionWrapper, ERC721) returns (string memory) {
+        return FermionWrapper.tokenURI(tokenId);
     }
 
     function _update(
