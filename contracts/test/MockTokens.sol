@@ -50,4 +50,59 @@ contract MockERC721 is ERC721 {
             _mint(_account, _startTokenId + i);
         }
     }
+
+    enum RevertReason {
+        None,
+        CustomError,
+        ErrorString,
+        ArbitraryBytes,
+        DivisionByZero,
+        OutOfBounds,
+        ReturnTooShort,
+        ReturnTooLong,
+        PollutedData
+    }
+
+    RevertReason private revertReason;
+
+    function setRevertReason(RevertReason _revertReason) external {
+        revertReason = _revertReason;
+    }
+
+    error CustomError();
+
+    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
+        if (revertReason == RevertReason.None) {
+            return interfaceId == type(IERC721).interfaceId;
+        } else if (revertReason == RevertReason.CustomError) {
+            revert CustomError();
+        } else if (revertReason == RevertReason.ErrorString) {
+            revert("Error string");
+        } else if (revertReason == RevertReason.ArbitraryBytes) {
+            assembly {
+                mstore(0, 0xdeadbeefdeadbeef000000000000000000000000000000000000000000000000)
+                revert(0, 16)
+            }
+        } else if (revertReason == RevertReason.DivisionByZero) {
+            uint256 a = 0; // division by zero
+            uint256 b = 1 / a;
+        } else if (revertReason == RevertReason.OutOfBounds) {
+            uint256[] memory arr = new uint256[](1);
+            arr[1] = 1; // out of bounds
+        } else if (revertReason == RevertReason.ReturnTooShort) {
+            assembly {
+                return(0, 1)
+            }
+        } else if (revertReason == RevertReason.ReturnTooLong) {
+            assembly {
+                mstore(0, 0x0000000000000000000000000000000000000000000000000000000000000001) //  true
+                return(0, 33)
+            }
+        } else if (revertReason == RevertReason.PollutedData) {
+            assembly {
+                mstore(0, 0x1626ba7e000000000000000abcde000000000000000000000000000000000001) //  true with some other data
+                return(0, 32)
+            }
+        }
+    }
 }
