@@ -119,6 +119,7 @@ describe("Offer", function () {
     let exchangeToken: string;
     let fermionOffer: FermionTypes.OfferStruct;
     const bosonOfferId = "1";
+    const withPhygital = false;
 
     before(async function () {
       exchangeToken = await mockToken.getAddress();
@@ -133,6 +134,7 @@ describe("Offer", function () {
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken,
+        withPhygital,
         metadataURI,
         metadataHash: id(metadataURI),
       };
@@ -365,6 +367,7 @@ describe("Offer", function () {
       const sellerDeposit = 100;
       const verifierFee = 10;
       const metadataURI = "https://example.com/offer-metadata.json";
+      const withPhygital = false;
 
       const fermionOffer = {
         sellerId,
@@ -376,6 +379,7 @@ describe("Offer", function () {
         facilitatorId: sellerId,
         facilitatorFeePercent: "0",
         exchangeToken,
+        withPhygital,
         metadataURI,
         metadataHash: id(metadataURI),
       };
@@ -410,6 +414,7 @@ describe("Offer", function () {
     const bosonOfferId = 1n;
     const sellerDeposit = 100n;
     const quantity = 15n;
+    const withPhygital = false;
     beforeEach(async function () {
       const fermionOffer = {
         sellerId: "1",
@@ -421,6 +426,7 @@ describe("Offer", function () {
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
+        withPhygital,
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,
       };
@@ -610,6 +616,7 @@ describe("Offer", function () {
     const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
     const fullPrice = parseEther("10");
     const openSeaFee = (fullPrice * 2n) / 100n;
+    const withPhygital = false;
     let openSeaAddress: string, buyerAddress: string;
     let bosonProtocolBalance: bigint, openSeaBalance: bigint;
     let buyerAdvancedOrder: AdvancedOrder;
@@ -647,6 +654,7 @@ describe("Offer", function () {
           facilitatorId,
           facilitatorFeePercent: "0",
           exchangeToken,
+          withPhygital,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,
         };
@@ -867,6 +875,7 @@ describe("Offer", function () {
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: await mockToken.getAddress(),
+              withPhygital,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
             };
@@ -1210,6 +1219,7 @@ describe("Offer", function () {
                   facilitatorId: sellerId,
                   facilitatorFeePercent: "0",
                   exchangeToken: ZeroAddress,
+                  withPhygital,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
                 };
@@ -1278,6 +1288,7 @@ describe("Offer", function () {
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: bosonTokenAddress,
+              withPhygital,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
             };
@@ -1616,6 +1627,7 @@ describe("Offer", function () {
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: ZeroAddress,
+              withPhygital,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
             };
@@ -1779,6 +1791,7 @@ describe("Offer", function () {
                   facilitatorId: sellerId,
                   facilitatorFeePercent: "0",
                   exchangeToken: ZeroAddress,
+                  withPhygital,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
                 };
@@ -1888,6 +1901,7 @@ describe("Offer", function () {
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: bosonTokenAddress,
+              withPhygital,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
             };
@@ -1945,6 +1959,7 @@ describe("Offer", function () {
           facilitatorId: sellerId,
           facilitatorFeePercent: "0",
           exchangeToken,
+          withPhygital,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,
         };
@@ -2066,6 +2081,7 @@ describe("Offer", function () {
             facilitatorId: sellerId,
             facilitatorFeePercent: "0",
             exchangeToken: ZeroAddress,
+            withPhygital,
             metadataURI: "https://example.com/offer-metadata.json",
             metadataHash: ZeroHash,
           };

@@ -89,6 +89,7 @@ contract FermionTypes {
         uint256 facilitatorId;
         uint256 facilitatorFeePercent;
         address exchangeToken;
+        bool withPhygital;
         string metadataURI;
         string metadataHash;
     }

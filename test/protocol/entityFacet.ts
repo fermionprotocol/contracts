@@ -1133,6 +1133,7 @@ describe("Entity", function () {
           facilitatorId,
           facilitatorFeePercent: "0",
           exchangeToken: ZeroAddress,
+          withPhygital: false,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: "",
         };
