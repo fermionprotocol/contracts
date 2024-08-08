@@ -10,7 +10,7 @@ import { Context } from "../libs/Context.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
 
-import { FermionWrapper } from "../clients/FermionWrapper.sol";
+import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
 /**
  * @title EntityFacet
@@ -21,6 +21,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRole).max) + 1;
     uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
     uint256 private constant WALLET_ROLE_MASK = (1 << (uint256(type(FermionTypes.AccountRole).max) + 1)) - 1;
+    using FermionFNFTLib for address;
 
     /**
      * @notice Creates an entity.
@@ -320,7 +321,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
-        FermionWrapper(payable(wrapperAddress)).transferOwnership(_newOwner);
+        wrapperAddress.transferOwnership(_newOwner);
     }
 
     /**
