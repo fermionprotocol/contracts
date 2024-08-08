@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroAddress, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, VerificationStatus, WalletRole } from "../utils/enums";
+import { EntityRole, PausableRegion, VerificationStatus, AccountRole } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
@@ -284,11 +284,11 @@ describe("Funds", function () {
       const treasury = wallets[4];
       const assistant = wallets[5];
 
-      await entityFacet.addEntityWallets(
+      await entityFacet.addEntityAccounts(
         sellerId,
         [assistant, treasury],
         [[], []],
-        [[[WalletRole.Assistant]], [[WalletRole.Treasury]]],
+        [[[AccountRole.Assistant]], [[AccountRole.Treasury]]],
       );
 
       const entityAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, mockToken1Address);
@@ -455,24 +455,29 @@ describe("Funds", function () {
     });
 
     it("Treasury can be a contract wallet", async function () {
-      const contractWalletWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
-      const contractWalletWithReceive = await contractWalletWithReceiveFactory.deploy();
-      const contractWalletWithReceiveAddress = await contractWalletWithReceive.getAddress();
+      const contractAccountWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
+      const contractAccountWithReceive = await contractAccountWithReceiveFactory.deploy();
+      const contractAccountWithReceiveAddress = await contractAccountWithReceive.getAddress();
 
-      await entityFacet.addEntityWallets(sellerId, [contractWalletWithReceiveAddress], [[]], [[[WalletRole.Treasury]]]);
+      await entityFacet.addEntityAccounts(
+        sellerId,
+        [contractAccountWithReceiveAddress],
+        [[]],
+        [[[AccountRole.Treasury]]],
+      );
 
       // contract without receive function
       const tx = await fundsFacet.withdrawFunds(
         sellerId,
-        contractWalletWithReceiveAddress,
+        contractAccountWithReceiveAddress,
         [ZeroAddress],
         [amountNative],
       );
       await expect(tx)
         .to.emit(fundsFacet, "FundsWithdrawn")
-        .withArgs(sellerId, contractWalletWithReceiveAddress, ZeroAddress, amountNative);
+        .withArgs(sellerId, contractAccountWithReceiveAddress, ZeroAddress, amountNative);
       await expect(tx)
-        .to.emit(contractWalletWithReceive, "FundsReceived")
+        .to.emit(contractAccountWithReceive, "FundsReceived")
         .withArgs(fermionProtocolAddress, amountNative);
     });
 
@@ -490,20 +495,20 @@ describe("Funds", function () {
 
         // completely random wallet
         await expect(fundsFacet.connect(wallet).withdrawFunds(sellerId, defaultSigner.address, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityAssistant")
-          .withArgs(sellerId, wallet.address);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(wallet.address, sellerId, AccountRole.Assistant);
 
         // seller's assistant (not entity wide)
-        await entityFacet.addEntityWallets(sellerId, [wallet], [[EntityRole.Seller]], [[[WalletRole.Assistant]]]);
+        await entityFacet.addEntityAccounts(sellerId, [wallet], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
         await expect(fundsFacet.connect(wallet).withdrawFunds(sellerId, defaultSigner.address, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityAssistant")
-          .withArgs(sellerId, wallet.address);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(wallet.address, sellerId, AccountRole.Assistant);
 
-        // an entity-wide Treasury or admin wallet (not Assistant)
-        await entityFacet.addEntityWallets(sellerId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
+        // an entity-wide Treasury or Manager wallet (not Assistant)
+        await entityFacet.addEntityAccounts(sellerId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
         await expect(fundsFacet.connect(wallet).withdrawFunds(sellerId, defaultSigner.address, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityAssistant")
-          .withArgs(sellerId, wallet.address);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(wallet.address, sellerId, AccountRole.Assistant);
       });
 
       it("Treasury is not entity's treasury", async function () {
@@ -511,20 +516,25 @@ describe("Funds", function () {
 
         // completely random wallet
         await expect(fundsFacet.withdrawFunds(sellerId, treasury, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityTreasury")
-          .withArgs(sellerId, treasury);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(treasury, sellerId, AccountRole.Treasury);
 
         // seller's treasury (not entity wide)
-        await entityFacet.addEntityWallets(sellerId, [treasury], [[EntityRole.Seller]], [[[WalletRole.Treasury]]]);
+        await entityFacet.addEntityAccounts(sellerId, [treasury], [[EntityRole.Seller]], [[[AccountRole.Treasury]]]);
         await expect(fundsFacet.withdrawFunds(sellerId, treasury, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityTreasury")
-          .withArgs(sellerId, treasury);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(treasury, sellerId, AccountRole.Treasury);
 
-        // an entity-wide Assistant or admin wallet (not Assistant)
-        await entityFacet.addEntityWallets(sellerId, [treasury], [[]], [[[WalletRole.Assistant, WalletRole.Admin]]]);
+        // an entity-wide Assistant or Manager wallet (not Assistant)
+        await entityFacet.addEntityAccounts(
+          sellerId,
+          [treasury],
+          [[]],
+          [[[AccountRole.Assistant, AccountRole.Manager]]],
+        );
         await expect(fundsFacet.withdrawFunds(sellerId, treasury, [], []))
-          .to.be.revertedWithCustomError(fermionErrors, "NotEntityTreasury")
-          .withArgs(sellerId, treasury);
+          .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+          .withArgs(treasury, sellerId, AccountRole.Treasury);
       });
 
       it("Token list and token amounts length mismatch", async function () {
@@ -567,33 +577,33 @@ describe("Funds", function () {
       });
 
       it("Treasury reverts", async function () {
-        const contractWalletFactory = await ethers.getContractFactory("ContractWallet");
-        const contractWallet = await contractWalletFactory.deploy();
-        const contractWalletWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
-        const contractWalletWithReceive = await contractWalletWithReceiveFactory.deploy();
+        const contractAccountFactory = await ethers.getContractFactory("ContractWallet");
+        const contractAccount = await contractAccountFactory.deploy();
+        const contractAccountWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
+        const contractAccountWithReceive = await contractAccountWithReceiveFactory.deploy();
 
-        const contractWalletAddress = await contractWallet.getAddress();
-        const contractWalletWithReceiveAddress = await contractWalletWithReceive.getAddress();
+        const contractAccountAddress = await contractAccount.getAddress();
+        const contractAccountWithReceiveAddress = await contractAccountWithReceive.getAddress();
 
-        await entityFacet.addEntityWallets(
+        await entityFacet.addEntityAccounts(
           sellerId,
-          [contractWalletAddress, contractWalletWithReceiveAddress],
+          [contractAccountAddress, contractAccountWithReceiveAddress],
           [[], []],
-          [[[WalletRole.Treasury]], [[WalletRole.Treasury]]],
+          [[[AccountRole.Treasury]], [[AccountRole.Treasury]]],
         );
 
         // contract without receive function
-        await expect(fundsFacet.withdrawFunds(sellerId, contractWalletAddress, [ZeroAddress], [amountNative]))
+        await expect(fundsFacet.withdrawFunds(sellerId, contractAccountAddress, [ZeroAddress], [amountNative]))
           .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
-          .withArgs(contractWalletAddress, amountNative, "0x");
+          .withArgs(contractAccountAddress, amountNative, "0x");
 
         // contract with receive function, but reverting
-        await contractWalletWithReceive.setAcceptingMoney(false);
+        await contractAccountWithReceive.setAcceptingMoney(false);
         await expect(
-          fundsFacet.withdrawFunds(sellerId, contractWalletWithReceiveAddress, [ZeroAddress], [amountNative]),
+          fundsFacet.withdrawFunds(sellerId, contractAccountWithReceiveAddress, [ZeroAddress], [amountNative]),
         )
           .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
-          .withArgs(contractWalletWithReceiveAddress, amountNative, id("NotAcceptingMoney()").slice(0, 10));
+          .withArgs(contractAccountWithReceiveAddress, amountNative, id("NotAcceptingMoney()").slice(0, 10));
       });
     });
   });
@@ -633,8 +643,8 @@ describe("Funds", function () {
     it("Withdraw all", async function () {
       const entityAvailableFundsNative = await fundsFacet.getAvailableFunds(protocolId, ZeroAddress);
       const entityAvailableFundsMockToken1 = await fundsFacet.getAvailableFunds(protocolId, mockToken1Address);
-      const adminBalanceNative = await ethers.provider.getBalance(protocolTreasury);
-      const adminBalanceMockToken1 = await mockToken1.balanceOf(protocolTreasury);
+      const treasuryBalanceNative = await ethers.provider.getBalance(protocolTreasury);
+      const treasuryBalanceMockToken1 = await mockToken1.balanceOf(protocolTreasury);
 
       // Withdraw funds
       const tx = await fundsFacet.connect(feeCollector).withdrawProtocolFees([], [], { gasPrice: 0 });
@@ -654,8 +664,8 @@ describe("Funds", function () {
       expect(await fundsFacet.getAvailableFunds(protocolId, ZeroAddress)).to.equal(
         entityAvailableFundsMockToken1 - amountMockToken,
       );
-      expect(await ethers.provider.getBalance(protocolTreasury)).to.equal(adminBalanceNative + amountNative);
-      expect(await mockToken1.balanceOf(protocolTreasury)).to.equal(adminBalanceMockToken1 + amountMockToken);
+      expect(await ethers.provider.getBalance(protocolTreasury)).to.equal(treasuryBalanceNative + amountNative);
+      expect(await mockToken1.balanceOf(protocolTreasury)).to.equal(treasuryBalanceMockToken1 + amountMockToken);
     });
 
     it("Token list is updated correctly", async function () {
@@ -694,19 +704,19 @@ describe("Funds", function () {
     });
 
     it("Treasury can be a contract wallet", async function () {
-      const contractWalletWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
-      const contractWalletWithReceive = await contractWalletWithReceiveFactory.deploy();
-      const contractWalletWithReceiveAddress = await contractWalletWithReceive.getAddress();
+      const contractAccountWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
+      const contractAccountWithReceive = await contractAccountWithReceiveFactory.deploy();
+      const contractAccountWithReceiveAddress = await contractAccountWithReceive.getAddress();
 
-      await configFacet.setTreasuryAddress(contractWalletWithReceiveAddress);
+      await configFacet.setTreasuryAddress(contractAccountWithReceiveAddress);
 
       // contract without receive function
       const tx = await fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative]);
       await expect(tx)
         .to.emit(fundsFacet, "FundsWithdrawn")
-        .withArgs(protocolId, contractWalletWithReceiveAddress, ZeroAddress, amountNative);
+        .withArgs(protocolId, contractAccountWithReceiveAddress, ZeroAddress, amountNative);
       await expect(tx)
-        .to.emit(contractWalletWithReceive, "FundsReceived")
+        .to.emit(contractAccountWithReceive, "FundsReceived")
         .withArgs(fermionProtocolAddress, amountNative);
     });
 
@@ -773,26 +783,26 @@ describe("Funds", function () {
       });
 
       it("Treasury reverts", async function () {
-        const contractWalletFactory = await ethers.getContractFactory("ContractWallet");
-        const contractWallet = await contractWalletFactory.deploy();
-        const contractWalletWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
-        const contractWalletWithReceive = await contractWalletWithReceiveFactory.deploy();
+        const contractAccountFactory = await ethers.getContractFactory("ContractWallet");
+        const contractAccount = await contractAccountFactory.deploy();
+        const contractAccountWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
+        const contractAccountWithReceive = await contractAccountWithReceiveFactory.deploy();
 
-        const contractWalletAddress = await contractWallet.getAddress();
-        const contractWalletWithReceiveAddress = await contractWalletWithReceive.getAddress();
+        const contractAccountAddress = await contractAccount.getAddress();
+        const contractAccountWithReceiveAddress = await contractAccountWithReceive.getAddress();
 
-        await configFacet.setTreasuryAddress(contractWalletAddress);
+        await configFacet.setTreasuryAddress(contractAccountAddress);
         // contract without receive function
         await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative]))
           .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
-          .withArgs(contractWalletAddress, amountNative, "0x");
+          .withArgs(contractAccountAddress, amountNative, "0x");
 
         // contract with receive function, but reverting
-        await configFacet.setTreasuryAddress(contractWalletWithReceiveAddress);
-        await contractWalletWithReceive.setAcceptingMoney(false);
+        await configFacet.setTreasuryAddress(contractAccountWithReceiveAddress);
+        await contractAccountWithReceive.setAcceptingMoney(false);
         await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative]))
           .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
-          .withArgs(contractWalletWithReceiveAddress, amountNative, id("NotAcceptingMoney()").slice(0, 10));
+          .withArgs(contractAccountWithReceiveAddress, amountNative, id("NotAcceptingMoney()").slice(0, 10));
       });
     });
   });

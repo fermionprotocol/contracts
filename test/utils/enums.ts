@@ -20,8 +20,8 @@ export enum TokenState {
   Burned,
 }
 
-export enum WalletRole {
-  Admin,
+export enum AccountRole {
+  Manager,
   Assistant,
   Treasury,
 }
