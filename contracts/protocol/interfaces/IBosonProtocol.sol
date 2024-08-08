@@ -63,7 +63,7 @@ interface IBosonProtocol {
 
     struct Buyer {
         uint256 id;
-        address payable wallet;
+        address payable account;
         bool active;
     }
 

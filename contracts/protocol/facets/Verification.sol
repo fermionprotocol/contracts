@@ -125,11 +125,11 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
 
         if (!_afterTimeout) {
             // Check the caller is the verifier's assistant
-            EntityLib.validateWalletRole(
+            EntityLib.validateAccountRole(
                 verifierId,
                 _msgSender(),
                 FermionTypes.EntityRole.Verifier,
-                FermionTypes.WalletRole.Assistant
+                FermionTypes.AccountRole.Assistant
             );
         }
 

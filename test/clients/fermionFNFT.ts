@@ -17,6 +17,7 @@ describe("FermionFNFT", function () {
   const quantity = 10n;
   const additionalDeposit = 0n;
   const offerId = 123n;
+  const metadataURI = "https://example.com";
 
   async function setupFermionFNFTTest() {
     wallets = await ethers.getSigners();
@@ -64,6 +65,7 @@ describe("FermionFNFT", function () {
         wrapperContractOwner.address,
         await mockExchangeToken.getAddress(),
         offerId,
+        metadataURI,
       );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
@@ -133,7 +135,7 @@ describe("FermionFNFT", function () {
     });
 
     context("Approve fractions transfer", async function () {
-      let approvedWallet: HardhatEthersSigner;
+      let approvedAccount: HardhatEthersSigner;
       const fractionsAmount = 5000n * 10n ** 18n;
 
       beforeEach(async function () {
@@ -165,28 +167,28 @@ describe("FermionFNFT", function () {
             additionalDeposit,
           );
 
-        approvedWallet = wallets[4];
+        approvedAccount = wallets[4];
       });
 
       it("Standard ERC20 approval", async function () {
         // Approve fractions transfer
-        await expect(fermionFNFTProxy.connect(seller).approve(approvedWallet.address, fractionsAmount))
+        await expect(fermionFNFTProxy.connect(seller).approve(approvedAccount.address, fractionsAmount))
           .to.emit(fermionFNFTProxy, "Approval")
-          .withArgs(seller.address, approvedWallet.address, fractionsAmount);
+          .withArgs(seller.address, approvedAccount.address, fractionsAmount);
 
         // Get allowance
-        expect(await fermionFNFTProxy.allowance(seller.address, approvedWallet.address)).to.equal(fractionsAmount);
+        expect(await fermionFNFTProxy.allowance(seller.address, approvedAccount.address)).to.equal(fractionsAmount);
 
         // Transfer fractions
         await fermionFNFTProxy
-          .connect(approvedWallet)
-          .transferFrom(seller.address, approvedWallet.address, fractionsAmount);
+          .connect(approvedAccount)
+          .transferFrom(seller.address, approvedAccount.address, fractionsAmount);
 
         // Allowance should be 0
-        expect(await fermionFNFTProxy.allowance(seller.address, approvedWallet.address)).to.equal(0);
+        expect(await fermionFNFTProxy.allowance(seller.address, approvedAccount.address)).to.equal(0);
 
         // Check balance
-        expect(await fermionFNFTProxy.balanceOfERC20(approvedWallet.address)).to.equal(fractionsAmount);
+        expect(await fermionFNFTProxy.balanceOfERC20(approvedAccount.address)).to.equal(fractionsAmount);
         expect(await fermionFNFTProxy.balanceOfERC20(seller.address)).to.equal(0);
       });
 
@@ -194,22 +196,22 @@ describe("FermionFNFT", function () {
         const unlimitedFractions = MaxUint256;
 
         // Approve fractions transfer
-        await expect(fermionFNFTProxy.connect(seller).approve(approvedWallet.address, unlimitedFractions))
+        await expect(fermionFNFTProxy.connect(seller).approve(approvedAccount.address, unlimitedFractions))
           .to.emit(fermionFNFTProxy, "Approval")
-          .withArgs(seller.address, approvedWallet.address, unlimitedFractions);
+          .withArgs(seller.address, approvedAccount.address, unlimitedFractions);
 
         // Get allowance
-        expect(await fermionFNFTProxy.allowance(seller.address, approvedWallet.address)).to.equal(unlimitedFractions);
+        expect(await fermionFNFTProxy.allowance(seller.address, approvedAccount.address)).to.equal(unlimitedFractions);
 
         // Transfer fractions
         await fermionFNFTProxy
-          .connect(approvedWallet)
-          .transferFrom(seller.address, approvedWallet.address, fractionsAmount);
+          .connect(approvedAccount)
+          .transferFrom(seller.address, approvedAccount.address, fractionsAmount);
 
-        expect(await fermionFNFTProxy.allowance(seller.address, approvedWallet.address)).to.equal(unlimitedFractions);
+        expect(await fermionFNFTProxy.allowance(seller.address, approvedAccount.address)).to.equal(unlimitedFractions);
 
         // Check balance
-        expect(await fermionFNFTProxy.balanceOfERC20(approvedWallet.address)).to.equal(fractionsAmount);
+        expect(await fermionFNFTProxy.balanceOfERC20(approvedAccount.address)).to.equal(fractionsAmount);
         expect(await fermionFNFTProxy.balanceOfERC20(seller.address)).to.equal(0);
       });
     });

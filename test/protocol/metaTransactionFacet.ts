@@ -1218,7 +1218,9 @@ describe("MetaTransactions", function () {
           const Proxy = await ethers.getContractFactory("MockProxy");
           const proxy = await Proxy.deploy(await metaTxTest.getAddress());
           const metaTxTestProxy = await ethers.getContractAt("MetaTxTest", await proxy.getAddress());
-          await metaTxTestProxy.connect(trustedForwarder).initialize(dummyAddress, dummyAddress, dummyAddress, "1");
+          await metaTxTestProxy
+            .connect(trustedForwarder)
+            .initialize(dummyAddress, dummyAddress, dummyAddress, "1", "http://metadata");
 
           data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
           dataWithAddress = data + buyer.address.slice(2).toLowerCase();

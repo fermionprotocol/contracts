@@ -46,11 +46,11 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         uint256 custodianId = offer.custodianId;
 
         // Check the caller is the custodian's assistant
-        EntityLib.validateWalletRole(
+        EntityLib.validateAccountRole(
             custodianId,
             _msgSender(),
             FermionTypes.EntityRole.Custodian,
-            FermionTypes.WalletRole.Assistant
+            FermionTypes.AccountRole.Assistant
         );
 
         pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(_tokenId, FermionTypes.TokenState.CheckedIn);
@@ -86,11 +86,11 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         uint256 custodianId = offer.custodianId;
 
         // Check the caller is the verifier's assistant
-        EntityLib.validateWalletRole(
+        EntityLib.validateAccountRole(
             custodianId,
             _msgSender(),
             FermionTypes.EntityRole.Custodian,
-            FermionTypes.WalletRole.Assistant
+            FermionTypes.AccountRole.Assistant
         );
 
         CustodyLib.closeCustodianItemVault(_tokenId, custodianId, offer.exchangeToken);
