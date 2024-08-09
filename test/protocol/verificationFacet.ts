@@ -11,7 +11,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, TokenState, VerificationStatus, WalletRole } from "../utils/enums";
+import { EntityRole, PausableRegion, TokenState, VerificationStatus, AccountRole } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { getBosonHandler } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
@@ -569,44 +569,44 @@ describe("Verification", function () {
 
         // completely random wallet
         await expect(verificationFacet.connect(wallet).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(verifierId, wallet.address, EntityRole.Verifier, WalletRole.Assistant);
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet.address, EntityRole.Verifier, AccountRole.Assistant);
 
         // seller
         await expect(verificationFacet.submitVerdict(exchange.tokenId, VerificationStatus.Verified))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(verifierId, defaultSigner.address, EntityRole.Verifier, WalletRole.Assistant);
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, defaultSigner.address, EntityRole.Verifier, AccountRole.Assistant);
 
-        // an entity-wide Treasury or admin wallet (not Assistant)
+        // an entity-wide Treasury or Manager wallet (not Assistant)
         await entityFacet
           .connect(verifier)
-          .addEntityWallets(verifierId, [wallet], [[]], [[[WalletRole.Treasury, WalletRole.Admin]]]);
+          .addEntityAccounts(verifierId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
         await expect(verificationFacet.connect(wallet).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(verifierId, wallet.address, EntityRole.Verifier, WalletRole.Assistant);
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet.address, EntityRole.Verifier, AccountRole.Assistant);
 
-        // a Verifier specific Treasury or Admin wallet
+        // a Verifier specific Treasury or Manager wallet
         const wallet2 = wallets[10];
         await entityFacet
           .connect(verifier)
-          .addEntityWallets(
+          .addEntityAccounts(
             verifierId,
             [wallet2],
             [[EntityRole.Verifier]],
-            [[[WalletRole.Treasury, WalletRole.Admin]]],
+            [[[AccountRole.Treasury, AccountRole.Manager]]],
           );
         await expect(verificationFacet.connect(wallet2).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(verifierId, wallet2.address, EntityRole.Verifier, WalletRole.Assistant);
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet2.address, EntityRole.Verifier, AccountRole.Assistant);
 
         // an Assistant of another role than Verifier
         await entityFacet.connect(verifier).updateEntity(verifierId, [EntityRole.Verifier, EntityRole.Custodian], "");
         await entityFacet
           .connect(verifier)
-          .addEntityWallets(verifierId, [wallet2], [[EntityRole.Custodian]], [[[WalletRole.Assistant]]]);
+          .addEntityAccounts(verifierId, [wallet2], [[EntityRole.Custodian]], [[[AccountRole.Assistant]]]);
         await expect(verificationFacet.connect(wallet2).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
-          .to.be.revertedWithCustomError(fermionErrors, "WalletHasNoRole")
-          .withArgs(verifierId, wallet2.address, EntityRole.Verifier, WalletRole.Assistant);
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet2.address, EntityRole.Verifier, AccountRole.Assistant);
       });
 
       it("Cannot verify twice", async function () {

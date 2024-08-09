@@ -16,8 +16,8 @@ contract FermionTypes {
     }
 
     // Make at most 8 roles so they can be compacted into a byte
-    enum WalletRole {
-        Admin,
+    enum AccountRole {
+        Manager,
         Assistant,
         Treasury
     }

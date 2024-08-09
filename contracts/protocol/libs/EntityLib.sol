@@ -36,8 +36,8 @@ library EntityLib {
         FermionTypes.EntityData storage newEntity = pe.entityData[entityId];
 
         storeEntity(entityId, _admin, newEntity, _roles, _metadata);
-        storeCompactWalletRole(entityId, _admin, 0xff << (31 * BYTE_SIZE), true, pl, pe); // compact role for all current and potential future roles
-        emitAdminWalletAddedOrRemoved(entityId, _admin, true);
+        storeCompactAccountRole(entityId, _admin, 0xff << (31 * BYTE_SIZE), true, pl, pe); // compact role for all current and potential future roles
+        emitManagerAccountAddedOrRemoved(entityId, _admin, true);
     }
 
     /**
@@ -71,52 +71,57 @@ library EntityLib {
     }
 
     /**
-     * @notice Stores compact wallet role for the entity and wallet.
+     * @notice Stores compact account role for the entity and account.
      *
      * @param _entityId - the entity ID
-     * @param _wallet - the wallet address
-     * @param _compactWalletRole - the compact wallet role
-     * @param _add - if true, the wallet is added, if false, it is removed
+     * @param _account - the account address
+     * @param _compactAccountRole - the compact account role
+     * @param _add - if true, the account is added, if false, it is removed
      * @param pl - the protocol lookups storage
      * @param pe - the protocol entities storage
      */
-    function storeCompactWalletRole(
+    function storeCompactAccountRole(
         uint256 _entityId,
-        address _wallet,
-        uint256 _compactWalletRole,
+        address _account,
+        uint256 _compactAccountRole,
         bool _add,
         FermionStorage.ProtocolLookups storage pl,
         FermionStorage.ProtocolEntities storage pe
     ) internal {
-        uint256 walletId = pl.walletId[_wallet];
+        uint256 accountId = pl.accountId[_account];
 
-        if (walletId == 0) {
-            walletId = ++pl.walletsCounter;
-            pl.walletId[_wallet] = walletId;
+        if (accountId == 0) {
+            accountId = ++pl.accountsCounter;
+            pl.accountId[_account] = accountId;
         }
 
         if (_add) {
-            pe.walletRole[walletId][_entityId] |= _compactWalletRole;
+            pe.accountRole[accountId][_entityId] |= _compactAccountRole;
         } else {
-            pe.walletRole[walletId][_entityId] &= ~_compactWalletRole;
+            pe.accountRole[accountId][_entityId] &= ~_compactAccountRole;
         }
     }
 
     /**
-     * @notice Creates event arguments and emits EntityWalletAdded, when entity-wide admin is added or removed.
+     * @notice Creates event arguments and emits EntityAccountAdded, when entity-wide manager is added or removed.
      *
      * @param _entityId - the entity ID
-     * @param _wallet - the admin wallet address
-     * @param _added - if true, the wallet is added, if false, it is removed
+     * @param _account - the admin account address
+     * @param _added - if true, the account is added, if false, it is removed
      */
-    function emitAdminWalletAddedOrRemoved(uint256 _entityId, address _wallet, bool _added) internal {
-        FermionTypes.WalletRole[][] memory adminWallet = new FermionTypes.WalletRole[][](1);
-        adminWallet[0] = new FermionTypes.WalletRole[](1);
-        adminWallet[0][0] = FermionTypes.WalletRole.Admin;
+    function emitManagerAccountAddedOrRemoved(uint256 _entityId, address _account, bool _added) internal {
+        FermionTypes.AccountRole[][] memory adminAccount = new FermionTypes.AccountRole[][](1);
+        adminAccount[0] = new FermionTypes.AccountRole[](1);
+        adminAccount[0][0] = FermionTypes.AccountRole.Manager;
         if (_added) {
-            emit IEntityEvents.EntityWalletAdded(_entityId, _wallet, new FermionTypes.EntityRole[](0), adminWallet);
+            emit IEntityEvents.EntityAccountAdded(_entityId, _account, new FermionTypes.EntityRole[](0), adminAccount);
         } else {
-            emit IEntityEvents.EntityWalletRemoved(_entityId, _wallet, new FermionTypes.EntityRole[](0), adminWallet);
+            emit IEntityEvents.EntityAccountRemoved(
+                _entityId,
+                _account,
+                new FermionTypes.EntityRole[](0),
+                adminAccount
+            );
         }
     }
 
@@ -138,62 +143,62 @@ library EntityLib {
     }
 
     /**
-     * @notice Tells if a wallet has a specific wallet role for entity id and its role.
+     * @notice Tells if a account has a specific account role for entity id and its role.
      *
      * @param _entityId - the entity ID
-     * @param _walletAddress - the address of the wallet
+     * @param _accountAddress - the address of the account
      * @param _entityRole - the role of the entity
-     * @param _walletRole - the wallet role
-     * @param _requireEntityWide - if true, the wallet must have the role entity-wide
+     * @param _accountRole - the account role
+     * @param _requireEntityWide - if true, the account must have the role entity-wide
      */
-    function hasWalletRole(
+    function hasAccountRole(
         uint256 _entityId,
-        address _walletAddress,
+        address _accountAddress,
         FermionTypes.EntityRole _entityRole,
-        FermionTypes.WalletRole _walletRole,
+        FermionTypes.AccountRole _accountRole,
         bool _requireEntityWide
     ) internal view returns (bool) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         validateEntityId(_entityId, pl);
 
-        uint256 walletId = pl.walletId[_walletAddress];
+        uint256 accountId = pl.accountId[_accountAddress];
 
-        if (walletId == 0) return false;
+        if (accountId == 0) return false;
 
-        uint256 compactWalletRole = FermionStorage.protocolEntities().walletRole[walletId][_entityId];
-        uint256 walletRole = 1 << uint256(_walletRole);
-        uint256 entityWidePermission = compactWalletRole >> (31 * BYTE_SIZE);
+        uint256 compactAccountRole = FermionStorage.protocolEntities().accountRole[accountId][_entityId];
+        uint256 accountRole = 1 << uint256(_accountRole);
+        uint256 entityWidePermission = compactAccountRole >> (31 * BYTE_SIZE);
 
         return
-            (entityWidePermission & walletRole != 0) ||
-            (!_requireEntityWide && hasWalletRoleSpecificPermission(_entityRole, walletRole, compactWalletRole));
+            (entityWidePermission & accountRole != 0) ||
+            (!_requireEntityWide && hasAccountRoleSpecificPermission(_entityRole, accountRole, compactAccountRole));
     }
 
-    function hasWalletRoleSpecificPermission(
+    function hasAccountRoleSpecificPermission(
         FermionTypes.EntityRole _entityRole,
-        uint256 _walletRole,
-        uint256 _compactWalletRole
+        uint256 _accountRole,
+        uint256 _compactAccountRole
     ) internal pure returns (bool) {
-        uint256 roleSpecificPermission = _compactWalletRole >> (uint256(_entityRole) * BYTE_SIZE);
-        return roleSpecificPermission & _walletRole != 0;
+        uint256 roleSpecificPermission = _compactAccountRole >> (uint256(_entityRole) * BYTE_SIZE);
+        return roleSpecificPermission & _accountRole != 0;
     }
 
     /**
-     * @notice  Reverts if wallet does not have the role
+     * @notice  Reverts if account does not have the role
      *
      * @param _entityId - the entity ID
-     * @param _walletAddress - the address of the wallet
+     * @param _accountAddress - the address of the account
      * @param _entityRole - the role to check
-     * @param _walletRole - the wallet role to check
+     * @param _accountRole - the account role to check
      */
-    function validateWalletRole(
+    function validateAccountRole(
         uint256 _entityId,
-        address _walletAddress,
+        address _accountAddress,
         FermionTypes.EntityRole _entityRole,
-        FermionTypes.WalletRole _walletRole
+        FermionTypes.AccountRole _accountRole
     ) internal view {
-        if (!hasWalletRole(_entityId, _walletAddress, _entityRole, _walletRole, false)) {
-            revert EntityErrors.WalletHasNoRole(_entityId, _walletAddress, _entityRole, _walletRole);
+        if (!hasAccountRole(_entityId, _accountAddress, _entityRole, _accountRole, false)) {
+            revert EntityErrors.AccountHasNoRole(_entityId, _accountAddress, _entityRole, _accountRole);
         }
     }
 
@@ -233,14 +238,14 @@ library EntityLib {
      * Reverts if:
      * - Entity does not exist
      *
-     * @param _adminWallet - the address of the entity's admin
+     * @param _adminAccount - the address of the entity's admin
      * @return entityId - the entity ID
      * @return entityData -  storage pointer to data location
      */
     function fetchEntityData(
-        address _adminWallet
+        address _adminAccount
     ) internal view returns (uint256 entityId, FermionTypes.EntityData storage entityData) {
-        entityId = FermionStorage.protocolLookups().entityId[_adminWallet];
+        entityId = FermionStorage.protocolLookups().entityId[_adminAccount];
         if (entityId == 0) revert EntityErrors.NoSuchEntity(0);
 
         entityData = FermionStorage.protocolEntities().entityData[entityId];
@@ -284,34 +289,34 @@ library EntityLib {
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorId - the facilitator's entity ID
-     * @param _walletAddress - the address of the wallet
+     * @param _accountAddress - the address of the account
      */
     function validateSellerAssistantOrFacilitator(
         uint256 _sellerId,
         uint256 _facilitatorId,
-        address _walletAddress
+        address _accountAddress
     ) internal view {
         if (
-            !hasWalletRole(
+            !hasAccountRole(
                 _sellerId,
-                _walletAddress,
+                _accountAddress,
                 FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant,
+                FermionTypes.AccountRole.Assistant,
                 false
             ) &&
-            !hasWalletRole(
+            !hasAccountRole(
                 _facilitatorId,
-                _walletAddress,
+                _accountAddress,
                 FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant,
+                FermionTypes.AccountRole.Assistant,
                 false
             )
         ) {
-            revert EntityErrors.WalletHasNoRole(
+            revert EntityErrors.AccountHasNoRole(
                 _sellerId,
-                _walletAddress,
+                _accountAddress,
                 FermionTypes.EntityRole.Seller,
-                FermionTypes.WalletRole.Assistant
+                FermionTypes.AccountRole.Assistant
             );
         }
     }
@@ -320,7 +325,7 @@ library EntityLib {
         address _buyerAddress,
         FermionStorage.ProtocolLookups storage pl
     ) internal returns (uint256 buyerId) {
-        buyerId = pl.walletId[_buyerAddress];
+        buyerId = pl.accountId[_buyerAddress];
 
         if (buyerId == 0) {
             FermionTypes.EntityRole[] memory _roles = new FermionTypes.EntityRole[](1);

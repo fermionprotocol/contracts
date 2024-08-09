@@ -29,7 +29,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
-     * @notice Sets the Boson Protocol multi-sig wallet address.
+     * @notice Sets the Fermion Protocol multi-sig account address.
      *
      * Emits a TreasuryAddressChanged event if successful.
      *
@@ -38,7 +38,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      * - The _treasuryAddress is the zero address
      *
      *
-     * @param _treasuryAddress - the the multi-sig wallet address
+     * @param _treasuryAddress - the the multi-sig account address
      */
     function setTreasuryAddress(
         address payable _treasuryAddress
@@ -47,9 +47,9 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
-     * @notice Gets the Boson Protocol multi-sig wallet address.
+     * @notice Gets the Fermion Protocol multi-sig account address.
      *
-     * @return the Boson Protocol multi-sig wallet address
+     * @return the Fermion Protocol multi-sig account address
      */
     function getTreasuryAddress() external view returns (address payable) {
         return FermionStorage.protocolConfig().treasury;
@@ -161,13 +161,13 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
-     * @notice Sets the Boson Protocol multi-sig wallet address.
+     * @notice Sets the Boson Protocol multi-sig account address.
      *
      * Emits a TreasuryAddressChanged event if successful.
      *
      * Reverts if _treasuryAddress is the zero address
      *
-     * @param _treasuryAddress - the the multi-sig wallet address
+     * @param _treasuryAddress - the the multi-sig account address
      */
     function setTreasuryAddressInternal(address payable _treasuryAddress) internal {
         checkNonZeroAddress(_treasuryAddress);

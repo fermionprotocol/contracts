@@ -20,7 +20,7 @@ import { FermionWrapper } from "../clients/FermionWrapper.sol";
 contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRole).max) + 1;
     uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
-    uint256 private constant WALLET_ROLE_MASK = (1 << (uint256(type(FermionTypes.WalletRole).max) + 1)) - 1;
+    uint256 private constant WALLET_ROLE_MASK = (1 << (uint256(type(FermionTypes.AccountRole).max) + 1)) - 1;
 
     /**
      * @notice Creates an entity.
@@ -47,109 +47,109 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-     * @notice Add entity wallets.
+     * @notice Add entity accounts.
      *
-     * Each address can have multiple wallet roles from FermionTypes.WalletRole
-     * For each role that the entity has, the wallet roles are set independently.
+     * Each address can have multiple account roles from FermionTypes.AccountRole
+     * For each role that the entity has, the account roles are set independently.
      *
-     * Emits an EntityWalletAdded event if successful.
+     * Emits an EntityAccountAdded event if successful.
      *
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
      * - Caller is not an admin for the entity role
-     * - Length of _wallets, _entityRoles and _walletRoles do not match
+     * - Length of _accounts, _entityRoles and _accountRoles do not match
      * - Entity does not have the role
      *
-     * @param _wallets - list of wallets that acts on the seller's behalf
-     * @param _entityRoles - list of corresponding roles, for which the address is given a certain wallet role. If entityRoles[i] is empty, the address is given the wallet role to all entity roles.
-     * @param _walletRoles - list of wallet roles for each wallet and entity role
+     * @param _accounts - list of accounts that acts on the seller's behalf
+     * @param _entityRoles - list of corresponding roles, for which the address is given a certain account role. If entityRoles[i] is empty, the address is given the account role to all entity roles.
+     * @param _accountRoles - list of account roles for each account and entity role
      */
-    function addEntityWallets(
+    function addEntityAccounts(
         uint256 _entityId,
-        address[] calldata _wallets,
+        address[] calldata _accounts,
         FermionTypes.EntityRole[][] calldata _entityRoles,
-        FermionTypes.WalletRole[][][] calldata _walletRoles
+        FermionTypes.AccountRole[][][] calldata _accountRoles
     ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
-        addOrRemoveEntityWallets(_entityId, _wallets, _entityRoles, _walletRoles, true);
+        addOrRemoveEntityAccounts(_entityId, _accounts, _entityRoles, _accountRoles, true);
     }
 
     /**
-     * @notice Remove entity wallets.
+     * @notice Remove entity accounts.
      *
-     * Emits an EntityWalletRemoved event if successful.
+     * Emits an EntityAccountRemoved event if successful.
      *
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
      * - Caller is not the admin for the entity role
-     * - Length of _wallets, _entityRoles and _walletRoles do not match
+     * - Length of _accounts, _entityRoles and _accountRoles do not match
      * - Entity does not have the role
      *
      * @param _entityId - the entity ID
-     * @param _wallets - list of wallets that acts on the seller's behalf
-     * @param _entityRoles - list of corresponding roles, for which the address is given a certain wallet role. If entityRoles[i] is empty, the address is given the wallet role to all entity roles.
-     * @param _walletRoles - list of wallet roles for each wallet and entity role
+     * @param _accounts - list of accounts that acts on the seller's behalf
+     * @param _entityRoles - list of corresponding roles, for which the address is given a certain account role. If entityRoles[i] is empty, the address is given the account role to all entity roles.
+     * @param _accountRoles - list of account roles for each account and entity role
      */
-    function removeEntityWallets(
+    function removeEntityAccounts(
         uint256 _entityId,
-        address[] calldata _wallets,
+        address[] calldata _accounts,
         FermionTypes.EntityRole[][] calldata _entityRoles,
-        FermionTypes.WalletRole[][][] calldata _walletRoles
+        FermionTypes.AccountRole[][][] calldata _accountRoles
     ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
-        addOrRemoveEntityWallets(_entityId, _wallets, _entityRoles, _walletRoles, false);
+        addOrRemoveEntityAccounts(_entityId, _accounts, _entityRoles, _accountRoles, false);
     }
 
     /**
-     * @notice Remove entity wallets.
+     * @notice Remove entity accounts.
      *
-     * Emits an EntityWalletRemoved event if successful.
+     * Emits an EntityAccountRemoved event if successful.
      *
      * Reverts if:
      * - Entity does not exist
      * - Caller is not the admin for the entity role
-     * - Length of _wallets, _entityRoles and _walletRoles do not match
+     * - Length of _accounts, _entityRoles and _accountRoles do not match
      * - Entity does not have the role
      *
      * @param _entityId - the entity ID
-     * @param _wallets - list of wallets that acts on the seller's behalf
-     * @param _entityRoles - list of corresponding roles, for which the address is given a certain wallet role. If entityRoles[i] is empty, the address is given the wallet role to all entity roles.
-     * @param _walletRoles - list of wallet roles for each wallet and entity role
-     * @param _add - if true, the wallet is added, if false, it is removed
+     * @param _accounts - list of accounts that acts on the seller's behalf
+     * @param _entityRoles - list of corresponding roles, for which the address is given a certain account role. If entityRoles[i] is empty, the address is given the account role to all entity roles.
+     * @param _accountRoles - list of account roles for each account and entity role
+     * @param _add - if true, the account is added, if false, it is removed
      */
-    function addOrRemoveEntityWallets(
+    function addOrRemoveEntityAccounts(
         uint256 _entityId,
-        address[] calldata _wallets,
+        address[] calldata _accounts,
         FermionTypes.EntityRole[][] calldata _entityRoles,
-        FermionTypes.WalletRole[][][] calldata _walletRoles,
+        FermionTypes.AccountRole[][][] calldata _accountRoles,
         bool _add
     ) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = _entityId; // for some reason this solves the stack too deep error
         EntityLib.validateEntityId(entityId, pl);
-        if (_wallets.length != _entityRoles.length)
-            revert FermionGeneralErrors.ArrayLengthMismatch(_wallets.length, _entityRoles.length);
-        if (_wallets.length != _walletRoles.length)
-            revert FermionGeneralErrors.ArrayLengthMismatch(_wallets.length, _walletRoles.length);
+        if (_accounts.length != _entityRoles.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_accounts.length, _entityRoles.length);
+        if (_accounts.length != _accountRoles.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_accounts.length, _accountRoles.length);
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
 
         uint256 compactEntityRoles = pe.entityData[entityId].roles;
-        for (uint256 i = 0; i < _wallets.length; i++) {
-            address wallet = _wallets[i];
+        for (uint256 i = 0; i < _accounts.length; i++) {
+            address account = _accounts[i];
 
-            uint256 compactWalletRole = getCompactWalletRole(
+            uint256 compactAccountRole = getCompactAccountRole(
                 entityId,
                 compactEntityRoles,
                 _entityRoles[i],
-                _walletRoles[i]
+                _accountRoles[i]
             );
 
-            EntityLib.storeCompactWalletRole(entityId, wallet, compactWalletRole, _add, pl, pe);
+            EntityLib.storeCompactAccountRole(entityId, account, compactAccountRole, _add, pl, pe);
             if (_add) {
-                emit EntityWalletAdded(entityId, wallet, _entityRoles[i], _walletRoles[i]);
+                emit EntityAccountAdded(entityId, account, _entityRoles[i], _accountRoles[i]);
             } else {
-                emit EntityWalletRemoved(entityId, wallet, _entityRoles[i], _walletRoles[i]);
+                emit EntityAccountRemoved(entityId, account, _entityRoles[i], _accountRoles[i]);
             }
         }
     }
@@ -164,7 +164,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an entity admin
+     * - Caller is not the entity's admin
      * - Facilitator does not have a seller role
      * - Facilitator is already a facilitator for the seller
      *
@@ -186,7 +186,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an entity admin
+     * - Caller is not the entity's admin
      *
      * @dev Pausing modifier is enforced via `addOrRemoveFacilitators`
      *
@@ -197,74 +197,74 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         addOrRemoveFacilitators(_sellerId, _facilitatorIds, false);
     }
 
-    /** Add entity wide admin wallet.
+    /** Add entity wide admin account.
      *
-     * This is different from adding a wallet with admin role for each entity role.
-     * The wallet is given the admin role for all entity roles, even for roles that do not exist yet.
-     * A wallet can be an entity-wide admin for only one entity. This is not checked here, but
+     * This is different from adding a account with manager role for each entity role.
+     * The account is given the manager role for all entity roles, even for roles that do not exist yet.
+     * A account can be an entity-wide admin for only one entity. This is not checked here, but
      * only when the new admin makes its first entity admin action.
      *
-     * Emits an EntityAdminPending event if successful.
+     * Emits an AdminPending event if successful.
      *
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an entity admin
+     * - Caller is not the entity's admin
      *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     * @dev Pausing modifier is enforced via `validateAdmin`
      *
      * @param _entityId - the entity ID
-     * @param _wallet - the admin wallet address
+     * @param _account - the admin account address
      */
-    function setEntityAdmin(uint256 _entityId, address _wallet) external {
+    function setAdmin(uint256 _entityId, address _account) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
-        validateEntityAdmin(_entityId, pl);
+        validateAdmin(_entityId, pl);
 
         // set the pending admin
-        pl.entityLookups[_entityId].pendingEntityAdmin = _wallet;
+        pl.entityLookups[_entityId].pendingAdmin = _account;
 
-        emit EntityAdminPending(_entityId, _wallet);
+        emit AdminPending(_entityId, _account);
     }
 
     /**
-     * @notice Change the wallet address, i.e. transfers all wallet roles to the new address.
+     * @notice Change the account address, i.e. transfers all account roles to the new address.
      *
-     * If the wallet is an entity admin, it cannot change using this function.
-     * It should use setEntityAdmin to set a new wallet and then revoke the old admin.
+     * If the account is the entity's admin, it cannot change using this function.
+     * It should use setAdmin to set a new account and then revoke the old admin.
      *
-     * If the wallet is used for multiple entities, the change will affect all entities.
-     * If you want to change the wallet only for one entity, you need to remove the wallet from the entity
+     * If the account is used for multiple entities, the change will affect all entities.
+     * If you want to change the account only for one entity, you need to remove the account from the entity
      * and add it again with the new address.
      *
-     * Emits an WalletChanged event if successful.
+     * Emits an AccountChanged event if successful.
      *
      * Reverts if:
      * - Entity region is paused
-     * - New and old wallet are the same
-     * - Caller is an entity admin
-     * - Caller is not a wallet for any enitity
-     * - New wallet is already a wallet for an entity
+     * - New and old account are the same
+     * - Caller is the entity's admin
+     * - Caller is not a account for any enitity
+     * - New account is already a account for an entity
      *
-     * @param _newWallet - the new wallet address
+     * @param _newAccount - the new account address
      */
-    function changeWallet(address _newWallet) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
+    function changeAccount(address _newAccount) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         address msgSender = _msgSender();
-        if (msgSender == _newWallet) revert NewWalletSameAsOld();
+        if (msgSender == _newAccount) revert NewAccountSameAsOld();
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = pl.entityId[msgSender];
 
-        if (entityId != 0) revert ChangeNotAllowed(); // to change the entity admin, use setEntityAdmin and then revoke the old admin
+        if (entityId != 0) revert ChangeNotAllowed(); // to change the entity admin, use setAdmin and then revoke the old admin
 
-        uint256 walletId = pl.walletId[msgSender];
-        if (walletId == 0) revert NoSuchEntity(0);
-        delete pl.walletId[msgSender];
+        uint256 accountId = pl.accountId[msgSender];
+        if (accountId == 0) revert NoSuchEntity(0);
+        delete pl.accountId[msgSender];
 
-        if (pl.walletId[_newWallet] != 0) revert WalletAlreadyExists(_newWallet);
-        pl.walletId[_newWallet] = walletId;
+        if (pl.accountId[_newAccount] != 0) revert AccountAlreadyExists(_newAccount);
+        pl.accountId[_newAccount] = accountId;
 
-        emit WalletChanged(msgSender, _newWallet);
+        emit AccountChanged(msgSender, _newAccount);
     }
 
     /**
@@ -277,7 +277,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity does not exist
      * - Caller is not an admin for the entity role
      *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     * @dev Pausing modifier is enforced via `validateAdmin`
      *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
@@ -289,7 +289,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     ) external {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
-        validateEntityAdmin(_entityId, pl);
+        validateAdmin(_entityId, pl);
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
 
         EntityLib.storeEntity(_entityId, address(0), entityData, _roles, _metadata);
@@ -301,10 +301,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an admin for the entity role
+     * - Caller is not the entity admin
      * - New owner is not the seller's assistant or facilitator
      *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     * @dev Pausing modifier is enforced via `validateAdmin`
      *
      * @param _offerId - the offer ID
      * @param _newOwner - the new owner address
@@ -316,7 +316,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
         uint256 entityId = offer.sellerId;
-        validateEntityAdmin(entityId, pl);
+        validateAdmin(entityId, pl);
 
         EntityLib.validateSellerAssistantOrFacilitator(entityId, offer.facilitatorId, _newOwner);
 
@@ -329,16 +329,16 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity does not exist
      *
-     * @param _adminWallet - the address of the entity's admin
+     * @param _adminAccount - the address of the entity's admin
      * @return entityId - the entity ID
      * @return roles - the roles the entity has
      * @return metadataURI - the metadata URI for the entity
      */
     function getEntity(
-        address _adminWallet
+        address _adminAccount
     ) external view returns (uint256 entityId, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
         FermionTypes.EntityData storage entityData;
-        (entityId, entityData) = EntityLib.fetchEntityData(_adminWallet);
+        (entityId, entityData) = EntityLib.fetchEntityData(_adminAccount);
 
         roles = compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
@@ -351,15 +351,15 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity does not exist
      *
      * @param _entityId - the entity ID
-     * @return adminWallet - the address of the entity's admin
+     * @return adminAccount - the address of the entity's admin
      * @return roles - the roles the entity has
      * @return metadataURI - the metadata URI for the entity
      */
     function getEntity(
         uint256 _entityId
-    ) external view returns (address adminWallet, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
+    ) external view returns (address adminAccount, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
-        adminWallet = entityData.admin;
+        adminAccount = entityData.admin;
         roles = compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
     }
@@ -387,20 +387,20 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-     * @notice Tells if a wallet has a specific wallet role for entity id and its role.
+     * @notice Tells if a account has a specific account role for entity id and its role.
      *
      * @param _entityId - the entity ID
-     * @param _walletAddress - the address of the wallet
+     * @param _accountAddress - the address of the account
      * @param _entityRole - the role of the entity
-     * @param _walletRole - the wallet role
+     * @param _accountRole - the account role
      */
-    function hasWalletRole(
+    function hasAccountRole(
         uint256 _entityId,
-        address _walletAddress,
+        address _accountAddress,
         FermionTypes.EntityRole _entityRole,
-        FermionTypes.WalletRole _walletRole
+        FermionTypes.AccountRole _accountRole
     ) external view returns (bool) {
-        return EntityLib.hasWalletRole(_entityId, _walletAddress, _entityRole, _walletRole, false);
+        return EntityLib.hasAccountRole(_entityId, _accountAddress, _entityRole, _accountRole, false);
     }
 
     /**
@@ -450,79 +450,80 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-     * @notice Converts array of Permisions to compact wallet roles.
+     * @notice Converts array of Permisions to compact account roles.
      *
-     * Calculates the compact wallet roles as the sum of individual wallet roles.
+     * Calculates the compact account roles as the sum of individual account roles.
      * Use "or" to get the correct value even if the same role is specified more than once.
      *
-     * @param _walletRole - the array of wallet roles
-     * @return compactWalletRole - the compact representation of wallet roles
+     * @param _accountRole - the array of account roles
+     * @return compactAccountRole - the compact representation of account roles
      */
-    function walletRoleToCompactWalletRoles(
-        FermionTypes.WalletRole[] calldata _walletRole
-    ) internal pure returns (uint256 compactWalletRole) {
-        if (_walletRole.length == 0) {
+    function accountRoleToCompactAccountRoles(
+        FermionTypes.AccountRole[] calldata _accountRole
+    ) internal pure returns (uint256 compactAccountRole) {
+        if (_accountRole.length == 0) {
             return WALLET_ROLE_MASK;
         }
 
-        for (uint256 i = 0; i < _walletRole.length; i++) {
-            uint256 walletRole = 1 << uint256(_walletRole[i]);
-            compactWalletRole |= walletRole;
+        for (uint256 i = 0; i < _accountRole.length; i++) {
+            uint256 accountRole = 1 << uint256(_accountRole[i]);
+            compactAccountRole |= accountRole;
         }
     }
 
     /**
-     * @notice Calculates the compact wallet role for the entity and wallet.
+     * @notice Calculates the compact account role for the entity and account.
      *
-     * Calculates the complete compact wallet role (for all entity roles)
-     * as the sum of individual comapct wallet roles (fot each entity role)
-     * Each individual compact wallet role is stored in a separate byte (one byte per entity role)
+     * Calculates the complete compact account role (for all entity roles)
+     * as the sum of individual comapct account roles (fot each entity role)
+     * Each individual compact account role is stored in a separate byte (one byte per entity role)
      *
      * @param _entityId - the entity ID
      * @param _compactEntityRoles - the compact representation of entity roles
      * @param _entityRoles - the array of entity roles
-     * @param _walletRoles - the array of wallet roles
-     * @return compactWalletRole - the compact representation of wallet roles
+     * @param _accountRoles - the array of account roles
+     * @return compactAccountRole - the compact representation of account roles
      */
-    function getCompactWalletRole(
+    function getCompactAccountRole(
         uint256 _entityId,
         uint256 _compactEntityRoles,
         FermionTypes.EntityRole[] calldata _entityRoles,
-        FermionTypes.WalletRole[][] calldata _walletRoles
-    ) internal view returns (uint256 compactWalletRole) {
+        FermionTypes.AccountRole[][] calldata _accountRoles
+    ) internal view returns (uint256 compactAccountRole) {
         address msgSender = _msgSender();
 
         if (_entityRoles.length == 0) {
-            if (_walletRoles.length != 1) revert FermionGeneralErrors.ArrayLengthMismatch(1, _walletRoles.length);
+            if (_accountRoles.length != 1) revert FermionGeneralErrors.ArrayLengthMismatch(1, _accountRoles.length);
 
-            // To set entity-wide wallet roles, the caller must have entity-wide admin role
+            // To set entity-wide account roles, the caller must have entity-wide manager role
             if (
-                !EntityLib.hasWalletRole(
+                !EntityLib.hasAccountRole(
                     _entityId,
                     msgSender,
                     FermionTypes.EntityRole(0),
-                    FermionTypes.WalletRole.Admin,
+                    FermionTypes.AccountRole.Manager,
                     true
                 )
-            ) revert NotEntityAdmin(_entityId, msgSender);
+            ) revert NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Manager);
 
-            uint256 compactWalletRolePerEntityRole = walletRoleToCompactWalletRoles(_walletRoles[0]);
-            compactWalletRole = compactWalletRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
+            uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[0]);
+            compactAccountRole = compactAccountRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
         } else {
-            if (_entityRoles.length != _walletRoles.length)
-                revert FermionGeneralErrors.ArrayLengthMismatch(_entityRoles.length, _walletRoles.length);
+            if (_entityRoles.length != _accountRoles.length)
+                revert FermionGeneralErrors.ArrayLengthMismatch(_entityRoles.length, _accountRoles.length);
             for (uint256 i = 0; i < _entityRoles.length; i++) {
                 FermionTypes.EntityRole entityRole = _entityRoles[i];
                 // Check that the entity has the role
                 EntityLib.validateEntityRole(_entityId, _compactEntityRoles, entityRole);
 
-                if (!EntityLib.hasWalletRole(_entityId, msgSender, entityRole, FermionTypes.WalletRole.Admin, false))
-                    revert NotAdmin(msgSender, _entityId, entityRole);
+                if (
+                    !EntityLib.hasAccountRole(_entityId, msgSender, entityRole, FermionTypes.AccountRole.Manager, false)
+                ) revert NotRoleManager(msgSender, _entityId, entityRole);
 
-                uint256 compactWalletRolePerEntityRole = walletRoleToCompactWalletRoles(_walletRoles[i]);
+                uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[i]);
 
-                uint256 role = compactWalletRolePerEntityRole << (uint256(entityRole) * BYTE_SIZE); // put in the right byte.
-                compactWalletRole |= role;
+                uint256 role = compactAccountRolePerEntityRole << (uint256(entityRole) * BYTE_SIZE); // put in the right byte.
+                compactAccountRole |= role;
             }
         }
     }
@@ -537,7 +538,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _entityId - the entity ID
      */
-    function validateEntityAdmin(
+    function validateAdmin(
         uint256 _entityId,
         FermionStorage.ProtocolLookups storage pl
     ) internal notPaused(FermionTypes.PausableRegion.Entity) nonReentrant returns (address) {
@@ -547,7 +548,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
             // Try to accept the admin role
             acceptAdminRole(_entityId, msgSender, pl);
         } else {
-            if (callerEntityId != _entityId) revert NotEntityAdmin(_entityId, msgSender);
+            if (callerEntityId != _entityId) revert NotAdmin(_entityId, msgSender);
         }
         return msgSender;
     }
@@ -561,31 +562,31 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _entityId - the entity ID
      */
-    function acceptAdminRole(uint256 _entityId, address _wallet, FermionStorage.ProtocolLookups storage pl) internal {
+    function acceptAdminRole(uint256 _entityId, address _account, FermionStorage.ProtocolLookups storage pl) internal {
         FermionStorage.EntityLookups storage entityLookups = pl.entityLookups[_entityId];
-        if (entityLookups.pendingEntityAdmin != _wallet) revert NotEntityAdmin(_entityId, _wallet);
+        if (entityLookups.pendingAdmin != _account) revert NotAdmin(_entityId, _account);
 
-        delete entityLookups.pendingEntityAdmin;
+        delete entityLookups.pendingAdmin;
 
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
         address previousAdmin = entityData.admin;
         delete pl.entityId[previousAdmin];
 
-        entityData.admin = _wallet;
-        pl.entityId[_wallet] = _entityId;
+        entityData.admin = _account;
+        pl.entityId[_account] = _entityId;
 
-        // add new admin wallet
-        EntityLib.storeCompactWalletRole(
+        // add new admin account
+        EntityLib.storeCompactAccountRole(
             _entityId,
-            _wallet,
+            _account,
             0xff << (31 * BYTE_SIZE),
             true,
             pl,
             FermionStorage.protocolEntities()
         ); // compact role for all current and potential future roles
 
-        // strip old wallet of all privileges
-        EntityLib.storeCompactWalletRole(
+        // strip old account of all privileges
+        EntityLib.storeCompactAccountRole(
             _entityId,
             previousAdmin,
             0xff << (31 * BYTE_SIZE),
@@ -594,8 +595,8 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
             FermionStorage.protocolEntities()
         );
 
-        EntityLib.emitAdminWalletAddedOrRemoved(_entityId, _wallet, true);
-        EntityLib.emitAdminWalletAddedOrRemoved(_entityId, previousAdmin, false);
+        EntityLib.emitManagerAccountAddedOrRemoved(_entityId, _account, true);
+        EntityLib.emitManagerAccountAddedOrRemoved(_entityId, previousAdmin, false);
     }
 
     /** Remove seller's facilitator.
@@ -605,10 +606,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
-     * - Caller is not an entity admin
+     * - Caller is not the entity's admin
      * - When adding, if the facilitator does not have a seller role
      *
-     * @dev Pausing modifier is enforced via `validateEntityAdmin`
+     * @dev Pausing modifier is enforced via `validateAdmin`
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
@@ -617,7 +618,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     function addOrRemoveFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_sellerId, pl);
-        validateEntityAdmin(_sellerId, pl);
+        validateAdmin(_sellerId, pl);
 
         FermionStorage.SellerLookups storage sellerLookups = pl.sellerLookups[_sellerId];
         uint256[] storage facilitators = sellerLookups.sellerFacilitators;
