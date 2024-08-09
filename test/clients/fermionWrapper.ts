@@ -114,7 +114,14 @@ describe("FermionFNFT - wrapper tests", function () {
     it("Initialization caller can transfer the ownership", async function () {
       const newOwner = wallets[3];
 
-      await expect(fermionWrapperProxy.transferOwnership(newOwner))
+      await expect(
+        fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("transferOwnership", [newOwner.address]) +
+            fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        }),
+      )
         .to.emit(fermionWrapperProxy, "OwnershipTransferred")
         .withArgs(wrapperContractOwner.address, newOwner.address);
 
@@ -125,6 +132,17 @@ describe("FermionFNFT - wrapper tests", function () {
       it("Unauthorized call", async function () {
         const newOwner = wallets[3];
         await expect(fermionWrapperProxy.connect(newOwner).transferOwnership(newOwner.address))
+          .to.be.revertedWithCustomError(fermionWrapperProxy, "OwnableUnauthorizedAccount")
+          .withArgs(newOwner.address);
+
+        await expect(
+          newOwner.sendTransaction({
+            to: await fermionWrapperProxy.getAddress(),
+            data:
+              fermionWrapperProxy.interface.encodeFunctionData("transferOwnership", [newOwner.address]) +
+              fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+          }),
+        )
           .to.be.revertedWithCustomError(fermionWrapperProxy, "OwnableUnauthorizedAccount")
           .withArgs(newOwner.address);
       });
@@ -161,7 +179,12 @@ describe("FermionFNFT - wrapper tests", function () {
 
     it("Protocol can wrap", async function () {
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
-      const tx = await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
+      const tx = await fermionProtocolSigner.sendTransaction({
+        to: await fermionWrapperProxy.getAddress(),
+        data:
+          fermionWrapperProxy.interface.encodeFunctionData("wrapForAuction", [startTokenId, quantity, seller.address]) +
+          fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+      });
 
       for (let i = 0n; i < quantity; i++) {
         const tokenId = startTokenId + i;
@@ -181,7 +204,15 @@ describe("FermionFNFT - wrapper tests", function () {
       it("Wrapped vouchers cannot be transferred", async function () {
         const newOwner = wallets[4];
         await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
-        await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("wrapForAuction", [
+              startTokenId,
+              quantity,
+              seller.address,
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
 
         for (let i = 0n; i < quantity; i++) {
           const tokenId = startTokenId + i;
@@ -214,13 +245,25 @@ describe("FermionFNFT - wrapper tests", function () {
         metadataURI,
       );
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
-      await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
+
+      await fermionProtocolSigner.sendTransaction({
+        to: await fermionWrapperProxy.getAddress(),
+        data:
+          fermionWrapperProxy.interface.encodeFunctionData("wrapForAuction", [startTokenId, quantity, seller.address]) +
+          fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+      });
     });
 
     it("Boson price discovery can unwrap", async function () {
-      await fermionWrapperProxy
-        .connect(fermionProtocolSigner)
-        .pushToNextTokenState(startTokenId, TokenState.Unwrapping);
+      await fermionProtocolSigner.sendTransaction({
+        to: await fermionWrapperProxy.getAddress(),
+        data:
+          fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [
+            startTokenId,
+            TokenState.Unwrapping,
+          ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+      });
+
       const tx = await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
 
       await expect(tx)
@@ -251,9 +294,15 @@ describe("FermionFNFT - wrapper tests", function () {
       });
 
       it("Only wrapped tokens can be unwrapped", async function () {
-        await fermionWrapperProxy
-          .connect(fermionProtocolSigner)
-          .pushToNextTokenState(startTokenId, TokenState.Unwrapping);
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [
+              startTokenId,
+              TokenState.Unwrapping,
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
         await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
 
         await expect(fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0))
@@ -283,7 +332,12 @@ describe("FermionFNFT - wrapper tests", function () {
     it("All tokens have the same URI", async function () {
       const seller = wallets[3];
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
-      await fermionWrapperProxy.wrapForAuction(startTokenId, quantity, seller.address);
+      await fermionProtocolSigner.sendTransaction({
+        to: await fermionWrapperProxy.getAddress(),
+        data:
+          fermionWrapperProxy.interface.encodeFunctionData("wrapForAuction", [startTokenId, quantity, seller.address]) +
+          fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+      });
 
       for (let i = 0n; i < quantity; i++) {
         const tokenId = startTokenId + i;

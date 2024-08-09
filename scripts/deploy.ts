@@ -186,7 +186,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // Init other facets, using the initialization facet
     // Prepare init call
     const init = {
-      MetaTransactionFacet: [await getStateModifyingFunctionsHashes(facetNames)],
+      MetaTransactionFacet: [await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT"])],
       ConfigFacet: [fermionConfig.protocolParameters],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));

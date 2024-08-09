@@ -57,7 +57,7 @@ contract MockFermion {
     fallback() external payable {
         address to = destinationOverride == address(0) ? DESTINATION : destinationOverride;
         // do nothing
-        (bool success, bytes memory data) = to.call(msg.data);
+        (bool success, bytes memory data) = to.call(abi.encodePacked(msg.data, address(this)));
 
         delete destinationOverride;
     }

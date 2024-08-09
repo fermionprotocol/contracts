@@ -20,6 +20,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
 /**
  * @title OfferFacet
@@ -28,6 +29,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
  */
 contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     using SafeERC20 for IERC20;
+    using FermionFNFTLib for address;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
@@ -237,10 +239,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
-        IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).pushToNextTokenState(
-            _tokenId,
-            FermionTypes.TokenState.Unwrapping
-        );
+        pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(_tokenId, FermionTypes.TokenState.Unwrapping);
 
         FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
         {
@@ -567,7 +566,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
         // wrap NFTs
         _bosonVoucher.setApprovalForAll(wrapperAddress, true);
-        IFermionWrapper(wrapperAddress).wrapForAuction(_startingNFTId, _quantity, msgSender);
+        wrapperAddress.wrapForAuction(_startingNFTId, _quantity, msgSender);
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);

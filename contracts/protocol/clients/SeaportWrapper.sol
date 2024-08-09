@@ -9,6 +9,9 @@ import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
+import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
+
 /**
  * @title SeaportWrapper
  * @notice Methods for wrapping and unwrapping the Boson rNFTs and use them with openSea
@@ -17,7 +20,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * Fixed price sales are not supported yet.
  *
  */
-contract SeaportWrapper is FermionFNFTBase {
+contract SeaportWrapper is FermionFNFTBase, ERC2771Context {
     struct SeaportConfig {
         address seaport;
         address openSeaConduit;
@@ -33,11 +36,12 @@ contract SeaportWrapper is FermionFNFTBase {
     /**
      * @notice Constructor
      *
+     * @dev construct ERC2771Context with address 0 and override `trustedForwarder` to return the fermionProtocol address
      */
     constructor(
         address _bosonPriceDiscovery,
         SeaportConfig memory _seaportConfig
-    ) FermionFNFTBase(_bosonPriceDiscovery) {
+    ) FermionFNFTBase(_bosonPriceDiscovery) ERC2771Context(address(0)) {
         if (_seaportConfig.seaport == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         SEAPORT = _seaportConfig.seaport;
@@ -165,5 +169,22 @@ contract SeaportWrapper is FermionFNFTBase {
             revert InvalidStateOrCaller(_tokenId, _msgSender(), FermionTypes.TokenState.Wrapped);
         }
         return super._update(_to, _tokenId, _auth);
+    }
+
+    ///////// overrides ///////////
+    function trustedForwarder() public view virtual override returns (address) {
+        return fermionProtocol;
+    }
+
+    function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address) {
+        return ERC2771Context._msgSender();
+    }
+
+    function _msgData() internal view virtual override(Context, ERC2771Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+
+    function _contextSuffixLength() internal view virtual override(Context, ERC2771Context) returns (uint256) {
+        return ERC2771Context._contextSuffixLength();
     }
 }

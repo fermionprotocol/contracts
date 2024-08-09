@@ -11,7 +11,7 @@ import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
-import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
+import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
 /**
  * @title CustodyVaultFacet
@@ -19,6 +19,8 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
  * @notice Handles Custody Vaults and partial auctions.
  */
 contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEvents {
+    using FermionFNFTLib for address;
+
     /**
      * @notice When the first NFT is fractionalised, the custodian offer vault is setup.
      * The items' vaults are temporarily closed. If their balance was not zero, the custodian fee, proportional to the passed service time,
@@ -382,7 +384,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;
         uint256 soldFractions = fractionAuction.availableFractions;
-        IFermionFNFT(offerLookups.fermionFNFTAddress).transfer(winnerAddress, soldFractions);
+        offerLookups.fermionFNFTAddress.transfer(winnerAddress, soldFractions);
 
         // release funds in the vault
         uint256 winningBid = fractionAuction.maxBid;
@@ -443,7 +445,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             // Forceful fractionalisation
             if (itemsInVault > 0) {
                 // vault exist already
-                IFermionFNFT(fermionFNFTAddress).mintFractions(_tokenId, 1, 0);
+                fermionFNFTAddress.mintFractions(_tokenId, 1, 0);
                 CustodyLib.addItemToCustodianOfferVault(_tokenId, 1, 0, false, pl);
             } else {
                 // no vault yet. Use the default parameters
@@ -460,7 +462,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
                         newFractionsPerAuction: newFractionsPerAuction
                     });
 
-                IFermionFNFT(fermionFNFTAddress).mintFractions(
+                fermionFNFTAddress.mintFractions(
                     _tokenId,
                     1,
                     DEFAULT_FRACTION_AMOUNT,
@@ -481,7 +483,8 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         fractionsToIssue = itemsInVault * vaultParameters.newFractionsPerAuction;
 
         // mint the fractions to the protocol
-        IFermionFNFT(fermionFNFTAddress).mintAdditionalFractions(fractionsToIssue); /// <mint to the protocol
+        fermionFNFTAddress.mintAdditionalFractions(fractionsToIssue); /// <mint to the protocol
+
         fractionAuction.availableFractions = fractionsToIssue;
 
         emit AuctionStarted(_offerId, fractionsToIssue, auctionEnd);

@@ -36,4 +36,6 @@ interface IFermionWrapper is IERC721 {
      * @param _tokenId The token id.
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external;
+
+    function transferOwnership(address _newOwner) external;
 }

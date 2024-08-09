@@ -190,8 +190,8 @@ abstract contract FermionFractions is
      * @param _amount The number of fractions to mint
      */
     function mintAdditionalFractions(uint256 _amount) external {
-        if (msg.sender != fermionProtocol) {
-            revert AccessDenied(msg.sender);
+        if (_msgSender() != fermionProtocol) {
+            revert AccessDenied(_msgSender());
         }
 
         _mintFractions(fermionProtocol, _amount);
