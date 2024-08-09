@@ -163,4 +163,9 @@ contract FermionTypes {
         AuctionDetails details;
         Votes votes;
     }
+
+    struct Phygital {
+        address contractAddress;
+        uint256 tokenId;
+    }
 }

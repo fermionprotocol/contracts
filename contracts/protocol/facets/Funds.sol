@@ -128,6 +128,42 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
     }
 
     /**
+     * @notice Deposit the phygitals in the vault.
+     *
+     *
+     * Reverts if:
+     * - Funds region is paused
+     * - Length of _tokenIds and _phygitals does not match
+     * - Offer is not with phygitals
+     * - Phygitals are already verified
+     * - Transfer of phygitals is not successful
+     *
+     * @param _tokenIds - list of FermionFNFT token ids, to which the phygitals will be deposited
+     * @param _phygitals - list of addresses and phygital ids to be deposited
+     */
+    function depositPhygitals(uint256[] calldata _tokenIds, FermionTypes.Phygital[][] calldata _phygitals) external {
+        depositOrWithdrawPhygitalInternal(_tokenIds, _phygitals, true);
+    }
+
+    /**
+     * @notice Withdraw the phygitals in the vault.
+     * This function is only callable by the seller and can be invoked only before the items are verified.
+     *
+     * Reverts if:
+     * - Funds region is paused
+     * - Length of _tokenIds and _phygitals does not match
+     * - Phygitals are already verified
+     * - Caller is not the seller's assistant or facilitator
+     * - Transfer of phygitals is not successful
+     *
+     * @param _tokenIds - list of FermionFNFT token ids, to which the phygitals will be deposited
+     * @param _phygitals - list of addresses and phygital ids to be deposited
+     */
+    function withdrawPhygitals(uint256[] calldata _tokenIds, FermionTypes.Phygital[][] calldata _phygitals) external {
+        depositOrWithdrawPhygitalInternal(_tokenIds, _phygitals, false);
+    }
+
+    /**
      * @notice Returns list of addresses for which the entity has funds available.
      * If the list is too long, it can be retrieved in chunks by using `getTokenListPaginated` and specifying _limit and _offset.
      *
@@ -242,6 +278,69 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
 
                 // Transfer funds
                 FundsLib.transferERC20FromProtocol(_entityId, _tokenList[i], _destinationAddress, _tokenAmounts[i]);
+            }
+        }
+    }
+
+    /**
+     * @notice Internal helper function for depositing or withdrawing phygitals.
+     *
+     * Reverts if:
+     * - Funds region is paused
+     * - Length of _tokenIds and _phygitals does not match
+     * - Phygitals are already verified
+     * - Phygitals are being deposited and the offer is not with phygitals
+     * - Phygitals are being withdrawn and the caller is not the seller's assistant or facilitator
+     * - Transfer of phygitals is not successful
+     *
+     * @param _tokenIds - list of FermionFNFT token ids, to which the phygitals will be deposited
+     * @param _phygitals - list of addresses and phygital ids to be deposited
+     */
+    function depositOrWithdrawPhygitalInternal(
+        uint256[] calldata _tokenIds,
+        FermionTypes.Phygital[][] calldata _phygitals,
+        bool _isDeposit
+    ) internal notPaused(FermionTypes.PausableRegion.Funds) nonReentrant {
+        if (_tokenIds.length != _phygitals.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_tokenIds.length, _phygitals.length);
+
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        address msgSender = _msgSender();
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            // check that the token ids exist and offer is with phygitals
+            uint256 tokenId = _tokenIds[i];
+            (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
+            if (!offer.withPhygital) revert FundsErrors.NoPhygitalOffer(tokenId);
+
+            // check that phygitals not already verified
+            FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[tokenId];
+            if (tokenLookups.phygitalsVerified) revert FundsErrors.PhygitalsAlreadyVerified(tokenId);
+
+            FermionTypes.Phygital[] storage phygitals = tokenLookups.phygitals;
+            if (_isDeposit) {
+                for (uint256 j = 0; j < _phygitals[i].length; j++) {
+                    FundsLib.transferERC721ToProtocol(_phygitals[i][j].contractAddress, msgSender, tokenId);
+                    phygitals.push(_phygitals[i][j]);
+                }
+            } else {
+                // only the seller can withdraw the phygitals
+                EntityLib.validateSellerAssistantOrFacilitator(offer.facilitatorId, offer.facilitatorId, msgSender);
+                for (uint256 j = 0; j < _phygitals[i].length; j++) {
+                    FundsLib.transferERC721FromProtocol(_phygitals[i][j].contractAddress, msgSender, tokenId);
+                    uint256 len = phygitals.length;
+                    for (uint256 k = 0; k < len; k++) {
+                        if (
+                            phygitals[k].contractAddress == _phygitals[i][j].contractAddress &&
+                            phygitals[k].tokenId == _phygitals[i][j].tokenId
+                        ) {
+                            if (k != len - 1) {
+                                phygitals[k] = phygitals[len - 1];
+                            }
+                            phygitals.pop();
+                            break;
+                        }
+                    }
+                }
             }
         }
     }

@@ -96,6 +96,8 @@ interface FundsErrors {
     error InsufficientAvailableFunds(uint256 availableFunds, uint256 requestedFunds);
     error ERC721CheckFailed(address tokenAddress, bool erc721expected);
     error ERC721TokenNotTransferred(address tokenAddress, uint256 tokenId);
+    error NoPhygitalOffer(uint256 offerId);
+    error PhygitalsAlreadyVerified(uint256 tokenId);
 }
 
 interface PauseErrors {
