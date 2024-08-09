@@ -122,8 +122,8 @@ library FermionStorage {
         uint256 itemMaxVerificationTimeout;
         // pyhgitals
         FermionTypes.Phygital[] phygitals;
-        // phygital verification status
-        bool phygitalsVerified;
+        // phygitals recipient
+        uint256 phygitalsRecipient;
     }
 
     struct SellerLookups {

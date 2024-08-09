@@ -3,13 +3,14 @@ pragma solidity 0.8.24;
 
 import { FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FundsErrors, EntityErrors, FermionGeneralErrors } from "../domain/Errors.sol";
+import { FundsErrors, EntityErrors, FermionGeneralErrors, OfferErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 
 /**
  * @title FundsFacet
@@ -130,6 +131,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
     /**
      * @notice Deposit the phygitals in the vault.
      *
+     * Emits ERC721Deposited events if successful.
      *
      * Reverts if:
      * - Funds region is paused
@@ -146,8 +148,10 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
     }
 
     /**
-     * @notice Withdraw the phygitals in the vault.
-     * This function is only callable by the seller and can be invoked only before the items are verified.
+     * @notice Withdraw the phygitals from the vault.
+     * This function is only callable by the seller and can be invoked only before the items are verified or if the item gets rejected.
+     *
+     * Emits ERC721Withdrawn events if successful.
      *
      * Reverts if:
      * - Funds region is paused
@@ -156,11 +160,81 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
      * - Caller is not the seller's assistant or facilitator
      * - Transfer of phygitals is not successful
      *
-     * @param _tokenIds - list of FermionFNFT token ids, to which the phygitals will be deposited
-     * @param _phygitals - list of addresses and phygital ids to be deposited
+     * @param _tokenIds - list of FermionFNFT token ids, for which the phygitals will be deposited
+     * @param _phygitals - list of addresses and phygital ids to be withdrawn
      */
     function withdrawPhygitals(uint256[] calldata _tokenIds, FermionTypes.Phygital[][] calldata _phygitals) external {
         depositOrWithdrawPhygitalInternal(_tokenIds, _phygitals, false);
+    }
+
+    /**
+     * @notice Withdraw the phygitals once the items are verified.
+     * This function is only callable by the buyer and can be invoked only after the items are verified.
+     *
+     * Emits ERC721Withdrawn events if successful.
+     *
+     * Reverts if:
+     * - Funds region is paused
+     * - Caller is not the buyer
+     * - The item is not verified yet
+     * - The pyhgitals are already withdrawn
+     * - Transfer of phygitals is not successful
+     *
+     * @param _tokenIds - list of FermionFNFT token ids, for which the phygitals will be withdrawn
+     */
+    function withdrawPhygitals(
+        uint256[] calldata _tokenIds,
+        address _treasury
+    ) external notPaused(FermionTypes.PausableRegion.Funds) nonReentrant {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+
+        uint256 entityIdCached;
+        for (uint256 i = 0; i < _tokenIds.length; i++) {
+            FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenIds[i]];
+            uint256 _entityId = tokenLookups.phygitalsRecipient;
+            if (entityIdCached > 0) {
+                // The phygitals must be withdrawn by the same entity, even if the account is the assistant for multiple entities
+                if (_entityId != entityIdCached) revert FermionGeneralErrors.AccessDenied(_msgSender());
+            } else {
+                if (
+                    !EntityLib.hasAccountRole(
+                        _entityId,
+                        _treasury,
+                        FermionTypes.EntityRole(0),
+                        FermionTypes.AccountRole.Treasury,
+                        true
+                    )
+                ) revert EntityErrors.NotEntityWideRole(_treasury, _entityId, FermionTypes.AccountRole.Treasury);
+
+                address msgSender = _msgSender();
+                if (
+                    !EntityLib.hasAccountRole(
+                        _entityId,
+                        msgSender,
+                        FermionTypes.EntityRole(0),
+                        FermionTypes.AccountRole.Assistant,
+                        true
+                    )
+                ) revert EntityErrors.NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Assistant);
+
+                entityIdCached = _entityId;
+            }
+
+            // Is there more efficient way?
+            (uint256 offerId, ) = FermionStorage.getOfferFromTokenId(_tokenIds[i]);
+            IFermionFNFT fermionFNFT = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress);
+            FermionTypes.TokenState tokenState = fermionFNFT.tokenState(_tokenIds[i]);
+            if (tokenState < FermionTypes.TokenState.Verified)
+                revert VerificationErrors.InvalidTokenState(_tokenIds[i], tokenState);
+
+            FermionTypes.Phygital[] memory phygitals = tokenLookups.phygitals; // all items are accesed, no need to use storage. ToDo: check gas costs
+            uint256 len = phygitals.length;
+            for (uint256 j; j < len; j++) {
+                FundsLib.transferERC721FromProtocol(phygitals[j].contractAddress, _treasury, phygitals[j].tokenId);
+            }
+
+            tokenLookups.phygitalsRecipient = 0;
+        }
     }
 
     /**
@@ -309,12 +383,12 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
         for (uint256 i = 0; i < _tokenIds.length; i++) {
             // check that the token ids exist and offer is with phygitals
             uint256 tokenId = _tokenIds[i];
-            (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
-            if (!offer.withPhygital) revert FundsErrors.NoPhygitalOffer(tokenId);
+            (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
+            if (!offer.withPhygital) revert OfferErrors.NoPhygitalOffer(tokenId);
 
             // check that phygitals not already verified
             FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[tokenId];
-            if (tokenLookups.phygitalsVerified) revert FundsErrors.PhygitalsAlreadyVerified(tokenId);
+            if (tokenLookups.phygitalsRecipient != 0) revert VerificationErrors.PhygitalsAlreadyVerified(tokenId);
 
             FermionTypes.Phygital[] storage phygitals = tokenLookups.phygitals;
             if (_isDeposit) {
