@@ -248,6 +248,10 @@ library FundsLib {
      * - Transfer of ERC721 tokens is not successful (i.e. recipient is a contract which reverts)
      */
     function transferERC721FromProtocol(address _tokenAddress, address _to, uint256 _tokenId) internal {
+        // N.B. We do not check if the token is ERC721 here since:
+        // 1. If the seller is withdrawing the token, it must be attached to some offer and it was validated upon deposit#
+        // 2. If the buyer is withdrawing the token, they cannot plug in an arbitrary token address
+
         // transfer ERC721 tokens from the protocol
         IERC721(_tokenAddress).transferFrom(address(this), _to, _tokenId);
 

@@ -421,6 +421,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                         _phygitals[i][j].tokenId
                     );
                     uint256 len = phygitals.length;
+                    bool found;
                     for (uint256 k = 0; k < len; k++) {
                         if (
                             phygitals[k].contractAddress == _phygitals[i][j].contractAddress &&
@@ -430,9 +431,11 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                                 phygitals[k] = phygitals[len - 1];
                             }
                             phygitals.pop();
+                            found = true;
                             break;
                         }
                     }
+                    if (!found) revert FundsErrors.PhygitalsNotFound(tokenId, _phygitals[i][j]);
                 }
             }
         }
