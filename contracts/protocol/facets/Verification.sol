@@ -35,6 +35,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the verifier's assistant
+     * - Offer has phygitals and the phygitals have not been verified
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
@@ -114,6 +115,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * Reverts if:
      * - Verification region is paused
      * - Verification timeout has not passed
+     * - Offer has phygitals and the phygitals have not been verified
      *
      * @param _tokenId - the token ID
      */
@@ -173,6 +175,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the verifier's assistant
+     * - Offer has phygitals and the phygitals have not been verified
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status

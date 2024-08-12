@@ -35,7 +35,7 @@ contract MockERC20 is ERC20 {
 }
 
 contract MockERC721 is ERC721 {
-    uint256 private burnAmount;
+    bool private holdTransfer;
 
     constructor() ERC721("MockERC20", "MCK_20") {}
 
@@ -49,6 +49,16 @@ contract MockERC721 is ERC721 {
         for (uint256 i = 0; i < _amount; i++) {
             _mint(_account, _startTokenId + i);
         }
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) public virtual override {
+        if (!holdTransfer) {
+            super.transferFrom(from, to, tokenId);
+        }
+    }
+
+    function setHoldTransfer(bool _holdTransfer) public {
+        holdTransfer = _holdTransfer;
     }
 
     enum RevertReason {

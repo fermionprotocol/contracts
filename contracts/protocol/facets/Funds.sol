@@ -222,8 +222,9 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
 
             // Is there more efficient way?
             (uint256 offerId, ) = FermionStorage.getOfferFromTokenId(_tokenIds[i]);
-            IFermionFNFT fermionFNFT = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress);
-            FermionTypes.TokenState tokenState = fermionFNFT.tokenState(_tokenIds[i]);
+            FermionTypes.TokenState tokenState = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).tokenState(
+                _tokenIds[i]
+            );
             if (tokenState < FermionTypes.TokenState.Verified)
                 revert VerificationErrors.InvalidTokenState(_tokenIds[i], tokenState);
 
@@ -292,6 +293,16 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
         }
 
         return tokenList;
+    }
+
+    /**
+     * @notice Gets the information about the phygitals deposited to the given FermionFNFT.
+     *
+     * @param _tokenId - the token ID
+     * @return phygitals - a list of phygitals
+     */
+    function getPhygitals(uint256 _tokenId) external view returns (FermionTypes.Phygital[] memory phygitals) {
+        return FermionStorage.protocolLookups().tokenLookups[_tokenId].phygitals;
     }
 
     /**
@@ -393,14 +404,22 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             FermionTypes.Phygital[] storage phygitals = tokenLookups.phygitals;
             if (_isDeposit) {
                 for (uint256 j = 0; j < _phygitals[i].length; j++) {
-                    FundsLib.transferERC721ToProtocol(_phygitals[i][j].contractAddress, msgSender, tokenId);
+                    FundsLib.transferERC721ToProtocol(
+                        _phygitals[i][j].contractAddress,
+                        msgSender,
+                        _phygitals[i][j].tokenId
+                    );
                     phygitals.push(_phygitals[i][j]);
                 }
             } else {
                 // only the seller can withdraw the phygitals
                 EntityLib.validateSellerAssistantOrFacilitator(offer.facilitatorId, offer.facilitatorId, msgSender);
                 for (uint256 j = 0; j < _phygitals[i].length; j++) {
-                    FundsLib.transferERC721FromProtocol(_phygitals[i][j].contractAddress, msgSender, tokenId);
+                    FundsLib.transferERC721FromProtocol(
+                        _phygitals[i][j].contractAddress,
+                        msgSender,
+                        _phygitals[i][j].tokenId
+                    );
                     uint256 len = phygitals.length;
                     for (uint256 k = 0; k < len; k++) {
                         if (
