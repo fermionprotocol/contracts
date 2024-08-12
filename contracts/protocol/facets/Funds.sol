@@ -404,38 +404,42 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             FermionTypes.Phygital[] storage phygitals = tokenLookups.phygitals;
             if (_isDeposit) {
                 for (uint256 j = 0; j < _phygitals[i].length; j++) {
+                    phygitals.push(_phygitals[i][j]);
+
                     FundsLib.transferERC721ToProtocol(
                         _phygitals[i][j].contractAddress,
                         msgSender,
                         _phygitals[i][j].tokenId
                     );
-                    phygitals.push(_phygitals[i][j]);
                 }
             } else {
                 // only the seller can withdraw the phygitals
                 EntityLib.validateSellerAssistantOrFacilitator(offer.facilitatorId, offer.facilitatorId, msgSender);
                 for (uint256 j = 0; j < _phygitals[i].length; j++) {
+                    {
+                        uint256 len = phygitals.length;
+                        bool found;
+                        for (uint256 k = 0; k < len; k++) {
+                            if (
+                                phygitals[k].contractAddress == _phygitals[i][j].contractAddress &&
+                                phygitals[k].tokenId == _phygitals[i][j].tokenId
+                            ) {
+                                if (k != len - 1) {
+                                    phygitals[k] = phygitals[len - 1];
+                                }
+                                phygitals.pop();
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found) revert FundsErrors.PhygitalsNotFound(tokenId, _phygitals[i][j]);
+                    }
+
                     FundsLib.transferERC721FromProtocol(
                         _phygitals[i][j].contractAddress,
                         msgSender,
                         _phygitals[i][j].tokenId
                     );
-                    uint256 len = phygitals.length;
-                    bool found;
-                    for (uint256 k = 0; k < len; k++) {
-                        if (
-                            phygitals[k].contractAddress == _phygitals[i][j].contractAddress &&
-                            phygitals[k].tokenId == _phygitals[i][j].tokenId
-                        ) {
-                            if (k != len - 1) {
-                                phygitals[k] = phygitals[len - 1];
-                            }
-                            phygitals.pop();
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) revert FundsErrors.PhygitalsNotFound(tokenId, _phygitals[i][j]);
                 }
             }
         }

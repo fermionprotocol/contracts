@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroAddress, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, VerificationStatus, AccountRole } from "../utils/enums";
+import { EntityRole, PausableRegion, VerificationStatus, AccountRole, TokenState } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
@@ -1043,6 +1043,222 @@ describe("Funds", function () {
           await expect(fundsFacet.withdrawPhygitals([fnftTokenId], [[phygital2]]))
             .to.be.revertedWithCustomError(fermionErrors, "PhygitalsAlreadyVerified")
             .withArgs(fnftTokenId);
+        });
+
+        it("Phygital does not belong to the offer", async function () {
+          const phygitalTokenId2 = phygitalTokenId + 1n;
+          await mockPhygital1.mint(wallet.address, phygitalTokenId2, 1n);
+          await mockPhygital1.connect(wallet).approve(fermionProtocolAddress, phygitalTokenId2);
+          const phygital2 = { contractAddress: mockPhygital1Address, tokenId: phygitalTokenId2 };
+          const fnftTokenId2 = deriveTokenId(3n, 3n);
+          await fundsFacet.connect(wallet).depositPhygitals([fnftTokenId2], [[phygital2]]);
+
+          await expect(fundsFacet.withdrawPhygitals([fnftTokenId], [[phygital2]]))
+            .to.be.revertedWithCustomError(fermionErrors, "PhygitalsNotFound")
+            .withArgs(fnftTokenId, Object.values(phygital2));
+        });
+
+        it("Trying to transfer ERC20 token owned by the protocol", async function () {
+          await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+          await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
+
+          const phygital2 = { contractAddress: mockToken1Address, tokenId: sellerDeposit }; // "tokenId" of ERC721 corresponds to "amount" of ERC20
+
+          await expect(fundsFacet.withdrawPhygitals([fnftTokenId], [[phygital2]]))
+            .to.be.revertedWithCustomError(fermionErrors, "PhygitalsNotFound")
+            .withArgs(fnftTokenId, Object.values(phygital2));
+        });
+      });
+    });
+
+    context("withdrawPhygitals - buyer", function () {
+      let buyer: HardhatEthersSigner;
+      before(async function () {
+        buyer = wallets[4];
+
+        fundsFacet.withdrawPhygitals = fundsFacet.connect(buyer)["withdrawPhygitals(uint256[],address)"];
+      });
+
+      beforeEach(async function () {
+        await fundsFacet.connect(wallet).depositPhygitals([fnftTokenId], [[phygital]]);
+
+        const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(
+          wallets,
+          seaportAddress,
+          mockToken1,
+          offerFacet,
+        );
+        const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId.toString(), exchangeId);
+        await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+        await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+      });
+
+      it("Buyer can withdraw the phygitals after the item is verified", async function () {
+        const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
+        await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
+        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+
+        // Withdraw phygital
+        const tx = await fundsFacet.withdrawPhygitals([fnftTokenId], buyer.address);
+
+        // Events
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(mockPhygital1Address, phygitalTokenId, buyer.address);
+
+        // State. In happy path, the phygital is not removed from the offer
+        expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital)]);
+      });
+
+      it("Withdraw multiple phygitals from one offer", async function () {
+        // Deposits phygitals
+        const phygitalTokenId2 = phygitalTokenId + 1n;
+        const phygitalTokenId3 = phygitalTokenId + 2n;
+        await mockPhygital1.mint(wallet.address, phygitalTokenId2, 2n);
+        await mockPhygital1.connect(wallet).approve(fermionProtocolAddress, phygitalTokenId2);
+        await mockPhygital1.connect(wallet).approve(fermionProtocolAddress, phygitalTokenId3);
+        const phygital1 = { contractAddress: mockPhygital1Address, tokenId: phygitalTokenId };
+        const phygital2 = { contractAddress: mockPhygital1Address, tokenId: phygitalTokenId2 };
+        const phygital3 = { contractAddress: mockPhygital1Address, tokenId: phygitalTokenId3 };
+
+        // phygital1 is already deposited
+        await fundsFacet.connect(wallet).depositPhygitals([fnftTokenId], [[phygital2, phygital3]]);
+
+        // Verify the phygitals
+        const digest = ethers.keccak256(
+          abiCoder.encode(
+            ["tuple(address,uint256)[]"],
+            [[Object.values(phygital1), Object.values(phygital2), Object.values(phygital3)]],
+          ),
+        );
+        await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
+        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+
+        // Withdraw phygitals
+        const tx = await fundsFacet.withdrawPhygitals([fnftTokenId], buyer.address);
+
+        // Events
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(mockPhygital1Address, phygitalTokenId, buyer.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(mockPhygital1Address, phygitalTokenId2, buyer.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(mockPhygital1Address, phygitalTokenId3, buyer.address);
+
+        expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([
+          Object.values(phygital1),
+          Object.values(phygital2),
+          Object.values(phygital3),
+        ]);
+      });
+
+      it("Withdraw multiple phygitals from one multiple offers", async function () {
+        // Deposits phygitals
+        const phygitalTokenId2 = 34n;
+        const phygitalTokenId3 = 123n;
+        await mockPhygital2.mint(wallet.address, phygitalTokenId2, 1n);
+        await mockPhygital2.connect(wallet).approve(fermionProtocolAddress, phygitalTokenId2);
+        await mockPhygital3.mint(wallet.address, phygitalTokenId3, 1n);
+        await mockPhygital3.connect(wallet).approve(fermionProtocolAddress, phygitalTokenId3);
+        const phygital1 = { contractAddress: mockPhygital1Address, tokenId: phygitalTokenId };
+        const phygital2 = { contractAddress: mockPhygital2Address, tokenId: phygitalTokenId2 };
+        const phygital3 = { contractAddress: mockPhygital3Address, tokenId: phygitalTokenId3 };
+
+        const fnftTokenId2 = deriveTokenId(3n, 3n);
+        // phygital1 is already deposited
+        await fundsFacet.connect(wallet).depositPhygitals([fnftTokenId, fnftTokenId2], [[phygital2], [phygital3]]);
+
+        // Verify the phygitals
+        const digest = ethers.keccak256(
+          abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital1), Object.values(phygital2)]]),
+        );
+        await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
+        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+
+        const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(
+          wallets,
+          seaportAddress,
+          mockToken1,
+          offerFacet,
+        );
+        const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(
+          buyer,
+          (offerId + 1n).toString(),
+          exchangeId + 1n,
+        );
+        await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+        await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+        const digest2 = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital3)]]));
+        await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId2, digest2);
+        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId2, VerificationStatus.Verified);
+
+        const tx = await fundsFacet.withdrawPhygitals([fnftTokenId2, fnftTokenId], buyer.address);
+
+        // Events
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(mockPhygital1Address, phygitalTokenId, buyer.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(mockPhygital2Address, phygitalTokenId2, buyer.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(mockPhygital3Address, phygitalTokenId3, buyer.address);
+
+        // State
+        expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital1), Object.values(phygital2)]);
+        expect(await fundsFacet.getPhygitals(fnftTokenId2)).to.eql([Object.values(phygital3)]);
+      });
+
+      context("Revert reasons", function () {
+        it("Funds region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Funds]);
+
+          await expect(fundsFacet.withdrawPhygitals([fnftTokenId], buyer.address))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Funds);
+        });
+
+        it("Caller is not the buyer's assistant", async function () {
+          const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
+          await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
+
+          const randomWallet = wallets[5];
+          const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);
+
+          await expect(
+            fundsFacet.connect(randomWallet)["withdrawPhygitals(uint256[],address)"]([fnftTokenId], buyer.address),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+            .withArgs(randomWallet.address, buyerEntityId, AccountRole.Assistant);
+        });
+
+        it("Treasury does not belong to buyer", async function () {
+          const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
+          await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
+
+          const randomWallet = wallets[5];
+          const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);
+
+          await expect(
+            fundsFacet
+              .connect(randomWallet)
+              ["withdrawPhygitals(uint256[],address)"]([fnftTokenId], randomWallet.address),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+            .withArgs(randomWallet.address, buyerEntityId, AccountRole.Treasury);
+        });
+
+        it("Phygitals are not verified yet", async function () {
+          const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
+          await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
+
+          await expect(fundsFacet.withdrawPhygitals([fnftTokenId], buyer.address))
+            .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenState")
+            .withArgs(fnftTokenId, TokenState.Unverified);
         });
       });
     });
