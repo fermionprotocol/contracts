@@ -1213,6 +1213,34 @@ describe("Funds", function () {
         expect(await fundsFacet.getPhygitals(fnftTokenId2)).to.eql([Object.values(phygital3)]);
       });
 
+      it("Treasury can be a contract wallet", async function () {
+        const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
+        await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
+        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+
+        const contractAccountWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
+        const contractAccountWithReceive = await contractAccountWithReceiveFactory.deploy();
+        const contractAccountWithReceiveAddress = await contractAccountWithReceive.getAddress();
+        const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);
+        await entityFacet
+          .connect(buyer)
+          .addEntityAccounts(buyerEntityId, [contractAccountWithReceiveAddress], [[]], [[[AccountRole.Treasury]]]);
+
+        // Withdraw phygital
+        const tx = await fundsFacet.withdrawPhygitals([fnftTokenId], contractAccountWithReceiveAddress);
+
+        // Events
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(mockPhygital1Address, phygitalTokenId, contractAccountWithReceiveAddress);
+        await expect(tx)
+          .to.emit(contractAccountWithReceive, "PhygitalReceived")
+          .withArgs(phygital.contractAddress, phygital.tokenId);
+
+        // State. In happy path, the phygital is not removed from the offer
+        expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital)]);
+      });
+
       context("Revert reasons", function () {
         it("Funds region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Funds]);
@@ -1244,21 +1272,52 @@ describe("Funds", function () {
           const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);
 
           await expect(
-            fundsFacet
-              .connect(randomWallet)
-              ["withdrawPhygitals(uint256[],address)"]([fnftTokenId], randomWallet.address),
+            fundsFacet.connect(buyer)["withdrawPhygitals(uint256[],address)"]([fnftTokenId], randomWallet.address),
           )
             .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
             .withArgs(randomWallet.address, buyerEntityId, AccountRole.Treasury);
         });
 
-        it("Phygitals are not verified yet", async function () {
+        it("The item is not not verified yet", async function () {
           const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
           await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
 
           await expect(fundsFacet.withdrawPhygitals([fnftTokenId], buyer.address))
             .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenState")
             .withArgs(fnftTokenId, TokenState.Unverified);
+        });
+
+        it("Treasury reverts", async function () {
+          const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
+          await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
+          await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+
+          const contractAccountFactory = await ethers.getContractFactory("ContractWallet");
+          const contractAccount = await contractAccountFactory.deploy();
+          const contractAccountAddress = await contractAccount.getAddress();
+          const contractAccountWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
+          const contractAccountWithReceive = await contractAccountWithReceiveFactory.deploy();
+          const contractAccountWithReceiveAddress = await contractAccountWithReceive.getAddress();
+          const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);
+          await entityFacet
+            .connect(buyer)
+            .addEntityAccounts(
+              buyerEntityId,
+              [contractAccountWithReceiveAddress, contractAccountAddress],
+              [[], []],
+              [[[AccountRole.Treasury]], [[AccountRole.Treasury]]],
+            );
+
+          // contract without receive function
+          await expect(fundsFacet.withdrawPhygitals([fnftTokenId], contractAccountAddress))
+            .to.be.revertedWithCustomError(mockPhygital1, "ERC721InvalidReceiver")
+            .withArgs(contractAccountAddress);
+
+          // contract with receive function, but reverting
+          await contractAccountWithReceive.setAcceptingMoney(false);
+          await expect(
+            fundsFacet.withdrawPhygitals([fnftTokenId], contractAccountWithReceiveAddress),
+          ).to.be.revertedWithCustomError(contractAccountWithReceive, "NotAcceptingMoney");
         });
       });
     });

@@ -253,7 +253,7 @@ library FundsLib {
         // 2. If the buyer is withdrawing the token, they cannot plug in an arbitrary token address
 
         // transfer ERC721 tokens from the protocol
-        IERC721(_tokenAddress).transferFrom(address(this), _to, _tokenId);
+        IERC721(_tokenAddress).safeTransferFrom(address(this), _to, _tokenId);
 
         emit IFundsEvents.ERC721Withdrawn(_tokenAddress, _tokenId, _to);
     }
