@@ -57,7 +57,7 @@ interface VerificationErrors {
     error InvalidTokenState(uint256 tokenId, FermionTypes.TokenState tokenState);
     error PhygitalsAlreadyVerified(uint256 tokenId);
     error PhygitalsDigestMismatch(uint256 tokenId, bytes32 expectedDigest, bytes32 actualDigest);
-    error PhygitalVerificationMissing(uint256 tokenId);
+    error PhygitalsVerificationMissing(uint256 tokenId);
 }
 
 interface CustodyErrors {

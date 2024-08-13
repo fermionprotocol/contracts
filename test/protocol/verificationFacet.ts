@@ -18,6 +18,7 @@ import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
 
 const { parseEther } = ethers;
+const abiCoder = new ethers.AbiCoder();
 
 describe("Verification", function () {
   let offerFacet: Contract,
@@ -111,7 +112,7 @@ describe("Verification", function () {
     const offerId = "1"; // buyer != seller, verifier != seller
     const offerIdSelfSale = "2"; // buyer = seller, verifier != seller
     const offerIdSelfVerification = "3"; // buyer != seller, verifier = seller
-    await offerFacet.createOffer({ ...fermionOffer, facilitatorId, facilitatorFeePercent });
+    await offerFacet.createOffer({ ...fermionOffer, withPhygital: true, facilitatorId, facilitatorFeePercent });
     await offerFacet.createOffer({ ...fermionOffer, sellerDeposit: "0" });
     await offerFacet.createOffer({ ...fermionOffer, verifierId: "1", custodianId: "1", verifierFee: "0" });
 
@@ -245,6 +246,9 @@ describe("Verification", function () {
   context("submitVerdict", function () {
     context("Verified", function () {
       it("Normal sale", async function () {
+        const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[]]));
+        await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
+
         const tx = await verificationFacet
           .connect(verifier)
           .submitVerdict(exchange.tokenId, VerificationStatus.Verified);
@@ -387,7 +391,60 @@ describe("Verification", function () {
 
     context("Rejected", function () {
       const buyerId = "5"; // new buyer in fermion
-      it("Normal sale", async function () {
+      it("Normal sale - verified phygitals", async function () {
+        const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[]]));
+        await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
+
+        const tx = await verificationFacet
+          .connect(verifier)
+          .submitVerdict(exchange.tokenId, VerificationStatus.Rejected);
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(buyerId, exchangeToken, exchange.payout.remainder + exchange.payout.facilitatorFeeAmount); // buyer gets the remainder and facilitator fee back
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+
+        // Boson
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
+          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0n); // facilitator not paid if rejected
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchange.payout.remainder + exchange.payout.facilitatorFeeAmount,
+        );
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchange.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Burned);
+        await expect(wrapper.ownerOf(exchange.tokenId))
+          .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+          .withArgs(exchange.tokenId);
+      });
+
+      it("Normal sale - unverified phygitals", async function () {
         const tx = await verificationFacet
           .connect(verifier)
           .submitVerdict(exchange.tokenId, VerificationStatus.Rejected);
@@ -564,6 +621,12 @@ describe("Verification", function () {
           .withArgs(PausableRegion.Verification);
       });
 
+      it("Phygitals are not verified", async function () {
+        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
+          .to.be.revertedWithCustomError(fermionErrors, "PhygitalsVerificationMissing")
+          .withArgs(exchange.tokenId);
+      });
+
       it("Caller is not the verifiers's assistant", async function () {
         const wallet = wallets[9];
 
@@ -610,6 +673,9 @@ describe("Verification", function () {
       });
 
       it("Cannot verify twice", async function () {
+        const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[]]));
+        await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
+
         await verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified);
 
         await expect(

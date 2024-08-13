@@ -208,7 +208,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             hasPhygitals &&
             _verificationStatus == FermionTypes.VerificationStatus.Verified && // if the item is rejected, phygitals are not required
             tokenLookups.phygitalsRecipient == 0
-        ) revert PhygitalVerificationMissing(tokenId);
+        ) revert PhygitalsVerificationMissing(tokenId);
 
         BOSON_PROTOCOL.completeExchange(tokenId & type(uint128).max);
         {
