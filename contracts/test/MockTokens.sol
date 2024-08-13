@@ -52,6 +52,10 @@ contract MockERC721 is ERC721 {
     }
 
     function transferFrom(address from, address to, uint256 tokenId) public virtual override {
+        if (revertReason == RevertReason.CustomError) {
+            revert CustomError();
+        }
+
         if (!holdTransfer) {
             super.transferFrom(from, to, tokenId);
         }

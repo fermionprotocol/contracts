@@ -234,7 +234,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                 FundsLib.transferERC721FromProtocol(phygitals[j].contractAddress, _treasury, phygitals[j].tokenId);
             }
 
-            tokenLookups.phygitalsRecipient = 0;
+            tokenLookups.phygitalsRecipient = type(uint256).max;
         }
     }
 
