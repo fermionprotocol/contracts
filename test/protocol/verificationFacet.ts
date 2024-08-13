@@ -17,7 +17,7 @@ import { getBosonHandler } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
 
-const { parseEther } = ethers;
+const { parseEther, keccak256 } = ethers;
 const abiCoder = new ethers.AbiCoder();
 
 describe("Verification", function () {
@@ -27,6 +27,7 @@ describe("Verification", function () {
     fundsFacet: Contract,
     pauseFacet: Contract;
   let mockToken: Contract;
+  let mockPhygital1: Contract, mockPhygital2: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
   let wallets: HardhatEthersSigner[];
@@ -82,8 +83,9 @@ describe("Verification", function () {
     await entityFacet.connect(wallets[4]).createEntity([EntityRole.Seller], metadataURI); // "4" // facilitator
     await entityFacet.addFacilitators(sellerId, [facilitatorId]);
 
-    [mockToken] = await deployMockTokens(["ERC20"]);
-    mockToken = mockToken.connect(defaultSigner);
+    [mockToken, mockPhygital1, mockPhygital2] = (await deployMockTokens(["ERC20", "ERC721", "ERC721"])).map(
+      (contract) => contract.connect(defaultSigner),
+    );
     await mockToken.mint(defaultSigner.address, parseEther("1000"));
 
     await offerFacet.addSupportedToken(await mockToken.getAddress());
@@ -876,6 +878,67 @@ describe("Verification", function () {
           .to.be.revertedWithCustomError(verificationFacet, "VerificationTimeoutNotPassed")
           .withArgs(newTimeout, nextBlockTimestamp);
       });
+    });
+  });
+
+  context("verifyPhygitals", function () {
+    const buyerId = "5"; // new buyer in fermion
+    let phygital1: { contractAddress: string; tokenId: bigint },
+      phygital2: { contractAddress: string; tokenId: bigint };
+    const phygitalTokenId = 10n,
+      phygitalTokenId2 = 112n;
+
+    before(async function () {
+      phygital1 = { contractAddress: await mockPhygital1.getAddress(), tokenId: phygitalTokenId };
+      phygital2 = { contractAddress: await mockPhygital2.getAddress(), tokenId: phygitalTokenId2 };
+    });
+
+    beforeEach(async function () {
+      await mockPhygital1.mint(defaultSigner.address, phygitalTokenId, 1n);
+      await mockPhygital1.approve(fermionProtocolAddress, phygitalTokenId);
+
+      await mockPhygital2.mint(defaultSigner.address, phygitalTokenId2, 1n);
+      await mockPhygital2.approve(fermionProtocolAddress, phygitalTokenId2);
+
+      await fundsFacet.depositPhygitals([exchange.tokenId], [[phygital1, phygital2]]);
+    });
+
+    it("Verifier can verify phygitals", async function () {
+      const digest = keccak256(
+        abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital1), Object.values(phygital2)]]),
+      );
+      const tx = await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
+
+      await expect(tx)
+        .to.emit(verificationFacet, "PhygitalsVerified")
+        .withArgs(exchange.tokenId, buyerId, verifier.address);
+      await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+    });
+
+    it("Buyer can verify phygitals", async function () {
+      const digest = keccak256(
+        abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital1), Object.values(phygital2)]]),
+      );
+      const tx = await verificationFacet.connect(buyer).verifyPhygitals(exchange.tokenId, digest);
+
+      await expect(tx)
+        .to.emit(verificationFacet, "PhygitalsVerified")
+        .withArgs(exchange.tokenId, buyerId, buyer.address);
+      await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+    });
+
+    it("It's possible to verify empty phygitals", async function () {
+      await fundsFacet
+        .connect(defaultSigner)
+        ["withdrawPhygitals(uint256[],(address,uint256)[][])"]([exchange.tokenId], [[phygital1, phygital2]]);
+
+      const digest = keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[]]));
+      const tx = await verificationFacet.connect(buyer).verifyPhygitals(exchange.tokenId, digest);
+
+      await expect(tx)
+        .to.emit(verificationFacet, "PhygitalsVerified")
+        .withArgs(exchange.tokenId, buyerId, buyer.address);
+      await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
     });
   });
 

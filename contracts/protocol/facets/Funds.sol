@@ -414,7 +414,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                 }
             } else {
                 // only the seller can withdraw the phygitals
-                EntityLib.validateSellerAssistantOrFacilitator(offer.facilitatorId, offer.facilitatorId, msgSender);
+                EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId, msgSender);
                 for (uint256 j = 0; j < _phygitals[i].length; j++) {
                     {
                         uint256 len = phygitals.length;
