@@ -25,7 +25,8 @@ describe("Verification", function () {
     entityFacet: Contract,
     verificationFacet: Contract,
     fundsFacet: Contract,
-    pauseFacet: Contract;
+    pauseFacet: Contract,
+    custodyFacet: Contract;
   let mockToken: Contract;
   let mockPhygital1: Contract, mockPhygital2: Contract;
   let fermionErrors: Contract;
@@ -224,6 +225,7 @@ describe("Verification", function () {
         VerificationFacet: verificationFacet,
         FundsFacet: fundsFacet,
         PauseFacet: pauseFacet,
+        CustodyFacet: custodyFacet,
       },
       fermionErrors,
       wallets,
@@ -887,10 +889,14 @@ describe("Verification", function () {
       phygital2: { contractAddress: string; tokenId: bigint };
     const phygitalTokenId = 10n,
       phygitalTokenId2 = 112n;
+    let digest: string;
 
     before(async function () {
       phygital1 = { contractAddress: await mockPhygital1.getAddress(), tokenId: phygitalTokenId };
       phygital2 = { contractAddress: await mockPhygital2.getAddress(), tokenId: phygitalTokenId2 };
+      digest = keccak256(
+        abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital1), Object.values(phygital2)]]),
+      );
     });
 
     beforeEach(async function () {
@@ -904,9 +910,6 @@ describe("Verification", function () {
     });
 
     it("Verifier can verify phygitals", async function () {
-      const digest = keccak256(
-        abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital1), Object.values(phygital2)]]),
-      );
       const tx = await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
 
       await expect(tx)
@@ -916,9 +919,6 @@ describe("Verification", function () {
     });
 
     it("Buyer can verify phygitals", async function () {
-      const digest = keccak256(
-        abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital1), Object.values(phygital2)]]),
-      );
       const tx = await verificationFacet.connect(buyer).verifyPhygitals(exchange.tokenId, digest);
 
       await expect(tx)
@@ -939,6 +939,145 @@ describe("Verification", function () {
         .to.emit(verificationFacet, "PhygitalsVerified")
         .withArgs(exchange.tokenId, buyerId, buyer.address);
       await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+    });
+
+    context("Revert reasons", function () {
+      it("Verification region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Verification]);
+
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Verification);
+      });
+
+      it("Offer is without phygitals", async function () {
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(exchangeSelfSale.tokenId, digest))
+          .to.be.revertedWithCustomError(fermionErrors, "NoPhygitalOffer")
+          .withArgs(exchangeSelfSale.tokenId);
+      });
+
+      it("Phygitals are already verified", async function () {
+        await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
+
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest))
+          .to.be.revertedWithCustomError(fermionErrors, "PhygitalsAlreadyVerified")
+          .withArgs(exchange.tokenId);
+      });
+
+      it("The caller is not the verifier or the buyer", async function () {
+        const randomWallet = wallets[9];
+
+        await expect(verificationFacet.connect(randomWallet).verifyPhygitals(exchange.tokenId, digest))
+          .to.be.revertedWithCustomError(fermionErrors, "AccessDenied")
+          .withArgs(randomWallet.address);
+      });
+
+      it("The digest does not match the expected digest", async function () {
+        // Seller withdraws one phygital, the digest changes
+        await fundsFacet
+          .connect(defaultSigner)
+          ["withdrawPhygitals(uint256[],(address,uint256)[][])"]([exchange.tokenId], [[phygital1]]);
+
+        const newDigest = keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital2)]]));
+
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest))
+          .to.be.revertedWithCustomError(fermionErrors, "PhygitalsDigestMismatch")
+          .withArgs(exchange.tokenId, newDigest, digest);
+      });
+
+      it("Cannot verify once the phygitals are withdrawn", async function () {
+        await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
+        await verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified);
+        await fundsFacet.connect(buyer)["withdrawPhygitals(uint256[],address)"]([exchange.tokenId], buyer.address);
+
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest))
+          .to.be.revertedWithCustomError(fermionErrors, "PhygitalsAlreadyVerified")
+          .withArgs(exchange.tokenId);
+      });
+
+      it("FNFT is not in unverified state", async function () {
+        const offerId = BigInt(exchangeSelfVerification.offerId) + 1n;
+        const exchangeId = BigInt(exchangeSelfVerification.exchangeId) + 2n;
+        const tokenId = deriveTokenId(offerId, exchangeId);
+        // Create offer
+        const fermionOffer = {
+          sellerId,
+          sellerDeposit,
+          verifierId,
+          verifierFee,
+          custodianId: sellerId,
+          custodianFee: {
+            amount: parseEther("0.05"),
+            period: 30n * 24n * 60n * 60n, // 30 days
+          },
+          facilitatorId: sellerId,
+          facilitatorFeePercent: "0",
+          exchangeToken: await mockToken.getAddress(),
+          withPhygital: true,
+          metadataURI: "https://example.com/offer-metadata.json",
+          metadataHash: ZeroHash,
+        };
+
+        await offerFacet.createOffer(fermionOffer);
+        await offerFacet.mintAndWrapNFTs(offerId, 1n);
+
+        // Inexistent FNFT
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(tokenId + 1n, digest))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenState")
+          .withArgs(tokenId + 1n, TokenState.Inexistent);
+
+        // Wrapped
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(tokenId, digest))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenState")
+          .withArgs(tokenId, TokenState.Wrapped);
+
+        await mockToken.approve(fermionProtocolAddress, sellerDeposit); // approve to transfer seller deposit during the unwrapping
+        const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(
+          wallets,
+          seaportAddress,
+          mockToken,
+          offerFacet,
+        );
+        const { buyerAdvancedOrder } = await createBuyerAdvancedOrder(buyer, offerId.toString(), exchangeId);
+        await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+
+        await fundsFacet
+          .connect(defaultSigner)
+          ["withdrawPhygitals(uint256[],(address,uint256)[][])"]([exchange.tokenId], [[phygital1]]);
+        await mockPhygital1.approve(fermionProtocolAddress, phygitalTokenId);
+        await fundsFacet.depositPhygitals([tokenId], [[phygital1]]);
+        const newDigest = keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital1)]]));
+        await verificationFacet.connect(verifier).verifyPhygitals(tokenId, newDigest);
+        await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
+
+        // Verified
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(tokenId, newDigest))
+          .to.be.revertedWithCustomError(fermionErrors, "PhygitalsAlreadyVerified")
+          .withArgs(tokenId);
+
+        // CheckedIn
+        await custodyFacet.checkIn(tokenId);
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(tokenId, newDigest))
+          .to.be.revertedWithCustomError(fermionErrors, "PhygitalsAlreadyVerified")
+          .withArgs(tokenId);
+
+        // CheckedOut
+        const fermionFNFTAddress = await offerFacet.predictFermionFNFTAddress(offerId);
+        const fermionFNFT = await ethers.getContractAt("FermionFNFT", fermionFNFTAddress);
+        await fermionFNFT.connect(buyer).approve(await custodyFacet.getAddress(), tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(tokenId);
+        await custodyFacet.clearCheckoutRequest(tokenId);
+        await custodyFacet.checkOut(tokenId);
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(tokenId, newDigest))
+          .to.be.revertedWithCustomError(fermionErrors, "PhygitalsAlreadyVerified")
+          .withArgs(tokenId);
+
+        // Burned
+        await verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Rejected);
+        await expect(verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, newDigest))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenState")
+          .withArgs(exchange.tokenId, TokenState.Burned);
+      });
     });
   });
 
