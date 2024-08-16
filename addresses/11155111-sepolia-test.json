@@ -1,0 +1,127 @@
+{
+  "chainId": 11155111,
+  "network": "sepolia",
+  "env": "test",
+  "protocolVersion": "0.0.1",
+  "contracts": [
+    {
+      "name": "FermionFNFT",
+      "address": "0x49F33f10E2D9850D19396e05B40fD6982aaEC524",
+      "args": [
+        "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
+        "0x1970AD2Ef393F724758BcbfB91e6f65308699840",
+        "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
+      ]
+    },
+    {
+      "name": "DiamondCutFacet",
+      "address": "0x72375d8f6c09Be9367B7A1629bb889A7f2a393d0",
+      "args": []
+    },
+    {
+      "name": "DiamondLoupeFacet",
+      "address": "0x3c641f2206D853E87b30E5d302D39F42e9E2Bae1",
+      "args": []
+    },
+    {
+      "name": "AccessController",
+      "address": "0xbb7691cBd2AE01986036e321498E2d878E2419c7",
+      "args": []
+    },
+    {
+      "name": "InitializationFacet",
+      "address": "0xBA09b47F123F3957352B7231B9a3850D46Da85e3",
+      "args": []
+    },
+    {
+      "name": "FermionDiamond",
+      "address": "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585",
+      "args": [
+        [
+          {
+            "facetAddress": "0x72375d8f6c09Be9367B7A1629bb889A7f2a393d0",
+            "action": 0,
+            "functionSelectors": ["0x1f931c1c"]
+          },
+          {
+            "facetAddress": "0x3c641f2206D853E87b30E5d302D39F42e9E2Bae1",
+            "action": 0,
+            "functionSelectors": [
+              "0xcdffacc6",
+              "0x52ef6b2c",
+              "0xadfca15e",
+              "0x7a0ed627",
+              "0x01ffc9a7"
+            ]
+          },
+          {
+            "facetAddress": "0xbb7691cBd2AE01986036e321498E2d878E2419c7",
+            "action": 0,
+            "functionSelectors": [
+              "0xa217fddf",
+              "0x248a9ca3",
+              "0x2f2ff15d",
+              "0x91d14854",
+              "0x36568abe",
+              "0xd547741f"
+            ]
+          },
+          {
+            "facetAddress": "0xBA09b47F123F3957352B7231B9a3850D46Da85e3",
+            "action": 0,
+            "functionSelectors": ["0x0d8e6e2c"]
+          }
+        ],
+        {
+          "init": "0xBA09b47F123F3957352B7231B9a3850D46Da85e3",
+          "initCalldata": "0x1e8c8776000000000000000000000000bb7691cbd2ae01986036e321498e2d878e2419c70000000000000000000000002a91a0148ee62fa638be38c7ee05c29a3e568dd80000000000000000000000007de418a7ce94debd057c34ebac232e7027634ade00000000000000000000000049f33f10e2d9850d19396e05b40fd6982aaec524"
+        }
+      ]
+    },
+    {
+      "name": "ConfigFacet",
+      "address": "0x6CBeCb13099CbB1e32D1a34DF5dE76944aa79c40",
+      "args": []
+    },
+    {
+      "name": "EntityFacet",
+      "address": "0xb976075f497E7782f968C46B2Ec883316ecDeCFc",
+      "args": []
+    },
+    {
+      "name": "MetaTransactionFacet",
+      "address": "0xc38532D4A2f3e321009CF42D79CA9FF586Fc952E",
+      "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
+    },
+    {
+      "name": "OfferFacet",
+      "address": "0xd01237c66256a331DD8FA5550429dB6601bBCD05",
+      "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
+    },
+    {
+      "name": "VerificationFacet",
+      "address": "0x456BF72267A99168faD277F94D6fb751513Bbd12",
+      "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
+    },
+    {
+      "name": "CustodyFacet",
+      "address": "0x0Ce5FC16aa82A78fdf451a31b7A300F509fC2C1D",
+      "args": []
+    },
+    {
+      "name": "FundsFacet",
+      "address": "0x876B92Ad85808c4dad9F6a0802B051bb2B8133e2",
+      "args": []
+    },
+    {
+      "name": "PauseFacet",
+      "address": "0xa37aA1F6480C3436A061509e6d9fCFD77418cbb7",
+      "args": []
+    },
+    {
+      "name": "CustodyVaultFacet",
+      "address": "0x49673E4a266a3F62C05EcCacf4fcD3100AFeF4CA",
+      "args": []
+    }
+  ]
+}
