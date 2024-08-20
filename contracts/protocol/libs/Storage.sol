@@ -120,6 +120,10 @@ library FermionStorage {
         uint256 itemVerificationTimeout;
         // max verification timeout
         uint256 itemMaxVerificationTimeout;
+        // revised metadata
+        string pendingRevisedMetadata;
+        // buyer payout when the item is revised
+        uint256 buyerRevisedPayout;
     }
 
     struct SellerLookups {

@@ -53,6 +53,8 @@ interface VerificationErrors {
     // Verification errors
     error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
     error VerificationTimeoutTooLong(uint256 verificationTimeout, uint256 maxVerificationTimeout);
+    error EmptyMetadata();
+    error PendingRevisedMetadata(uint256 tokenId, string metadata);
 }
 
 interface CustodyErrors {

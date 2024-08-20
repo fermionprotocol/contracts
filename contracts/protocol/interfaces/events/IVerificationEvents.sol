@@ -22,4 +22,5 @@ interface IVerificationEvents {
         uint256 indexed nftId,
         FermionTypes.VerificationStatus verificationStatus
     );
+    event RevisedMetadataSubmitted(uint256 indexed nftId, string newMetadata);
 }
