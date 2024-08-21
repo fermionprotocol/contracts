@@ -123,7 +123,10 @@ library FermionStorage {
         // revised metadata
         string pendingRevisedMetadata;
         // buyer payout when the item is revised
-        uint256 buyerRevisedPayout;
+        uint16 sellerSplitProposal;
+        uint16 buyerSplitProposal;
+        // initial buyer
+        address initialBuyer;
     }
 
     struct SellerLookups {

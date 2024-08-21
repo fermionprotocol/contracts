@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { VerificationErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
@@ -11,13 +12,15 @@ import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
+import { EIP712 } from "../libs/EIP712.sol";
 
 /**
  * @title VerificationFacet
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, Access, VerificationErrors, IVerificationEvents {
+contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVerificationEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
     using FermionFNFTLib for address;
 
@@ -135,31 +138,53 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         return FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout;
     }
 
-    function submitDecision(uint256 _tokenId) external {
-        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
-
-        // determine if the buyer or the seller is the caller
-
-        // agreement reached if:
-        // - the seller submited proposal and the buyer submited a lower or equal proposal. The buyer's proposal is used
-        // - the buyer submited proposal and the seller submited a higher or equal proposal. The seller's proposal is used
-
-        // if agreement reached
-        {
-            tokenLookups.pendingRevisedMetadata = "";
-            submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Verified, false);
-            //     // uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl); // <do this where they submit the decision - but after submit verdict, since
-            //     // the money is already in the escrow>
-            //     // FundsLib.increaseAvailableFunds(offer.buyerId, exchangeToken, buyerRevisedPayout);
-        }
+    /**
+     * @notice Submit a proposal for the buyer and seller split if the item has been revised
+     *
+     * Emits a ProposalSubmitted event
+     *
+     * Reverts if:
+     * - Verification region is paused
+     * - Buyer percentage is invalid (greater than 100%)
+     * - The caller is not the buyer or seller
+     * - The item has not been revised
+     *
+     * @param _tokenId - the token ID
+     * @param _buyerPercent - the percentage the buyer will receive
+     */
+    function submitProposal(uint256 _tokenId, uint16 _buyerPercent) public {
+        submitProposalInternal(_tokenId, _buyerPercent, _msgSender(), address(0));
     }
 
-    function submitProposal(uint256 _tokenId, uint256 _proposal) external {
-        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
-    }
+    /**
+     * @notice Submit a proposal for the buyer and seller split if the item has been revised, using the other party's signature
+     *
+     * Reverts if:
+     * - The signature verification fails
+     * - Verification region is paused
+     * - Buyer percentage is invalid (greater than 100%)
+     * - The caller is not the buyer or seller
+     * - The item has not been revised
+     *
+     * Emits a ProposalSubmitted event
+     *
+     * @param _tokenId - the token ID
+     * @param _buyerPercent - the percentage the buyer will receive
+     * @param _signer - the signer of the proposal
+     * @param _signature - the signature of the proposal
+     */
+    function submitSignedProposal(
+        uint256 _tokenId,
+        uint16 _buyerPercent,
+        address _signer,
+        Signature memory _signature
+    ) external {
+        // verify signature
+        bytes32 messageHash = keccak256(abi.encodePacked(_tokenId, _buyerPercent));
 
-    function submitSignedProposal(uint256 _tokenId, uint256 _proposal, bytes memory _signature) external {
-        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
+        verify(_signer, messageHash, _signature);
+
+        submitProposalInternal(_tokenId, _buyerPercent, _msgSender(), _signer);
     }
 
     /**
@@ -220,7 +245,15 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
                 remainder -= verifierFee; // guaranteed to be positive
 
                 // if the item was revised, payout the buyer and do the other calcualtion on a new price
-                remainder -= tokenLookups.buyerRevisedPayout;
+                uint256 buyerSplitProposal = tokenLookups.buyerSplitProposal;
+                if (buyerSplitProposal > 0) {
+                    uint256 buyerRevisedPayout = FundsLib.applyPercentage(remainder, buyerSplitProposal);
+
+                    remainder -= buyerRevisedPayout;
+
+                    uint256 buyerId = EntityLib.getOrCreateBuyerId(tokenLookups.initialBuyer, pl);
+                    FundsLib.increaseAvailableFunds(buyerId, exchangeToken, buyerRevisedPayout);
+                }
 
                 // fermion fee
                 uint256 fermionFeeAmount = FundsLib.applyPercentage(
@@ -261,5 +294,93 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         }
 
         emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
+    }
+
+    /**
+     * @notice Intermediary step before the verdict is submitted to make sure the token had a revised metadata
+     *
+     * @param _tokenId - the token ID
+     * @param _tokenLookups - the token lookups storage
+     */
+    function acceptProposal(uint256 _tokenId, FermionStorage.TokenLookups storage _tokenLookups) internal {
+        string storage pendingRevisedMetadata = _tokenLookups.pendingRevisedMetadata;
+        if (bytes(pendingRevisedMetadata).length == 0) revert EmptyMetadata();
+
+        _tokenLookups.pendingRevisedMetadata = "";
+        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Verified, false);
+    }
+
+    /**
+     * @notice Internal helper to check the caller is one of the involved parties and check if the proposals match
+     *
+     * Emits a ProposalSubmitted event
+     *
+     * Reverts if:
+     * - Verification region is paused
+     * - Buyer percentage is invalid (greater than 100%)
+     * - The caller is not the buyer or seller
+     * - The item has not been revised
+     *
+     * @param _tokenId - the token ID
+     * @param _buyerPercent - the percentage the buyer will receive
+     */
+    function submitProposalInternal(
+        uint256 _tokenId,
+        uint16 _buyerPercent,
+        address _msgSender,
+        address _otherSigner
+    ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
+        if (_buyerPercent > HUNDRED_PERCENT) revert FermionGeneralErrors.InvalidPercentage(_buyerPercent);
+
+        uint16 buyerSplitProposal;
+        uint16 sellerSplitProposal;
+        bool matchingProposal;
+
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+        {
+            (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+            address initialBuyer = tokenLookups.initialBuyer;
+            if (initialBuyer == address(0)) {
+                // get the information from the fnft
+                initialBuyer = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).ownerOf(_tokenId);
+                tokenLookups.initialBuyer = initialBuyer;
+            }
+
+            if (_msgSender == initialBuyer) {
+                tokenLookups.buyerSplitProposal = _buyerPercent;
+
+                buyerSplitProposal = _buyerPercent;
+
+                if (_otherSigner == address(0)) {
+                    tokenLookups.sellerSplitProposal = _buyerPercent;
+                    sellerSplitProposal = _buyerPercent;
+                    matchingProposal = true;
+                } else {
+                    sellerSplitProposal = tokenLookups.sellerSplitProposal;
+                    matchingProposal = _buyerPercent <= sellerSplitProposal;
+                }
+            } else {
+                // check the caller is the seller
+                EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId, _msgSender);
+
+                tokenLookups.sellerSplitProposal = _buyerPercent;
+                sellerSplitProposal = _buyerPercent;
+
+                if (_otherSigner == address(0)) {
+                    tokenLookups.buyerSplitProposal = _buyerPercent;
+                    buyerSplitProposal = _buyerPercent;
+                    matchingProposal = true;
+                } else {
+                    buyerSplitProposal = tokenLookups.buyerSplitProposal;
+                    matchingProposal = buyerSplitProposal > 0 && _buyerPercent >= buyerSplitProposal;
+                }
+            }
+        }
+        emit ProposalSubmitted(_tokenId, buyerSplitProposal, sellerSplitProposal, _buyerPercent);
+
+        if (matchingProposal) {
+            acceptProposal(_tokenId, tokenLookups);
+        }
     }
 }
