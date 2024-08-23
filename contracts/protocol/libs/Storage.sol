@@ -121,7 +121,7 @@ library FermionStorage {
         // max verification timeout
         uint256 itemMaxVerificationTimeout;
         // revised metadata
-        string pendingRevisedMetadata;
+        string revisedMetadata;
         // buyer payout when the item is revised
         uint16 sellerSplitProposal;
         uint16 buyerSplitProposal;

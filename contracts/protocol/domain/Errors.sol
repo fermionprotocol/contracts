@@ -55,6 +55,7 @@ interface VerificationErrors {
     error VerificationTimeoutTooLong(uint256 verificationTimeout, uint256 maxVerificationTimeout);
     error EmptyMetadata();
     error PendingRevisedMetadata(uint256 tokenId, string metadata);
+    error DigestMismatch(bytes32 expected, bytes32 actual);
 }
 
 interface CustodyErrors {
@@ -151,5 +152,6 @@ interface FermionErrors is
     FundsErrors,
     PauseErrors,
     MetaTransactionErrors,
-    FractionalisationErrors
+    FractionalisationErrors,
+    SignatureErrors
 {}

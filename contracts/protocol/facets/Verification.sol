@@ -24,6 +24,12 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
     IBosonProtocol private immutable BOSON_PROTOCOL;
     using FermionFNFTLib for address;
 
+    struct SplitProposal {
+        uint16 buyer;
+        uint16 seller;
+        bool matching;
+    }
+
     constructor(address _bosonProtocol) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
@@ -62,6 +68,8 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         uint256 _tokenId,
         string memory _newMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
+        if (bytes(_newMetadata).length == 0) revert EmptyMetadata();
+
         uint256 tokenId = _tokenId;
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
 
@@ -72,11 +80,68 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
             FermionTypes.AccountRole.Assistant
         );
 
-        if (bytes(_newMetadata).length == 0) revert EmptyMetadata();
+        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[tokenId];
+        tokenLookups.revisedMetadata = _newMetadata;
 
-        FermionStorage.protocolLookups().tokenLookups[_tokenId].pendingRevisedMetadata = _newMetadata;
+        // updating the metadata resets the proposals
+        delete tokenLookups.buyerSplitProposal;
+        delete tokenLookups.sellerSplitProposal;
 
         emit RevisedMetadataSubmitted(tokenId, _newMetadata);
+    }
+
+    /**
+     * @notice Submit a proposal for the buyer and seller split if the item has been revised
+     *
+     * Emits a ProposalSubmitted event
+     *
+     * Reverts if:
+     * - Verification region is paused
+     * - Buyer percentage is invalid (greater than 100%)
+     * - The item has not been revised
+     * - The metadata URI digest does not match the revised metadata digest
+     * - The caller is not the buyer or seller
+     *
+     * @param _tokenId - the token ID
+     * @param _buyerPercent - the percentage the buyer will receive
+     * @param _metadataURIDigest - keccak256 of the revised metadata URI
+     */
+    function submitProposal(uint256 _tokenId, uint16 _buyerPercent, bytes32 _metadataURIDigest) public {
+        submitProposalInternal(_tokenId, _buyerPercent, _metadataURIDigest, _msgSender(), address(0));
+    }
+
+    /**
+     * @notice Submit a proposal for the buyer and seller split if the item has been revised, using the other party's signature
+     *
+     * Reverts if:
+     * - The signature verification fails
+     * - Verification region is paused
+     * - Buyer percentage is invalid (greater than 100%)
+     * - The item has not been revised
+     * - The metadata URI digest does not match the revised metadata digest
+     * - The caller is not the buyer or seller
+     *
+     * Emits a ProposalSubmitted event
+     *
+     * @param _tokenId - the token ID
+     * @param _buyerPercent - the percentage the buyer will receive
+     * @param _metadataURIDigest - keccak256 of the revised metadata URI
+     * @param _signer - the signer of the proposal
+     * @param _signature - the signature of the proposal
+     */
+    function submitSignedProposal(
+        uint256 _tokenId,
+        uint16 _buyerPercent,
+        bytes32 _metadataURIDigest,
+        address _signer,
+        Signature memory _signature
+    ) external {
+        // verify signature
+        bytes32 messageHash = keccak256(abi.encodePacked(_tokenId, _buyerPercent));
+
+        verify(_signer, messageHash, _signature);
+
+        submitProposalInternal(_tokenId, _buyerPercent, _metadataURIDigest, _msgSender(), _signer);
     }
 
     /**
@@ -136,55 +201,6 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      */
     function getItemVerificationTimeout(uint256 _tokenId) external view returns (uint256) {
         return FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout;
-    }
-
-    /**
-     * @notice Submit a proposal for the buyer and seller split if the item has been revised
-     *
-     * Emits a ProposalSubmitted event
-     *
-     * Reverts if:
-     * - Verification region is paused
-     * - Buyer percentage is invalid (greater than 100%)
-     * - The caller is not the buyer or seller
-     * - The item has not been revised
-     *
-     * @param _tokenId - the token ID
-     * @param _buyerPercent - the percentage the buyer will receive
-     */
-    function submitProposal(uint256 _tokenId, uint16 _buyerPercent) public {
-        submitProposalInternal(_tokenId, _buyerPercent, _msgSender(), address(0));
-    }
-
-    /**
-     * @notice Submit a proposal for the buyer and seller split if the item has been revised, using the other party's signature
-     *
-     * Reverts if:
-     * - The signature verification fails
-     * - Verification region is paused
-     * - Buyer percentage is invalid (greater than 100%)
-     * - The caller is not the buyer or seller
-     * - The item has not been revised
-     *
-     * Emits a ProposalSubmitted event
-     *
-     * @param _tokenId - the token ID
-     * @param _buyerPercent - the percentage the buyer will receive
-     * @param _signer - the signer of the proposal
-     * @param _signature - the signature of the proposal
-     */
-    function submitSignedProposal(
-        uint256 _tokenId,
-        uint16 _buyerPercent,
-        address _signer,
-        Signature memory _signature
-    ) external {
-        // verify signature
-        bytes32 messageHash = keccak256(abi.encodePacked(_tokenId, _buyerPercent));
-
-        verify(_signer, messageHash, _signature);
-
-        submitProposalInternal(_tokenId, _buyerPercent, _msgSender(), _signer);
     }
 
     /**
@@ -265,8 +281,9 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
             }
 
             if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
-                if (bytes(tokenLookups.pendingRevisedMetadata).length > 0)
-                    revert PendingRevisedMetadata(tokenId, tokenLookups.pendingRevisedMetadata);
+                // ToDo: if the item was revised, it can be verified only by the buyer or seller
+                // if (bytes(tokenLookups.pendingRevisedMetadata).length > 0)
+                //     revert PendingRevisedMetadata(tokenId, tokenLookups.pendingRevisedMetadata);
 
                 // pay the facilitator
                 uint256 facilitatorFeeAmount = FundsLib.applyPercentage(remainder, offer.facilitatorFeePercent);
@@ -297,20 +314,6 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
     }
 
     /**
-     * @notice Intermediary step before the verdict is submitted to make sure the token had a revised metadata
-     *
-     * @param _tokenId - the token ID
-     * @param _tokenLookups - the token lookups storage
-     */
-    function acceptProposal(uint256 _tokenId, FermionStorage.TokenLookups storage _tokenLookups) internal {
-        string storage pendingRevisedMetadata = _tokenLookups.pendingRevisedMetadata;
-        if (bytes(pendingRevisedMetadata).length == 0) revert EmptyMetadata();
-
-        _tokenLookups.pendingRevisedMetadata = "";
-        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Verified, false);
-    }
-
-    /**
      * @notice Internal helper to check the caller is one of the involved parties and check if the proposals match
      *
      * Emits a ProposalSubmitted event
@@ -318,26 +321,37 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      * Reverts if:
      * - Verification region is paused
      * - Buyer percentage is invalid (greater than 100%)
+     * - The metadata URI digest does not match the revised metadata digest
      * - The caller is not the buyer or seller
      * - The item has not been revised
      *
      * @param _tokenId - the token ID
      * @param _buyerPercent - the percentage the buyer will receive
+     * @param _metadataURIDigest - keccak256 of the revised metadata URI
+     * @param _msgSender - the caller
+     * @param _otherSigner - the other party's address (0 if not present)
      */
     function submitProposalInternal(
         uint256 _tokenId,
         uint16 _buyerPercent,
+        bytes32 _metadataURIDigest,
         address _msgSender,
         address _otherSigner
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         if (_buyerPercent > HUNDRED_PERCENT) revert FermionGeneralErrors.InvalidPercentage(_buyerPercent);
 
-        uint16 buyerSplitProposal;
-        uint16 sellerSplitProposal;
-        bool matchingProposal;
-
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+        {
+            string memory revisedMetadata = tokenLookups.revisedMetadata;
+            if (bytes(tokenLookups.revisedMetadata).length == 0) revert EmptyMetadata();
+            bytes32 expectedMetadataDigest = keccak256(bytes(revisedMetadata));
+            if (expectedMetadataDigest != _metadataURIDigest)
+                revert DigestMismatch(expectedMetadataDigest, _metadataURIDigest);
+        }
+
+        SplitProposal memory splitProposal;
+
         {
             (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
             address initialBuyer = tokenLookups.initialBuyer;
@@ -350,37 +364,38 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
             if (_msgSender == initialBuyer) {
                 tokenLookups.buyerSplitProposal = _buyerPercent;
 
-                buyerSplitProposal = _buyerPercent;
+                splitProposal.buyer = _buyerPercent;
 
                 if (_otherSigner == address(0)) {
                     tokenLookups.sellerSplitProposal = _buyerPercent;
-                    sellerSplitProposal = _buyerPercent;
-                    matchingProposal = true;
+                    splitProposal.seller = _buyerPercent;
+                    splitProposal.matching = true;
                 } else {
-                    sellerSplitProposal = tokenLookups.sellerSplitProposal;
-                    matchingProposal = _buyerPercent <= sellerSplitProposal;
+                    splitProposal.seller = tokenLookups.sellerSplitProposal;
+                    splitProposal.matching = _buyerPercent <= splitProposal.seller;
                 }
             } else {
                 // check the caller is the seller
                 EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId, _msgSender);
 
                 tokenLookups.sellerSplitProposal = _buyerPercent;
-                sellerSplitProposal = _buyerPercent;
+                splitProposal.seller = _buyerPercent;
 
                 if (_otherSigner == address(0)) {
                     tokenLookups.buyerSplitProposal = _buyerPercent;
-                    buyerSplitProposal = _buyerPercent;
-                    matchingProposal = true;
+                    splitProposal.buyer = _buyerPercent;
+                    splitProposal.matching = true;
                 } else {
-                    buyerSplitProposal = tokenLookups.buyerSplitProposal;
-                    matchingProposal = buyerSplitProposal > 0 && _buyerPercent >= buyerSplitProposal;
+                    splitProposal.buyer = tokenLookups.buyerSplitProposal;
+                    splitProposal.matching = splitProposal.buyer > 0 && _buyerPercent >= splitProposal.buyer;
                 }
             }
         }
-        emit ProposalSubmitted(_tokenId, buyerSplitProposal, sellerSplitProposal, _buyerPercent);
 
-        if (matchingProposal) {
-            acceptProposal(_tokenId, tokenLookups);
+        emit ProposalSubmitted(_tokenId, splitProposal.buyer, splitProposal.seller, _buyerPercent);
+
+        if (splitProposal.matching) {
+            submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Verified, false);
         }
     }
 }
