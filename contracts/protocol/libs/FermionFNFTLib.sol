@@ -72,7 +72,7 @@ library FermionFNFTLib {
      * @param _to The address to transfer to.
      * @param _value The number of fractions to transfer.
      */
-    function transfer(address _fnft, address _to, uint256 _value) internal returns (bool) {
+    function transfer(address _fnft, address _to, uint256 _value) internal {
         _fnft.functionCallWithAddress(abi.encodeCall(IFermionFractions.transfer, (_to, _value)));
     }
 
