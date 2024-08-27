@@ -202,7 +202,6 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
      * @notice Validates the nonce and function signature.
      *
      * Reverts if:
-     * - The contract address is neither this contract nor one of FermionFNFTs
      * - Nonce is already used by the msg.sender for another transaction
      * - Function is not allowlisted to be called using metatransactions
      * - Function name does not match the bytes4 version of the function signature
