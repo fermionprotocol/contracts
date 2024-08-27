@@ -100,7 +100,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
                 _functionName,
                 _functionSignature,
                 _nonce,
-                Signature(_sigR, _sigS, _sigV),
+                Signature({ r: _sigR, s: _sigS, v: _sigV }),
                 0
             );
     }
