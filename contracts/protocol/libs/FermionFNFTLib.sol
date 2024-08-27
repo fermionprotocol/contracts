@@ -22,6 +22,28 @@ library FermionFNFTLib {
         return _fnft.functionCall(appendAddress(data));
     }
 
+    /**
+     * @notice Initializes the FNFT contract
+     *
+     * @param _voucherAddress The address of the Boson Voucher contract
+     * @param _owner The address of the owner
+     * @param _exchangeToken The address of the exchange token
+     * @param _offerId The offer id
+     * @param _metadataUri The metadata URI, used for all tokens and contract URI
+     */
+    function initialize(
+        address _fnft,
+        address _voucherAddress,
+        address _owner,
+        address _exchangeToken,
+        uint256 _offerId,
+        string memory _metadataUri
+    ) internal {
+        _fnft.functionCallWithAddress(
+            abi.encodeCall(IFermionFNFT.initialize, (_voucherAddress, _owner, _exchangeToken, _offerId, _metadataUri))
+        );
+    }
+
     function pushToNextTokenState(address _fnft, uint256 _tokenId, FermionTypes.TokenState _newState) internal {
         _fnft.functionCallWithAddress(abi.encodeCall(IFermionFNFT.pushToNextTokenState, (_tokenId, _newState)));
     }
