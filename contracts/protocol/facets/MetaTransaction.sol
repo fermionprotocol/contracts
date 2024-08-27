@@ -288,7 +288,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         FermionStorage.metaTransaction().usedNonce[_userAddress][_nonce] = true;
 
         // Invoke local function with an external call
-        (bool success, bytes memory returnData) = address(_contractAddress).call{ value: msg.value }(
+        (bool success, bytes memory returnData) = _contractAddress.call{ value: msg.value }(
             abi.encodePacked(_functionSignature, _userAddress)
         );
 
