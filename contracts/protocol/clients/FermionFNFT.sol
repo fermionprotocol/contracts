@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { SLOT_SIZE } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
@@ -159,7 +160,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         } else {
             bool success = transferFractionsFrom(from, to, tokenIdOrValue);
             assembly {
-                return(success, 32)
+                return(success, SLOT_SIZE)
             }
         }
     }
@@ -175,7 +176,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         } else {
             bool success = approveFractions(to, tokenIdOrBalance);
             assembly {
-                return(success, 32)
+                return(success, SLOT_SIZE)
             }
         }
     }

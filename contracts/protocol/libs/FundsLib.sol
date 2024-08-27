@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { HUNDRED_PERCENT } from "../domain/Constants.sol";
+import { HUNDRED_PERCENT, SLOT_SIZE } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -65,7 +65,7 @@ library FundsLib {
         );
 
         if (success) {
-            if (returnData.length != 32) {
+            if (returnData.length != SLOT_SIZE) {
                 revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
             } else {
                 // If returned value equals 1 (= true), the contract is ERC721 and we should revert
@@ -84,7 +84,7 @@ library FundsLib {
                 // If an actual error message is returned, revert with it
                 /// @solidity memory-safe-assembly
                 assembly {
-                    revert(add(32, returnData), mload(returnData))
+                    revert(add(SLOT_SIZE, returnData), mload(returnData))
                 }
             }
         }

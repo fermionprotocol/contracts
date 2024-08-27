@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { SLOT_SIZE } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionGeneralErrors } from "../domain/Errors.sol";
 
@@ -135,7 +136,7 @@ library FermionFNFTLib {
     function burn(address _fnft, uint256 _tokenId) internal returns (address wrappedVoucherOwner) {
         bytes memory returndata = address(_fnft).functionCallWithAddress(abi.encodeCall(IFermionFNFT.burn, (_tokenId)));
 
-        if (returndata.length != 32) revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
+        if (returndata.length != SLOT_SIZE) revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
         wrappedVoucherOwner = abi.decode(returndata, (address));
     }
 

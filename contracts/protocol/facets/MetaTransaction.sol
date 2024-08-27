@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { ADMIN } from "../domain/Constants.sol";
+import { ADMIN, SLOT_SIZE } from "../domain/Constants.sol";
 import { MetaTransactionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -296,7 +296,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             if (returnData.length > 0) {
                 // bubble up the error
                 assembly {
-                    revert(add(32, returnData), mload(returnData))
+                    revert(add(SLOT_SIZE, returnData), mload(returnData))
                 }
             } else {
                 // Reverts with default message
@@ -381,7 +381,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             );
 
             if (success) {
-                if (returnData.length != 32) {
+                if (returnData.length != SLOT_SIZE) {
                     revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
                 } else {
                     // Make sure that the lowest 224 bits (28 bytes) are not set
@@ -396,7 +396,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
                 } else {
                     /// @solidity memory-safe-assembly
                     assembly {
-                        revert(add(32, returnData), mload(returnData))
+                        revert(add(SLOT_SIZE, returnData), mload(returnData))
                     }
                 }
             }
