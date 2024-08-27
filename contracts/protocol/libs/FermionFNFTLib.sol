@@ -50,12 +50,7 @@ library FermionFNFTLib {
      * @param _value The number of fractions to transfer.
      */
     function transfer(address _fnft, address _to, uint256 _value) internal returns (bool) {
-        bytes memory returndata = _fnft.functionCallWithAddress(
-            abi.encodeCall(IFermionFractions.transfer, (_to, _value))
-        );
-
-        if (returndata.length != 32) revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
-        return abi.decode(returndata, (bool));
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionFractions.transfer, (_to, _value)));
     }
 
     /**
