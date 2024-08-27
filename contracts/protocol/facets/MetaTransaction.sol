@@ -92,16 +92,17 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         bytes32 _sigR,
         bytes32 _sigS,
         uint8 _sigV
-    ) external {
-        executeMetaTransaction(
-            address(this),
-            _userAddress,
-            _functionName,
-            _functionSignature,
-            _nonce,
-            Signature(_sigR, _sigS, _sigV),
-            0
-        );
+    ) external payable returns (bytes memory) {
+        return
+            executeMetaTransaction(
+                address(this),
+                _userAddress,
+                _functionName,
+                _functionSignature,
+                _nonce,
+                Signature(_sigR, _sigS, _sigV),
+                0
+            );
     }
 
     /**
