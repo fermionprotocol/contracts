@@ -101,7 +101,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     }
 
     /**
-     * @notice Pushes the F-NFT from unverified to verified
+     * @notice Pushes the F-NFT to next token state
      *
      * Reverts if:
      * - Caller is not the Fermion Protocol
@@ -110,6 +110,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
      * N.B. Not checking if the new state is valid, since the caller is the Fermion Protocol, which is trusted
      *
      * @param _tokenId The token id.
+     * @param _newState The new token state
      */
     function pushToNextTokenState(uint256 _tokenId, FermionTypes.TokenState _newState) external {
         Common.checkStateAndCaller(
