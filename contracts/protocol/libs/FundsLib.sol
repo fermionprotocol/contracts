@@ -50,9 +50,18 @@ library FundsLib {
      * @notice Tries to transfer tokens from the caller to the protocol.
      *
      * Reverts if:
+     * - The called contract is ERC721
      * - Contract at token address does not support ERC20 function transferFrom
      * - Calling transferFrom on token fails for some reason (e.g. protocol is not approved to transfer)
      * - Received ERC20 token amount differs from the expected value
+     *
+     * N.B. Special caution is needed when interacting with the FermionFNFT contract,
+     * as it treats _msgSender() differently when the caller is the Fermion protocol.
+     * Currently, interactions with FermionFNFT in this function are prevented
+     * because it returns true for IERC165.supportsInterface(IERC721) and reverts.
+     * If this check is removed, a special check should be introduced to prevent FermionFNFT interactions.
+     * Alternatively, if interactions with FermionFNFT become allowed at some point,
+     * those interactions should be conducted via FermionFNFTLib to ensure the correct _msgSender() is used.
      *
      * @param _tokenAddress - address of the token to be transferred
      * @param _from - address to transfer funds from
