@@ -111,7 +111,6 @@ interface MetaTransactionErrors {
     error FunctionNotAllowlisted();
     error InvalidFunctionName();
     error FunctionCallFailed();
-    error InvalidContractAddress(address contractAddress);
 }
 
 interface SignatureErrors {
