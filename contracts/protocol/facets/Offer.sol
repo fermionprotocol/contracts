@@ -18,7 +18,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
-import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
@@ -555,7 +554,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             offerLookup.fermionFNFTAddress = wrapperAddress;
 
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-            IFermionFNFT(wrapperAddress).initialize(
+            wrapperAddress.initialize(
                 address(_bosonVoucher),
                 msgSender,
                 offer.exchangeToken,
