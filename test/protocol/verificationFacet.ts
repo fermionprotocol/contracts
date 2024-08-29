@@ -626,6 +626,140 @@ describe("Verification", function () {
     });
   });
 
+  context("submitRevisedMetadata", function () {
+    const newMetadataURI = "https://example.com/new-metadata.json";
+
+    it("verifier can submit revised metadata", async function () {
+      const tx = await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+      // Events
+      await expect(tx)
+        .to.emit(verificationFacet, "RevisedMetadataSubmitted")
+        .withArgs(exchange.tokenId, newMetadataURI);
+
+      // State
+      expect(await verificationFacet.getRevisedMetadata(exchange.tokenId)).to.equal(newMetadataURI);
+    });
+
+    it("Revised metadata can be updated", async function () {
+      await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+      const newMetadataURI2 = "https://example.com/new-metadata2.json";
+      const tx = await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI2);
+
+      // Events
+      await expect(tx)
+        .to.emit(verificationFacet, "RevisedMetadataSubmitted")
+        .withArgs(exchange.tokenId, newMetadataURI2);
+
+      // State
+      expect(await verificationFacet.getRevisedMetadata(exchange.tokenId)).to.equal(newMetadataURI2);
+    });
+
+    it("verifier can submit revised metadata after the timeout if the timeout was not called yet", async function () {
+      await setNextBlockTimestamp(itemVerificationTimeout);
+
+      const tx = await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+      // Events
+      await expect(tx)
+        .to.emit(verificationFacet, "RevisedMetadataSubmitted")
+        .withArgs(exchange.tokenId, newMetadataURI);
+
+      // State
+      expect(await verificationFacet.getRevisedMetadata(exchange.tokenId)).to.equal(newMetadataURI);
+    });
+
+    context("Revert reasons", function () {
+      it("Verification region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Verification]);
+
+        await expect(verificationFacet.submitRevisedMetadata(exchange.tokenId, newMetadataURI))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Verification);
+      });
+
+      it("Caller is not the verifiers's assistant", async function () {
+        const wallet = wallets[9];
+
+        // completely random wallet
+        await expect(verificationFacet.connect(wallet).submitRevisedMetadata(exchange.tokenId, newMetadataURI))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet.address, EntityRole.Verifier, AccountRole.Assistant);
+
+        // seller
+        await expect(verificationFacet.submitRevisedMetadata(exchange.tokenId, newMetadataURI))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, defaultSigner.address, EntityRole.Verifier, AccountRole.Assistant);
+
+        // an entity-wide Treasury or Manager wallet (not Assistant)
+        await entityFacet
+          .connect(verifier)
+          .addEntityAccounts(verifierId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
+        await expect(verificationFacet.connect(wallet).submitRevisedMetadata(exchange.tokenId, newMetadataURI))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet.address, EntityRole.Verifier, AccountRole.Assistant);
+
+        // a Verifier specific Treasury or Manager wallet
+        const wallet2 = wallets[10];
+        await entityFacet
+          .connect(verifier)
+          .addEntityAccounts(
+            verifierId,
+            [wallet2],
+            [[EntityRole.Verifier]],
+            [[[AccountRole.Treasury, AccountRole.Manager]]],
+          );
+        await expect(verificationFacet.connect(wallet2).submitRevisedMetadata(exchange.tokenId, newMetadataURI))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet2.address, EntityRole.Verifier, AccountRole.Assistant);
+
+        // an Assistant of another role than Verifier
+        await entityFacet.connect(verifier).updateEntity(verifierId, [EntityRole.Verifier, EntityRole.Custodian], "");
+        await entityFacet
+          .connect(verifier)
+          .addEntityAccounts(verifierId, [wallet2], [[EntityRole.Custodian]], [[[AccountRole.Assistant]]]);
+        await expect(verificationFacet.connect(wallet2).submitRevisedMetadata(exchange.tokenId, newMetadataURI))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet2.address, EntityRole.Verifier, AccountRole.Assistant);
+      });
+
+      it("New metadata is empty", async function () {
+        const newMetadataURI = "";
+
+        await expect(
+          verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI),
+        ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
+      });
+
+      it("Token does not exist", async function () {
+        const tokenId = deriveTokenId("15", "4"); // token that was wrapped but not unwrapped yet
+
+        await expect(verificationFacet.submitRevisedMetadata(tokenId, newMetadataURI))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(0, verifier.address, EntityRole.Verifier, AccountRole.Assistant);
+      });
+
+      it("Cannot submit before it's unwrapped", async function () {
+        const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
+
+        await expect(verificationFacet.submitRevisedMetadata(tokenId, newMetadataURI)).to.be.revertedWithCustomError(
+          bosonExchangeHandler,
+          "NoSuchExchange",
+        );
+      });
+
+      it("Verification is timeouted", async function () {
+        await setNextBlockTimestamp(itemVerificationTimeout);
+        await verificationFacet.verificationTimeout(exchange.tokenId);
+
+        await expect(
+          verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI),
+        ).to.be.revertedWithCustomError(verificationFacet, "AlreadyVerified");
+      });
+    });
+  });
+
   context("verificationTimeout", function () {
     let randomWallet: HardhatEthersSigner;
 

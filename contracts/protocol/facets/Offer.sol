@@ -463,18 +463,6 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     }
 
     /**
-     * @notice Get token's revised metadata URI
-     * If token has no revised metadata, refer to corresponfing offer's metadata URI
-     *
-     * @param _tokenId Fermion FNFT token ID
-     *
-     * @return revisedMetadata Token's revised metadata
-     */
-    function getRevisedMetadata(uint256 _tokenId) external view returns (string memory revisedMetadata) {
-        return FermionStorage.protocolLookups().tokenLookups[_tokenId].revisedMetadata;
-    }
-
-    /**
      * @notice Predict the address of the Fermion FNFT contract
      *
      * @dev This is primarily used for testing purposes. Might be removed in the future.

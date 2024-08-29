@@ -204,6 +204,32 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
     }
 
     /**
+     * @notice Get token's revised metadata URI
+     * If token has no revised metadata, refer to corresponfing offer's metadata URI
+     *
+     * @param _tokenId Fermion FNFT token ID
+     *
+     * @return revisedMetadata Token's revised metadata
+     */
+    function getRevisedMetadata(uint256 _tokenId) external view returns (string memory revisedMetadata) {
+        return FermionStorage.protocolLookups().tokenLookups[_tokenId].revisedMetadata;
+    }
+
+    /**
+     * @notice Get the buyer and seller proposals for a specific token
+     *
+     * @param _tokenId - the token ID
+     *
+     * @return buyer - the buyer's proposal
+     * @return seller - the seller's proposal
+     */
+    function getProposals(uint256 _tokenId) external view returns (uint16 buyer, uint16 seller) {
+        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
+        buyer = tokenLookups.buyerSplitProposal;
+        seller = tokenLookups.sellerSplitProposal;
+    }
+
+    /**
      * @notice Submit a verdict
      *
      * Emits an VerdictSubmitted event

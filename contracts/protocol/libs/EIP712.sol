@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import { SLOT_SIZE } from "../domain/Constants.sol";
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { SignatureErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 
@@ -103,7 +104,7 @@ contract EIP712 is SignatureErrors {
             );
 
             if (success) {
-                if (returnData.length != 32) {
+                if (returnData.length != SLOT_SIZE) {
                     revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
                 } else {
                     // Make sure that the lowest 224 bits (28 bytes) are not set
@@ -118,7 +119,7 @@ contract EIP712 is SignatureErrors {
                 } else {
                     /// @solidity memory-safe-assembly
                     assembly {
-                        revert(add(32, returnData), mload(returnData))
+                        revert(add(SLOT_SIZE, returnData), mload(returnData))
                     }
                 }
             }

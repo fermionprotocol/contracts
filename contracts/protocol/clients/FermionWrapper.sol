@@ -7,7 +7,7 @@ import { Common } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { OfferFacet } from "../facets/Offer.sol";
+import { VerificationFacet } from "../facets/Verification.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -134,7 +134,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         _requireOwned(_tokenId);
 
-        string memory revisedMetadata = OfferFacet(fermionProtocol).getRevisedMetadata(_tokenId);
+        string memory revisedMetadata = VerificationFacet(fermionProtocol).getRevisedMetadata(_tokenId);
         if (bytes(revisedMetadata).length > 0) {
             return revisedMetadata;
         }
