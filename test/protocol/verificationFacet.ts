@@ -760,6 +760,22 @@ describe("Verification", function () {
     });
   });
 
+  context("getRevisedMetadata", function () {
+    it("Exchange with revised metadata", async function () {
+      const newMetadataURI = "https://example.com/new-metadata.json";
+
+      await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+      // State
+      expect(await verificationFacet.getRevisedMetadata(exchange.tokenId)).to.equal(newMetadataURI);
+    });
+
+    it("Exchange without revised metadata", async function () {
+      // State
+      expect(await verificationFacet.getRevisedMetadata(exchange.tokenId)).to.equal("");
+    });
+  });
+
   context("verificationTimeout", function () {
     let randomWallet: HardhatEthersSigner;
 
