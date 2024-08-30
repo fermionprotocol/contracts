@@ -382,6 +382,24 @@ describe("Verification", function () {
         expect(await wrapper.tokenState(exchangeSelfVerification.tokenId)).to.equal(TokenState.Verified);
         expect(await wrapper.ownerOf(exchangeSelfVerification.tokenId)).to.equal(buyer.address);
       });
+
+      it("Can verify after after the timeout if the timeout was not called yet ", async function () {
+        await setNextBlockTimestamp(itemVerificationTimeout);
+
+        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
+      });
+
+      it("Can verify after revised metadata submitted and removed ", async function () {
+        const newMetadataURI = "https://example.com/new-metadata.json";
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, "");
+
+        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
+      });
     });
 
     context("Rejected", function () {
@@ -552,6 +570,27 @@ describe("Verification", function () {
             exchangeSelfVerification.payout.facilitatorFeeAmount,
         );
       });
+
+      it("Can reject after after the timeout if the timeout was not called yet", async function () {
+        await setNextBlockTimestamp(itemVerificationTimeout);
+
+        // Events
+        // Fermion
+        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Rejected))
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
+      });
+
+      it("Can reject after revised metadata submitted", async function () {
+        const newMetadataURI = "https://example.com/new-metadata.json";
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+        // Events
+        // Fermion
+        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Rejected))
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
+      });
     });
 
     context("Revert reasons", function () {
@@ -616,6 +655,15 @@ describe("Verification", function () {
         ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
       });
 
+      it("Cannot verify after revised metadata submitted", async function () {
+        const newMetadataURI = "https://example.com/new-metadata.json";
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
+          .to.be.revertedWithCustomError(verificationFacet, "PendingRevisedMetadata")
+          .withArgs(exchange.tokenId, newMetadataURI);
+      });
+
       it("Cannot verify before it's unwrapped", async function () {
         const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
 
@@ -659,10 +707,8 @@ describe("Verification", function () {
     it("verifier can submit revised metadata after the timeout if the timeout was not called yet", async function () {
       await setNextBlockTimestamp(itemVerificationTimeout);
 
-      const tx = await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
-
       // Events
-      await expect(tx)
+      await expect(await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI))
         .to.emit(verificationFacet, "RevisedMetadataSubmitted")
         .withArgs(exchange.tokenId, newMetadataURI);
 
@@ -722,14 +768,6 @@ describe("Verification", function () {
         await expect(verificationFacet.connect(wallet2).submitRevisedMetadata(exchange.tokenId, newMetadataURI))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(verifierId, wallet2.address, EntityRole.Verifier, AccountRole.Assistant);
-      });
-
-      it("New metadata is empty", async function () {
-        const newMetadataURI = "";
-
-        await expect(
-          verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI),
-        ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
       });
 
       it("Token does not exist", async function () {

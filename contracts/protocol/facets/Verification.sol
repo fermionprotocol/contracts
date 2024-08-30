@@ -59,7 +59,8 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the verifier's assistant
-     * - New metadata is empty
+     *
+     * N.B. SUbmitting empty metadata is allowed and it can be used to clear the revised metadata (i.e. making it again the same as the offer's metadata)
      *
      * @param _tokenId - the token ID
      * @param _newMetadata - the uri of the new metadata
@@ -68,8 +69,6 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         uint256 _tokenId,
         string memory _newMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
-        if (bytes(_newMetadata).length == 0) revert EmptyMetadata();
-
         uint256 tokenId = _tokenId;
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
 
