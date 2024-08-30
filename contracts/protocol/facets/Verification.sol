@@ -48,7 +48,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      * @param _verificationStatus - the verification status
      */
     function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
-        submitVerdictInternal(_tokenId, _verificationStatus, false);
+        submitVerdictInternal(_tokenId, _verificationStatus, false, true);
     }
 
     /**
@@ -105,7 +105,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      * @param _buyerPercent - the percentage the buyer will receive
      * @param _metadataURIDigest - keccak256 of the revised metadata URI
      */
-    function submitProposal(uint256 _tokenId, uint16 _buyerPercent, bytes32 _metadataURIDigest) public {
+    function submitProposal(uint256 _tokenId, uint16 _buyerPercent, bytes32 _metadataURIDigest) external {
         submitProposalInternal(_tokenId, _buyerPercent, _metadataURIDigest, _msgSender(), address(0));
     }
 
@@ -158,7 +158,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         uint256 timeout = FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout;
         if (block.timestamp < timeout) revert VerificationTimeoutNotPassed(timeout, block.timestamp);
 
-        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, true);
+        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, true, false);
     }
 
     /**
@@ -240,18 +240,43 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
-     * @param _afterTimeout - indicator if the verification is rejected after timeout
+     * @param _payoutVerifier - indicator if the verification is rejected after timeout
+     * @param _requireVerifier - indicator if the verifier must be the caller
      */
     function submitVerdictInternal(
         uint256 _tokenId,
         FermionTypes.VerificationStatus _verificationStatus,
-        bool _afterTimeout
+        bool _payoutVerifier,
+        bool _requireVerifier
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
+        submitVerdictInternalUnguarded(_tokenId, _verificationStatus, _payoutVerifier, _requireVerifier);
+    }
+
+    /**
+     * @notice Submit a verdict
+     *
+     * Emits an VerdictSubmitted event
+     *
+     * Reverts if:
+     * - Caller is not the verifier's assistant
+     * - The item has pending revised metadata and the verdict is verified
+     *
+     * @param _tokenId - the token ID
+     * @param _verificationStatus - the verification status
+     * @param _payoutVerifier - indicator if the verification is rejected after timeout
+     * @param _requireVerifier - indicator if the verifier must be the caller
+     */
+    function submitVerdictInternalUnguarded(
+        uint256 _tokenId,
+        FermionTypes.VerificationStatus _verificationStatus,
+        bool _payoutVerifier,
+        bool _requireVerifier
+    ) internal {
         uint256 tokenId = _tokenId;
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
         uint256 verifierId = offer.verifierId;
 
-        if (!_afterTimeout) {
+        if (_requireVerifier) {
             // Check the caller is the verifier's assistant
             EntityLib.validateAccountRole(
                 verifierId,
@@ -282,7 +307,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
             unchecked {
                 // pay the verifier, regardless of the verdict
                 uint256 verifierFee = offer.verifierFee;
-                if (!_afterTimeout) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
+                if (!_payoutVerifier) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
                 remainder -= verifierFee; // guaranteed to be positive
 
                 // if the item was revised, payout the buyer and do the other calcualtion on a new price
@@ -326,7 +351,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
 
                 uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 
-                if (_afterTimeout) {
+                if (!_payoutVerifier) {
                     remainder += offer.verifierFee;
                 }
 
@@ -392,12 +417,12 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                 splitProposal.buyer = _buyerPercent;
 
                 if (_otherSigner == address(0)) {
+                    splitProposal.seller = tokenLookups.sellerSplitProposal;
+                    splitProposal.matching = _buyerPercent <= splitProposal.seller;
+                } else {
                     tokenLookups.sellerSplitProposal = _buyerPercent;
                     splitProposal.seller = _buyerPercent;
                     splitProposal.matching = true;
-                } else {
-                    splitProposal.seller = tokenLookups.sellerSplitProposal;
-                    splitProposal.matching = _buyerPercent <= splitProposal.seller;
                 }
             } else {
                 // check the caller is the seller
@@ -407,12 +432,13 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                 splitProposal.seller = _buyerPercent;
 
                 if (_otherSigner == address(0)) {
+                    splitProposal.buyer = tokenLookups.buyerSplitProposal;
+                    splitProposal.matching = splitProposal.buyer > 0 && _buyerPercent >= splitProposal.buyer;
+                    if (splitProposal.matching) tokenLookups.buyerSplitProposal = _buyerPercent;
+                } else {
                     tokenLookups.buyerSplitProposal = _buyerPercent;
                     splitProposal.buyer = _buyerPercent;
                     splitProposal.matching = true;
-                } else {
-                    splitProposal.buyer = tokenLookups.buyerSplitProposal;
-                    splitProposal.matching = splitProposal.buyer > 0 && _buyerPercent >= splitProposal.buyer;
                 }
             }
         }
@@ -420,7 +446,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         emit ProposalSubmitted(_tokenId, splitProposal.buyer, splitProposal.seller, _buyerPercent);
 
         if (splitProposal.matching) {
-            submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Verified, false);
+            submitVerdictInternalUnguarded(_tokenId, FermionTypes.VerificationStatus.Verified, false, false);
         }
     }
 }
