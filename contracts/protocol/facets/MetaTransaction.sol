@@ -129,7 +129,7 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
         metaTx.functionName = _functionName;
         metaTx.functionSignature = _functionSignature;
 
-        if (!verify(userAddress, hashMetaTransaction(metaTx), _sig)) revert SignatureValidationFailed();
+        verify(userAddress, hashMetaTransaction(metaTx), _sig);
 
         return executeTx(metaTx.contractAddress, userAddress, _functionName, _functionSignature, _nonce);
     }

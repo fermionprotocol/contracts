@@ -16,8 +16,9 @@ import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { getBosonHandler } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
+import { prepareDataSignatureParameters } from "../../scripts/libraries/metaTransaction";
 
-const { parseEther, id } = ethers;
+const { parseEther, id, toBeHex, MaxUint256 } = ethers;
 
 describe("Verification", function () {
   let offerFacet: Contract,
@@ -1138,6 +1139,437 @@ describe("Verification", function () {
         await expect(verificationFacet.connect(wallet).submitProposal(exchange.tokenId, buyerProposal, metadataDigest))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
+      });
+    });
+  });
+
+  context("submitSignedProposal", function () {
+    const newMetadataURI = "https://example.com/new-metadata.json";
+    const metadataDigest = id(newMetadataURI);
+    const buyerProposal = 20_00n; // 20%
+    const sellerProposal = 10_00n; // 10%
+    const signedProposalType = [
+      { name: "tokenId", type: "uint256" },
+      { name: "buyerPercent", type: "uint16" },
+      { name: "metadataURIDigest", type: "bytes32" },
+    ];
+    let message: any;
+
+    before(async function () {
+      message = {
+        tokenId: String(exchange.tokenId),
+        buyerPercent: String(sellerProposal),
+        metadataURIDigest: metadataDigest,
+      };
+    });
+
+    beforeEach(async function () {
+      await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+    });
+
+    context("Matching proposals", function () {
+      const buyerId = "5"; // new buyer in fermion
+
+      it("Buyer submits seller's signed proposal first", async function () {
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        const tx = await verificationFacet
+          .connect(buyer)
+          .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v });
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "ProposalSubmitted")
+          .withArgs(exchange.tokenId, sellerProposal, sellerProposal, sellerProposal);
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
+
+        const payout = payoutFeeCalculation(
+          exchange.encumberedAmount,
+          bosonProtocolFeePercentage,
+          verifierFee,
+          facilitatorFeePercent,
+          sellerDeposit,
+          sellerProposal,
+        );
+
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(buyerId, exchangeToken, payout.revisedBuyerPayout);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, payout.fermionFeeAmount);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(facilitatorId, exchangeToken, payout.facilitatorFeeAmount);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(sellerId, exchangeToken, payout.remainder);
+
+        await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
+
+        // Boson
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
+          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(payout.facilitatorFeeAmount);
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(payout.remainder);
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(payout.revisedBuyerPayout);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(payout.fermionFeeAmount); // fermion protocol fees
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Verified);
+        expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+      });
+
+      it("Seller submits buyer's signed proposal", async function () {
+        message.buyerPercent = String(buyerProposal);
+
+        const { r, s, v } = await prepareDataSignatureParameters(
+          buyer,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        const tx = await verificationFacet
+          .connect(defaultSigner)
+          .submitSignedProposal(exchange.tokenId, buyerProposal, metadataDigest, buyer.address, { r, s, v });
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "ProposalSubmitted")
+          .withArgs(exchange.tokenId, buyerProposal, buyerProposal, buyerProposal);
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
+
+        const payout = payoutFeeCalculation(
+          exchange.encumberedAmount,
+          bosonProtocolFeePercentage,
+          verifierFee,
+          facilitatorFeePercent,
+          sellerDeposit,
+          buyerProposal,
+        );
+
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(buyerId, exchangeToken, payout.revisedBuyerPayout);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, payout.fermionFeeAmount);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(facilitatorId, exchangeToken, payout.facilitatorFeeAmount);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(sellerId, exchangeToken, payout.remainder);
+
+        await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
+
+        // Boson
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
+          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(payout.facilitatorFeeAmount);
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(payout.remainder);
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(payout.revisedBuyerPayout);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(payout.fermionFeeAmount); // fermion protocol fees
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Verified);
+        expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+      });
+    });
+
+    context("Revert reasons", function () {
+      it("Verification region is paused", async function () {
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        await pauseFacet.pause([PausableRegion.Verification]);
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Verification);
+      });
+
+      it("Invalid percentage", async function () {
+        const sellerProposal = 100_01n; // 100.01%
+        message.sellerProposal = String(sellerProposal);
+
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
+          .withArgs(sellerProposal);
+      });
+
+      it("Invalid metadata digest", async function () {
+        const wrongMetadataDigest = id("https://example.com/wrong-metadata.json");
+        message.metadataURIDigest = wrongMetadataDigest;
+
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, wrongMetadataDigest, defaultSigner.address, {
+              r,
+              s,
+              v,
+            }),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "DigestMismatch")
+          .withArgs(metadataDigest, wrongMetadataDigest);
+      });
+
+      it("Token does not exist", async function () {
+        const tokenId = deriveTokenId("15", "4");
+        message.tokenId = String(tokenId);
+
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+        ).to.be.revertedWithCustomError(fermionErrors, "EmptyMetadata");
+      });
+
+      it("Cannot submit before it's unwrapped", async function () {
+        const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
+        message.tokenId = String(tokenId);
+
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+        ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
+      });
+
+      it("Verification is timeouted", async function () {
+        await setNextBlockTimestamp(itemVerificationTimeout);
+        await verificationFacet.verificationTimeout(exchange.tokenId);
+
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+        ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
+      });
+
+      it("Caller is not the buyer nor the seller", async function () {
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        const wallet = wallets[9];
+        await expect(
+          verificationFacet
+            .connect(wallet)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
+      });
+
+      it.only("Sender does not match the recovered signer", async function () {
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        // wrong address
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, wallets[9].address, { r, s, v }),
+        ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+
+        // wrong tokenId
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(deriveTokenId(999, 999), sellerProposal, metadataDigest, defaultSigner.address, {
+              r,
+              s,
+              v,
+            }),
+        ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+
+        // wrong percentage
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, buyerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+        ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+
+        // wrong metadata
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(
+              exchange.tokenId,
+              sellerProposal,
+              id("https://example.com/wrong-metadata.json"),
+              defaultSigner.address,
+              { r, s, v },
+            ),
+        ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+      });
+
+      it("Signature is invalid", async function () {
+        const { r, s, v } = await prepareDataSignatureParameters(
+          defaultSigner,
+          {
+            SignedProposal: signedProposalType,
+          },
+          "SignedProposal",
+          message,
+          await verificationFacet.getAddress(),
+        );
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, {
+              r,
+              s: toBeHex(MaxUint256),
+              v,
+            }),
+        ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, {
+              r,
+              s: toBeHex(0n, 32),
+              v,
+            }),
+        ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, {
+              r,
+              s,
+              v: 32,
+            }),
+        ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
       });
     });
   });

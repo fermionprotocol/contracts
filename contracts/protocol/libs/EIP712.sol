@@ -92,9 +92,8 @@ contract EIP712 is SignatureErrors {
      * @param _user  - the message signer
      * @param _hashedMessage - hashed message
      * @param _sig - signature, r, s, v
-     * @return true if signer is same as _user parameter
      */
-    function verify(address _user, bytes32 _hashedMessage, Signature memory _sig) internal view returns (bool) {
+    function verify(address _user, bytes32 _hashedMessage, Signature memory _sig) internal view {
         bytes32 typedMessageHash = toTypedMessageHash(_hashedMessage);
 
         // Check if user is a contract implementing ERC1271
@@ -111,7 +110,8 @@ contract EIP712 is SignatureErrors {
                     if (uint256(bytes32(returnData)) & type(uint224).max != 0) {
                         revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
                     }
-                    return abi.decode(returnData, (bytes4)) == IERC1271.isValidSignature.selector;
+                    if (abi.decode(returnData, (bytes4)) != IERC1271.isValidSignature.selector)
+                        revert SignatureValidationFailed();
                 }
             } else {
                 if (returnData.length == 0) {
@@ -134,6 +134,6 @@ contract EIP712 is SignatureErrors {
 
         address signer = ecrecover(typedMessageHash, _sig.v, _sig.r, _sig.s);
         if (signer == address(0)) revert InvalidSignature();
-        return signer == _user;
+        if (signer != _user) revert SignatureValidationFailed();
     }
 }

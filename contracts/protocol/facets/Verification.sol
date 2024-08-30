@@ -30,6 +30,9 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         bool matching;
     }
 
+    bytes32 private constant SIGNED_PROPOSAL_TYPEHASH =
+        keccak256(bytes("SignedProposal(uint256 tokenId,uint16 buyerPercent,bytes32 metadataURIDigest)"));
+
     constructor(address _bosonProtocol) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
@@ -136,7 +139,9 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         Signature memory _signature
     ) external {
         // verify signature
-        bytes32 messageHash = keccak256(abi.encodePacked(_tokenId, _buyerPercent));
+        bytes32 messageHash = keccak256(
+            abi.encodePacked(SIGNED_PROPOSAL_TYPEHASH, _tokenId, _buyerPercent, _metadataURIDigest)
+        );
 
         verify(_signer, messageHash, _signature);
 
