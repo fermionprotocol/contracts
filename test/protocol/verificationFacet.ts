@@ -1480,7 +1480,7 @@ describe("Verification", function () {
           .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
       });
 
-      it.only("Sender does not match the recovered signer", async function () {
+      it("Sender does not match the recovered signer", async function () {
         const { r, s, v } = await prepareDataSignatureParameters(
           defaultSigner,
           {
@@ -1725,6 +1725,56 @@ describe("Verification", function () {
         await expect(wrapper.ownerOf(exchangeSelfVerification.tokenId))
           .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
           .withArgs(exchangeSelfVerification.tokenId);
+      });
+
+      it.skip("Works even if the item was revised, but the verifier gets paid", async function () {
+        // NOT OK
+        await verificationFacet
+          .connect(verifier)
+          .submitRevisedMetadata(exchange.tokenId, "https://example.com/new-metadata.json");
+        const tx = await verificationFacet.connect(randomWallet).verificationTimeout(exchange.tokenId);
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(buyerId, exchangeToken, exchange.payout.remainder + exchange.payout.facilitatorFeeAmount);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
+        await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+
+        // Boson
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
+          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchange.payout.remainder + exchange.payout.facilitatorFeeAmount,
+        );
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchange.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Burned);
+        await expect(wrapper.ownerOf(exchange.tokenId))
+          .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+          .withArgs(exchange.tokenId);
       });
     });
 

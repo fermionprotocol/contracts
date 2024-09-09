@@ -51,6 +51,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      * @param _verificationStatus - the verification status
      */
     function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
+        getFundsAndPayVerifier(_tokenId, true);
         submitVerdictInternal(_tokenId, _verificationStatus, false, true);
     }
 
@@ -72,24 +73,21 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         uint256 _tokenId,
         string memory _newMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
-        uint256 tokenId = _tokenId;
-        (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
+        if (bytes(_newMetadata).length == 0) revert EmptyMetadata();
 
-        EntityLib.validateAccountRole(
-            offer.verifierId,
-            _msgSender(),
-            FermionTypes.EntityRole.Verifier,
-            FermionTypes.AccountRole.Assistant
-        );
+        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
 
-        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[tokenId];
+        if (bytes(tokenLookups.revisedMetadata).length == 0) {
+            getFundsAndPayVerifier(_tokenId, true);
+        }
+
         tokenLookups.revisedMetadata = _newMetadata;
 
         // updating the metadata resets the proposals
         delete tokenLookups.buyerSplitProposal;
         delete tokenLookups.sellerSplitProposal;
 
-        emit RevisedMetadataSubmitted(tokenId, _newMetadata);
+        emit RevisedMetadataSubmitted(_tokenId, _newMetadata);
     }
 
     /**
@@ -163,6 +161,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         uint256 timeout = FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout;
         if (block.timestamp < timeout) revert VerificationTimeoutNotPassed(timeout, block.timestamp);
 
+        getFundsAndPayVerifier(_tokenId, false);
         submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, true, false);
     }
 
@@ -258,6 +257,48 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
     }
 
     /**
+     * @notice Transfer the funds from Boson to Fermion and pay the verifier
+     *
+     * Reverts if:
+     * - The caller is not the verifier's assistant
+     * - The funds were already withdrawn
+     *
+     * @param _tokenId - the token ID
+     * @param _payVerifier - indicator if the verifier should be paid
+     */
+    function getFundsAndPayVerifier(uint256 _tokenId, bool _payVerifier) internal {
+        (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        uint256 verifierId = offer.verifierId;
+
+        // Check the caller is the verifier's assistant
+        if (_payVerifier) {
+            EntityLib.validateAccountRole(
+                verifierId,
+                _msgSender(),
+                FermionTypes.EntityRole.Verifier,
+                FermionTypes.AccountRole.Assistant
+            );
+        }
+
+        BOSON_PROTOCOL.completeExchange(_tokenId & type(uint128).max);
+
+        address exchangeToken = offer.exchangeToken;
+
+        uint256 withdrawalAmount = FermionStorage.protocolLookups().tokenLookups[_tokenId].itemPrice +
+            offer.sellerDeposit;
+        if (withdrawalAmount > 0) {
+            uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
+            address[] memory tokenList = new address[](1);
+            uint256[] memory amountList = new uint256[](1);
+            tokenList[0] = exchangeToken;
+            amountList[0] = withdrawalAmount;
+            BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
+        }
+
+        if (_payVerifier) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, offer.verifierFee);
+    }
+
+    /**
      * @notice Submit a verdict
      *
      * Emits an VerdictSubmitted event
@@ -281,40 +322,14 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
         uint256 verifierId = offer.verifierId;
 
-        if (_requireVerifier) {
-            // Check the caller is the verifier's assistant
-            EntityLib.validateAccountRole(
-                verifierId,
-                _msgSender(),
-                FermionTypes.EntityRole.Verifier,
-                FermionTypes.AccountRole.Assistant
-            );
-        }
-
-        BOSON_PROTOCOL.completeExchange(tokenId & type(uint128).max);
         {
             FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
             address exchangeToken = offer.exchangeToken;
             uint256 sellerDeposit = offer.sellerDeposit;
             FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[tokenId];
-            uint256 offerPrice = tokenLookups.itemPrice;
+            uint256 remainder = tokenLookups.itemPrice - offer.verifierFee;
 
-            {
-                uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
-                address[] memory tokenList = new address[](1);
-                uint256[] memory amountList = new uint256[](1);
-                tokenList[0] = exchangeToken;
-                amountList[0] = offerPrice + sellerDeposit;
-                BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
-            }
-
-            uint256 remainder = offerPrice;
             unchecked {
-                // pay the verifier, regardless of the verdict
-                uint256 verifierFee = offer.verifierFee;
-                if (!_payoutVerifier) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
-                remainder -= verifierFee; // guaranteed to be positive
-
                 // if the item was revised, payout the buyer and do the other calcualtion on a new price
                 uint256 buyerSplitProposal = tokenLookups.buyerSplitProposal;
                 if (buyerSplitProposal > 0) {
@@ -336,10 +351,6 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
             }
 
             if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
-                // ToDo: if the item was revised, it can be verified only by the buyer or seller
-                // if (bytes(tokenLookups.pendingRevisedMetadata).length > 0)
-                //     revert PendingRevisedMetadata(tokenId, tokenLookups.pendingRevisedMetadata);
-
                 // pay the facilitator
                 uint256 facilitatorFeeAmount = FundsLib.applyPercentage(remainder, offer.facilitatorFeePercent);
                 FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
