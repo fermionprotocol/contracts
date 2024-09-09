@@ -32,7 +32,7 @@
     "@types/node": ">=22.5.4",
     "chai": "^4.5.0",
     "eip55": "^2.1.1",
-    "eslint": "^9.9.1",
+    "eslint": "^9.10.0",
     "eslint-config-prettier": "^9.1.0",
     "ethers": "^6.13.2",
     "glob": "^11.0.0",
