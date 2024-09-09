@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionGeneralErrors } from "../domain/Errors.sol";
-import { Common, InvalidStateOrCaller } from "./Common.sol";
+import { Common } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
@@ -153,22 +153,6 @@ contract SeaportWrapper is FermionFNFTBase, ERC2771Context {
             fulfillments,
             address(this)
         );
-    }
-
-    /**
-     * @notice Wrapped vouchers cannot be transferred. To transfer them, invoke a function that unwraps them first.
-     *
-     *
-     * @param _to The address to transfer the wrapped tokens to.
-     * @param _tokenId The token id.
-     * @param _auth The address that is allowed to transfer the token.
-     */
-    function updateHook(address _to, uint256 _tokenId, address _auth) external virtual returns (address) {
-        FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
-        if (state == FermionTypes.TokenState.Wrapped && _msgSender() != OS_CONDUIT) {
-            revert InvalidStateOrCaller(_tokenId, _msgSender(), FermionTypes.TokenState.Wrapped);
-        }
-        return super._update(_to, _tokenId, _auth);
     }
 
     ///////// overrides ///////////
