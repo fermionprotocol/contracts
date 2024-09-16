@@ -11,13 +11,18 @@ interface SelectorsObj extends Array<string> {
 export const FacetCutAction = { Add: 0, Replace: 1, Remove: 2 };
 
 // get function selectors from ABI
-export function getSelectors(contract: Contract | ContractFactory<any[], BaseContract>): SelectorsObj {
+export function getSelectors(
+  contract: Contract | ContractFactory<any[], BaseContract>,
+  returnSignatureToNameMapping: boolean = false,
+): SelectorsObj | { selectors: SelectorsObj; signatureToNameMapping: any } {
+  let signatureToNameMapping: any = {};
   const signatures = Object.values(
     contract.interface.fragments.filter((fragment) => fragment.type === "function"),
   ) as FunctionFragment[];
   const selectors = signatures.reduce<string[]>((acc, val) => {
     if (val.format("sighash") !== "init(bytes)") {
       acc.push(val.selector);
+      if (returnSignatureToNameMapping) signatureToNameMapping[val.selector] = val.name;
     }
     return acc;
   }, []) as SelectorsObj;
@@ -26,6 +31,7 @@ export function getSelectors(contract: Contract | ContractFactory<any[], BaseCon
   selectors.remove = remove;
   selectors.get = get;
 
+  if (returnSignatureToNameMapping) return { selectors, signatureToNameMapping };
   return selectors;
 }
 

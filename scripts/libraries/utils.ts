@@ -109,3 +109,22 @@ export async function deployContract(
 
   return contract;
 }
+
+// Check if account has a role
+export async function checkRole(contracts: any, role: string, address: string) {
+  // Get addresses of currently deployed AccessController contract
+  const accessControllerAddress = contracts.find((c: any) => c.name === "AccessController")?.address;
+  if (!accessControllerAddress) {
+    return addressNotFound("AccessController");
+  }
+
+  // Get AccessController abstraction
+  const accessController = await getContractAt("AccessController", accessControllerAddress);
+
+  // Check that caller has specified role.
+  const hasRole = await accessController.hasRole(id(role), address);
+  if (!hasRole) {
+    console.log(`Admin address does not have ${role} role`);
+    process.exit(1);
+  }
+}
