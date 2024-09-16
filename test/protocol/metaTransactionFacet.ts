@@ -798,9 +798,7 @@ describe("MetaTransactions", function () {
       before(async function () {
         // Set the default executeMetaTransaction method
         metaTransactionFacet.executeMetaTransaction =
-          metaTransactionFacet[
-            "executeMetaTransaction(address,address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
-          ];
+          metaTransactionFacet["executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"];
 
         fermionFNFTAddress = await offerFacet.predictFermionFNFTAddress(offerId);
         fermionFNFT = await ethers.getContractAt("FermionFNFT", fermionFNFTAddress);
@@ -846,7 +844,6 @@ describe("MetaTransactions", function () {
 
             // Send as meta transaction
             const tx = await metaTransactionFacet.executeMetaTransaction(
-              fermionFNFTAddress,
               entity.address,
               message.functionName,
               message.functionSignature,
@@ -887,7 +884,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -907,7 +903,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 ZeroAddress,
                 "testFunction",
                 ZeroHash,
@@ -934,7 +929,6 @@ describe("MetaTransactions", function () {
 
             // First transaction should succeed
             await metaTransactionFacet.executeMetaTransaction(
-              fermionFNFTAddress,
               entity.address,
               message.functionName,
               message.functionSignature,
@@ -946,7 +940,6 @@ describe("MetaTransactions", function () {
             // Second transaction should fail
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -974,7 +967,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1002,7 +994,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1027,7 +1018,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1051,7 +1041,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1067,7 +1056,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1083,7 +1071,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1098,7 +1085,7 @@ describe("MetaTransactions", function () {
             // Get the existing facet address
             const diamondLoupe = await getContractAt("DiamondLoupeFacet", await metaTransactionFacet.getAddress());
             const functionFragment = metaTransactionFacet.interface.getFunction(
-              "executeMetaTransaction(address,address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)",
+              "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)",
             );
             const metaTransactionFacetAddress = await diamondLoupe.facetAddress(functionFragment.selector);
 
@@ -1144,39 +1131,9 @@ describe("MetaTransactions", function () {
               metaTransactionFacet
                 .attach(diamondAddress)
                 [
-                  "executeMetaTransaction(address,address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
-                ](diamondAddress, entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], 0),
+                  "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
+                ](entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], 0),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
-          });
-
-          it("Invalid contract address", async function () {
-            await expect(
-              metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
-                ZeroAddress,
-                "testFunction",
-                ZeroHash,
-                ZeroHash,
-                [ZeroHash, ZeroHash, 0],
-                0,
-              ),
-            )
-              .to.be.revertedWithCustomError(fermionErrors, "InvalidContractAddress")
-              .withArgs(fermionFNFTAddress);
-
-            await expect(
-              metaTransactionFacet.executeMetaTransaction(
-                fermionProtocolAddress,
-                ZeroAddress,
-                "testFunction",
-                ZeroHash,
-                ZeroHash,
-                [ZeroHash, ZeroHash, 0],
-                1,
-              ),
-            )
-              .to.be.revertedWithCustomError(fermionErrors, "InvalidContractAddress")
-              .withArgs(fermionProtocolAddress);
           });
         });
       });
