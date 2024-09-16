@@ -1193,25 +1193,6 @@ describe("MetaTransactions", function () {
           // Verify the state
           expect(await metaTxTestProxy.data()).to.equal(dataWithAddress);
         });
-
-        it("msg.data includes the sender, _msgData() does not - seaport wrapper", async function () {
-          const MetaTxTestFactory = await getContractFactory("MetaTxTestSeaport");
-          const metaTxTest = await MetaTxTestFactory.deploy(...seaportWrapperConstructorArgs, trustedForwarder.address);
-
-          data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
-          dataWithAddress = data + buyer.address.slice(2).toLowerCase();
-
-          const tx = await trustedForwarder.sendTransaction({
-            to: metaTxTest.getAddress(),
-            data: dataWithAddress,
-          });
-
-          // Verify the event
-          await expect(tx).to.emit(metaTxTest, "IncomingData").withArgs(data);
-
-          // Verify the state
-          expect(await metaTxTest.data()).to.equal(dataWithAddress);
-        });
       });
     });
 

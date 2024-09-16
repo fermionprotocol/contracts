@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionTypes } from "../domain/Types.sol";
 import { FermionGeneralErrors } from "../domain/Errors.sol";
-import { Common } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
-
-import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 
 /**
  * @title SeaportWrapper
@@ -20,7 +15,7 @@ import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contr
  * Fixed price sales are not supported yet.
  *
  */
-contract SeaportWrapper is FermionFNFTBase, ERC2771Context {
+contract SeaportWrapper is FermionFNFTBase {
     struct SeaportConfig {
         address seaport;
         address openSeaConduit;
@@ -36,12 +31,11 @@ contract SeaportWrapper is FermionFNFTBase, ERC2771Context {
     /**
      * @notice Constructor
      *
-     * @dev construct ERC2771Context with address 0 and override `trustedForwarder` to return the fermionProtocol address
      */
     constructor(
         address _bosonPriceDiscovery,
         SeaportConfig memory _seaportConfig
-    ) FermionFNFTBase(_bosonPriceDiscovery) ERC2771Context(address(0)) {
+    ) FermionFNFTBase(_bosonPriceDiscovery) {
         if (_seaportConfig.seaport == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         SEAPORT = _seaportConfig.seaport;
@@ -153,22 +147,5 @@ contract SeaportWrapper is FermionFNFTBase, ERC2771Context {
             fulfillments,
             address(this)
         );
-    }
-
-    ///////// overrides ///////////
-    function trustedForwarder() public view virtual override returns (address) {
-        return fermionProtocol;
-    }
-
-    function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address) {
-        return ERC2771Context._msgSender();
-    }
-
-    function _msgData() internal view virtual override(Context, ERC2771Context) returns (bytes calldata) {
-        return ERC2771Context._msgData();
-    }
-
-    function _contextSuffixLength() internal view virtual override(Context, ERC2771Context) returns (uint256) {
-        return ERC2771Context._contextSuffixLength();
     }
 }
