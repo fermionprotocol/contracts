@@ -27,7 +27,7 @@ describe("MetaTransactions", function () {
   let seaportAddress: string;
   const offerId = "1";
   const exchangeId = "1";
-  const diamondMetaTxIndex = "0";
+  const diamondMetaTxOfferIdIndex = "0";
 
   async function setupFermionFNFTs() {
     // Create three entities
@@ -146,7 +146,7 @@ describe("MetaTransactions", function () {
               message.functionSignature,
               message.nonce,
               [r, s, v],
-              diamondMetaTxIndex,
+              diamondMetaTxOfferIdIndex,
             );
 
             // Verify the event
@@ -191,7 +191,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [r, s, v],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "EntityAlreadyExists");
           });
@@ -208,7 +208,7 @@ describe("MetaTransactions", function () {
                 ZeroHash,
                 ZeroHash,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             )
               .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
@@ -243,7 +243,7 @@ describe("MetaTransactions", function () {
               message.functionSignature,
               message.nonce,
               [r, s, v],
-              diamondMetaTxIndex,
+              diamondMetaTxOfferIdIndex,
             );
 
             // Second transaction should fail
@@ -254,7 +254,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [r, s, v],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
           });
@@ -281,7 +281,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [r, s, v],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "FunctionNotAllowlisted");
           });
@@ -308,7 +308,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [r, s, v],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidFunctionName");
           });
@@ -335,7 +335,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [r, s, v],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
@@ -366,7 +366,7 @@ describe("MetaTransactions", function () {
                   toBeHex(MaxUint256), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
                   v,
                 ],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
 
@@ -381,7 +381,7 @@ describe("MetaTransactions", function () {
                   toBeHex(0n, 32), // s must be non-zero
                   v,
                 ],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
 
@@ -396,7 +396,7 @@ describe("MetaTransactions", function () {
                   s,
                   32, // v is valid only if it is 27 or 28
                 ],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
           });
@@ -456,7 +456,7 @@ describe("MetaTransactions", function () {
                 .attach(diamondAddress)
                 [
                   "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
-                ](entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], diamondMetaTxIndex),
+                ](entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], diamondMetaTxOfferIdIndex),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
@@ -497,7 +497,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [r, s, v],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "FunctionCallFailed");
           });
@@ -545,7 +545,7 @@ describe("MetaTransactions", function () {
             message.functionSignature,
             message.nonce,
             [ZeroHash, ZeroHash, 0],
-            diamondMetaTxIndex,
+            diamondMetaTxOfferIdIndex,
           );
 
           // Verify the event
@@ -586,7 +586,7 @@ describe("MetaTransactions", function () {
               message.functionSignature,
               message.nonce,
               [ZeroHash, ZeroHash, 0],
-              diamondMetaTxIndex,
+              diamondMetaTxOfferIdIndex,
             );
 
             // Second transaction should fail
@@ -597,7 +597,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
           });
@@ -614,7 +614,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
@@ -633,7 +633,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(entity, "UnknownValidity");
 
@@ -647,7 +647,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWith("Error string");
 
@@ -661,7 +661,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.reverted;
 
@@ -675,7 +675,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x12");
 
@@ -689,7 +689,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x32");
           });
@@ -709,7 +709,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             )
               .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
@@ -725,7 +725,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             )
               .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
@@ -741,7 +741,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             )
               .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
@@ -765,7 +765,7 @@ describe("MetaTransactions", function () {
                 message.functionSignature,
                 message.nonce,
                 [ZeroHash, ZeroHash, 0],
-                diamondMetaTxIndex,
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
