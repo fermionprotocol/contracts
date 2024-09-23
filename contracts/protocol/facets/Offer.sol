@@ -209,7 +209,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     /**
      * @notice Unwraps F-NFT, uses seaport to sell the NFT
      *
-     * Emits VerificationInitiated event
+     * Emits VerificationInitiated and ItemPriceObserved events
      *
      * Reverts if:
      * - Caller is not the seller's assistant or facilitator
@@ -332,6 +332,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         }
         tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
         tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
+
+        // The price that Fermion operates with (the price without the OpenSea and Boson protocol fee)
+        emit ItemPriceObserved(_tokenId, tokenLookups.itemPrice);
 
         emit IVerificationEvents.VerificationInitiated(
             offerId,

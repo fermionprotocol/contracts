@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionGeneralErrors } from "../domain/Errors.sol";
-import { Common } from "./Common.sol";
+import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
@@ -101,6 +101,8 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
 
         finalizeAuction(_tokenId, _buyerOrder);
 
+        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
+
         // Transfer token to protocol
         // N.B. currently price is always 0. This is a placeholder for future use, when other PD mechanisms will be supported
         // _exchangeToken and _price should be returned from finalizeAuction
@@ -116,6 +118,8 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external {
         unwrap(_tokenId);
+
+        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
 
         if (_verifierFee > 0) {
             if (_exchangeToken == address(0)) {
@@ -152,8 +156,6 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      */
     function unwrap(uint256 _tokenId) internal {
         Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unwrapping, msg.sender, BP_PRICE_DISCOVERY); // No need to use _msgSender(). BP_PRICE_DISCOVERY does not use meta transactions
-
-        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Moving to next state, also enabling the transfer and prevent reentrancy
 
         // transfer Boson Voucher to Fermion protocol. Not using safeTransferFrom since we are sure Fermion Protocol can handle the voucher
         IERC721(voucherAddress).transferFrom(address(this), fermionProtocol, _tokenId);
@@ -193,11 +195,14 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * @param _auth The address that is allowed to transfer the token.
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
-        return
-            abi.decode(
-                SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.updateHook, (_to, _tokenId, _auth))),
-                (address)
-            );
+        FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
+        if (
+            state == FermionTypes.TokenState.Wrapped ||
+            (state == FermionTypes.TokenState.Unverified && _to != address(0))
+        ) {
+            revert InvalidStateOrCaller(_tokenId, _msgSender(), state);
+        }
+        return super._update(_to, _tokenId, _auth);
     }
 
     /**

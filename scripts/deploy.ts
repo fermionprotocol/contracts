@@ -37,7 +37,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, bosonTokenAddress: string;
   let seaportAddress: string, seaportContract: Contract;
   let wrappedNativeAddress: string;
-  const seaportConfig = fermionConfig.seaport[network.name];
+  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[network.name];
   if (network.name === "hardhat" || network.name === "localhost") {
     const isForking = hre.config.networks["hardhat"].forking;
     const deployerBalance = isForking ? await ethers.provider.getBalance(deployerAddress) : 0n;
@@ -83,6 +83,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     if (!seaportAddress || seaportAddress === ZeroAddress) {
       throw Error("Seaport address not found in fermion config");
     }
+
+    wrappedNativeAddress = wrappedNative;
   }
   console.log(`Deploying to network: ${network.name} (env: ${env}) with deployer: ${deployerAddress}`);
   console.log(`Boson Protocol address: ${bosonProtocolAddress}`);
@@ -99,7 +101,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       bosonPriceDiscoveryAddress,
       await fermionSeaportWrapper.getAddress(),
       wrappedNativeAddress,
-    ]; // ToDo: handle wrappedNativeAddress for deployments to public networks
+    ];
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(...fermionFNFTConstructorArgs);
     await fermionWrapper.waitForDeployment();
