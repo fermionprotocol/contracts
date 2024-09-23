@@ -35,7 +35,7 @@ task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and init
 
 task("migrate", "Migrates the protocol to a new version")
   .addPositionalParam("newVersion", "The version to migrate to")
-  .addParam("env", "The deployment environment")
+  .addOptionalParam("env", "The deployment environment")
   .addFlag("dryRun", "Test the migration without deploying")
   .setAction(async ({ newVersion, env, dryRun }) => {
     let balanceBefore: bigint = 0n;
@@ -46,7 +46,7 @@ task("migrate", "Migrates the protocol to a new version")
       ({ env, deployerBalance: balanceBefore } = await setupDryRun(env));
     }
 
-    const { migrate } = await import(`./scripts/migrations/migrate_${newVersion}.js`);
+    const { migrate } = await import(`./scripts/migrations/migrate_${newVersion}`);
     await migrate(env);
 
     if (dryRun) {
