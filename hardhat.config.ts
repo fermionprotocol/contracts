@@ -33,12 +33,36 @@ task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and init
     }
   });
 
+task("migrate", "Migrates the protocol to a new version")
+  .addPositionalParam("newVersion", "The version to migrate to")
+  .addParam("env", "The deployment environment")
+  .addFlag("dryRun", "Test the migration without deploying")
+  .setAction(async ({ newVersion, env, dryRun }) => {
+    let balanceBefore: bigint = 0n;
+    let getBalance: () => Promise<bigint> = async () => 0n;
+    if (dryRun) {
+      let setupDryRun;
+      ({ setupDryRun, getBalance } = await import(`./scripts/dry-run`));
+      ({ env, deployerBalance: balanceBefore } = await setupDryRun(env));
+    }
+
+    const { migrate } = await import(`./scripts/migrations/migrate_${newVersion}.js`);
+    await migrate(env);
+
+    if (dryRun) {
+      const balanceAfter = await getBalance();
+      const etherSpent = balanceBefore - balanceAfter;
+
+      const { formatUnits } = await import("ethers");
+      console.log("Ether spent: ", formatUnits(etherSpent, "ether"));
+    }
+  });
+
 const config: HardhatUserConfig = {
   networks: {
     hardhat: {
       gasPrice: 0,
       initialBaseFeePerGas: 0,
-      allowUnlimitedContractSize: true, // Temporary enabled to finish the development, until Fermion Wrapper is refactored
     },
     amoy: {
       url: vars.get("RPC_PROVIDER_AMOY", "https://rpc-amoy.polygon.technology"),

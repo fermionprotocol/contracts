@@ -274,7 +274,7 @@ export async function upgradeFacets(env: string = "", facets, version: string = 
 
   // Get ProtocolInitializationHandlerFacet from deployedFacets when added/replaced in this upgrade or get it from contracts if already deployed
   let protocolInitializationFacet = await getInitializationFacet(deployedFacets, contracts);
-  const facetsToInitAddresses = Object.keys(facets.initData).map(
+  const facetsToInitAddresses = Object.keys(facets.initializationData).map(
     async (facetName: string) => await deployedFacets[facetName].getAddress(),
   );
 
@@ -282,7 +282,7 @@ export async function upgradeFacets(env: string = "", facets, version: string = 
   const initializeCalldata = initializationFacet.interface.encodeFunctionData("initialize", [
     encodeBytes32String(version),
     facetsToInitAddresses,
-    Object.values(facets.initData),
+    Object.values(facets.initializationData),
     Object.values(interfacesToAdd),
     Object.values(interfacesToRemove),
   ]);
