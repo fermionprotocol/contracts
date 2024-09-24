@@ -1,11 +1,18 @@
-import { BigNumberish, id } from "ethers";
+import { BigNumberish } from "ethers";
 import fs from "fs";
 import hre, { ethers, network } from "hardhat";
 import { vars } from "hardhat/config";
 
+const { id, getContractAt } = ethers;
+
 const addressesDirPath = __dirname + `/../../addresses`;
 
-export async function writeContracts(contracts: any[], env: string | undefined, version: string) {
+export async function writeContracts(
+  contracts: any[],
+  env: string | undefined,
+  version: string,
+  externalAddresses: any = {},
+) {
   if (!fs.existsSync(addressesDirPath)) {
     fs.mkdirSync(addressesDirPath);
   }
@@ -22,6 +29,7 @@ export async function writeContracts(contracts: any[], env: string | undefined, 
         env: env,
         protocolVersion: version,
         contracts,
+        externalAddresses,
       },
       null,
       2,
@@ -98,7 +106,7 @@ export async function deployContract(
     // deploy the contract
     const tx = await deployer.sendTransaction(transaction);
     await tx.wait();
-    const contract = await ethers.getContractAt(contractName, contractAddress);
+    const contract = await getContractAt(contractName, contractAddress);
 
     return contract;
   }
@@ -108,4 +116,24 @@ export async function deployContract(
   await contract.waitForDeployment();
 
   return contract;
+}
+
+// Check if account has a role
+export async function checkRole(contracts: any, role: string, address: string) {
+  // Get addresses of currently deployed AccessController contract (since it's behind the diamond, it has the protocol address)
+  const accessControllerAddress = contracts.find((c: any) => c.name === "FermionDiamond")?.address;
+  if (!accessControllerAddress) {
+    console.error(`Protocol address not found in contracts file`);
+    process.exit(1);
+  }
+
+  // Get AccessController abstraction
+  const accessController = await getContractAt("AccessController", accessControllerAddress);
+
+  // Check that caller has specified role.
+  const hasRole = await accessController.hasRole(id(role), address);
+  if (!hasRole) {
+    console.log(`Address ${address} does not have ${role} role`);
+    process.exit(1);
+  }
 }

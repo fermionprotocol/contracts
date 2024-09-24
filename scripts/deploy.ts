@@ -10,7 +10,7 @@ import { initSeaportFixture } from "./../test/utils/seaport";
 import { BaseContract, Contract, ZeroAddress } from "ethers";
 import fermionConfig from "./../fermion.config";
 
-const version = "0.0.1";
+const version = "1.0.1";
 let deploymentData: any[] = [];
 
 export async function deploySuite(env: string = "", modules: string[] = [], create3: boolean = false) {
@@ -90,6 +90,14 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   console.log(`Boson Protocol address: ${bosonProtocolAddress}`);
   console.log(`Seaport address: ${seaportAddress}`);
 
+  const externalContracts = {
+    bosonProtocolAddress,
+    bosonPriceDiscoveryAddress,
+    bosonTokenAddress,
+    seaportConfig,
+    wrappedNativeAddress,
+  };
+
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("fnft")) {
@@ -125,7 +133,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       wrapperImplementationAddress,
       create3,
     ));
-    await writeContracts(deploymentData, env, version);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else {
     // get the diamond address and initialization from contracts file
     deploymentData = await getDeploymentData(env);
@@ -164,7 +172,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       VerificationFacet: [bosonProtocolAddress],
     };
     facets = await deployFacets(facetNames, constructorArgs, true);
-    await writeContracts(deploymentData, env, version);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else if (modules.includes("initialize")) {
     // get the facets from from contracts file
     deploymentData = await getDeploymentData(env);
@@ -319,6 +327,7 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
 }
 
 function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
+  // ToDo: calculate interfaceId?
   if (save) deploymentData.push({ name, address, args });
   console.log(`✅ ${name} deployed to: ${address}`);
 }
