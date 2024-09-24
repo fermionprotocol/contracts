@@ -3,40 +3,18 @@ import hre from "hardhat";
 
 import { getInterfaceID } from "./../test/utils/common";
 
-// const { getFacets } = require("./config/facet-upgrade");
-// const environments = require("../environments");
-
-import {
-  // deploymentComplete,
-  readContracts,
-  writeContracts,
-  checkRole,
-  // addressNotFound,
-  // listAccounts,
-} from "./libraries/utils";
-// const { deployProtocolFacets } = requireUncached("./util/deploy-protocol-handler-facets.js");
+import { readContracts, writeContracts, checkRole } from "./libraries/utils";
 import { FacetCutAction, getSelectors, removeSelectors } from "./libraries/diamond";
-// const { getInterfaceIds, interfaceImplementers } = require("./config/supported-interfaces.js");
 import packageFile from "../package.json";
 import { deployFacets, makeDiamondCut } from "./deploy";
-// import { BaseContract } from "ethers";
 import readline from "readline";
-// const FacetCut = require("./domain/FacetCut");
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
 });
 
-const { ZeroAddress, getContractAt, /*provider,*/ getSigners, getContractFactory, encodeBytes32String } = hre.ethers;
+const { ZeroAddress, getContractAt, getSigners, getContractFactory, encodeBytes32String } = hre.ethers;
 const network = hre.network.name;
-
-// let facets = {
-//   addOrUpgrade: [],
-//   remove: [],
-//   skipSelectors: {},
-//   facetsToInit: {},
-//   initializationData: "0x",
-// };
 
 /**
  * Upgrades or removes existing facets, or adds new facets.
@@ -44,13 +22,6 @@ const network = hre.network.name;
  * Prerequisite:
  * - Admin must have UPGRADER role.
  *
- * Process:
- *  1.  Edit scripts/config/facet-upgrade.js.
- *  1a. Provide a list of facets that needs to be upgraded (field "addOrUpgrade") or removed completely (field "remove")
- *  1b. Optionally you can specify which selectors should be ignored (field "skip"). You don't have to specify "initialize()" since it's ignored by default
- *  2. Update protocol version in package.json. If not, script will prompt you to confirm that version remains unchanged.
- *  2. Run the appropriate npm script in package.json to upgrade facets for a given network
- *  3. Save changes to the repo as a record of what was upgraded
  */
 export async function upgradeFacets(env: string = "", facets, version: string = "") {
   // Bail now if hardhat network, unless the upgrade is tested
@@ -245,8 +216,8 @@ export async function upgradeFacets(env: string = "", facets, version: string = 
     }
 
     const newFacetInterfaceId = getInterfaceID(newFacet.interface);
-    
-    console.log(oldFacet.name, selectorsToAdd.length, selectorsToRemove.length)
+
+    console.log(oldFacet.name, selectorsToAdd.length, selectorsToRemove.length);
     if (oldFacet && (selectorsToAdd.length > 0 || selectorsToRemove.length > 0)) {
       if (!oldFacet.interfaceId) {
         console.log(
@@ -271,9 +242,9 @@ export async function upgradeFacets(env: string = "", facets, version: string = 
 
       const erc165 = await getContractAt("IERC165", protocolAddress);
       const support = await erc165.supportsInterface(newFacetInterfaceId);
-      // if (!support) {
+      if (!support) {
         interfacesToAdd[facetName] = newFacetInterfaceId;
-      // }
+      }
     }
   }
 
@@ -335,7 +306,7 @@ export async function upgradeFacets(env: string = "", facets, version: string = 
 
   console.log(`\n📋 New version: ${newVersion}`);
 
-  const contractsPath = await writeContracts(contracts, env, newVersion);
+  const contractsPath = await writeContracts(contracts, env, newVersion, contractsFile.externalAddresses);
   console.log(divider);
   console.log(`✅ Contracts written to ${contractsPath}`);
   console.log(divider);

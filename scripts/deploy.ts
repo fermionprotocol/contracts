@@ -94,7 +94,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     bosonProtocolAddress,
     bosonPriceDiscoveryAddress,
     bosonTokenAddress,
-    seaportAddress,
+    seaportConfig,
     wrappedNativeAddress,
   };
 

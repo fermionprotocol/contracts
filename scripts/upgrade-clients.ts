@@ -1,34 +1,23 @@
 import hre from "hardhat";
-const { provider, ZeroAddress, getSigners, getSigner, getContractAt } = hre.ethers;
+const { ZeroAddress, getSigners, getContractAt, getContractFactory } = hre.ethers;
 const network = hre.network.name;
-// import environments from "../environments";
 
-// import { deploymentComplete, getFees, readContracts, writeContracts, checkRole, addressNotFound, listAccounts } from "./util/utils.js";
-const { deployProtocolClientImpls } = requireUncached("./util/deploy-protocol-client-impls.js");
-
-import {
-    // deploymentComplete,
-    readContracts,
-    writeContracts,
-    checkRole,
-    // addressNotFound,
-    // listAccounts,
-  } from "./libraries/utils";
+import { readContracts, writeContracts, checkRole } from "./libraries/utils";
 
 /**
  * Upgrades clients
  *
  * Prerequisite:
- * - Admin must have UPGRADER role. Use `manage-roles.js` to grant it.
+ * - Admin must have UPGRADER role.
  *
- * Currently script upgrades the only existing client - BosonVoucher.
- * If new clients are introduced, this script should be modified to get the list of clients to upgrade from the config.
  */
-export async function upgradeClients(env, clientConfig, version) {
+export async function upgradeClients(env, version) {
   // Bail now if hardhat network, unless the upgrade is tested
   if (network === "hardhat" && env !== "upgrade-test" && !env.includes("dry-run")) process.exit();
 
-  let { contracts } = await readContracts(env);
+  const contractsFile = await readContracts(env);
+  let { contracts } = contractsFile;
+  const { externalAddresses } = contractsFile;
 
   const divider = "-".repeat(80);
   console.log(`${divider}\nFermion Protocol Client Upgrader\n${divider}`);
@@ -44,46 +33,44 @@ export async function upgradeClients(env, clientConfig, version) {
 
   console.log(divider);
 
-  // Get signer for admin address
-  const adminSigner = await getSigner(adminAddress);
-
   // Get addresses of currently deployed Beacon contract
-  const beaconAddress = contracts.find((c) => c.name === "BosonVoucher Beacon")?.address;
-  if (!beaconAddress) {
-    return addressNotFound("BosonVoucher Beacon");
+  const protocolAddress = contracts.find((c: any) => c.name === "FermionDiamond")?.address;
+  if (!protocolAddress) {
+    console.error(`Protocol address not found in contracts file for ${env}`);
+    process.exit(1);
   }
 
   // Validate that admin has UPGRADER role
   checkRole(contracts, "UPGRADER", adminAddress);
 
-  clientConfig = (clientConfig && JSON.parse(clientConfig)) || require("./config/client-upgrade");
-
   // Deploy Protocol Client implementation contracts
   console.log(`\n📋 Deploying new logic contract`);
 
-  const clientImplementationArgs = Object.values(clientConfig).map(
-    (config) => process.env.FORWARDER_ADDRESS || config[network]
-  );
-  const [bosonVoucherImplementation] = await deployProtocolClientImpls(clientImplementationArgs, maxPriorityFeePerGas);
+  const bosonPriceDiscoveryAddress = externalAddresses.bosonPriceDiscoveryAddress;
+  const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, externalAddresses.seaportConfig];
+  const FermionSeaportWrapper = await getContractFactory("SeaportWrapper");
+  const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+
+  const fermionFNFTConstructorArgs = [
+    bosonPriceDiscoveryAddress,
+    await fermionSeaportWrapper.getAddress(),
+    externalAddresses.wrappedNativeAddress,
+  ];
+  const FermionFNFTFactory = await getContractFactory("FermionFNFT");
+  const fermionFNFT = await FermionFNFTFactory.deploy(...fermionFNFTConstructorArgs);
+  await fermionFNFT.waitForDeployment();
+  const fnftImplementationAddress = await fermionFNFT.getAddress();
 
   // Update implementation address on beacon contract
   console.log(`\n📋 Updating implementation address on beacon`);
-  const beacon = await getContractAt("BosonClientBeacon", beaconAddress);
-  await beacon
-    .connect(adminSigner)
-    .setImplementation(await bosonVoucherImplementation.getAddress(), await getFees(maxPriorityFeePerGas));
+  const configFacet = await getContractAt("ConfigFacet", protocolAddress);
+  await configFacet.setFNFTImplementationAddress(fnftImplementationAddress);
 
   // Remove old entry from contracts
-  contracts = contracts.filter((i) => i.name !== "BosonVoucher Logic");
-  deploymentComplete(
-    "BosonVoucher Logic",
-    await bosonVoucherImplementation.getAddress(),
-    clientImplementationArgs,
-    "",
-    contracts
-  );
+  contracts = contracts.filter((i) => i.name !== "FermionFNFT");
+  contracts.push({ name: "FermionFNFT", address: fnftImplementationAddress, args: fermionFNFTConstructorArgs });
 
-  const contractsPath = await writeContracts(contracts, env, version);
+  const contractsPath = await writeContracts(contracts, env, version, contractsFile.externalAddresses);
   console.log(divider);
   console.log(`✅ Contracts written to ${contractsPath}`);
   console.log(divider);

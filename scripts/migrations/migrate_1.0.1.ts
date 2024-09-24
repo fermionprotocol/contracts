@@ -4,6 +4,7 @@ import hre from "hardhat";
 import { readContracts } from "../libraries/utils";
 import { getStateModifyingFunctionsHashes } from "../libraries/metaTransaction";
 import { upgradeFacets } from "../upgrade-facets";
+import { upgradeClients } from "../upgrade-clients";
 
 const { getContractAt } = hre.ethers;
 
@@ -31,12 +32,12 @@ const config = {
 export async function migrate(env: string = "") {
   console.log(`Migration ${tag} started`);
   try {
-    // shell.exec(`git reset @{u}`);
-    // const statusOutput = shell.exec("git status -s -uno scripts");
+    shell.exec(`git reset @{u}`);
+    const statusOutput = shell.exec("git status -s -uno scripts");
 
-    // if (statusOutput.stdout) {
-    //   throw new Error("Local changes found. Please stash them before upgrading");
-    // }
+    if (statusOutput.stdout) {
+      throw new Error("Local changes found. Please stash them before upgrading");
+    }
 
     const contractsFile = await readContracts(env);
     if (contractsFile?.protocolVersion != "1.0.0-rc.4") {
@@ -81,6 +82,7 @@ export async function migrate(env: string = "") {
     };
 
     await upgradeFacets(env, config, tag.replace("v", ""));
+    await upgradeClients(env, tag.replace("v", ""));
 
     const selectorsToAdd = await getStateModifyingFunctionsHashes([...config.addOrUpgrade, "FermionFNFT"]);
 
