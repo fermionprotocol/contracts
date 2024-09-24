@@ -57,7 +57,7 @@ export async function migrate(env: string = "") {
     // Get addresses of currently deployed contracts
     const protocolAddress = contracts.find((c) => c.name === "FermionDiamond")?.address;
 
-    const selectorsToRemove = await getStateModifyingFunctionsHashes(config.addOrUpgrade);
+    const selectorsToRemove = await getStateModifyingFunctionsHashes([...config.addOrUpgrade, "FermionFNFT"]);
 
     console.log(`Checking out contracts on version ${tag}`);
     shell.exec(`rm -rf contracts/protocol`);
@@ -82,7 +82,7 @@ export async function migrate(env: string = "") {
 
     await upgradeFacets(env, config, tag.replace("v", ""));
 
-    const selectorsToAdd = await getStateModifyingFunctionsHashes(config.addOrUpgrade);
+    const selectorsToAdd = await getStateModifyingFunctionsHashes([...config.addOrUpgrade, "FermionFNFT"]);
 
     const metaTransactionHandlerFacet = await getContractAt("MetaTransactionFacet", protocolAddress);
 

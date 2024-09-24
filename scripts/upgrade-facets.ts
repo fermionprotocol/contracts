@@ -174,6 +174,8 @@ export async function upgradeFacets(env: string = "", facets, version: string = 
 
     // Remove old entry from contracts
     // contracts = contracts.filter((i: any) => i.name !== facetName);
+    console.log(`\n📋 Facet: ${facetName}`);
+    console.log(registeredSelectors);
 
     // Get new selectors from compiled contract
     const { selectors, signatureToNameMapping } = getSelectors(newFacet, true);
@@ -243,6 +245,8 @@ export async function upgradeFacets(env: string = "", facets, version: string = 
     }
 
     const newFacetInterfaceId = getInterfaceID(newFacet.interface);
+    
+    console.log(oldFacet.name, selectorsToAdd.length, selectorsToRemove.length)
     if (oldFacet && (selectorsToAdd.length > 0 || selectorsToRemove.length > 0)) {
       if (!oldFacet.interfaceId) {
         console.log(
@@ -267,9 +271,9 @@ export async function upgradeFacets(env: string = "", facets, version: string = 
 
       const erc165 = await getContractAt("IERC165", protocolAddress);
       const support = await erc165.supportsInterface(newFacetInterfaceId);
-      if (!support) {
+      // if (!support) {
         interfacesToAdd[facetName] = newFacetInterfaceId;
-      }
+      // }
     }
   }
 
