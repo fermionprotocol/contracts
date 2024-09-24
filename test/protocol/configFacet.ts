@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { PausableRegion } from "../utils/enums";
-import { deployFermionProtocolFixture } from "../utils/common";
+import { deployFermionProtocolFixture, deployMockTokens } from "../utils/common";
 import { Contract, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import fermionConfig from "./../../fermion.config";
@@ -70,6 +70,16 @@ describe("Entity", function () {
       expect(await configFacet.getMaxVerificationTimeout()).to.equal(newTimeout);
     });
 
+    it("Set the fermion FNFT implementation address", async function () {
+      // Deploy a mock contract, since UpgradeableBeacon requires a contract address
+      const [newImplementation] = await deployMockTokens(["ERC20"]);
+      const newAddress = await newImplementation.getAddress();
+      const tx = await configFacet.setFNFTImplementationAddress(newAddress);
+      await expect(tx).to.emit(configFacet, "FermionFNFTImplementationChanged").withArgs(newAddress);
+
+      expect(await configFacet.getFNFTImplementationAddress()).to.equal(newAddress);
+    });
+
     context("Revert reasons", function () {
       it("Caller is not the admin", async function () {
         const accessControl = await ethers.getContractAt("IAccessControl", ethers.ZeroAddress);
@@ -92,6 +102,10 @@ describe("Entity", function () {
         await expect(configFacet.connect(randomWallet).setMaxVerificationTimeout(24n * 60n * 60n * 60n))
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
+
+        await expect(configFacet.connect(randomWallet).setFNFTImplementationAddress(wallets[10].address))
+          .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomWallet, adminRole);
       });
 
       it("Region is paused", async function () {
@@ -110,6 +124,10 @@ describe("Entity", function () {
           .withArgs(PausableRegion.Config);
 
         await expect(configFacet.setMaxVerificationTimeout(24n * 60n * 60n * 60n))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Config);
+
+        await expect(configFacet.setFNFTImplementationAddress(wallets[10].address))
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
       });
@@ -147,6 +165,21 @@ describe("Entity", function () {
         await expect(configFacet.setDefaultVerificationTimeout(defaultVerificationTimeout))
           .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
           .withArgs(defaultVerificationTimeout, fermionConfig.protocolParameters.maxVerificationTimeout);
+      });
+
+      it("Zero FNFT implementation address", async function () {
+        await expect(configFacet.setFNFTImplementationAddress(ZeroAddress)).to.be.revertedWithCustomError(
+          fermionErrors,
+          "InvalidAddress",
+        );
+      });
+
+      it("New implementation does not have the code", async function () {
+        const beacon = await ethers.getContractAt("UpgradeableBeacon", ZeroAddress);
+        await expect(configFacet.setFNFTImplementationAddress(wallets[10].address)).to.be.revertedWithCustomError(
+          beacon,
+          "BeaconInvalidImplementation",
+        );
       });
     });
   });
