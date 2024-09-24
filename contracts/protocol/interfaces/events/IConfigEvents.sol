@@ -11,4 +11,5 @@ interface IConfigEvents {
     event ProtocolFeePercentageChanged(uint16 newProtocolFeePercentage);
     event DefaultVerificationTimeoutChanged(uint256 newVerificationTimeout);
     event MaxVerificationTimeoutChanged(uint256 newMaxVerificationTimeout);
+    event FermionFNFTImplementationChanged(address newFermionFNFTImplementation);
 }
