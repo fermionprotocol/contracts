@@ -7,6 +7,7 @@ import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
 import { FermionTypes } from "../domain/Types.sol";
+import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 
 /**
  * @title ConfigFacet
@@ -38,7 +39,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      * - The _treasuryAddress is the zero address
      *
      *
-     * @param _treasuryAddress - the the multi-sig account address
+     * @param _treasuryAddress - the multi-sig account address
      */
     function setTreasuryAddress(
         address payable _treasuryAddress
@@ -132,12 +133,42 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
-     * @notice Gets the current maximal  verification timeout.
+     * @notice Gets the current maximal verification timeout.
      *
      * @return the maximal verification timeout
      */
     function getMaxVerificationTimeout() external view returns (uint256) {
         return FermionStorage.protocolConfig().maxVerificationTimeout;
+    }
+
+    /**
+     * @notice Sets the Fermion FNFT implmentation address.
+     *
+     * Emits a FermionFNFTImplementationChanged event if successful.
+     *
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The _fnftImplementation is the zero address
+     *
+     * @param _fnftImplementation - the fermion FNFT implementation address
+     */
+    function setFNFTImplementationAddress(
+        address _fnftImplementation
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
+        checkNonZeroAddress(_fnftImplementation);
+
+        UpgradeableBeacon(FermionStorage.protocolStatus().fermionFNFTBeacon).upgradeTo(_fnftImplementation);
+
+        emit FermionFNFTImplementationChanged(_fnftImplementation);
+    }
+
+    /**
+     * @notice Gets the current Fermion FNFT implementaion address.
+     *
+     * @return the Fermion FNFT implementation address
+     */
+    function getFNFTImplementationAddress() external view returns (address) {
+        return UpgradeableBeacon(FermionStorage.protocolStatus().fermionFNFTBeacon).implementation();
     }
 
     /**
@@ -167,7 +198,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      *
      * Reverts if _treasuryAddress is the zero address
      *
-     * @param _treasuryAddress - the the multi-sig account address
+     * @param _treasuryAddress - the multi-sig account address
      */
     function setTreasuryAddressInternal(address payable _treasuryAddress) internal {
         checkNonZeroAddress(_treasuryAddress);
