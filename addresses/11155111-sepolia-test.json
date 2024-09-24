@@ -2,17 +2,8 @@
   "chainId": 11155111,
   "network": "sepolia",
   "env": "test",
-  "protocolVersion": "1.0.0-rc.4",
+  "protocolVersion": "HEAD",
   "contracts": [
-    {
-      "name": "FermionFNFT",
-      "address": "0x49F33f10E2D9850D19396e05B40fD6982aaEC524",
-      "args": [
-        "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
-        "0x1970AD2Ef393F724758BcbfB91e6f65308699840",
-        "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
-      ]
-    },
     {
       "name": "DiamondCutFacet",
       "address": "0x72375d8f6c09Be9367B7A1629bb889A7f2a393d0",
@@ -122,6 +113,15 @@
       "name": "CustodyVaultFacet",
       "address": "0x49673E4a266a3F62C05EcCacf4fcD3100AFeF4CA",
       "args": []
+    },
+    {
+      "name": "FermionFNFT",
+      "address": "0x30680ae58D7C61514CCaC088a40721083dB4F7eF",
+      "args": [
+        "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
+        "0x2062C92447Ac78B977221E9bA2Be258AE90B6A3E",
+        "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
+      ]
     }
   ],
   "externalAddresses": {
