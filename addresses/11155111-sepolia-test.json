@@ -2,7 +2,7 @@
   "chainId": 11155111,
   "network": "sepolia",
   "env": "test",
-  "protocolVersion": "HEAD",
+  "protocolVersion": "1.0.1",
   "contracts": [
     {
       "name": "DiamondCutFacet",

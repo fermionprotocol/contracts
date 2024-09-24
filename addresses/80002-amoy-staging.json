@@ -2,7 +2,7 @@
   "chainId": 80002,
   "network": "amoy",
   "env": "staging",
-  "protocolVersion": "1.0.0-rc.4",
+  "protocolVersion": "1.0.1",
   "contracts": [
     {
       "name": "FermionFNFT",

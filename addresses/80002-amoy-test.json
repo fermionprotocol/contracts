@@ -2,7 +2,7 @@
   "chainId": 80002,
   "network": "amoy",
   "env": "test",
-  "protocolVersion": "HEAD",
+  "protocolVersion": "1.0.1",
   "contracts": [
     {
       "name": "DiamondCutFacet",
