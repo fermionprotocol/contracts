@@ -121,3 +121,12 @@ To contribute your code, first fork the protocol, make local changes in the fork
 All PRs must pass all tests before being merged.
 
 By being in this community, you agree to the [Code of Conduct](/code-of-conduct.md). Take a look at it, if you haven't already.
+
+## Audit reports
+
+All minor versions of the protocol are thoroughly audited before they are released. Find the information about the audits in the table below.
+
+| version | auditor  |        date        |                                                                                          report                                                                                           |
+| :------ | :------: | :----------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------: |
+| v1.0.0  | Omniscia |  August 6th 2024   | [online](https://omniscia.io/reports/fermion-protocol-boson-rwa-sale-verification-protocol-668e6fc0256870001841b971) \| [PDF](./audits/Omniscia_Audit_Report_Fermion_Protocol_v1.0.0.pdf) |
+| v1.0.0  | Omniscia | September 2nd 2024 |            [online](https://omniscia.io/reports/fermion-protocol-second-round-66cd13683575bd00188d023d) \| [PDF](./audits/Omniscia_Audit_Report_Fermion_Protocol_v1.0.0_2.pdf)            |
