@@ -13,7 +13,7 @@
     "check:scripts": "eslint . && prettier --list-different .",
     "tidy:contracts": "solhint --fix contracts/**/*.sol && prettier --plugin=prettier-plugin-solidity --write contracts",
     "tidy:scripts": "eslint --fix . && prettier --write .",
-    "postinstall": "node ./scripts/postinstall.js"
+    "postinstall": "npx ts-node-transpile-only ./scripts/postinstall.ts"
   },
   "devDependencies": {
     "@bosonprotocol/boson-protocol-contracts": "git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.4.1",
@@ -47,10 +47,10 @@
     "shelljs": "^0.8.5",
     "solhint": "^5.0.3",
     "solidity-coverage": "^0.8.13",
-    "ts-node": ">=8.0.0",
+    "ts-node": "^10.9.2",
     "typechain": "^8.3.0",
     "typescript": ">=5.6.2",
-    "typescript-eslint": "^7.17.0"
+    "typescript-eslint": "^8.8.0"
   },
   "dependencies": {
     "@opensea/seaport-js": "4.0.4",

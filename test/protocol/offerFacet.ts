@@ -170,7 +170,7 @@ describe("Offer", function () {
 
       const [exists, offer, offerDates, offerDurations, disputeResolutionTerms, offerFees] =
         await bosonOfferHandler.getOffer(1n);
-      expect(exists).to.be.true;
+      expect(exists).to.be.equal(true);
       expect(offer.sellerId).to.equal("1"); // fermion's seller id inside Boson
       // expect(offer.price).to.equal(verifierFee);
       expect(offer.price).to.equal(0); // change after boson v2.4.2
@@ -182,7 +182,7 @@ describe("Offer", function () {
       expect(offer.metadataUri).to.equal(metadataURI);
       expect(offer.metadataHash).to.equal(id(metadataURI));
       expect(offer.collectionIndex).to.equal(0);
-      expect(offer.voided).to.be.false;
+      expect(offer.voided).to.be.equal(false);
       expect(offer.royaltyInfo).to.eql([[[], []]]); // one empty royalty info
 
       expect(offerDates.validFrom).to.equal(0);
@@ -755,7 +755,7 @@ describe("Offer", function () {
           // State:
           // Boson
           const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-          expect(exists).to.be.true;
+          expect(exists).to.be.equal(true);
           expect(exchange.state).to.equal(3); // Redeemed
           expect(voucher.committedDate).to.not.equal(0);
           expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
@@ -976,7 +976,7 @@ describe("Offer", function () {
             // State:
             // Boson
             const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-            expect(exists).to.be.true;
+            expect(exists).to.be.equal(true);
             expect(exchange.state).to.equal(3); // Redeemed
             expect(voucher.committedDate).to.not.equal(0);
             expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
@@ -1077,7 +1077,7 @@ describe("Offer", function () {
             // State:
             // Boson
             const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-            expect(exists).to.be.true;
+            expect(exists).to.be.equal(true);
             expect(exchange.state).to.equal(3); // Redeemed
             expect(voucher.committedDate).to.not.equal(0);
             expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
@@ -1506,7 +1506,7 @@ describe("Offer", function () {
           // State:
           // Boson
           const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-          expect(exists).to.be.true;
+          expect(exists).to.be.equal(true);
           expect(exchange.state).to.equal(3); // Redeemed
           expect(voucher.committedDate).to.not.equal(0);
           expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
