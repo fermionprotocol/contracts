@@ -101,7 +101,6 @@ contract EIP712 is SignatureErrors {
             (bool success, bytes memory returnData) = _user.staticcall(
                 abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encode(_sig)))
             );
-
             if (success) {
                 if (returnData.length != SLOT_SIZE) {
                     revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
@@ -110,8 +109,11 @@ contract EIP712 is SignatureErrors {
                     if (uint256(bytes32(returnData)) & type(uint224).max != 0) {
                         revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
                     }
+
                     if (abi.decode(returnData, (bytes4)) != IERC1271.isValidSignature.selector)
                         revert SignatureValidationFailed();
+
+                    return;
                 }
             } else {
                 if (returnData.length == 0) {

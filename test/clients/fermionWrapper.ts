@@ -70,6 +70,12 @@ describe("FermionFNFT - wrapper tests", function () {
     await loadFixture(setupFermionWrapperTest);
   });
 
+  after(async function () {
+    // make the account "normal" again
+    // `setCode` helper from the toolbox does not accept empty code, so we use the provider directly
+    await ethers.provider.send("hardhat_setCode", [await fermionProtocolSigner.getAddress(), "0x"]);
+  });
+
   context("initialize", function () {
     const offerId = 1n;
 
