@@ -51,48 +51,6 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
     /**
      * @notice Handles the incoming meta transaction.
      *
-     * Kept for backward compatibility. It can be used only for the methods behind the diamond.
-     *
-     * Reverts if:
-     * - Metatransaction region is paused
-     * - Nonce is already used by the msg.sender for another transaction
-     * - Function is not allowlisted to be called using metatransactions
-     * - Function name does not match the bytes4 version of the function signature
-     * - Sender does not match the recovered signer
-     * - Any code executed in the signed transaction reverts
-     * - Signature is invalid
-     *
-     * @param _userAddress - the sender of the transaction
-     * @param _functionName - the name of the function to be executed
-     * @param _functionSignature - the function signature
-     * @param _nonce - the nonce value of the transaction
-     * @param _sigR - r part of the signer's signature
-     * @param _sigS - s part of the signer's signature
-     * @param _sigV - v part of the signer's signature
-     */
-    function executeMetaTransaction(
-        address _userAddress,
-        string calldata _functionName,
-        bytes calldata _functionSignature,
-        uint256 _nonce,
-        bytes32 _sigR,
-        bytes32 _sigS,
-        uint8 _sigV
-    ) external payable returns (bytes memory) {
-        return
-            executeMetaTransaction(
-                _userAddress,
-                _functionName,
-                _functionSignature,
-                _nonce,
-                Signature({ r: _sigR, s: _sigS, v: _sigV }),
-                0
-            );
-    }
-
-    /**
-     * @notice Handles the incoming meta transaction.
-     *
      * Reverts if:
      * - Metatransaction region is paused
      * - Nonce is already used by the msg.sender for another transaction
@@ -114,9 +72,9 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
         string calldata _functionName,
         bytes calldata _functionSignature,
         uint256 _nonce,
-        Signature memory _sig,
+        Signature calldata _sig,
         uint256 _offerId
-    ) public payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
+    ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
         address userAddress = _userAddress; // stack too deep workaround.
         validateTx(_functionName, _functionSignature, _nonce, userAddress);
 

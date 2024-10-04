@@ -237,8 +237,8 @@ describe("FermionFNFT - wrapper tests", function () {
     // Tests are done using only unwrapToSelf, since the setup is simpler
 
     let seller: HardhatEthersSigner;
-    const startTokenId = 1;
-    const quantity = 10;
+    const startTokenId = 2n ** 128n + 1n;
+    const quantity = 10n;
     const offerId = 1n;
 
     beforeEach(async function () {
@@ -316,6 +316,24 @@ describe("FermionFNFT - wrapper tests", function () {
         await expect(fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0))
           .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
           .withArgs(startTokenId, mockBosonPriceDiscovery.address, TokenState.Unverified);
+      });
+
+      it("Unwrapped but unverified FNFTs cannot be transferred", async function () {
+        const newOwner = wallets[4];
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [
+              startTokenId,
+              TokenState.Unwrapping,
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
+
+        await expect(fermionWrapperProxy.connect(seller).transferFrom(seller.address, newOwner.address, startTokenId))
+          .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
+          .withArgs(startTokenId, seller.address, TokenState.Unverified);
       });
     });
   });

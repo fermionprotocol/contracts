@@ -67,6 +67,14 @@ describe("Verification", function () {
     offerId: "",
     exchangeId: "",
   };
+  const exchangeSelfSaleSelfVerification = {
+    tokenId: "",
+    verifierId: "",
+    payout: { remainder: 0n, fermionFeeAmount: 0n, facilitatorFeeAmount: 0n },
+    offerId: "",
+    exchangeId: "",
+  };
+
   let itemVerificationTimeout: string;
   let itemMaxVerificationTimeout: bigint;
   const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
@@ -113,18 +121,28 @@ describe("Verification", function () {
     const offerId = "1"; // buyer != seller, verifier != seller
     const offerIdSelfSale = "2"; // buyer = seller, verifier != seller
     const offerIdSelfVerification = "3"; // buyer != seller, verifier = seller
+    const offerIdSelfSaleSelfVerification = "4"; // buyer = seller, verifier = seller
     await offerFacet.createOffer({ ...fermionOffer, facilitatorId, facilitatorFeePercent });
     await offerFacet.createOffer({ ...fermionOffer, sellerDeposit: "0" });
     await offerFacet.createOffer({ ...fermionOffer, verifierId: "1", custodianId: "1", verifierFee: "0" });
+    await offerFacet.createOffer({
+      ...fermionOffer,
+      sellerDeposit: "0",
+      verifierId: "1",
+      custodianId: "1",
+      verifierFee: "0",
+    });
 
     // Mint and wrap some NFTs
     const quantity = "1";
     await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity); // offerId = 2; exchangeId = 1
     await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
     await offerFacet.mintAndWrapNFTs(offerIdSelfVerification, "2"); // offerId = 3; exchangeId = 3
+    await offerFacet.mintAndWrapNFTs(offerIdSelfSaleSelfVerification, quantity); // offerId = 4; exchangeId = 5
     const exchangeIdSelf = "1";
     const exchangeId = "2";
     const exchangeIdSelfVerification = "3";
+    const exchangeIdSelfSaleSelfVerification = "5";
 
     // Unwrap some NFTs - normal sale and sale with self-verification
     buyer = wallets[5];
@@ -145,11 +163,18 @@ describe("Verification", function () {
     } = await createBuyerAdvancedOrder(buyer, offerIdSelfVerification, exchangeIdSelfVerification);
     await offerFacet.unwrapNFT(tokenIdSelfVerification, buyerAdvancedOrderSelfVerification);
 
-    // unwrap to self
+    // unwrap to self #1
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
     const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
-    const tx = await offerFacet.unwrapNFTToSelf(tokenIdSelf);
+    await offerFacet.unwrapNFTToSelf(tokenIdSelf);
+
+    // unwrap to self #2
+    const tokenIdSelfSaleSelfVerification = deriveTokenId(
+      offerIdSelfSaleSelfVerification,
+      exchangeIdSelfSaleSelfVerification,
+    ).toString();
+    const tx = await offerFacet.unwrapNFTToSelf(tokenIdSelfSaleSelfVerification);
     const timestamp = BigInt((await tx.getBlock()).timestamp);
     itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.defaultVerificationTimeout);
     itemMaxVerificationTimeout = timestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
@@ -190,6 +215,12 @@ describe("Verification", function () {
       0n,
       sellerDeposit,
     );
+
+    // Self sale and self verification
+    exchangeSelfSaleSelfVerification.tokenId = tokenIdSelfSaleSelfVerification;
+    exchangeSelfSaleSelfVerification.verifierId = sellerId;
+    exchangeSelfSaleSelfVerification.offerId = offerIdSelfSaleSelfVerification;
+    exchangeSelfSaleSelfVerification.exchangeId = exchangeIdSelfSaleSelfVerification;
 
     exchangeToken = await mockToken.getAddress();
     bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
@@ -392,6 +423,55 @@ describe("Verification", function () {
         expect(await wrapper.ownerOf(exchangeSelfVerification.tokenId)).to.equal(buyer.address);
       });
 
+      it("Self sale, self verification", async function () {
+        const tx = await verificationFacet.submitVerdict(
+          exchangeSelfSaleSelfVerification.tokenId,
+          VerificationStatus.Verified,
+        );
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(sellerId, exchangeSelfSaleSelfVerification.tokenId, VerificationStatus.Verified);
+        await expect(tx).to.not.emit(verificationFacet, "AvailableFundsIncreased");
+        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSaleSelfVerification.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx)
+          .to.emit(wrapper, "TokenStateChange")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId, TokenState.Verified);
+
+        // Boson
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
+          .withArgs(
+            exchangeSelfSaleSelfVerification.offerId,
+            bosonBuyerId,
+            exchangeSelfSaleSelfVerification.exchangeId,
+            fermionProtocolAddress,
+          );
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.remainder,
+        );
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+        );
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfSaleSelfVerification.tokenId)).to.equal(TokenState.Verified);
+        expect(await wrapper.ownerOf(exchangeSelfSaleSelfVerification.tokenId)).to.equal(defaultSigner.address);
+      });
+
       it("Can verify after after the timeout if the timeout was not called yet ", async function () {
         await setNextBlockTimestamp(itemVerificationTimeout);
 
@@ -557,6 +637,55 @@ describe("Verification", function () {
         await expect(wrapper.ownerOf(exchangeSelfVerification.tokenId))
           .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
           .withArgs(exchangeSelfVerification.tokenId);
+      });
+
+      it("Self sale, self verification", async function () {
+        const tx = await verificationFacet.submitVerdict(
+          exchangeSelfSaleSelfVerification.tokenId,
+          VerificationStatus.Rejected,
+        );
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(sellerId, exchangeSelfSaleSelfVerification.tokenId, VerificationStatus.Rejected);
+        await expect(tx).to.not.emit(verificationFacet, "AvailableFundsIncreased");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSaleSelfVerification.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx)
+          .to.emit(wrapper, "TokenStateChange")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId, TokenState.Burned);
+
+        // Boson
+        await expect(tx)
+          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
+          .withArgs(
+            exchangeSelfSaleSelfVerification.offerId,
+            bosonBuyerId,
+            exchangeSelfSaleSelfVerification.exchangeId,
+            fermionProtocolAddress,
+          );
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.remainder +
+            exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+        ); // buyer gets the remainder and facilitator fee back
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfSaleSelfVerification.tokenId)).to.equal(TokenState.Burned);
+        await expect(wrapper.ownerOf(exchangeSelfSaleSelfVerification.tokenId))
+          .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId);
       });
 
       it("If buyer exists, it's not created anew and funds are added", async function () {
@@ -1727,55 +1856,56 @@ describe("Verification", function () {
           .withArgs(exchangeSelfVerification.tokenId);
       });
 
-      it.skip("Works even if the item was revised, but the verifier gets paid", async function () {
-        // NOT OK
-        await verificationFacet
-          .connect(verifier)
-          .submitRevisedMetadata(exchange.tokenId, "https://example.com/new-metadata.json");
-        const tx = await verificationFacet.connect(randomWallet).verificationTimeout(exchange.tokenId);
+      it("Self sale self verification", async function () {
+        const tx = await verificationFacet
+          .connect(randomWallet)
+          .verificationTimeout(exchangeSelfSaleSelfVerification.tokenId);
 
         // Events
         // Fermion
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(buyerId, exchangeToken, exchange.payout.remainder + exchange.payout.facilitatorFeeAmount);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
-        await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+          .withArgs(sellerId, exchangeSelfSaleSelfVerification.tokenId, VerificationStatus.Rejected);
+        await expect(tx).to.not.emit(verificationFacet, "AvailableFundsIncreased");
 
         // Wrapper
-        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSaleSelfVerification.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
-        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+        await expect(tx)
+          .to.emit(wrapper, "TokenStateChange")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId, TokenState.Burned);
 
         // Boson
         await expect(tx)
           .to.emit(bosonExchangeHandler, "ExchangeCompleted")
-          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+          .withArgs(
+            exchangeSelfSaleSelfVerification.offerId,
+            bosonBuyerId,
+            exchangeSelfSaleSelfVerification.exchangeId,
+            fermionProtocolAddress,
+          );
 
         // State
         // Fermion
         // Available funds
-        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(0n);
-        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
-          exchange.payout.remainder + exchange.payout.facilitatorFeeAmount,
-        );
+          exchangeSelfSaleSelfVerification.payout.remainder +
+            exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+        ); // verifier fee is 0, so it's not added
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
-          exchange.payout.fermionFeeAmount,
+          exchangeSelfSaleSelfVerification.payout.fermionFeeAmount,
         );
 
         // Wrapper
-        expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Burned);
-        await expect(wrapper.ownerOf(exchange.tokenId))
+        expect(await wrapper.tokenState(exchangeSelfSaleSelfVerification.tokenId)).to.equal(TokenState.Burned);
+        await expect(wrapper.ownerOf(exchangeSelfSaleSelfVerification.tokenId))
           .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
-          .withArgs(exchange.tokenId);
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId);
       });
+
+      it.skip("Works even if the item was revised, but the verifier gets paid", async function () {});
+
     });
 
     context("Revert reasons", function () {
@@ -1839,7 +1969,7 @@ describe("Verification", function () {
       it("New timeout is greater than the maximum timeout", async function () {
         const newTimeout = itemMaxVerificationTimeout + 1n;
 
-        await expect(verificationFacet.changeVerificationTimeout(exchangeSelfSale.tokenId, newTimeout))
+        await expect(verificationFacet.changeVerificationTimeout(exchangeSelfSaleSelfVerification.tokenId, newTimeout))
           .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
           .withArgs(newTimeout, itemMaxVerificationTimeout);
       });
