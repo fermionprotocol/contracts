@@ -170,16 +170,16 @@ function getConfigHandlerInitArgs() {
       priceDiscovery: protocolConfig.PRICE_DISCOVERY[network],
     },
     protocolConfig.limits,
-    protocolConfig.protocolFeePercentage, 
-    protocolConfig.protocolFeeFlatBoson, 
-    protocolConfig.buyerEscalationDepositPercentage
+    protocolConfig.protocolFeePercentage,
+    protocolConfig.protocolFeeFlatBoson,
+    protocolConfig.buyerEscalationDepositPercentage,
   ];
 }
 
 export function getBosonProtocolFees() {
-  return { 
-    protocolFeePercentage: protocolConfig.protocolFeePercentage, 
-    protocolFeeFlatBoson: protocolConfig.protocolFeeFlatBoson, 
-    buyerEscalationDepositPercentage: protocolConfig.buyerEscalationDepositPercentage 
+  return {
+    protocolFeePercentage: protocolConfig.protocolFeePercentage,
+    protocolFeeFlatBoson: protocolConfig.protocolFeeFlatBoson,
+    buyerEscalationDepositPercentage: protocolConfig.buyerEscalationDepositPercentage,
   };
 }
