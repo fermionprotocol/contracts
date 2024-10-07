@@ -479,16 +479,6 @@ describe("Verification", function () {
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
       });
-
-      it("Can verify after revised metadata submitted and removed ", async function () {
-        const newMetadataURI = "https://example.com/new-metadata.json";
-        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
-        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, "");
-
-        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
-          .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
-      });
     });
 
     context("Rejected", function () {
@@ -718,17 +708,6 @@ describe("Verification", function () {
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
       });
-
-      it("Can reject after revised metadata submitted", async function () {
-        const newMetadataURI = "https://example.com/new-metadata.json";
-        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
-
-        // Events
-        // Fermion
-        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Rejected))
-          .to.emit(verificationFacet, "VerdictSubmitted")
-          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
-      });
     });
 
     context("Revert reasons", function () {
@@ -797,9 +776,18 @@ describe("Verification", function () {
         const newMetadataURI = "https://example.com/new-metadata.json";
         await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
 
-        await expect(verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified))
-          .to.be.revertedWithCustomError(verificationFacet, "PendingRevisedMetadata")
-          .withArgs(exchange.tokenId, newMetadataURI);
+        await expect(
+          verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
+      });
+
+      it("Cannot reject after revised metadata submitted", async function () {
+        const newMetadataURI = "https://example.com/new-metadata.json";
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+        await expect(
+          verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Rejected),
+        ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
       });
 
       it("Cannot verify before it's unwrapped", async function () {
@@ -808,6 +796,517 @@ describe("Verification", function () {
         await expect(
           verificationFacet.submitVerdict(tokenId, VerificationStatus.Verified),
         ).to.be.revertedWithCustomError(bosonExchangeHandler, "NoSuchExchange");
+      });
+    });
+  });
+
+  context("removeRevisedMetadataAndSubmitVerdict", function () {
+    const newMetadataURI = "https://example.com/new-metadata.json";
+
+    context("Verified", function () {
+      it("Normal sale", async function () {
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+        const tx = await verificationFacet
+          .connect(verifier)
+          .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified);
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(facilitatorId, exchangeToken, exchange.payout.facilitatorFeeAmount);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(sellerId, exchangeToken, exchange.payout.remainder);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
+        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
+        await expect(tx).to.emit(verificationFacet, "RevisedMetadataSubmitted").withArgs(exchange.tokenId, "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
+
+        // Boson
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
+          exchange.payout.facilitatorFeeAmount,
+        );
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(exchange.payout.remainder);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchange.payout.fermionFeeAmount,
+        ); // fermion protocol fees
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Verified);
+        expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
+      });
+
+      it("Self sale", async function () {
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchangeSelfSale.tokenId, newMetadataURI);
+
+        const tx = await verificationFacet
+          .connect(verifier)
+          .removeRevisedMetadataAndSubmitVerdict(exchangeSelfSale.tokenId, VerificationStatus.Verified);
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Verified);
+        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
+        await expect(tx).to.emit(verificationFacet, "RevisedMetadataSubmitted").withArgs(exchangeSelfSale.tokenId, "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.Verified);
+
+        // Boson
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0);
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Verified);
+        expect(await wrapper.ownerOf(exchangeSelfSale.tokenId)).to.equal(defaultSigner.address);
+      });
+
+      it("Self verification", async function () {
+        await verificationFacet.submitRevisedMetadata(exchangeSelfVerification.tokenId, newMetadataURI);
+
+        const tx = await verificationFacet.removeRevisedMetadataAndSubmitVerdict(
+          exchangeSelfVerification.tokenId,
+          VerificationStatus.Verified,
+        );
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(sellerId, exchangeSelfVerification.tokenId, VerificationStatus.Verified);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(sellerId, exchangeToken, exchangeSelfVerification.payout.remainder);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfVerification.payout.fermionFeeAmount);
+        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
+        await expect(tx)
+          .to.emit(verificationFacet, "RevisedMetadataSubmitted")
+          .withArgs(exchangeSelfVerification.tokenId, "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfVerification.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx)
+          .to.emit(wrapper, "TokenStateChange")
+          .withArgs(exchangeSelfVerification.tokenId, TokenState.Verified);
+
+        // Boson
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(
+          exchangeSelfVerification.payout.remainder,
+        );
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
+          exchangeSelfVerification.payout.facilitatorFeeAmount,
+        );
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfVerification.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfVerification.tokenId)).to.equal(TokenState.Verified);
+        expect(await wrapper.ownerOf(exchangeSelfVerification.tokenId)).to.equal(buyer.address);
+      });
+
+      it("Self sale, self verification", async function () {
+        await verificationFacet.submitRevisedMetadata(exchangeSelfSaleSelfVerification.tokenId, newMetadataURI);
+
+        const tx = await verificationFacet.removeRevisedMetadataAndSubmitVerdict(
+          exchangeSelfSaleSelfVerification.tokenId,
+          VerificationStatus.Verified,
+        );
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(sellerId, exchangeSelfSaleSelfVerification.tokenId, VerificationStatus.Verified);
+        await expect(tx).to.not.emit(verificationFacet, "AvailableFundsIncreased");
+        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
+        await expect(tx)
+          .to.emit(verificationFacet, "RevisedMetadataSubmitted")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId, "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSaleSelfVerification.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx)
+          .to.emit(wrapper, "TokenStateChange")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId, TokenState.Verified);
+
+        // Boson
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.remainder,
+        );
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+        );
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfSaleSelfVerification.tokenId)).to.equal(TokenState.Verified);
+        expect(await wrapper.ownerOf(exchangeSelfSaleSelfVerification.tokenId)).to.equal(defaultSigner.address);
+      });
+
+      it("Can verify after after the timeout if the timeout was not called yet ", async function () {
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+        await setNextBlockTimestamp(itemVerificationTimeout);
+
+        await expect(
+          verificationFacet
+            .connect(verifier)
+            .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        )
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
+      });
+    });
+
+    context("Rejected", function () {
+      const buyerId = "5"; // new buyer in fermion
+      it("Normal sale", async function () {
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+        const tx = await verificationFacet
+          .connect(verifier)
+          .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Rejected);
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(buyerId, exchangeToken, exchange.payout.remainder + exchange.payout.facilitatorFeeAmount); // buyer gets the remainder and facilitator fee back
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchange.payout.fermionFeeAmount);
+        await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+        await expect(tx).to.emit(verificationFacet, "RevisedMetadataSubmitted").withArgs(exchange.tokenId, "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+
+        // Boson
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0n); // facilitator not paid if rejected
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchange.payout.remainder + exchange.payout.facilitatorFeeAmount,
+        );
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchange.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Burned);
+        await expect(wrapper.ownerOf(exchange.tokenId))
+          .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+          .withArgs(exchange.tokenId);
+      });
+
+      it("Self sale", async function () {
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchangeSelfSale.tokenId, newMetadataURI);
+
+        const tx = await verificationFacet
+          .connect(verifier)
+          .removeRevisedMetadataAndSubmitVerdict(exchangeSelfSale.tokenId, VerificationStatus.Rejected);
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Rejected);
+        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
+        await expect(tx).to.emit(verificationFacet, "RevisedMetadataSubmitted").withArgs(exchangeSelfSale.tokenId, "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.Burned);
+
+        // Boson
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
+        expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0);
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Burned);
+        await expect(wrapper.ownerOf(exchangeSelfSale.tokenId))
+          .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+          .withArgs(exchangeSelfSale.tokenId);
+      });
+
+      it("Self verification", async function () {
+        await verificationFacet.submitRevisedMetadata(exchangeSelfVerification.tokenId, newMetadataURI);
+
+        const tx = await verificationFacet.removeRevisedMetadataAndSubmitVerdict(
+          exchangeSelfVerification.tokenId,
+          VerificationStatus.Rejected,
+        );
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(sellerId, exchangeSelfVerification.tokenId, VerificationStatus.Rejected);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(
+            buyerId,
+            exchangeToken,
+            exchangeSelfVerification.payout.remainder + exchangeSelfVerification.payout.facilitatorFeeAmount,
+          );
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfVerification.payout.fermionFeeAmount);
+        await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+        await expect(tx)
+          .to.emit(verificationFacet, "RevisedMetadataSubmitted")
+          .withArgs(exchangeSelfVerification.tokenId, "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfVerification.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx)
+          .to.emit(wrapper, "TokenStateChange")
+          .withArgs(exchangeSelfVerification.tokenId, TokenState.Burned);
+
+        // Boson
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchangeSelfVerification.payout.remainder + exchangeSelfVerification.payout.facilitatorFeeAmount,
+        ); // buyer gets the remainder and facilitator fee back
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfVerification.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfVerification.tokenId)).to.equal(TokenState.Burned);
+        await expect(wrapper.ownerOf(exchangeSelfVerification.tokenId))
+          .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+          .withArgs(exchangeSelfVerification.tokenId);
+      });
+
+      it("Self sale, self verification", async function () {
+        await verificationFacet.submitRevisedMetadata(exchangeSelfSaleSelfVerification.tokenId, newMetadataURI);
+
+        const tx = await verificationFacet.removeRevisedMetadataAndSubmitVerdict(
+          exchangeSelfSaleSelfVerification.tokenId,
+          VerificationStatus.Rejected,
+        );
+
+        // Events
+        // Fermion
+        await expect(tx)
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(sellerId, exchangeSelfSaleSelfVerification.tokenId, VerificationStatus.Rejected);
+        await expect(tx).to.not.emit(verificationFacet, "AvailableFundsIncreased");
+        await expect(tx)
+          .to.emit(verificationFacet, "RevisedMetadataSubmitted")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId, "");
+
+        // Wrapper
+        const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSaleSelfVerification.offerId);
+        const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+        await expect(tx)
+          .to.emit(wrapper, "TokenStateChange")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId, TokenState.Burned);
+
+        // Boson
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
+
+        // State
+        // Fermion
+        // Available funds
+        expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.remainder +
+            exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+        ); // buyer gets the remainder and facilitator fee back
+        expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSaleSelfVerification.payout.fermionFeeAmount,
+        );
+
+        // Wrapper
+        expect(await wrapper.tokenState(exchangeSelfSaleSelfVerification.tokenId)).to.equal(TokenState.Burned);
+        await expect(wrapper.ownerOf(exchangeSelfSaleSelfVerification.tokenId))
+          .to.be.revertedWithCustomError(wrapper, "ERC721NonexistentToken")
+          .withArgs(exchangeSelfSaleSelfVerification.tokenId);
+      });
+
+      it("Can reject after after the timeout if the timeout was not called yet", async function () {
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+        await setNextBlockTimestamp(itemVerificationTimeout);
+
+        // Events
+        // Fermion
+        await expect(
+          verificationFacet
+            .connect(verifier)
+            .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Rejected),
+        )
+          .to.emit(verificationFacet, "VerdictSubmitted")
+          .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Rejected);
+      });
+    });
+
+    context("Revert reasons", function () {
+      beforeEach(async function () {
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+      });
+
+      it("Verification region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Verification]);
+
+        await expect(
+          verificationFacet.removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Verification);
+      });
+
+      it("Caller is not the verifiers's assistant", async function () {
+        const wallet = wallets[9];
+
+        // completely random wallet
+        await expect(
+          verificationFacet
+            .connect(wallet)
+            .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet.address, EntityRole.Verifier, AccountRole.Assistant);
+
+        // seller
+        await expect(
+          verificationFacet.removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, defaultSigner.address, EntityRole.Verifier, AccountRole.Assistant);
+
+        // an entity-wide Treasury or Manager wallet (not Assistant)
+        await entityFacet
+          .connect(verifier)
+          .addEntityAccounts(verifierId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
+        await expect(
+          verificationFacet
+            .connect(wallet)
+            .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet.address, EntityRole.Verifier, AccountRole.Assistant);
+
+        // a Verifier specific Treasury or Manager wallet
+        const wallet2 = wallets[10];
+        await entityFacet
+          .connect(verifier)
+          .addEntityAccounts(
+            verifierId,
+            [wallet2],
+            [[EntityRole.Verifier]],
+            [[[AccountRole.Treasury, AccountRole.Manager]]],
+          );
+        await expect(
+          verificationFacet
+            .connect(wallet2)
+            .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet2.address, EntityRole.Verifier, AccountRole.Assistant);
+
+        // an Assistant of another role than Verifier
+        await entityFacet.connect(verifier).updateEntity(verifierId, [EntityRole.Verifier, EntityRole.Custodian], "");
+        await entityFacet
+          .connect(verifier)
+          .addEntityAccounts(verifierId, [wallet2], [[EntityRole.Custodian]], [[[AccountRole.Assistant]]]);
+        await expect(
+          verificationFacet
+            .connect(wallet2)
+            .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(verifierId, wallet2.address, EntityRole.Verifier, AccountRole.Assistant);
+      });
+
+      it("Revised metadata does not exist", async function () {
+        // no revision to start with
+        await expect(
+          verificationFacet
+            .connect(verifier)
+            .removeRevisedMetadataAndSubmitVerdict(exchangeSelfSale.tokenId, VerificationStatus.Verified),
+        ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
+
+        // revised and removed
+        await verificationFacet
+          .connect(verifier)
+          .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified);
+
+        await expect(
+          verificationFacet
+            .connect(verifier)
+            .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Verified),
+        ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
       });
     });
   });
@@ -822,9 +1321,31 @@ describe("Verification", function () {
       await expect(tx)
         .to.emit(verificationFacet, "RevisedMetadataSubmitted")
         .withArgs(exchange.tokenId, newMetadataURI);
+      await expect(tx)
+        .to.emit(verificationFacet, "AvailableFundsIncreased")
+        .withArgs(exchange.verifierId, exchangeToken, verifierFee);
+
+      // Wrapper
+      const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+      const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+
+      // Boson
+      await expect(tx)
+        .to.emit(bosonExchangeHandler, "ExchangeCompleted")
+        .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
 
       // State
+      // Fermion
       expect(await verificationFacet.getRevisedMetadata(exchange.tokenId)).to.equal(newMetadataURI);
+      // Available funds - only the verifier is paid at this step
+      expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
+      expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0n);
+      expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
+      expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0n); // fermion protocol fees
+
+      // Wrapper
+      expect(await wrapper.tokenState(exchange.tokenId)).to.equal(TokenState.Unverified);
+      expect(await wrapper.ownerOf(exchange.tokenId)).to.equal(buyer.address);
     });
 
     it("Revised metadata can be updated", async function () {
@@ -914,11 +1435,19 @@ describe("Verification", function () {
       });
 
       it("Token does not exist", async function () {
-        const tokenId = deriveTokenId("15", "4"); // token that was wrapped but not unwrapped yet
+        const tokenId = deriveTokenId("15", "4"); // non-existing token -> no associated offer -> entityId = 0 => noSuchEntity
 
-        await expect(verificationFacet.submitRevisedMetadata(tokenId, newMetadataURI))
-          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
-          .withArgs(0, verifier.address, EntityRole.Verifier, AccountRole.Assistant);
+        await expect(verificationFacet.submitRevisedMetadata(tokenId, newMetadataURI)).to.be.revertedWithCustomError(
+          fermionErrors,
+          "NoSuchEntity",
+        );
+      });
+
+      it("Submitted empty metadata", async function () {
+        await expect(verificationFacet.submitRevisedMetadata(exchange.tokenId, "")).to.be.revertedWithCustomError(
+          fermionErrors,
+          "EmptyMetadata",
+        );
       });
 
       it("Cannot submit before it's unwrapped", async function () {
@@ -936,7 +1465,18 @@ describe("Verification", function () {
 
         await expect(
           verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI),
-        ).to.be.revertedWithCustomError(verificationFacet, "AlreadyVerified");
+        ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
+      });
+
+      it("Verification is timeouted", async function () {
+        await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
+        await setNextBlockTimestamp(itemVerificationTimeout);
+        await verificationFacet.verificationTimeout(exchange.tokenId);
+
+        await expect(
+          verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI),
+        ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
       });
     });
   });
@@ -1029,9 +1569,6 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
 
         const payout = payoutFeeCalculation(
           exchange.encumberedAmount,
@@ -1063,9 +1600,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
 
         // Boson
-        await expect(tx)
-          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
-          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
 
         // State
         // Fermion
@@ -1096,9 +1631,6 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
 
         const payout = payoutFeeCalculation(
           exchange.encumberedAmount,
@@ -1130,9 +1662,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
 
         // Boson
-        await expect(tx)
-          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
-          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
 
         // State
         // Fermion
@@ -1161,9 +1691,6 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
 
         const payout = payoutFeeCalculation(
           exchange.encumberedAmount,
@@ -1192,9 +1719,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
 
         // Boson
-        await expect(tx)
-          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
-          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
 
         // State
         // Fermion
@@ -1255,12 +1780,23 @@ describe("Verification", function () {
       });
 
       it("Verification is timeouted", async function () {
+        await verificationFacet.connect(buyer).submitProposal(exchange.tokenId, buyerProposal, metadataDigest);
+
         await setNextBlockTimestamp(itemVerificationTimeout);
         await verificationFacet.verificationTimeout(exchange.tokenId);
 
         await expect(
           verificationFacet.connect(buyer).submitProposal(exchange.tokenId, buyerProposal, metadataDigest),
-        ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
+        ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
+      });
+
+      it("Verification is timeouted", async function () {
+        await setNextBlockTimestamp(itemVerificationTimeout);
+        await verificationFacet.verificationTimeout(exchange.tokenId);
+
+        await expect(
+          verificationFacet.connect(buyer).submitProposal(exchange.tokenId, buyerProposal, metadataDigest),
+        ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
       });
 
       it("Caller is not the buyer nor the seller", async function () {
@@ -1284,16 +1820,14 @@ describe("Verification", function () {
     ];
     let message: any;
 
-    before(async function () {
+    beforeEach(async function () {
+      await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
+
       message = {
         tokenId: String(exchange.tokenId),
         buyerPercent: String(sellerProposal),
         metadataURIDigest: metadataDigest,
       };
-    });
-
-    beforeEach(async function () {
-      await verificationFacet.connect(verifier).submitRevisedMetadata(exchange.tokenId, newMetadataURI);
     });
 
     context("Matching proposals", function () {
@@ -1322,9 +1856,6 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
 
         const payout = payoutFeeCalculation(
           exchange.encumberedAmount,
@@ -1356,9 +1887,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
 
         // Boson
-        await expect(tx)
-          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
-          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
 
         // State
         // Fermion
@@ -1399,9 +1928,6 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchange.verifierId, exchange.tokenId, VerificationStatus.Verified);
-        await expect(tx)
-          .to.emit(verificationFacet, "AvailableFundsIncreased")
-          .withArgs(exchange.verifierId, exchangeToken, verifierFee);
 
         const payout = payoutFeeCalculation(
           exchange.encumberedAmount,
@@ -1433,9 +1959,7 @@ describe("Verification", function () {
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Verified);
 
         // Boson
-        await expect(tx)
-          .to.emit(bosonExchangeHandler, "ExchangeCompleted")
-          .withArgs(exchange.offerId, bosonBuyerId, exchange.exchangeId, fermionProtocolAddress);
+        await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
 
         // State
         // Fermion
@@ -1477,7 +2001,7 @@ describe("Verification", function () {
 
       it("Invalid percentage", async function () {
         const sellerProposal = 100_01n; // 100.01%
-        message.sellerProposal = String(sellerProposal);
+        message.buyerPercent = String(sellerProposal);
 
         const { r, s, v } = await prepareDataSignatureParameters(
           defaultSigner,
@@ -1585,7 +2109,7 @@ describe("Verification", function () {
           verificationFacet
             .connect(buyer)
             .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
-        ).to.be.revertedWithCustomError(bosonExchangeHandler, "InvalidState");
+        ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
       });
 
       it("Caller is not the buyer nor the seller", async function () {
@@ -1905,7 +2429,6 @@ describe("Verification", function () {
       });
 
       it.skip("Works even if the item was revised, but the verifier gets paid", async function () {});
-
     });
 
     context("Revert reasons", function () {

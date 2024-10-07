@@ -27,6 +27,21 @@ contract EIP712 is SignatureErrors {
     string internal constant PROTOCOL_VERSION = "V0";
 
     /**
+     * @notice Constructor.
+     * Store the immutable values and build the domain separator.
+     *
+     * @param _fermionProtocolAddress - the address of the Fermion Protocol contract
+     */
+    constructor(address _fermionProtocolAddress) {
+        if (_fermionProtocolAddress == address(0)) revert FermionGeneralErrors.InvalidAddress();
+
+        FERMION_PROTOCOL_ADDRESS = _fermionProtocolAddress;
+        CHAIN_ID_CACHED = block.chainid;
+
+        DOMAIN_SEPARATOR_CACHED = buildDomainSeparator(PROTOCOL_NAME, PROTOCOL_VERSION, FERMION_PROTOCOL_ADDRESS);
+    }
+
+    /**
      * @notice Generates EIP712 compatible message hash.
      *
      * @dev Accepts message hash and returns hash message in EIP712 compatible form

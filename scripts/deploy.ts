@@ -161,7 +161,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const constructorArgs = {
       MetaTransactionFacet: [diamondAddress],
       OfferFacet: [bosonProtocolAddress],
-      VerificationFacet: [bosonProtocolAddress],
+      VerificationFacet: [bosonProtocolAddress, diamondAddress],
     };
     facets = await deployFacets(facetNames, constructorArgs, true);
     await writeContracts(deploymentData, env, version);

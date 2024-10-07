@@ -24,8 +24,7 @@ contract FermionTypes {
 
     enum VerificationStatus {
         Verified,
-        Rejected,
-        Revised
+        Rejected
     }
 
     enum CheckoutRequestStatus {

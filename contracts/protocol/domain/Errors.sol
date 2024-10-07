@@ -54,7 +54,6 @@ interface VerificationErrors {
     error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
     error VerificationTimeoutTooLong(uint256 verificationTimeout, uint256 maxVerificationTimeout);
     error EmptyMetadata();
-    error PendingRevisedMetadata(uint256 tokenId, string metadata);
     error DigestMismatch(bytes32 expected, bytes32 actual);
     error AlreadyVerified(FermionTypes.VerificationStatus status);
 }

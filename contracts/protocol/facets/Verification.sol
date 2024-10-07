@@ -33,7 +33,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
     bytes32 private constant SIGNED_PROPOSAL_TYPEHASH =
         keccak256(bytes("SignedProposal(uint256 tokenId,uint16 buyerPercent,bytes32 metadataURIDigest)"));
 
-    constructor(address _bosonProtocol) {
+    constructor(address _bosonProtocol, address _fermionProtocolAddress) EIP712(_fermionProtocolAddress) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }
@@ -52,7 +52,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      */
     function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
         getFundsAndPayVerifier(_tokenId, true);
-        submitVerdictInternal(_tokenId, _verificationStatus, false, true);
+        submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
     /**
@@ -63,8 +63,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the verifier's assistant
-     *
-     * N.B. SUbmitting empty metadata is allowed and it can be used to clear the revised metadata (i.e. making it again the same as the offer's metadata)
+     * - The metadata is empty
      *
      * @param _tokenId - the token ID
      * @param _newMetadata - the uri of the new metadata
@@ -78,7 +77,15 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
 
         if (bytes(tokenLookups.revisedMetadata).length == 0) {
-            getFundsAndPayVerifier(_tokenId, true);
+            getFundsAndPayVerifierUnguarded(_tokenId, true);
+        } else {
+            (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+            EntityLib.validateAccountRole(
+                offer.verifierId,
+                _msgSender(),
+                FermionTypes.EntityRole.Verifier,
+                FermionTypes.AccountRole.Assistant
+            );
         }
 
         tokenLookups.revisedMetadata = _newMetadata;
@@ -88,6 +95,42 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         delete tokenLookups.sellerSplitProposal;
 
         emit RevisedMetadataSubmitted(_tokenId, _newMetadata);
+    }
+
+    /**
+     * @notice If the revised metadata is incorrect, remove it and submit a verdict
+     *
+     * Emits a RevisedMetadataSubmitted and VerdictSubmitted events
+     *
+     * Reverts if:
+     * - Verification region is paused
+     * - The item has not been revised
+     * - The caller is not the verifier's assistant
+     *
+     * @param _tokenId - the token ID
+     * @param _verificationStatus - the verification status
+     */
+    function removeRevisedMetadataAndSubmitVerdict(
+        uint256 _tokenId,
+        FermionTypes.VerificationStatus _verificationStatus
+    ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
+        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
+
+        if (bytes(tokenLookups.revisedMetadata).length == 0) revert EmptyMetadata();
+
+        (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        EntityLib.validateAccountRole(
+            offer.verifierId,
+            _msgSender(),
+            FermionTypes.EntityRole.Verifier,
+            FermionTypes.AccountRole.Assistant
+        );
+
+        delete tokenLookups.revisedMetadata;
+
+        emit RevisedMetadataSubmitted(_tokenId, "");
+
+        submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
     /**
@@ -138,7 +181,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
     ) external {
         // verify signature
         bytes32 messageHash = keccak256(
-            abi.encodePacked(SIGNED_PROPOSAL_TYPEHASH, _tokenId, _buyerPercent, _metadataURIDigest)
+            abi.encode(SIGNED_PROPOSAL_TYPEHASH, _tokenId, _buyerPercent, _metadataURIDigest)
         );
 
         verify(_signer, messageHash, _signature);
@@ -158,11 +201,17 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      * @param _tokenId - the token ID
      */
     function verificationTimeout(uint256 _tokenId) external {
-        uint256 timeout = FermionStorage.protocolLookups().tokenLookups[_tokenId].itemVerificationTimeout;
+        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
+        uint256 timeout = tokenLookups.itemVerificationTimeout;
         if (block.timestamp < timeout) revert VerificationTimeoutNotPassed(timeout, block.timestamp);
 
-        getFundsAndPayVerifier(_tokenId, false);
-        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, true, false);
+        bool inactiveVerifier = bytes(tokenLookups.revisedMetadata).length == 0;
+
+        if (inactiveVerifier) {
+            getFundsAndPayVerifier(_tokenId, false);
+        }
+        submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, inactiveVerifier);
+        delete tokenLookups.revisedMetadata;
     }
 
     /**
@@ -233,27 +282,21 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
     }
 
     /**
-     * @notice Submit a verdict
-     *
-     * Emits an VerdictSubmitted event
+     * @notice Transfer the funds from Boson to Fermion and pay the verifier
      *
      * Reverts if:
      * - Verification region is paused
-     * - Caller is not the verifier's assistant
-     * - The item has pending revised metadata and the verdict is verified
+     * - The caller is not the verifier's assistant
+     * - The funds were already withdrawn
      *
      * @param _tokenId - the token ID
-     * @param _verificationStatus - the verification status
-     * @param _payoutVerifier - indicator if the verification is rejected after timeout
-     * @param _requireVerifier - indicator if the verifier must be the caller
+     * @param _payVerifier - indicator if the verifier should be paid
      */
-    function submitVerdictInternal(
+    function getFundsAndPayVerifier(
         uint256 _tokenId,
-        FermionTypes.VerificationStatus _verificationStatus,
-        bool _payoutVerifier,
-        bool _requireVerifier
+        bool _payVerifier
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
-        submitVerdictInternalUnguarded(_tokenId, _verificationStatus, _payoutVerifier, _requireVerifier);
+        getFundsAndPayVerifierUnguarded(_tokenId, _payVerifier);
     }
 
     /**
@@ -266,7 +309,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      * @param _tokenId - the token ID
      * @param _payVerifier - indicator if the verifier should be paid
      */
-    function getFundsAndPayVerifier(uint256 _tokenId, bool _payVerifier) internal {
+    function getFundsAndPayVerifierUnguarded(uint256 _tokenId, bool _payVerifier) internal {
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 verifierId = offer.verifierId;
 
@@ -283,7 +326,6 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         BOSON_PROTOCOL.completeExchange(_tokenId & type(uint128).max);
 
         address exchangeToken = offer.exchangeToken;
-
         uint256 withdrawalAmount = FermionStorage.protocolLookups().tokenLookups[_tokenId].itemPrice +
             offer.sellerDeposit;
         if (withdrawalAmount > 0) {
@@ -309,14 +351,12 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
-     * @param _payoutVerifier - indicator if the verification is rejected after timeout
-     * @param _requireVerifier - indicator if the verifier must be the caller
+     * @param _afterTimeout - indicator if the verification is rejected after timeout
      */
-    function submitVerdictInternalUnguarded(
+    function submitVerdictInternal(
         uint256 _tokenId,
         FermionTypes.VerificationStatus _verificationStatus,
-        bool _payoutVerifier,
-        bool _requireVerifier
+        bool _afterTimeout
     ) internal {
         uint256 tokenId = _tokenId;
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
@@ -367,7 +407,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
 
                 uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 
-                if (!_payoutVerifier) {
+                if (_afterTimeout) {
                     remainder += offer.verifierFee;
                 }
 
@@ -409,9 +449,9 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
         {
-            string memory revisedMetadata = tokenLookups.revisedMetadata;
-            if (bytes(tokenLookups.revisedMetadata).length == 0) revert EmptyMetadata();
-            bytes32 expectedMetadataDigest = keccak256(bytes(revisedMetadata));
+            bytes memory revisedMetadata = bytes(tokenLookups.revisedMetadata);
+            if (revisedMetadata.length == 0) revert EmptyMetadata();
+            bytes32 expectedMetadataDigest = keccak256(revisedMetadata);
             if (expectedMetadataDigest != _metadataURIDigest)
                 revert DigestMismatch(expectedMetadataDigest, _metadataURIDigest);
         }
@@ -426,7 +466,6 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                 initialBuyer = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).ownerOf(_tokenId);
                 tokenLookups.initialBuyer = initialBuyer;
             }
-
             if (_msgSender == initialBuyer) {
                 tokenLookups.buyerSplitProposal = _buyerPercent;
 
@@ -462,7 +501,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         emit ProposalSubmitted(_tokenId, splitProposal.buyer, splitProposal.seller, _buyerPercent);
 
         if (splitProposal.matching) {
-            submitVerdictInternalUnguarded(_tokenId, FermionTypes.VerificationStatus.Verified, false, false);
+            submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Verified, false);
         }
     }
 }

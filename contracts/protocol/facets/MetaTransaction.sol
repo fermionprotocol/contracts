@@ -28,14 +28,7 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
      *
      * @param _fermionProtocolAddress - the address of the Fermion Protocol contract
      */
-    constructor(address _fermionProtocolAddress) {
-        if (_fermionProtocolAddress == address(0)) revert FermionGeneralErrors.InvalidAddress();
-
-        FERMION_PROTOCOL_ADDRESS = _fermionProtocolAddress;
-        CHAIN_ID_CACHED = block.chainid;
-
-        DOMAIN_SEPARATOR_CACHED = buildDomainSeparator(PROTOCOL_NAME, PROTOCOL_VERSION, FERMION_PROTOCOL_ADDRESS);
-    }
+    constructor(address _fermionProtocolAddress) EIP712(_fermionProtocolAddress) {}
 
     /**
      * @notice Initializes Facet.
