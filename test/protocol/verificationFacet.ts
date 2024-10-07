@@ -162,7 +162,7 @@ describe("Verification", function () {
 
     // unwrap to self #1
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
-    const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+    const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
     const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
     await offerFacet.unwrapNFTToSelf(tokenIdSelf);

@@ -434,7 +434,7 @@ describe("Funds", function () {
       // Submit verdicts
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Rejected);
 
-      const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+      const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
       const afterBosonProtocolFee = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
       const afterVerifierFee = afterBosonProtocolFee - verifierFee;
       const fermionFeeAmount = applyPercentage(

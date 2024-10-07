@@ -24,7 +24,7 @@ import { getBosonProtocolFees } from "../utils/boson-protocol";
 import fermionConfig from "./../../fermion.config";
 
 const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
-const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
 describe("Offer", function () {
   const sellerId = "1";
@@ -1457,6 +1457,8 @@ describe("Offer", function () {
 
       context("unwrapToSelf", function () {
         const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
+        console.log(`VerifierFee: ${verifierFee}`);
+        console.log(`ProtocolFeePercentage: ${bosonProtocolFeePercentage}`);
 
         it("Unwrapping", async function () {
           await mockToken.approve(fermionProtocolAddress, sellerDeposit);

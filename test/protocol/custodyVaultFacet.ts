@@ -124,7 +124,7 @@ describe("CustodyVault", function () {
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
 
       if (i == 0n) {
-        const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+        const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
         exchange.tokenId = tokenId;
         exchange.custodianId = custodianId;
         exchange.price = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);

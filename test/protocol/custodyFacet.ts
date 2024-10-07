@@ -124,7 +124,7 @@ describe("Custody", function () {
 
     // unwrap to self
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
-    const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+    const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
     const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
     await offerFacet.unwrapNFTToSelf(tokenIdSelf);
@@ -144,7 +144,6 @@ describe("Custody", function () {
     await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
     await verificationFacet.connect(verifier).submitVerdict(tokenIdSelf, VerificationStatus.Verified);
     await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified);
-
     const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
 

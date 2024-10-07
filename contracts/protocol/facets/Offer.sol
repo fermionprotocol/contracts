@@ -419,7 +419,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             minimalPrice = _verifierFee + bosonProtocolFee;
         } else {
             if (_verifierFee == 0 && _price == 0) return (0, 0); // to avoid the contract call
-            uint256 bosonProtocolFeePercentage = BOSON_PROTOCOL.getProtocolFeePercentage();
+            uint256 bosonProtocolFeePercentage = BOSON_PROTOCOL.getProtocolFeePercentage(_exchangeToken,_price);
             if (_verifierFee > 0) {
                 minimalPrice = (HUNDRED_PERCENT * _verifierFee) / (HUNDRED_PERCENT - bosonProtocolFeePercentage);
                 if (_price == 0) _price = minimalPrice; // self sale
