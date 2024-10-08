@@ -46,7 +46,7 @@ describe("Initialization", function () {
 
         const [exists, seller] = await accountHandler.getSellerByAddress(fermionProtocolAddress);
 
-        expect(exists).to.be.true;
+        expect(exists).to.be.equal(true);
         expect(seller.assistant).to.equal(fermionProtocolAddress);
         expect(seller.admin).to.equal(fermionProtocolAddress);
         expect(seller.treasury).to.equal(fermionProtocolAddress);
@@ -55,12 +55,12 @@ describe("Initialization", function () {
         const buyerId = seller.id + 1n;
         const [existsBuyer, buyer] = await accountHandler.getBuyer(buyerId);
 
-        expect(existsBuyer).to.be.true;
+        expect(existsBuyer).to.be.equal(true);
         expect(buyer.wallet).to.equal(fermionProtocolAddress);
 
         const [existDR, disputeResolver, , sellerAllowList] =
           await accountHandler.getDisputeResolverByAddress(fermionProtocolAddress);
-        expect(existDR).to.be.true;
+        expect(existDR).to.be.equal(true);
         expect(disputeResolver.assistant).to.equal(fermionProtocolAddress);
         expect(disputeResolver.admin).to.equal(fermionProtocolAddress);
         expect(disputeResolver.treasury).to.equal(fermionProtocolAddress);
@@ -187,7 +187,7 @@ describe("Initialization", function () {
 
         const IERC165 = await ethers.getContractAt("IERC165", fermionProtocolAddress);
         for (const interfaceId of interfacesToAdd) {
-          expect(await IERC165.supportsInterface(interfaceId)).to.be.true;
+          expect(await IERC165.supportsInterface(interfaceId)).to.be.equal(true);
         }
 
         let interfacesToRemove = ["0x22222222", "0x44444444"];
@@ -201,7 +201,7 @@ describe("Initialization", function () {
 
         await makeDiamondCut(fermionProtocolAddress, [], initializationFacetImplementationAddress, initializationCall2);
         for (const interfaceId of interfacesToRemove) {
-          expect(await IERC165.supportsInterface(interfaceId)).to.be.false;
+          expect(await IERC165.supportsInterface(interfaceId)).to.be.equal(false);
         }
 
         interfacesToAdd = ["0x55555555", "0x66666666"];
@@ -218,10 +218,10 @@ describe("Initialization", function () {
         await makeDiamondCut(fermionProtocolAddress, [], initializationFacetImplementationAddress, initializationCall3);
 
         for (const interfaceId of ["0x11111111", "0x22222222", "0x33333333", "0x44444444"]) {
-          expect(await IERC165.supportsInterface(interfaceId)).to.be.false;
+          expect(await IERC165.supportsInterface(interfaceId)).to.be.equal(false);
         }
         for (const interfaceId of ["0x55555555", "0x66666666"]) {
-          expect(await IERC165.supportsInterface(interfaceId)).to.be.true;
+          expect(await IERC165.supportsInterface(interfaceId)).to.be.equal(true);
         }
       });
 

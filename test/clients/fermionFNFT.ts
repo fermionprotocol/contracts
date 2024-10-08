@@ -111,11 +111,11 @@ describe("FermionFNFT", function () {
         FermionFractionsInterfaceID,
       ]);
 
-      expect(await fermionFNFT.supportsInterface(ERC165InterfaceID)).to.be.true;
-      expect(await fermionFNFT.supportsInterface(ERC721InterfaceID)).to.be.true;
-      expect(await fermionFNFT.supportsInterface(FermionWrapperInterfaceID)).to.be.true;
-      expect(await fermionFNFT.supportsInterface(FermionFractionsInterfaceID)).to.be.true;
-      expect(await fermionFNFT.supportsInterface(FermionFNFTInterfaceID)).to.be.true;
+      expect(await fermionFNFT.supportsInterface(ERC165InterfaceID)).to.be.equal(true);
+      expect(await fermionFNFT.supportsInterface(ERC721InterfaceID)).to.be.equal(true);
+      expect(await fermionFNFT.supportsInterface(FermionWrapperInterfaceID)).to.be.equal(true);
+      expect(await fermionFNFT.supportsInterface(FermionFractionsInterfaceID)).to.be.equal(true);
+      expect(await fermionFNFT.supportsInterface(FermionFNFTInterfaceID)).to.be.equal(true);
     });
   });
 
