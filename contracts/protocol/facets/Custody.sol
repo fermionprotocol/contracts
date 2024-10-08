@@ -202,12 +202,12 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         (, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         uint256 taxAmount = checkoutRequest.taxAmount;
+        address buyer = checkoutRequest.buyer;
         if (taxAmount == 0) {
             // Seller is finalizing the checkout
             EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
         } else {
             // Buyer is finalizing the checkout
-            address buyer = checkoutRequest.buyer;
             address msgSender = _msgSender();
             if (buyer != msgSender) {
                 revert NotTokenBuyer(_tokenId, buyer, msgSender);
@@ -219,6 +219,8 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
         }
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequestCleared;
+
+        pl.tokenLookups[_tokenId].phygitalsRecipient = EntityLib.getOrCreateBuyerId(buyer, pl);
 
         emit CheckOutRequestCleared(offer.custodianId, _tokenId);
     }

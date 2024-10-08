@@ -33,7 +33,7 @@ describe("Verification", function () {
   let fermionProtocolAddress: string;
   let wallets: HardhatEthersSigner[];
   let defaultSigner: HardhatEthersSigner;
-  let verifier: HardhatEthersSigner;
+  let verifier: HardhatEthersSigner, custodian: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
   let seaportAddress: string;
   let exchangeToken: string;
@@ -86,9 +86,10 @@ describe("Verification", function () {
     // Custodian only
     const metadataURI = "https://example.com/seller-metadata.json";
     verifier = wallets[2];
+    custodian = wallets[3];
     await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI); // "1"
     await entityFacet.connect(verifier).createEntity([EntityRole.Verifier], metadataURI); // "2"
-    await entityFacet.connect(wallets[3]).createEntity([EntityRole.Custodian], metadataURI); // "3"
+    await entityFacet.connect(custodian).createEntity([EntityRole.Custodian], metadataURI); // "3"
     await entityFacet.connect(wallets[4]).createEntity([EntityRole.Seller], metadataURI); // "4" // facilitator
     await entityFacet.addFacilitators(sellerId, [facilitatorId]);
 
@@ -1061,7 +1062,6 @@ describe("Verification", function () {
   });
 
   context("verifyPhygitals", function () {
-    const buyerId = "5"; // new buyer in fermion
     let phygital1: { contractAddress: string; tokenId: bigint },
       phygital2: { contractAddress: string; tokenId: bigint };
     const phygitalTokenId = 10n,
@@ -1089,19 +1089,13 @@ describe("Verification", function () {
     it("Verifier can verify phygitals", async function () {
       const tx = await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
 
-      await expect(tx)
-        .to.emit(verificationFacet, "PhygitalsVerified")
-        .withArgs(exchange.tokenId, buyerId, verifier.address);
-      await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+      await expect(tx).to.emit(verificationFacet, "PhygitalsVerified").withArgs(exchange.tokenId, verifier.address);
     });
 
     it("Buyer can verify phygitals", async function () {
       const tx = await verificationFacet.connect(buyer).verifyPhygitals(exchange.tokenId, digest);
 
-      await expect(tx)
-        .to.emit(verificationFacet, "PhygitalsVerified")
-        .withArgs(exchange.tokenId, buyerId, buyer.address);
-      await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+      await expect(tx).to.emit(verificationFacet, "PhygitalsVerified").withArgs(exchange.tokenId, buyer.address);
     });
 
     it("It's possible to verify empty phygitals", async function () {
@@ -1112,10 +1106,7 @@ describe("Verification", function () {
       const digest = keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[]]));
       const tx = await verificationFacet.connect(buyer).verifyPhygitals(exchange.tokenId, digest);
 
-      await expect(tx)
-        .to.emit(verificationFacet, "PhygitalsVerified")
-        .withArgs(exchange.tokenId, buyerId, buyer.address);
-      await expect(tx).to.emit(entityFacet, "EntityStored").withArgs(buyerId, buyer.address, [EntityRole.Buyer], "");
+      await expect(tx).to.emit(verificationFacet, "PhygitalsVerified").withArgs(exchange.tokenId, buyer.address);
     });
 
     context("Revert reasons", function () {
@@ -1165,6 +1156,12 @@ describe("Verification", function () {
       it("Cannot verify once the phygitals are withdrawn", async function () {
         await verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest);
         await verificationFacet.connect(verifier).submitVerdict(exchange.tokenId, VerificationStatus.Verified);
+        await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+        const fermionFnftAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
+        const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionFnftAddress);
+        await fermionFnft.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
+        await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+        await custodyFacet.clearCheckoutRequest(exchange.tokenId);
         await fundsFacet.connect(buyer)["withdrawPhygitals(uint256[],address)"]([exchange.tokenId], buyer.address);
 
         await expect(verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest))

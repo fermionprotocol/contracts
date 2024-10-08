@@ -220,7 +220,6 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                 entityIdCached = _entityId;
             }
 
-            // Is there more efficient way?
             (uint256 offerId, ) = FermionStorage.getOfferFromTokenId(_tokenIds[i]);
             FermionTypes.TokenState tokenState = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).tokenState(
                 _tokenIds[i]
@@ -228,7 +227,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             if (tokenState < FermionTypes.TokenState.Verified)
                 revert VerificationErrors.InvalidTokenState(_tokenIds[i], tokenState);
 
-            FermionTypes.Phygital[] memory phygitals = tokenLookups.phygitals; // all items are accesed, no need to use storage. ToDo: check gas costs
+            FermionTypes.Phygital[] memory phygitals = tokenLookups.phygitals; // all items are accesed, copy everything to memory
             uint256 len = phygitals.length;
             for (uint256 j; j < len; j++) {
                 FundsLib.transferERC721FromProtocol(phygitals[j].contractAddress, _treasury, phygitals[j].tokenId);

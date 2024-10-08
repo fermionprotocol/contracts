@@ -101,10 +101,9 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         if (expectedDigest != _phygitalsDigest)
             revert PhygitalsDigestMismatch(_tokenId, expectedDigest, _phygitalsDigest);
 
-        uint256 phygitalsRecipient = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
-        tokenLookups.phygitalsRecipient = phygitalsRecipient;
+        tokenLookups.phygitalsRecipient = type(uint256).max;
 
-        emit PhygitalsVerified(_tokenId, phygitalsRecipient, msgSender);
+        emit PhygitalsVerified(_tokenId, msgSender);
     }
 
     /**
