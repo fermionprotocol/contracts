@@ -215,14 +215,16 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             address exchangeToken = offer.exchangeToken;
             uint256 sellerDeposit = offer.sellerDeposit;
             uint256 offerPrice = tokenLookups.itemPrice;
-
             {
-                uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
-                address[] memory tokenList = new address[](1);
-                uint256[] memory amountList = new uint256[](1);
-                tokenList[0] = exchangeToken;
-                amountList[0] = offerPrice + sellerDeposit;
-                BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
+                uint256 withdrawalAmount = offerPrice + sellerDeposit;
+                if (withdrawalAmount > 0) {
+                    uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
+                    address[] memory tokenList = new address[](1);
+                    uint256[] memory amountList = new uint256[](1);
+                    tokenList[0] = exchangeToken;
+                    amountList[0] = withdrawalAmount;
+                    BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
+                }
             }
 
             uint256 remainder = offerPrice;

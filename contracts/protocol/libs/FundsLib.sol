@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { HUNDRED_PERCENT } from "../domain/Constants.sol";
+import { HUNDRED_PERCENT, SLOT_SIZE } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -50,9 +50,18 @@ library FundsLib {
      * @notice Tries to transfer tokens from the specified address to the protocol.
      *
      * Reverts if:
+     * - The called contract is ERC721
      * - Contract at token address does not support ERC20 function transferFrom
      * - Calling transferFrom on token fails for some reason (e.g. protocol is not approved to transfer)
      * - Received ERC20 token amount differs from the expected value
+     *
+     * N.B. Special caution is needed when interacting with the FermionFNFT contract,
+     * as it treats _msgSender() differently when the caller is the Fermion protocol.
+     * Currently, interactions with FermionFNFT in this function are prevented
+     * because it returns true for IERC165.supportsInterface(IERC721) and reverts.
+     * If this check is removed, a special check should be introduced to prevent FermionFNFT interactions.
+     * Alternatively, if interactions with FermionFNFT become allowed at some point,
+     * those interactions should be conducted via FermionFNFTLib to ensure the correct _msgSender() is used.
      *
      * @param _tokenAddress - address of the token to be transferred
      * @param _from - address to transfer funds from
@@ -278,7 +287,7 @@ library FundsLib {
         );
 
         if (success) {
-            if (returnData.length != 32) {
+            if (returnData.length != SLOT_SIZE) {
                 revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
             } else {
                 // If returned value equals 1 (= true), the contract is ERC721 and we should revert
@@ -302,7 +311,7 @@ library FundsLib {
                 // If an actual error message is returned, revert with it
                 /// @solidity memory-safe-assembly
                 assembly {
-                    revert(add(32, returnData), mload(returnData))
+                    revert(add(SLOT_SIZE, returnData), mload(returnData))
                 }
             }
         }

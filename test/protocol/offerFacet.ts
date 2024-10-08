@@ -1,5 +1,6 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
+  applyPercentage,
   deployFermionProtocolFixture,
   deployMockTokens,
   deriveTokenId,
@@ -171,7 +172,7 @@ describe("Offer", function () {
 
       const [exists, offer, offerDates, offerDurations, disputeResolutionTerms, offerFees] =
         await bosonOfferHandler.getOffer(1n);
-      expect(exists).to.be.true;
+      expect(exists).to.be.equal(true);
       expect(offer.sellerId).to.equal("1"); // fermion's seller id inside Boson
       // expect(offer.price).to.equal(verifierFee);
       expect(offer.price).to.equal(0); // change after boson v2.4.2
@@ -183,7 +184,7 @@ describe("Offer", function () {
       expect(offer.metadataUri).to.equal(metadataURI);
       expect(offer.metadataHash).to.equal(id(metadataURI));
       expect(offer.collectionIndex).to.equal(0);
-      expect(offer.voided).to.be.false;
+      expect(offer.voided).to.be.equal(false);
       expect(offer.royaltyInfo).to.eql([[[], []]]); // one empty royalty info
 
       expect(offerDates.validFrom).to.equal(0);
@@ -617,6 +618,8 @@ describe("Offer", function () {
     const fullPrice = parseEther("10");
     const openSeaFee = (fullPrice * 2n) / 100n;
     const withPhygital = false;
+    const priceSubOSFee = fullPrice - openSeaFee;
+    const priceSubOSAndBosonFee = priceSubOSFee - applyPercentage(priceSubOSFee, bosonProtocolFeePercentage);
     let openSeaAddress: string, buyerAddress: string;
     let bosonProtocolBalance: bigint, openSeaBalance: bigint;
     let buyerAdvancedOrder: AdvancedOrder;
@@ -726,6 +729,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
 
           // Boson:
           await expect(tx)
@@ -759,7 +763,7 @@ describe("Offer", function () {
           // State:
           // Boson
           const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-          expect(exists).to.be.true;
+          expect(exists).to.be.equal(true);
           expect(exchange.state).to.equal(3); // Redeemed
           expect(voucher.committedDate).to.not.equal(0);
           expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
@@ -789,6 +793,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
         });
 
         context("Boson seller deposit covered from the available funds", function () {
@@ -808,6 +813,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
 
             // Boson:
             await expect(tx)
@@ -841,6 +847,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
 
             // Boson:
             await expect(tx)
@@ -940,6 +947,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
 
             // Boson:
             await expect(tx)
@@ -977,7 +985,7 @@ describe("Offer", function () {
             // State:
             // Boson
             const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-            expect(exists).to.be.true;
+            expect(exists).to.be.equal(true);
             expect(exchange.state).to.equal(3); // Redeemed
             expect(voucher.committedDate).to.not.equal(0);
             expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
@@ -1047,6 +1055,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, 0n);
 
             // Boson:
             await expect(tx)
@@ -1077,7 +1086,7 @@ describe("Offer", function () {
             // State:
             // Boson
             const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-            expect(exists).to.be.true;
+            expect(exists).to.be.equal(true);
             expect(exchange.state).to.equal(3); // Redeemed
             expect(voucher.committedDate).to.not.equal(0);
             expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
@@ -1112,6 +1121,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
 
           // State:
           expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
@@ -1474,6 +1484,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
 
           // Boson:
           await expect(tx)
@@ -1506,7 +1517,7 @@ describe("Offer", function () {
           // State:
           // Boson
           const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-          expect(exists).to.be.true;
+          expect(exists).to.be.equal(true);
           expect(exchange.state).to.equal(3); // Redeemed
           expect(voucher.committedDate).to.not.equal(0);
           expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
@@ -1539,6 +1550,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
         });
 
         context("Boson seller deposit covered from the available funds", function () {
@@ -1560,6 +1572,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
 
             // Boson:
             await expect(tx)
@@ -1594,6 +1607,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
 
             // Boson:
             await expect(tx)
@@ -1615,13 +1629,14 @@ describe("Offer", function () {
           const bosonOfferId = "2";
           const exchangeId = quantity + 1n;
           const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+          const verifierFee = 0n;
 
           beforeEach(async function () {
             const fermionOffer = {
               sellerId: "1",
               sellerDeposit,
               verifierId,
-              verifierFee: "0",
+              verifierFee,
               custodianId: "3",
               custodianFee,
               facilitatorId: sellerId,
@@ -1654,6 +1669,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
 
             // Boson:
             await expect(tx)
@@ -1683,6 +1699,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
 
           // State:
           expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
@@ -2026,6 +2043,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
 
           // Boson:
           await expect(tx)
@@ -2054,6 +2072,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
 
           // Boson:
           await expect(tx)
@@ -2102,6 +2121,7 @@ describe("Offer", function () {
           await expect(tx)
             .to.emit(offerFacet, "VerificationInitiated")
             .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
 
           // Boson:
           await expect(tx)

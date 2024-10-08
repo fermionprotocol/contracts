@@ -27,6 +27,7 @@ describe("MetaTransactions", function () {
   let seaportAddress: string;
   const offerId = "1";
   const exchangeId = "1";
+  const diamondMetaTxOfferIdIndex = "0";
 
   async function setupFermionFNFTs() {
     // Create three entities
@@ -101,12 +102,6 @@ describe("MetaTransactions", function () {
 
   describe("MetaTransactions facet", function () {
     context("executeMetaTransaction - diamond metatx", function () {
-      before(async function () {
-        // Set the default executeMetaTransaction method
-        metaTransactionFacet.executeMetaTransaction =
-          metaTransactionFacet["executeMetaTransaction(address,string,bytes,uint256,bytes32,bytes32,uint8)"];
-      });
-
       context("Externally owned account", function () {
         let entity, message;
         beforeEach(async function () {
@@ -151,9 +146,8 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              r,
-              s,
-              v,
+              [r, s, v],
+              diamondMetaTxOfferIdIndex,
             );
 
             // Verify the event
@@ -171,7 +165,7 @@ describe("MetaTransactions", function () {
             expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
             expect(response.metadataURI).to.equal(metadataURI);
 
-            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.true;
+            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.equal(true);
           });
 
           it("Forwarded call fails", async function () {
@@ -197,9 +191,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                s,
-                v,
+                [r, s, v],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "EntityAlreadyExists");
           });
@@ -215,9 +208,8 @@ describe("MetaTransactions", function () {
                 "testFunction",
                 ZeroHash,
                 ZeroHash,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             )
               .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
@@ -251,9 +243,8 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              r,
-              s,
-              v,
+              [r, s, v],
+              diamondMetaTxOfferIdIndex,
             );
 
             // Second transaction should fail
@@ -263,9 +254,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                s,
-                v,
+                [r, s, v],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
           });
@@ -291,9 +281,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                s,
-                v,
+                [r, s, v],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "FunctionNotAllowlisted");
           });
@@ -319,9 +308,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                s,
-                v,
+                [r, s, v],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidFunctionName");
           });
@@ -347,9 +335,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                s,
-                v,
+                [r, s, v],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
@@ -375,9 +362,12 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                toBeHex(MaxUint256), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
-                v,
+                [
+                  r,
+                  toBeHex(MaxUint256), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
+                  v,
+                ],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
 
@@ -387,9 +377,12 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                toBeHex(0n, 32), // s must be non-zero
-                v,
+                [
+                  r,
+                  toBeHex(0n, 32), // s must be non-zero
+                  v,
+                ],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
 
@@ -399,9 +392,12 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                s,
-                32, // v is valid only if it is 27 or 28
+                [
+                  r,
+                  s,
+                  32, // v is valid only if it is 27 or 28
+                ],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
           });
@@ -410,7 +406,7 @@ describe("MetaTransactions", function () {
             // Get the existing facet address
             const diamondLoupe = await getContractAt("DiamondLoupeFacet", await metaTransactionFacet.getAddress());
             const functionFragment = metaTransactionFacet.interface.getFunction(
-              "executeMetaTransaction(address,string,bytes,uint256,bytes32,bytes32,uint8)",
+              "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)",
             );
             const metaTransactionFacetAddress = await diamondLoupe.facetAddress(functionFragment.selector);
 
@@ -460,8 +456,8 @@ describe("MetaTransactions", function () {
               metaTransactionFacet
                 .attach(diamondAddress)
                 [
-                  "executeMetaTransaction(address,string,bytes,uint256,bytes32,bytes32,uint8)"
-                ](entity.address, message.functionName, message.functionSignature, message.nonce, r, s, v),
+                  "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
+                ](entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], diamondMetaTxOfferIdIndex),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
@@ -501,9 +497,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                r,
-                s,
-                v,
+                [r, s, v],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "FunctionCallFailed");
           });
@@ -550,9 +545,8 @@ describe("MetaTransactions", function () {
             message.functionName,
             message.functionSignature,
             message.nonce,
-            ZeroHash,
-            ZeroHash,
-            0,
+            [ZeroHash, ZeroHash, 0],
+            diamondMetaTxOfferIdIndex,
           );
 
           // Verify the event
@@ -570,7 +564,7 @@ describe("MetaTransactions", function () {
           expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
           expect(response.metadataURI).to.equal(metadataURI);
 
-          expect(await metaTransactionFacet.isUsedNonce(adminWallet, message.nonce)).to.be.true;
+          expect(await metaTransactionFacet.isUsedNonce(adminWallet, message.nonce)).to.be.equal(true);
         });
 
         context("Revert reasons", function () {
@@ -592,9 +586,8 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              ZeroHash,
-              ZeroHash,
-              0,
+              [ZeroHash, ZeroHash, 0],
+              diamondMetaTxOfferIdIndex,
             );
 
             // Second transaction should fail
@@ -604,9 +597,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
           });
@@ -622,9 +614,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
@@ -642,9 +633,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(entity, "UnknownValidity");
 
@@ -657,9 +647,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWith("Error string");
 
@@ -672,9 +661,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.reverted;
 
@@ -687,9 +675,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x12");
 
@@ -702,9 +689,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x32");
           });
@@ -723,9 +709,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             )
               .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
@@ -740,9 +725,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             )
               .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
@@ -757,9 +741,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             )
               .to.be.revertedWithCustomError(metaTransactionFacet, "UnexpectedDataReturned")
@@ -782,9 +765,8 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                ZeroHash,
-                ZeroHash,
-                0,
+                [ZeroHash, ZeroHash, 0],
+                diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
@@ -797,12 +779,6 @@ describe("MetaTransactions", function () {
       let fermionFNFTAddress: string;
 
       before(async function () {
-        // Set the default executeMetaTransaction method
-        metaTransactionFacet.executeMetaTransaction =
-          metaTransactionFacet[
-            "executeMetaTransaction(address,address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
-          ];
-
         fermionFNFTAddress = await offerFacet.predictFermionFNFTAddress(offerId);
         fermionFNFT = await ethers.getContractAt("FermionFNFT", fermionFNFTAddress);
       });
@@ -847,7 +823,6 @@ describe("MetaTransactions", function () {
 
             // Send as meta transaction
             const tx = await metaTransactionFacet.executeMetaTransaction(
-              fermionFNFTAddress,
               entity.address,
               message.functionName,
               message.functionSignature,
@@ -865,9 +840,9 @@ describe("MetaTransactions", function () {
               .withArgs(entity.address, fermionProtocolAddress, true);
 
             // Verify the state
-            expect(await fermionFNFT.isApprovedForAll(entity.address, fermionProtocolAddress)).to.be.true;
+            expect(await fermionFNFT.isApprovedForAll(entity.address, fermionProtocolAddress)).to.be.equal(true);
 
-            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.true;
+            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.equal(true);
           });
 
           it("Forwarded call fails", async function () {
@@ -888,7 +863,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -908,7 +882,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 ZeroAddress,
                 "testFunction",
                 ZeroHash,
@@ -935,7 +908,6 @@ describe("MetaTransactions", function () {
 
             // First transaction should succeed
             await metaTransactionFacet.executeMetaTransaction(
-              fermionFNFTAddress,
               entity.address,
               message.functionName,
               message.functionSignature,
@@ -947,7 +919,6 @@ describe("MetaTransactions", function () {
             // Second transaction should fail
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -975,7 +946,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1003,7 +973,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1028,7 +997,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1052,7 +1020,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1068,7 +1035,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1084,7 +1050,6 @@ describe("MetaTransactions", function () {
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
                 entity.address,
                 message.functionName,
                 message.functionSignature,
@@ -1099,7 +1064,7 @@ describe("MetaTransactions", function () {
             // Get the existing facet address
             const diamondLoupe = await getContractAt("DiamondLoupeFacet", await metaTransactionFacet.getAddress());
             const functionFragment = metaTransactionFacet.interface.getFunction(
-              "executeMetaTransaction(address,address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)",
+              "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)",
             );
             const metaTransactionFacetAddress = await diamondLoupe.facetAddress(functionFragment.selector);
 
@@ -1145,39 +1110,9 @@ describe("MetaTransactions", function () {
               metaTransactionFacet
                 .attach(diamondAddress)
                 [
-                  "executeMetaTransaction(address,address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
-                ](diamondAddress, entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], 0),
+                  "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
+                ](entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], 0),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
-          });
-
-          it("Invalid contract address", async function () {
-            await expect(
-              metaTransactionFacet.executeMetaTransaction(
-                fermionFNFTAddress,
-                ZeroAddress,
-                "testFunction",
-                ZeroHash,
-                ZeroHash,
-                [ZeroHash, ZeroHash, 0],
-                0,
-              ),
-            )
-              .to.be.revertedWithCustomError(fermionErrors, "InvalidContractAddress")
-              .withArgs(fermionFNFTAddress);
-
-            await expect(
-              metaTransactionFacet.executeMetaTransaction(
-                fermionProtocolAddress,
-                ZeroAddress,
-                "testFunction",
-                ZeroHash,
-                ZeroHash,
-                [ZeroHash, ZeroHash, 0],
-                1,
-              ),
-            )
-              .to.be.revertedWithCustomError(fermionErrors, "InvalidContractAddress")
-              .withArgs(fermionProtocolAddress);
           });
         });
       });
@@ -1237,25 +1172,6 @@ describe("MetaTransactions", function () {
           // Verify the state
           expect(await metaTxTestProxy.data()).to.equal(dataWithAddress);
         });
-
-        it("msg.data includes the sender, _msgData() does not - seaport wrapper", async function () {
-          const MetaTxTestFactory = await getContractFactory("MetaTxTestSeaport");
-          const metaTxTest = await MetaTxTestFactory.deploy(...seaportWrapperConstructorArgs, trustedForwarder.address);
-
-          data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
-          dataWithAddress = data + buyer.address.slice(2).toLowerCase();
-
-          const tx = await trustedForwarder.sendTransaction({
-            to: metaTxTest.getAddress(),
-            data: dataWithAddress,
-          });
-
-          // Verify the event
-          await expect(tx).to.emit(metaTxTest, "IncomingData").withArgs(data);
-
-          // Verify the state
-          expect(await metaTxTest.data()).to.equal(dataWithAddress);
-        });
       });
     });
 
@@ -1293,7 +1209,7 @@ describe("MetaTransactions", function () {
         it("should update state", async function () {
           // Functions should be disabled by default
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(false);
           }
 
           // Enable functions
@@ -1301,7 +1217,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be enabled
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(true);
           }
 
           // Disable functions
@@ -1309,7 +1225,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be disabled
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(false);
           }
         });
 
@@ -1340,14 +1256,14 @@ describe("MetaTransactions", function () {
 
           // Functions should be enabled
           for (const func of stateModifyingFunctionsHashes) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(true);
           }
         });
 
         it("should return correct value", async function () {
           // Functions should be disabled by default
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(false);
           }
 
           // Enable functions
@@ -1355,7 +1271,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be enabled
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(true);
           }
 
           // Disable functions
@@ -1363,7 +1279,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be disabled
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(false);
           }
         });
       });
@@ -1377,14 +1293,14 @@ describe("MetaTransactions", function () {
           ]);
 
           for (const func of stateModifyingFunctions) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.equal(true);
           }
         });
 
         it("should return correct value", async function () {
           // Functions should be disabled by default
           for (const func of functionList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.equal(false);
           }
 
           // Enable functions
@@ -1392,7 +1308,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be enabled
           for (const func of functionList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.equal(true);
           }
 
           // Disable functions
@@ -1400,7 +1316,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be disabled
           for (const func of functionList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.equal(false);
           }
         });
       });

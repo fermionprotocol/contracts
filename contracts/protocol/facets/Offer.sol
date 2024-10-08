@@ -18,7 +18,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
-import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
@@ -210,7 +209,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     /**
      * @notice Unwraps F-NFT, uses seaport to sell the NFT
      *
-     * Emits VerificationInitiated event
+     * Emits VerificationInitiated and ItemPriceObserved events
      *
      * Reverts if:
      * - Caller is not the seller's assistant or facilitator
@@ -333,6 +332,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         }
         tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
         tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
+
+        // The price that Fermion operates with (the price without the OpenSea and Boson protocol fee)
+        emit ItemPriceObserved(_tokenId, tokenLookups.itemPrice);
 
         emit IVerificationEvents.VerificationInitiated(
             offerId,
@@ -555,7 +557,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             offerLookup.fermionFNFTAddress = wrapperAddress;
 
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-            IFermionFNFT(wrapperAddress).initialize(
+            wrapperAddress.initialize(
                 address(_bosonVoucher),
                 msgSender,
                 offer.exchangeToken,
