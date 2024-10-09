@@ -120,73 +120,78 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         bool _afterTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         uint256 tokenId = _tokenId;
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
-        uint256 verifierId = offer.verifierId;
-
-        if (!_afterTimeout) {
-            // Check the caller is the verifier's assistant
-            EntityLib.validateAccountRole(
-                verifierId,
-                _msgSender(),
-                FermionTypes.EntityRole.Verifier,
-                FermionTypes.AccountRole.Assistant
-            );
-        }
-
-        BOSON_PROTOCOL.completeExchange(tokenId & type(uint128).max);
-
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        address exchangeToken = offer.exchangeToken;
-        uint256 sellerDeposit = offer.sellerDeposit;
-        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
-        uint256 offerPrice = tokenLookups.itemPrice;
-
+        uint256 verifierId;
         {
-            uint256 withdrawalAmount = offerPrice + sellerDeposit;
-            if (withdrawalAmount > 0) {
-                uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
-                address[] memory tokenList = new address[](1);
-                uint256[] memory amountList = new uint256[](1);
-                tokenList[0] = exchangeToken;
-                amountList[0] = withdrawalAmount;
-                BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
-            }
-        }
+            (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
+            verifierId = offer.verifierId;
 
-        uint256 remainder = offerPrice;
-        unchecked {
-            // pay the verifier
-            uint256 verifierFee = tokenLookups.verifierFee;
-            if (!_afterTimeout) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
-            remainder -= verifierFee; // guaranteed to be positive
-
-            uint256 fermionFeeAmount = tokenLookups.fermionFeeAmount;
-            FundsLib.increaseAvailableFunds(0, exchangeToken, tokenLookups.fermionFeeAmount); // Protocol fees are stored in entity 0
-            remainder -= fermionFeeAmount;
-        }
-
-        if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
-            // pay the facilitator
-            uint256 facilitatorFeeAmount = tokenLookups.facilitatorFeeAmount;
-            FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
-            remainder = remainder - facilitatorFeeAmount + sellerDeposit;
-
-            // transfer the remainder to the seller
-            FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
-            pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(tokenId, FermionTypes.TokenState.Verified);
-        } else {
-            address buyerAddress = pl.offerLookups[offerId].fermionFNFTAddress.burn(tokenId);
-
-            uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
-
-            if (_afterTimeout) {
-                remainder += tokenLookups.verifierFee;
+            if (!_afterTimeout) {
+                // Check the caller is the verifier's assistant
+                EntityLib.validateAccountRole(
+                    verifierId,
+                    _msgSender(),
+                    FermionTypes.EntityRole.Verifier,
+                    FermionTypes.AccountRole.Assistant
+                );
             }
 
-            // transfer the remainder to the buyer
-            FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
-        }
+            BOSON_PROTOCOL.completeExchange(tokenId & type(uint128).max);
 
+            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+            address exchangeToken = offer.exchangeToken;
+            uint256 sellerDeposit = offer.sellerDeposit;
+            FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+            uint256 offerPrice = tokenLookups.itemPrice;
+
+            {
+                uint256 withdrawalAmount = offerPrice + sellerDeposit;
+                if (withdrawalAmount > 0) {
+                    uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
+                    address[] memory tokenList = new address[](1);
+                    uint256[] memory amountList = new uint256[](1);
+                    tokenList[0] = exchangeToken;
+                    amountList[0] = withdrawalAmount;
+                    BOSON_PROTOCOL.withdrawFunds(bosonSellerId, tokenList, amountList);
+                }
+            }
+
+            uint256 remainder = offerPrice;
+            unchecked {
+                // pay the verifier
+                uint256 verifierFee = tokenLookups.verifierFee;
+                if (!_afterTimeout) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
+                remainder -= verifierFee; // guaranteed to be positive
+
+                uint256 fermionFeeAmount = tokenLookups.fermionFeeAmount;
+                FundsLib.increaseAvailableFunds(0, exchangeToken, tokenLookups.fermionFeeAmount); // Protocol fees are stored in entity 0
+                remainder -= fermionFeeAmount;
+            }
+
+            if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
+                // pay the facilitator
+                uint256 facilitatorFeeAmount = tokenLookups.facilitatorFeeAmount;
+                FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
+                remainder = remainder - facilitatorFeeAmount + sellerDeposit;
+
+                // transfer the remainder to the seller
+                FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
+                pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(
+                    tokenId,
+                    FermionTypes.TokenState.Verified
+                );
+            } else {
+                address buyerAddress = pl.offerLookups[offerId].fermionFNFTAddress.burn(tokenId);
+
+                uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
+
+                if (_afterTimeout) {
+                    remainder += tokenLookups.verifierFee;
+                }
+
+                // transfer the remainder to the buyer
+                FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
+            }
+        }
         emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
     }
 }

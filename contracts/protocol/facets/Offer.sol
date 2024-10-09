@@ -174,7 +174,11 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * @param _verificationTimeout - the verification timeout
      * @param _exchangeAmount - exchange amount the caller is willing to pay
      */
-    function unwrapNFTToSelfAndSetVerificationTimeout(uint256 _tokenId, uint256 _verificationTimeout, uint256 _exchangeAmount) external payable {
+    function unwrapNFTToSelfAndSetVerificationTimeout(
+        uint256 _tokenId,
+        uint256 _verificationTimeout,
+        uint256 _exchangeAmount
+    ) external payable {
         SeaportTypes.AdvancedOrder memory _emptyOrder;
         unwrapNFT(_tokenId, _emptyOrder, true, _verificationTimeout, _exchangeAmount);
     }
@@ -191,7 +195,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * @param _buyerOrder - the Seaport buyer order
      */
     function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external payable {
-        unwrapNFT(_tokenId, _buyerOrder, false, 0,0);
+        unwrapNFT(_tokenId, _buyerOrder, false, 0, 0);
     }
 
     /**
@@ -256,10 +260,11 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
                 handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
             }
+            IBosonProtocol.PriceDiscovery memory _priceDiscovery;
             {
                 address wrapperAddress = pl.offerLookups[offerId].fermionFNFTAddress;
-                
-                (uint256 bosonProtocolFee, IBosonProtocol.PriceDiscovery memory _priceDiscovery) = calculatePriceAndBosonFee(
+                uint256 bosonProtocolFee;
+                (bosonProtocolFee, _priceDiscovery) = calculatePriceAndBosonFee(
                     _tokenId,
                     _buyerOrder,
                     _selfSale,
@@ -281,25 +286,30 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 tokenLookups.verifierFee = offer.verifierFee;
                 tokenLookups.facilitatorFeeAmount = facilitatorFeeAmount;
             }
-
             BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
             BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
         }
 
         // Verification timeout logic
         uint256 itemVerificationTimeout;
-        FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
-        uint256 maxItemVerificationTimeout = block.timestamp + pc.maxVerificationTimeout;
-        if (_verificationTimeout == 0) {
-            itemVerificationTimeout = block.timestamp + pc.defaultVerificationTimeout;
-        } else {
-            if (_verificationTimeout > maxItemVerificationTimeout) {
-                revert VerificationErrors.VerificationTimeoutTooLong(_verificationTimeout, maxItemVerificationTimeout);
+        uint256 maxItemVerificationTimeout;
+        {
+            FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
+            maxItemVerificationTimeout = block.timestamp + pc.maxVerificationTimeout;
+            if (_verificationTimeout == 0) {
+                itemVerificationTimeout = block.timestamp + pc.defaultVerificationTimeout;
+            } else {
+                if (_verificationTimeout > maxItemVerificationTimeout) {
+                    revert VerificationErrors.VerificationTimeoutTooLong(
+                        _verificationTimeout,
+                        maxItemVerificationTimeout
+                    );
+                }
+                itemVerificationTimeout = _verificationTimeout;
             }
-            itemVerificationTimeout = _verificationTimeout;
+            tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
+            tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
         }
-        tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
-        tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
 
         emit ItemPriceObserved(_tokenId, tokenLookups.itemPrice);
 
@@ -326,11 +336,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         _priceDiscovery.conduit = wrapperAddress;
 
         if (_selfSale) {
-            bosonProtocolFee = getBosonProtocolFee(
-                exchangeToken,
-                offer.verifierFee,
-                _exchangeAmount
-            );
+            bosonProtocolFee = getBosonProtocolFee(exchangeToken, offer.verifierFee, _exchangeAmount);
             if (_exchangeAmount > 0) {
                 FundsLib.validateIncomingPayment(exchangeToken, _exchangeAmount);
                 FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), _exchangeAmount);
@@ -346,9 +352,8 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 _buyerOrder.parameters.offer.length != 1 ||
                 _buyerOrder.parameters.consideration.length > 2 ||
                 _buyerOrder.parameters.consideration[1].startAmount >
-                (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || 
-                _buyerOrder.parameters.offer[0].startAmount <
-                _buyerOrder.parameters.consideration[1].startAmount
+                (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 ||
+                _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount
             ) {
                 revert InvalidOpenSeaOrder();
             }
@@ -359,16 +364,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                     _buyerOrder.parameters.consideration[1].startAmount;
             }
 
-            bosonProtocolFee = getBosonProtocolFee(
-                exchangeToken,
-                offer.verifierFee,
-                _priceDiscovery.price
-            );
+            bosonProtocolFee = getBosonProtocolFee(exchangeToken, offer.verifierFee, _priceDiscovery.price);
 
-            _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                IFermionWrapper.unwrap,
-                (_tokenId, _buyerOrder)
-            );
+            _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
         }
 
         return (bosonProtocolFee, _priceDiscovery);
@@ -381,7 +379,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         // Calculate facilitator and fermion fees
         facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
         fermionFeeAmount = FundsLib.applyPercentage(price, FermionStorage.protocolConfig().protocolFeePercentage);
-        
+
         // Calculate the sum of all fees
         feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee;
 
@@ -392,7 +390,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
         return (fermionFeeAmount, facilitatorFeeAmount, feesSum);
     }
-    
+
     /**
      * Handle Boson seller deposit
      *
@@ -449,8 +447,8 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         }
     }
 
-   /**
-     * @notice returns the boson protocol 
+    /**
+     * @notice returns the boson protocol
      *
      * @param _exchangeToken - the token used for the exchange
      * @param _verifierFee - the verifier fee
@@ -462,7 +460,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         uint256 _verifierFee,
         uint256 _price
     ) internal view returns (uint256) {
-       return BOSON_PROTOCOL.getProtocolFee(_exchangeToken, _price);
+        return BOSON_PROTOCOL.getProtocolFee(_exchangeToken, _price);
     }
 
     /**
