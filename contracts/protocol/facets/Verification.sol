@@ -138,7 +138,8 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         address exchangeToken = offer.exchangeToken;
         uint256 sellerDeposit = offer.sellerDeposit;
-        uint256 offerPrice = pl.tokenLookups[tokenId].itemPrice;
+        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+        uint256 offerPrice = tokenLookups.itemPrice;
 
         {
             uint256 withdrawalAmount = offerPrice + sellerDeposit;
@@ -155,22 +156,18 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         uint256 remainder = offerPrice;
         unchecked {
             // pay the verifier
-            uint256 verifierFee = offer.verifierFee;
+            uint256 verifierFee = tokenLookups.verifierFee;
             if (!_afterTimeout) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
             remainder -= verifierFee; // guaranteed to be positive
 
-            // fermion fee
-            uint256 fermionFeeAmount = FundsLib.applyPercentage(
-                remainder,
-                FermionStorage.protocolConfig().protocolFeePercentage
-            );
-            FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
+            uint256 fermionFeeAmount = tokenLookups.fermionFeeAmount;
+            FundsLib.increaseAvailableFunds(0, exchangeToken, tokenLookups.fermionFeeAmount); // Protocol fees are stored in entity 0
             remainder -= fermionFeeAmount;
         }
 
         if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
             // pay the facilitator
-            uint256 facilitatorFeeAmount = FundsLib.applyPercentage(remainder, offer.facilitatorFeePercent);
+            uint256 facilitatorFeeAmount = tokenLookups.facilitatorFeeAmount;
             FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
             remainder = remainder - facilitatorFeeAmount + sellerDeposit;
 
@@ -183,7 +180,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 
             if (_afterTimeout) {
-                remainder += offer.verifierFee;
+                remainder += tokenLookups.verifierFee;
             }
 
             // transfer the remainder to the buyer

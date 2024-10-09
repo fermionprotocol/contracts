@@ -110,8 +110,13 @@ library FermionStorage {
     }
 
     struct TokenLookups {
-        // item price
+        // item full price
         uint256 itemPrice;
+        // fees
+        uint256 bosonProtocolFee;
+        uint256 fermionFeeAmount;
+        uint256 verifierFee;
+        uint256 facilitatorFeeAmount;
         // checkout request
         FermionTypes.CheckoutRequest checkoutRequest;
         // vault amount
