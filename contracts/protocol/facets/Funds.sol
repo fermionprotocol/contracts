@@ -17,7 +17,7 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
+contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *
@@ -49,8 +49,8 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             EntityLib.fetchEntityData(_entityId);
         }
 
-        FundsLib.validateIncomingPayment(_tokenAddress, _amount);
-        FundsLib.increaseAvailableFunds(_entityId, _tokenAddress, _amount);
+        validateIncomingPayment(_tokenAddress, _amount);
+        increaseAvailableFunds(_entityId, _tokenAddress, _amount);
     }
 
     /**
@@ -230,7 +230,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             FermionTypes.Phygital[] memory phygitals = tokenLookups.phygitals; // all items are accesed, copy everything to memory
             uint256 len = phygitals.length;
             for (uint256 j; j < len; j++) {
-                FundsLib.transferERC721FromProtocol(phygitals[j].contractAddress, _treasury, phygitals[j].tokenId);
+                transferERC721FromProtocol(phygitals[j].contractAddress, _treasury, phygitals[j].tokenId);
             }
 
             tokenLookups.phygitalsRecipient = type(uint256).max;
@@ -353,7 +353,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
             for (uint256 i = 0; i < tokenList.length; i++) {
                 // Get available funds from storage
                 uint256 availableFunds = entityFunds[tokenList[i]];
-                FundsLib.transferERC20FromProtocol(_entityId, tokenList[i], _destinationAddress, availableFunds);
+                transferERC20FromProtocol(_entityId, tokenList[i], _destinationAddress, availableFunds);
             }
         } else {
             for (uint256 i = 0; i < _tokenList.length; i++) {
@@ -361,7 +361,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                 if (_tokenAmounts[i] == 0) revert NothingToWithdraw();
 
                 // Transfer funds
-                FundsLib.transferERC20FromProtocol(_entityId, _tokenList[i], _destinationAddress, _tokenAmounts[i]);
+                transferERC20FromProtocol(_entityId, _tokenList[i], _destinationAddress, _tokenAmounts[i]);
             }
         }
     }
@@ -405,11 +405,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                 for (uint256 j = 0; j < _phygitals[i].length; j++) {
                     phygitals.push(_phygitals[i][j]);
 
-                    FundsLib.transferERC721ToProtocol(
-                        _phygitals[i][j].contractAddress,
-                        msgSender,
-                        _phygitals[i][j].tokenId
-                    );
+                    transferERC721ToProtocol(_phygitals[i][j].contractAddress, msgSender, _phygitals[i][j].tokenId);
                 }
             } else {
                 // only the seller can withdraw the phygitals
@@ -434,11 +430,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
                         if (!found) revert FundsErrors.PhygitalsNotFound(tokenId, _phygitals[i][j]);
                     }
 
-                    FundsLib.transferERC721FromProtocol(
-                        _phygitals[i][j].contractAddress,
-                        msgSender,
-                        _phygitals[i][j].tokenId
-                    );
+                    transferERC721FromProtocol(_phygitals[i][j].contractAddress, msgSender, _phygitals[i][j].tokenId);
                 }
             }
         }

@@ -17,7 +17,7 @@ import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
  *
  * @dev
  */
-library FundsLib {
+contract FundsLib {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 

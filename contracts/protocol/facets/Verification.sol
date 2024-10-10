@@ -18,7 +18,7 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, Access, VerificationErrors, IVerificationEvents {
+contract VerificationFacet is Context, Access, VerificationErrors, FundsLib, IVerificationEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
     using FermionFNFTLib for address;
 
@@ -230,26 +230,26 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             unchecked {
                 // pay the verifier
                 uint256 verifierFee = offer.verifierFee;
-                if (!_afterTimeout) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
+                if (!_afterTimeout) increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
                 remainder -= verifierFee; // guaranteed to be positive
 
                 // fermion fee
-                uint256 fermionFeeAmount = FundsLib.applyPercentage(
+                uint256 fermionFeeAmount = applyPercentage(
                     remainder,
                     FermionStorage.protocolConfig().protocolFeePercentage
                 );
-                FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
+                increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
                 remainder -= fermionFeeAmount;
             }
 
             if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
                 // pay the facilitator
-                uint256 facilitatorFeeAmount = FundsLib.applyPercentage(remainder, offer.facilitatorFeePercent);
-                FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
+                uint256 facilitatorFeeAmount = applyPercentage(remainder, offer.facilitatorFeePercent);
+                increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
                 remainder = remainder - facilitatorFeeAmount + sellerDeposit;
 
                 // transfer the remainder to the seller
-                FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
+                increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
                 address fermionFNFTAddress = pl.offerLookups[offerId].fermionFNFTAddress;
                 fermionFNFTAddress.pushToNextTokenState(tokenId, FermionTypes.TokenState.Verified);
 
@@ -264,7 +264,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
                 }
 
                 // transfer the remainder to the buyer
-                FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
+                increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
 
                 if (hasPhygitals) {
                     pl.tokenLookups[tokenId].phygitalsRecipient = 0; // reset phygitals verification status, so the seller can withdraw them

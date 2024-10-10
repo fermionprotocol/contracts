@@ -8,7 +8,6 @@ import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { CustodyLib } from "../libs/CustodyLib.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
@@ -18,7 +17,7 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  *
  * @notice Handles Custody Vaults and partial auctions.
  */
-contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEvents {
+contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, CustodyLib, ICustodyEvents {
     using FermionFNFTLib for address;
 
     /**
@@ -74,7 +73,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         uint256 _length,
         uint256 _depositAmount
     ) external notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant returns (uint256 returnedAmount) {
-        (, returnedAmount) = CustodyLib.addItemToCustodianOfferVault(
+        (, returnedAmount) = addItemToCustodianOfferVault(
             _firstTokenId,
             _length,
             _depositAmount,
@@ -135,10 +134,10 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
 
             {
                 address exchangeToken = offer.exchangeToken;
-                FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
+                increaseAvailableFunds(offer.custodianId, exchangeToken, custodianPayoff);
                 uint256 immediateTransfer = itemBalance - custodianPayoff;
                 if (immediateTransfer > 0)
-                    FundsLib.transferERC20FromProtocol(exchangeToken, payable(msg.sender), immediateTransfer);
+                    transferERC20FromProtocol(exchangeToken, payable(msg.sender), immediateTransfer);
             }
 
             if (itemCount == 1) {
@@ -148,7 +147,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         }
 
         // setup back the individual custodian vault
-        CustodyLib.setupCustodianItemVault(_tokenId, _buyoutAuctionEnd);
+        setupCustodianItemVault(_tokenId, _buyoutAuctionEnd);
 
         emit VaultBalanceUpdated(offerId, offerVault.amount);
     }
@@ -173,7 +172,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         (offerId, offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         verifyFermionFNFTCaller(offerId, pl);
 
-        FundsLib.increaseAvailableFunds(offer.custodianId, offer.exchangeToken, _repaidAmount);
+        increaseAvailableFunds(offer.custodianId, offer.exchangeToken, _repaidAmount);
     }
 
     /**
@@ -211,7 +210,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
 
         if (vault.period == 0) revert InactiveVault(_tokenOrOfferId);
 
-        FundsLib.validateIncomingPayment(offer.exchangeToken, _amount);
+        validateIncomingPayment(offer.exchangeToken, _amount);
 
         vault.amount += _amount;
 
@@ -293,7 +292,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
 
         exchangeToken = offer.exchangeToken;
 
-        FundsLib.increaseAvailableFunds(offer.custodianId, exchangeToken, amountToRelease);
+        increaseAvailableFunds(offer.custodianId, exchangeToken, amountToRelease);
 
         if (
             coveredPeriods < numberOfPeriods ||
@@ -342,10 +341,10 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
 
         address exchangeToken = FermionStorage.protocolEntities().offer[_offerId].exchangeToken;
 
-        FundsLib.validateIncomingPayment(exchangeToken, _bidAmount);
+        validateIncomingPayment(exchangeToken, _bidAmount);
 
         // release funds to the previous bidder
-        FundsLib.increaseAvailableFunds(fractionAuction.bidderId, exchangeToken, previousBid);
+        increaseAvailableFunds(fractionAuction.bidderId, exchangeToken, previousBid);
 
         address msgSender = _msgSender();
         uint256 bidderId = EntityLib.getOrCreateBuyerId(msgSender, pl);
@@ -400,7 +399,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             // buyout auction for the last item in vault started after partial auction, but ended earlier
             // release proceeds directly to the custodian
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-            FundsLib.increaseAvailableFunds(offer.custodianId, offer.exchangeToken, winningBid);
+            increaseAvailableFunds(offer.custodianId, offer.exchangeToken, winningBid);
         } else {
             vault.amount += winningBid;
             emit VaultBalanceUpdated(_offerId, vault.amount);
@@ -446,7 +445,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
             if (itemsInVault > 0) {
                 // vault exist already
                 fermionFNFTAddress.mintFractions(_tokenId, 1, 0);
-                CustodyLib.addItemToCustodianOfferVault(_tokenId, 1, 0, false, pl);
+                addItemToCustodianOfferVault(_tokenId, 1, 0, false, pl);
             } else {
                 // no vault yet. Use the default parameters
                 FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
@@ -550,7 +549,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         // Only F-NFT contract can call it
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 offerId;
-        (offerId, returnedAmount) = CustodyLib.addItemToCustodianOfferVault(
+        (offerId, returnedAmount) = addItemToCustodianOfferVault(
             _firstTokenId,
             _length,
             _depositAmount,

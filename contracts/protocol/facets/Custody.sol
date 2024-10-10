@@ -7,7 +7,6 @@ import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { CustodyLib } from "../libs/CustodyLib.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
@@ -18,7 +17,7 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  *
  * @notice Handles RWA custody.
  */
-contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsEvents {
+contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEvents, IFundsEvents {
     using FermionFNFTLib for address;
 
     /**
@@ -57,7 +56,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedIn;
 
-        CustodyLib.setupCustodianItemVault(_tokenId, block.timestamp);
+        setupCustodianItemVault(_tokenId, block.timestamp);
 
         emit CheckedIn(custodianId, _tokenId);
     }
@@ -93,7 +92,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
             FermionTypes.AccountRole.Assistant
         );
 
-        CustodyLib.closeCustodianItemVault(_tokenId, custodianId, offer.exchangeToken);
+        closeCustodianItemVault(_tokenId, custodianId, offer.exchangeToken);
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckedOut;
         emit CheckedOut(custodianId, _tokenId);
@@ -214,8 +213,8 @@ contract CustodyFacet is Context, CustodyErrors, Access, ICustodyEvents, IFundsE
             }
 
             address exchangeToken = offer.exchangeToken;
-            FundsLib.validateIncomingPayment(exchangeToken, taxAmount);
-            FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, taxAmount);
+            validateIncomingPayment(exchangeToken, taxAmount);
+            increaseAvailableFunds(offer.sellerId, exchangeToken, taxAmount);
         }
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequestCleared;
