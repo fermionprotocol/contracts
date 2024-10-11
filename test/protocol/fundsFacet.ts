@@ -185,6 +185,60 @@ describe("Funds", function () {
       );
     });
 
+    it("Fermion fractions can be deposited to protocol", async function () {
+      const offerId = 1n;
+      const exchangeId = 1n;
+      const fnftTokenId = deriveTokenId(offerId, exchangeId);
+
+      await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+      await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
+      await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
+      await offerFacet.unwrapNFTToSelf(fnftTokenId);
+      await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+      await custodyFacet.connect(verifier).checkIn(fnftTokenId);
+
+      const fermionFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId);
+
+      const entityAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, fermionFnftAddress);
+      const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionFnftAddress, defaultSigner);
+
+      const auctionParameters = {
+        exitPrice: parseEther("0.1"),
+        duration: 60n * 60n * 24n * 7n, // 1 week
+        unlockThreshold: 7500n, // 75%
+        topBidLockTime: 60n * 60n * 24n * 2n, // two days
+      };
+
+      const custodianVaultParameters = {
+        partialAuctionThreshold: custodianFee.amount * 15n,
+        partialAuctionDuration: custodianFee.period / 2n,
+        liquidationThreshold: custodianFee.amount * 2n,
+        newFractionsPerAuction: amount * 5n,
+      };
+
+      const additionalDeposit = custodianFee.amount * 2n;
+      await mockToken1.approve(fermionFnft, additionalDeposit);
+      await fermionFnft.mintFractions(
+        fnftTokenId,
+        1,
+        amount,
+        auctionParameters,
+        custodianVaultParameters,
+        additionalDeposit,
+      );
+
+      // Deposits funds
+      await fermionFnft.approve(fermionProtocolAddress, amount);
+      const tx = await fundsFacet.depositFunds(sellerId, fermionFnftAddress, amount);
+
+      // Events
+      await expect(tx).to.emit(fundsFacet, "AvailableFundsIncreased").withArgs(sellerId, fermionFnftAddress, amount);
+
+      // State
+      expect(await fundsFacet.getTokenList(sellerId)).to.eql([mockToken1Address, fermionFnftAddress]);
+      expect(await fundsFacet.getAvailableFunds(sellerId, fermionFnftAddress)).to.equal(entityAvailableFunds + amount);
+    });
+
     context("Revert reasons", function () {
       it("Funds region is paused", async function () {
         await pauseFacet.pause([PausableRegion.Funds]);
@@ -497,6 +551,75 @@ describe("Funds", function () {
         .withArgs(fermionProtocolAddress, amountNative);
     });
 
+    it("Fermion fractions can be withdrawn", async function () {
+      const amount = parseEther("10");
+      const offerId = 1n;
+      const exchangeId = 1n;
+      const fnftTokenId = deriveTokenId(offerId, exchangeId);
+
+      await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+      await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
+      await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
+      await offerFacet.unwrapNFTToSelf(fnftTokenId);
+      await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+      await custodyFacet.connect(verifier).checkIn(fnftTokenId);
+
+      const fermionFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId);
+      const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionFnftAddress, defaultSigner);
+
+      const auctionParameters = {
+        exitPrice: parseEther("0.1"),
+        duration: 60n * 60n * 24n * 7n, // 1 week
+        unlockThreshold: 7500n, // 75%
+        topBidLockTime: 60n * 60n * 24n * 2n, // two days
+      };
+
+      const custodianVaultParameters = {
+        partialAuctionThreshold: custodianFee.amount * 15n,
+        partialAuctionDuration: custodianFee.period / 2n,
+        liquidationThreshold: custodianFee.amount * 2n,
+        newFractionsPerAuction: amount * 5n,
+      };
+
+      const additionalDeposit = custodianFee.amount * 2n;
+      await mockToken1.approve(fermionFnft, additionalDeposit);
+      await fermionFnft.mintFractions(
+        fnftTokenId,
+        1,
+        amount,
+        auctionParameters,
+        custodianVaultParameters,
+        additionalDeposit,
+      );
+
+      // Deposits funds
+      await fermionFnft.approve(fermionProtocolAddress, amount);
+      await fundsFacet.depositFunds(sellerId, fermionFnftAddress, amount);
+
+      const entityAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, fermionFnftAddress);
+      const adminBalance = await fermionFnft.balanceOfERC20(defaultSigner.address);
+
+      // Withdraw funds
+      const withdrawAmount = amountNative / 2n;
+      const tx = await fundsFacet.withdrawFunds(
+        sellerId,
+        defaultSigner.address,
+        [fermionFnftAddress],
+        [withdrawAmount],
+      );
+
+      // Events
+      await expect(tx)
+        .to.emit(fundsFacet, "FundsWithdrawn")
+        .withArgs(sellerId, defaultSigner.address, fermionFnftAddress, withdrawAmount);
+
+      // State
+      expect(await fundsFacet.getAvailableFunds(sellerId, fermionFnftAddress)).to.equal(
+        entityAvailableFunds - withdrawAmount,
+      );
+      expect(await fermionFnft.balanceOfERC20(defaultSigner.address)).to.equal(adminBalance + withdrawAmount);
+    });
+
     context("Revert reasons", function () {
       it("Funds region is paused", async function () {
         await pauseFacet.pause([PausableRegion.Funds]);
@@ -753,6 +876,35 @@ describe("Funds", function () {
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital)]);
       });
 
+      it("Fermion FNFT can be deposited as phygital", async function () {
+        const offerId = 1n;
+        const exchangeId = 1n;
+        const phygitalFnftTokenId = deriveTokenId(offerId, exchangeId);
+
+        await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+        await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
+        await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
+        await offerFacet.unwrapNFTToSelf(phygitalFnftTokenId);
+        await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
+        await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
+
+        const fermionPhygitalFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId);
+        const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionPhygitalFnftAddress, defaultSigner);
+
+        // Deposits phygital
+        await fermionFnft.approve(fermionProtocolAddress, phygitalFnftTokenId);
+        const phygital = { contractAddress: fermionPhygitalFnftAddress, tokenId: phygitalFnftTokenId };
+        const tx = await fundsFacet.depositPhygitals([fnftTokenId], [[phygital]]);
+
+        // Events
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Deposited")
+          .withArgs(fermionPhygitalFnftAddress, phygitalFnftTokenId, defaultSigner.address);
+
+        // State
+        expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital)]);
+      });
+
       context("Revert reasons", function () {
         it("Funds region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Funds]);
@@ -1000,6 +1152,40 @@ describe("Funds", function () {
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital2)]);
         expect(await fundsFacet.getPhygitals(fnftTokenId2)).to.eql([]);
+      });
+
+      it("Fermion FNFT can be withdrawn as phygital", async function () {
+        await fundsFacet.withdrawPhygitals([fnftTokenId], [[phygital]]); // get rid of the deposited phygital
+
+        const offerId = 1n;
+        const exchangeId = 1n;
+        const phygitalFnftTokenId = deriveTokenId(offerId, exchangeId);
+
+        await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+        await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
+        await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
+        await offerFacet.unwrapNFTToSelf(phygitalFnftTokenId);
+        await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
+        await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
+
+        const fermionPhygitalFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId);
+        const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionPhygitalFnftAddress, defaultSigner);
+
+        // Deposits phygital
+        await fermionFnft.approve(fermionProtocolAddress, phygitalFnftTokenId);
+        const fnftPhygital = { contractAddress: fermionPhygitalFnftAddress, tokenId: phygitalFnftTokenId };
+        await fundsFacet.depositPhygitals([fnftTokenId], [[fnftPhygital]]);
+
+        // Withdraw phygital
+        const tx = await fundsFacet.withdrawPhygitals([fnftTokenId], [[fnftPhygital]]);
+
+        // Events
+        await expect(tx)
+          .to.emit(fundsFacet, "ERC721Withdrawn")
+          .withArgs(fermionPhygitalFnftAddress, phygitalFnftTokenId, defaultSigner.address);
+
+        // State
+        expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([]);
       });
 
       context("Revert reasons", function () {

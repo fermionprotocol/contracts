@@ -218,4 +218,12 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     function transferOwnership(address _newOwner) public override(FermionWrapper, IFermionWrapper) {
         super.transferOwnership(_newOwner);
     }
+
+    /**
+     * @dev This function is used in funds management. Since this contract is never a trusted forwarder
+     * of another fermion FNFT contract, the check can be skipped.
+     */
+    function checkFNFTContract(address) internal pure override returns (bool) {
+        return false;
+    }
 }
