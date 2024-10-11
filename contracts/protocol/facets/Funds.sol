@@ -18,6 +18,8 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
  * @notice Handles entity funds.
  */
 contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
+    constructor(bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {}
+
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *

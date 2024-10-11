@@ -33,7 +33,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
 
-    constructor(address _bosonProtocol) {
+    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
@@ -565,8 +565,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
                 _offerId,
                 offer.metadataURI
             );
-
-            // pl.isFermionFNFT[wrapperAddress] = true;
         }
 
         // wrap NFTs

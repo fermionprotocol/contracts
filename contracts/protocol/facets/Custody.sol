@@ -6,6 +6,7 @@ import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { CustodyLib } from "../libs/CustodyLib.sol";
+import { FundsLib } from "../libs/FundsLib.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { Context } from "../libs/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
@@ -19,6 +20,8 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  */
 contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEvents, IFundsEvents {
     using FermionFNFTLib for address;
+
+    constructor(bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {}
 
     /**
      * @notice Notifies the protocol that an RWA has been checked in

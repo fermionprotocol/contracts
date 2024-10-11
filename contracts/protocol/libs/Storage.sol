@@ -87,8 +87,6 @@ library FermionStorage {
         mapping(uint256 => TokenLookups) tokenLookups;
         // entity id => seller lookups
         mapping(uint256 => SellerLookups) sellerLookups;
-        // // address => is fermion FNFT
-        // mapping(address => bool) isFermionFNFT;
     }
 
     struct EntityLookups {

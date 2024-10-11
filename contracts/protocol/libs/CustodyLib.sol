@@ -12,7 +12,7 @@ import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
  *
  * @notice Custody methods used by multiple facets.
  */
-contract CustodyLib is FundsLib {
+abstract contract CustodyLib is FundsLib {
     /**
      * @notice Creates a custodian vault for a tokenId
      * The amount for first period is encumbered (it is available in the protocol since the verification time).

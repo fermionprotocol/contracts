@@ -22,7 +22,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, FundsLib, IVe
     IBosonProtocol private immutable BOSON_PROTOCOL;
     using FermionFNFTLib for address;
 
-    constructor(address _bosonProtocol) {
+    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }

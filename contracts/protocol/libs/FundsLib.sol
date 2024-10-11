@@ -22,6 +22,12 @@ contract FundsLib {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 
+    bytes32 private immutable FNFT_CODEHASH;
+
+    constructor(bytes32 _fnftCodeHash) {
+        FNFT_CODEHASH = _fnftCodeHash;
+    }
+
     /**
      * @notice Validates that incoming payments matches expectation. If token is a native currency, it makes sure
      * msg.value is correct. If token is ERC20, it transfers the value from the sender to the protocol.
@@ -181,8 +187,6 @@ contract FundsLib {
         }
     }
 
-    bytes32 constant FNFT_CODEHASH = 0x1c5f93b230eb68a4f148774369ba4c8a3098bd15315277001daf4fb5930df6aa;
-
     /**
      * @notice Checks if the contract at the token address is FNFN or not.
      *
@@ -193,10 +197,6 @@ contract FundsLib {
     function checkFNFTContract(address _tokenAddress) internal view virtual returns (bool) {
         return _tokenAddress.codehash == FNFT_CODEHASH;
     }
-
-    // function checkFNFTContract(address _tokenAddress) internal virtual view returns (bool) {
-    //     return FermionStorage.protocolLookups().isFermionFNFT[_tokenAddress];
-    // }
 
     /**
      * @notice Decreases the amount available to withdraw or use as a seller deposit.
