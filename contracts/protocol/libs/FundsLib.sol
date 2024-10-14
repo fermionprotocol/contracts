@@ -66,11 +66,8 @@ contract FundsLib {
      *
      * N.B. Special caution is needed when interacting with the FermionFNFT contract,
      * as it treats _msgSender() differently when the caller is the Fermion protocol.
-     * Currently, interactions with FermionFNFT in this function are prevented
-     * because it returns true for IERC165.supportsInterface(IERC721) and reverts.
-     * If this check is removed, a special check should be introduced to prevent FermionFNFT interactions.
-     * Alternatively, if interactions with FermionFNFT become allowed at some point,
-     * those interactions should be conducted via FermionFNFTLib to ensure the correct _msgSender() is used.
+     * If FundsLib methods are used in the contracts that are not part of the diamond,
+     * `checkFNFTContract` should be overridden to return false.
      *
      * @param _tokenAddress - address of the token to be transferred
      * @param _from - address to transfer funds from
