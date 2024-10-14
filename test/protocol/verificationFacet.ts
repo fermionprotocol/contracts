@@ -6,6 +6,7 @@ import {
   applyPercentage,
   setNextBlockTimestamp,
   verifySellerAssistantRoleClosure,
+  calculateMinimalPrice,
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
@@ -163,16 +164,17 @@ describe("Verification", function () {
     // unwrap to self #1
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
     const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-    const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
+    let minimalPrice = calculateMinimalPrice(verifierFee, facilitatorFeePercent, bosonProtocolFeePercentage, fermionConfig.protocolParameters.protocolFeePercentage);
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
-    await offerFacet.unwrapNFTToSelf(tokenIdSelf);
+    await offerFacet.unwrapNFTToSelf(tokenIdSelf, minimalPrice);
 
     // unwrap to self #2
     const tokenIdSelfSaleSelfVerification = deriveTokenId(
       offerIdSelfSaleSelfVerification,
       exchangeIdSelfSaleSelfVerification,
     ).toString();
-    const tx = await offerFacet.unwrapNFTToSelf(tokenIdSelfSaleSelfVerification);
+    minimalPrice = calculateMinimalPrice(0, fermionOffer.facilitatorFeePercent, bosonProtocolFeePercentage, fermionConfig.protocolParameters.protocolFeePercentage)
+    const tx = await offerFacet.unwrapNFTToSelf(tokenIdSelfSaleSelfVerification, minimalPrice);
     const timestamp = BigInt((await tx.getBlock()).timestamp);
     itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.defaultVerificationTimeout);
     itemMaxVerificationTimeout = timestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
@@ -186,7 +188,7 @@ describe("Verification", function () {
       bosonProtocolFeePercentage,
       verifierFee,
       facilitatorFeePercent,
-      sellerDeposit,
+      0n,
     );
 
     // Self sale
@@ -230,16 +232,27 @@ describe("Verification", function () {
     facilitatorFeePercent: bigint,
     sellerDeposit: bigint = 0n,
   ) {
-    const afterBosonProtocolFee = escrowAmount - applyPercentage(escrowAmount, bosonProtocolFeePercentage);
 
-    const afterVerifierFee = afterBosonProtocolFee - verifierFee;
-    const fermionFeeAmount = applyPercentage(afterVerifierFee, fermionConfig.protocolParameters.protocolFeePercentage);
-    const afterFermionFee = afterVerifierFee - fermionFeeAmount;
-    const facilitatorFeeAmount = applyPercentage(afterFermionFee, facilitatorFeePercent);
-    const afterFacilitatorFee = afterFermionFee - facilitatorFeeAmount;
-    const remainder = afterFacilitatorFee + sellerDeposit;
+    // TODO: Delete this before merge. It is just for reference what was the previous implementation of the payout calculation
+    // const afterBosonProtocolFee = escrowAmount - applyPercentage(escrowAmount, bosonProtocolFeePercentage);
+
+    // const afterVerifierFee = afterBosonProtocolFee - verifierFee;
+    // const fermionFeeAmount = applyPercentage(afterVerifierFee, fermionConfig.protocolParameters.protocolFeePercentage);
+    // const afterFermionFee = afterVerifierFee - fermionFeeAmount;
+    // const facilitatorFeeAmount = applyPercentage(afterFermionFee, facilitatorFeePercent);
+    // const afterFacilitatorFee = afterFermionFee - facilitatorFeeAmount;
+    // const remainder = afterFacilitatorFee + sellerDeposit;
+
+    const bosonFeeAmount = applyPercentage(escrowAmount, bosonProtocolFeePercentage);
+    const fermionFeeAmount = applyPercentage(escrowAmount, fermionConfig.protocolParameters.protocolFeePercentage);
+    const facilitatorFeeAmount = applyPercentage(escrowAmount, facilitatorFeePercent);
+    const feeSum = bosonFeeAmount + fermionFeeAmount + facilitatorFeeAmount + verifierFee;
+    const remainder = escrowAmount + sellerDeposit - feeSum;
+
 
     return { remainder, fermionFeeAmount, facilitatorFeeAmount };
+
+
   }
 
   before(async function () {
@@ -278,7 +291,6 @@ describe("Verification", function () {
         const tx = await verificationFacet
           .connect(verifier)
           .submitVerdict(exchange.tokenId, VerificationStatus.Verified);
-
         // Events
         // Fermion
         await expect(tx)
@@ -647,7 +659,7 @@ describe("Verification", function () {
         // Available funds
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
           exchangeSelfSaleSelfVerification.payout.remainder +
-            exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+          exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
         ); // buyer gets the remainder and facilitator fee back
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
@@ -676,9 +688,9 @@ describe("Verification", function () {
 
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
           exchange.payout.remainder +
-            exchange.payout.facilitatorFeeAmount +
-            exchangeSelfVerification.payout.remainder +
-            exchangeSelfVerification.payout.facilitatorFeeAmount,
+          exchange.payout.facilitatorFeeAmount +
+          exchangeSelfVerification.payout.remainder +
+          exchangeSelfVerification.payout.facilitatorFeeAmount,
         );
       });
     });
@@ -942,7 +954,7 @@ describe("Verification", function () {
         // Available funds
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
           exchangeSelfSaleSelfVerification.payout.remainder +
-            exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+          exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
         ); // verifier fee is 0, so it's not added
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(

@@ -274,8 +274,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                     wrapperAddress
                 );
 
-                (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount, uint256 feesSum) = calculateAndValidateFees(
+                (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = calculateAndValidateFees(
                     _priceDiscovery.price,
+                    bosonProtocolFee, 
                     offer
                 );
 
@@ -374,21 +375,21 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
     function calculateAndValidateFees(
         uint256 price,
+        uint256 bosonProtocolFee,
         FermionTypes.Offer storage offer
-    ) internal returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount, uint256 feesSum) {
+    ) internal returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
         // Calculate facilitator and fermion fees
         facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
         fermionFeeAmount = FundsLib.applyPercentage(price, FermionStorage.protocolConfig().protocolFeePercentage);
-
         // Calculate the sum of all fees
-        feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee;
-
+        uint256 feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee + bosonProtocolFee;
+        
         // Check if the sum of all fees is lower than the price
         if (price < feesSum) {
             revert FundsErrors.PriceTooLow(price, feesSum);
         }
 
-        return (fermionFeeAmount, facilitatorFeeAmount, feesSum);
+        return (fermionFeeAmount, facilitatorFeeAmount);
     }
 
     /**

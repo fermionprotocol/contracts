@@ -121,7 +121,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         uint256 tokenId = _tokenId;
         uint256 verifierId;
-        {
+        {   
             (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
             verifierId = offer.verifierId;
 
@@ -142,9 +142,10 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             uint256 sellerDeposit = offer.sellerDeposit;
             FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
             uint256 offerPrice = tokenLookups.itemPrice;
+            uint256 bosonProtocolFee = tokenLookups.bosonProtocolFee;
 
             {
-                uint256 withdrawalAmount = offerPrice + sellerDeposit;
+                uint256 withdrawalAmount = (offerPrice - bosonProtocolFee) + sellerDeposit;
                 if (withdrawalAmount > 0) {
                     uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
                     address[] memory tokenList = new address[](1);
