@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { ADMIN, SLOT_SIZE } from "../domain/Constants.sol";
-import { MetaTransactionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
+import { MetaTransactionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
