@@ -156,7 +156,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
                 }
             }
 
-            uint256 remainder = offerPrice;
+            uint256 remainder = offerPrice - bosonProtocolFee;
             unchecked {
                 // pay the verifier
                 uint256 verifierFee = tokenLookups.verifierFee;

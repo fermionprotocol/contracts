@@ -208,7 +208,15 @@ export function calculateMinimalPrice(
   const totalPercentFee = facilitatorFeePercentBigInt + bosonProtocolFeePercentageBigInt + fermionFeePercentageBigInt;
 
   // Calculate the minimal price to cover both absolute verifierFee and percentage-based fees
-  const minimalPrice = (10000n * verifierFeeBigInt) / (10000n - totalPercentFee);
+  let minimalPrice = (10000n * verifierFeeBigInt) / (10000n - totalPercentFee);
+
+  // Due to rounding, the true minimal price can lower than the calculated one. Calculate it iteratively
+  let actualFees = applyPercentage(minimalPrice, facilitatorFeePercentBigInt)+ applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) + applyPercentage(minimalPrice, fermionFeePercentageBigInt)+verifierFeeBigInt;
+  
+  while (actualFees<minimalPrice){
+    minimalPrice=actualFees;
+    actualFees = applyPercentage(minimalPrice, facilitatorFeePercentBigInt)+ applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) + applyPercentage(minimalPrice, fermionFeePercentageBigInt)+verifierFeeBigInt;
+  }
 
   return minimalPrice;
 }
