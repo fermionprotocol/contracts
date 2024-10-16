@@ -1,6 +1,5 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
-  applyPercentage,
   calculateMinimalPrice,
   deployFermionProtocolFixture,
   deployMockTokens,

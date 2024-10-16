@@ -164,7 +164,7 @@ describe("Verification", function () {
     // unwrap to self #1
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
     const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-    let minimalPrice = calculateMinimalPrice(verifierFee, fermionOffer.facilitatorFeePercent, bosonProtocolFeePercentage, fermionConfig.protocolParameters.protocolFeePercentage);
+    const minimalPrice = calculateMinimalPrice(verifierFee, fermionOffer.facilitatorFeePercent, bosonProtocolFeePercentage, fermionConfig.protocolParameters.protocolFeePercentage);
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
     await offerFacet.unwrapNFTToSelf(tokenIdSelf, minimalPrice);
 

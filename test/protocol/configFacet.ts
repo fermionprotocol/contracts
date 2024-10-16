@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { PausableRegion } from "../utils/enums";
-import { applyPercentage, deployFermionProtocolFixture, deployMockTokens } from "../utils/common";
+import { deployFermionProtocolFixture, deployMockTokens } from "../utils/common";
 import { Contract, parseUnits, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import fermionConfig from "./../../fermion.config";

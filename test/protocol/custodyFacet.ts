@@ -56,7 +56,7 @@ describe("Custody", function () {
   const exchangeSelfSale = { tokenId: "", custodianId: "" };
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
   let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
-  let minimalPriceSelfSale: BigInt;
+  let minimalPriceSelfSale: bigint;
   async function setupCustodyTest() {
     // Create three entities
     // Seller, Verifier, Custodian combined
