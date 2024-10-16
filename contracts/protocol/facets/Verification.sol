@@ -143,9 +143,10 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
             uint256 offerPrice = tokenLookups.itemPrice;
             uint256 bosonProtocolFee = tokenLookups.bosonProtocolFee;
+            uint256 remainder = offerPrice - bosonProtocolFee;
 
             {
-                uint256 withdrawalAmount = (offerPrice - bosonProtocolFee) + sellerDeposit;
+                uint256 withdrawalAmount = remainder + sellerDeposit;
                 if (withdrawalAmount > 0) {
                     uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
                     address[] memory tokenList = new address[](1);
@@ -156,7 +157,6 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
                 }
             }
 
-            uint256 remainder = offerPrice - bosonProtocolFee;
             unchecked {
                 // pay the verifier
                 uint256 verifierFee = tokenLookups.verifierFee;
