@@ -2,8 +2,8 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { PausableRegion } from "../utils/enums";
-import { deployFermionProtocolFixture, deployMockTokens } from "../utils/common";
-import { Contract, ZeroAddress } from "ethers";
+import { applyPercentage, deployFermionProtocolFixture, deployMockTokens } from "../utils/common";
+import { Contract, parseUnits, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import fermionConfig from "./../../fermion.config";
 
@@ -52,6 +52,36 @@ describe("Entity", function () {
       await expect(tx).to.emit(configFacet, "ProtocolFeePercentageChanged").withArgs(newPercentage);
 
       expect(await configFacet.getProtocolFeePercentage()).to.equal(newPercentage);
+    });
+
+    it("Set the protocol fee table", async function () {
+      const FIVE_PERCENT = 500;
+      const TEN_PERCENT = 1000;
+      const TWENTY_PERCENT = 2000;
+
+      const feePriceRanges = [
+        parseUnits("1", "ether").toString(),
+        parseUnits("2", "ether").toString(),
+        parseUnits("5", "ether").toString(),
+      ];
+      const feePercentages = [FIVE_PERCENT, TEN_PERCENT, TWENTY_PERCENT];
+      const usdcAddress = await wallets[3].getAddress();
+      await expect(configFacet.setProtocolFeeTable(usdcAddress, feePriceRanges, feePercentages))
+        .to.emit(configFacet, "FeeTableUpdated")
+        .withArgs(usdcAddress, feePriceRanges, feePercentages);
+
+      let exchangeAmount, feeTier;
+      // check if for every price within a price range the corresponding percentage is returned
+      for (let i = 0; i < feePriceRanges.length; i++) {
+        exchangeAmount = feePriceRanges[i];
+        feeTier = feePercentages[i];
+        expect(await configFacet.getProtocolFeePercentage(usdcAddress, exchangeAmount)).to.equal(feeTier);
+      }
+
+      // check for a way bigger price value, it should return the highest fee tier
+      exchangeAmount = BigInt(feePriceRanges[feePriceRanges.length - 1]) * BigInt(2);
+      feeTier = feePercentages[feePercentages.length - 1];
+      expect(await configFacet.getProtocolFeePercentage(usdcAddress, exchangeAmount)).to.equal(feeTier);
     });
 
     it("Set the default verification timeout", async function () {
@@ -106,6 +136,10 @@ describe("Entity", function () {
         await expect(configFacet.connect(randomWallet).setFNFTImplementationAddress(wallets[10].address))
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
+
+        await expect(configFacet.connect(randomWallet).setProtocolFeeTable(wallets[10].address, [1000, 1000, 1000], [500, 500, 500]))
+          .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomWallet, adminRole);
       });
 
       it("Region is paused", async function () {
@@ -144,6 +178,22 @@ describe("Entity", function () {
         await expect(configFacet.setProtocolFeePercentage(percentage))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
           .withArgs(percentage);
+
+        await expect(configFacet.setProtocolFeeTable(wallets[10].address, [1000, 2000, 3000], [500, 1000, percentage]))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
+          .withArgs(percentage);
+      });
+
+      it("price ranges are not in ascending order", async function () {
+        const newPriceRanges = [
+          parseUnits("1", "ether").toString(),
+          parseUnits("3", "ether").toString(),
+          parseUnits("2", "ether").toString(),
+        ];
+
+        await expect(
+          configFacet.setProtocolFeeTable(wallets[10].address, newPriceRanges, [500, 1000, 2000])
+        ).to.revertedWithCustomError(fermionErrors, "NonAscendingOrder");
       });
 
       it("Zero default verification timeout", async function () {

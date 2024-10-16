@@ -114,7 +114,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
             setTokenPriceRangesInternal(_tokenAddress, _priceRanges);
             setTokenFeePercentagesInternal(_tokenAddress, _feePercentages);
         }
-        emit FeeTableUpdated(_tokenAddress, _priceRanges, _feePercentages, _msgSender());
+        emit FeeTableUpdated(_tokenAddress, _priceRanges, _feePercentages);
     }
 
     /**
