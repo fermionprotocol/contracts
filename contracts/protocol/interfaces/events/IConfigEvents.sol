@@ -12,4 +12,10 @@ interface IConfigEvents {
     event DefaultVerificationTimeoutChanged(uint256 newVerificationTimeout);
     event MaxVerificationTimeoutChanged(uint256 newMaxVerificationTimeout);
     event FermionFNFTImplementationChanged(address newFermionFNFTImplementation);
+    event FeeTableUpdated(
+        address indexed token,
+        uint256[] priceRanges,
+        uint16[] feePercentages,
+        address indexed executedBy
+    );
 }

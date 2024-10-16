@@ -47,8 +47,11 @@ library FermionStorage {
     struct ProtocolConfig {
         // Protocol treasury address
         address payable treasury;
-        // Protocol fee
+        // Default Protocol fee
         uint16 protocolFeePercentage;
+        // Token-specific fee tables
+        mapping(address => uint256[]) tokenPriceRanges; // Price ranges for each token
+        mapping(address => uint16[]) tokenFeePercentages; // Fee percentages for each price range
         // Default verification timeout
         uint256 defaultVerificationTimeout;
         // Max verification timeout

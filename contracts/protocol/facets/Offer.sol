@@ -9,6 +9,7 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
+import { FeeTableLib } from "../libs/FeeTableLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
@@ -380,7 +381,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     ) internal returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
         // Calculate facilitator and fermion fees
         facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
-        fermionFeeAmount = FundsLib.applyPercentage(price, FermionStorage.protocolConfig().protocolFeePercentage);
+        fermionFeeAmount = FundsLib.applyPercentage(price, FeeTableLib.getProtocolFeePercentage(offer.exchangeToken,price));
         // Calculate the sum of all fees
         uint256 feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee + bosonProtocolFee;
         
