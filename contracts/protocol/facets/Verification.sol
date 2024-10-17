@@ -121,7 +121,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         uint256 tokenId = _tokenId;
         uint256 verifierId;
-        {   
+        {
             (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
             verifierId = offer.verifierId;
 

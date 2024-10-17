@@ -137,7 +137,11 @@ describe("Entity", function () {
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
 
-        await expect(configFacet.connect(randomWallet).setProtocolFeeTable(wallets[10].address, [1000, 1000, 1000], [500, 500, 500]))
+        await expect(
+          configFacet
+            .connect(randomWallet)
+            .setProtocolFeeTable(wallets[10].address, [1000, 1000, 1000], [500, 500, 500]),
+        )
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
       });
@@ -192,7 +196,7 @@ describe("Entity", function () {
         ];
 
         await expect(
-          configFacet.setProtocolFeeTable(wallets[10].address, newPriceRanges, [500, 1000, 2000])
+          configFacet.setProtocolFeeTable(wallets[10].address, newPriceRanges, [500, 1000, 2000]),
         ).to.revertedWithCustomError(fermionErrors, "NonAscendingOrder");
       });
 

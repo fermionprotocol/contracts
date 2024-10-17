@@ -193,7 +193,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
         fermionConfig.protocolParameters.treasury,
         fermionConfig.protocolParameters.protocolFeePercentage,
         fermionConfig.protocolParameters.maxVerificationTimeout,
-        fermionConfig.protocolParameters.defaultVerificationTimeout
+        fermionConfig.protocolParameters.defaultVerificationTimeout,
       ],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));

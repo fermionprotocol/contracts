@@ -277,7 +277,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
                 (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = calculateAndValidateFees(
                     _priceDiscovery.price,
-                    bosonProtocolFee, 
+                    bosonProtocolFee,
                     offer
                 );
 
@@ -381,10 +381,13 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     ) internal returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
         // Calculate facilitator and fermion fees
         facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
-        fermionFeeAmount = FundsLib.applyPercentage(price, FeeTableLib.getProtocolFeePercentage(offer.exchangeToken,price));
+        fermionFeeAmount = FundsLib.applyPercentage(
+            price,
+            FeeTableLib.getProtocolFeePercentage(offer.exchangeToken, price)
+        );
         // Calculate the sum of all fees
         uint256 feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee + bosonProtocolFee;
-        
+
         // Check if the sum of all fees is lower than the price
         if (price < feesSum) {
             revert FundsErrors.PriceTooLow(price, feesSum);

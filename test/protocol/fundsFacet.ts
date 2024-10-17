@@ -441,8 +441,8 @@ describe("Funds", function () {
         fermionConfig.protocolParameters.protocolFeePercentage,
       );
       const feesSum = fermionFeeAmount + bosonFeeAmount + verifierFee;
-      const expectedPayout = (encumberedAmount - feesSum) + sellerDeposit;
-      
+      const expectedPayout = encumberedAmount - feesSum + sellerDeposit;
+
       const buyerBalance = await mockToken1.balanceOf(buyer.address);
       const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);
 

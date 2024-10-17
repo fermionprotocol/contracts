@@ -190,13 +190,12 @@ export function applyPercentage(amount: BigNumberish, percentage: BigNumberish |
   return (BigInt(amount) * BigInt(percentage)) / 10000n;
 }
 
-
 // TODO: refactor this function to take into account in bosonFee is percentage based or flat fee (in case of BOSON token), because after boson v2.4.2,boson flat fee could be higher than 0
 export function calculateMinimalPrice(
   verifierFee: BigNumberish,
   facilitatorFeePercent: BigNumberish,
   bosonProtocolFeePercentage: BigNumberish,
-  fermionFeePercentage: BigNumberish
+  fermionFeePercentage: BigNumberish,
 ): bigint {
   // Convert everything to BigInt for safety and precision
   const verifierFeeBigInt = BigInt(verifierFee);
@@ -211,11 +210,19 @@ export function calculateMinimalPrice(
   let minimalPrice = (10000n * verifierFeeBigInt) / (10000n - totalPercentFee);
 
   // Due to rounding, the true minimal price can lower than the calculated one. Calculate it iteratively
-  let actualFees = applyPercentage(minimalPrice, facilitatorFeePercentBigInt)+ applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) + applyPercentage(minimalPrice, fermionFeePercentageBigInt)+verifierFeeBigInt;
-  
-  while (actualFees<minimalPrice){
-    minimalPrice=actualFees;
-    actualFees = applyPercentage(minimalPrice, facilitatorFeePercentBigInt)+ applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) + applyPercentage(minimalPrice, fermionFeePercentageBigInt)+verifierFeeBigInt;
+  let actualFees =
+    applyPercentage(minimalPrice, facilitatorFeePercentBigInt) +
+    applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) +
+    applyPercentage(minimalPrice, fermionFeePercentageBigInt) +
+    verifierFeeBigInt;
+
+  while (actualFees < minimalPrice) {
+    minimalPrice = actualFees;
+    actualFees =
+      applyPercentage(minimalPrice, facilitatorFeePercentBigInt) +
+      applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) +
+      applyPercentage(minimalPrice, fermionFeePercentageBigInt) +
+      verifierFeeBigInt;
   }
 
   return minimalPrice;

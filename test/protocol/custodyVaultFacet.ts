@@ -1,9 +1,5 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import {
-  deployFermionProtocolFixture,
-  deployMockTokens,
-  setNextBlockTimestamp,
-} from "../utils/common";
+import { deployFermionProtocolFixture, deployMockTokens, setNextBlockTimestamp } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";

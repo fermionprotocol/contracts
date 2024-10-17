@@ -23,7 +23,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      * @param _treasury The address of the protocol treasury where protocol fees will be sent.
      * @param _protocolFeePercentage The default fee percentage that the protocol will charge (in basis points).
      * @param _maxVerificationTimeout The maximum allowed verification timeout in seconds.
-     * @param _defaultVerificationTimeout The default timeout in seconds for verification if none is specified.     
+     * @param _defaultVerificationTimeout The default timeout in seconds for verification if none is specified.
      */
     function init(
         address payable _treasury,
@@ -85,7 +85,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
         setProtocolFeePercentageInternal(_protocolFeePercentage);
     }
 
-     /**
+    /**
      * @notice Sets the feeTable for a specific token given price ranges and fee tiers for
      * the corresponding price ranges.
      *
@@ -104,11 +104,12 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
         uint256[] calldata _priceRanges,
         uint16[] calldata _feePercentages
     ) external onlyRole(ADMIN) nonReentrant {
-        if (_priceRanges.length != _feePercentages.length) revert ArrayLengthMismatch(_priceRanges.length, _feePercentages.length);
+        if (_priceRanges.length != _feePercentages.length)
+            revert ArrayLengthMismatch(_priceRanges.length, _feePercentages.length);
         // Clear existing price ranges and percentage tiers
         delete FermionStorage.protocolConfig().tokenPriceRanges[_tokenAddress];
         delete FermionStorage.protocolConfig().tokenFeePercentages[_tokenAddress];
-    
+
         // Store fee percentage
         if (_priceRanges.length != 0) {
             setTokenPriceRangesInternal(_tokenAddress, _priceRanges);
@@ -141,7 +142,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      * @return the protocol fee percentage for given price and exchange token
      */
     function getProtocolFeePercentage(address _exchangeToken, uint256 _price) external view returns (uint16) {
-       return FeeTableLib.getProtocolFeePercentage(_exchangeToken,_price);
+        return FeeTableLib.getProtocolFeePercentage(_exchangeToken, _price);
     }
 
     /**

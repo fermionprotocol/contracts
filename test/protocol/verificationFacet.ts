@@ -164,7 +164,12 @@ describe("Verification", function () {
     // unwrap to self #1
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
     const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-    const minimalPrice = calculateMinimalPrice(verifierFee, fermionOffer.facilitatorFeePercent, bosonProtocolFeePercentage, fermionConfig.protocolParameters.protocolFeePercentage);
+    const minimalPrice = calculateMinimalPrice(
+      verifierFee,
+      fermionOffer.facilitatorFeePercent,
+      bosonProtocolFeePercentage,
+      fermionConfig.protocolParameters.protocolFeePercentage,
+    );
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
     await offerFacet.unwrapNFTToSelf(tokenIdSelf, minimalPrice);
 
@@ -173,7 +178,12 @@ describe("Verification", function () {
       offerIdSelfSaleSelfVerification,
       exchangeIdSelfSaleSelfVerification,
     ).toString();
-    const minimalPriceSelfVerification = calculateMinimalPrice(0, fermionOffer.facilitatorFeePercent, bosonProtocolFeePercentage, fermionConfig.protocolParameters.protocolFeePercentage)
+    const minimalPriceSelfVerification = calculateMinimalPrice(
+      0,
+      fermionOffer.facilitatorFeePercent,
+      bosonProtocolFeePercentage,
+      fermionConfig.protocolParameters.protocolFeePercentage,
+    );
     const tx = await offerFacet.unwrapNFTToSelf(tokenIdSelfSaleSelfVerification, minimalPriceSelfVerification);
     const timestamp = BigInt((await tx.getBlock()).timestamp);
     itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.defaultVerificationTimeout);
@@ -201,13 +211,7 @@ describe("Verification", function () {
     //   fermionFeeAmount: 0n,
     //   facilitatorFeeAmount: 0n,
     // };
-    exchangeSelfSale.payout = payoutFeeCalculation(
-      minimalPrice,
-      bosonProtocolFeePercentage,
-      verifierFee,
-      0n,
-      0n,
-    );
+    exchangeSelfSale.payout = payoutFeeCalculation(minimalPrice, bosonProtocolFeePercentage, verifierFee, 0n, 0n);
 
     // Self verification
     exchangeSelfVerification.tokenId = tokenIdSelfVerification;
@@ -239,7 +243,6 @@ describe("Verification", function () {
     facilitatorFeePercent: bigint,
     sellerDeposit: bigint = 0n,
   ) {
-
     // TODO: Delete this before merge. It is just for reference what was the previous implementation of the payout calculation
     // const afterBosonProtocolFee = escrowAmount - applyPercentage(escrowAmount, bosonProtocolFeePercentage);
 
@@ -256,10 +259,7 @@ describe("Verification", function () {
     const feeSum = bosonFeeAmount + fermionFeeAmount + facilitatorFeeAmount + verifierFee;
     const remainder = escrowAmount + sellerDeposit - feeSum;
 
-
     return { remainder, fermionFeeAmount, facilitatorFeeAmount };
-
-
   }
 
   before(async function () {
@@ -359,8 +359,8 @@ describe("Verification", function () {
           .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
         await expect(tx)
-        .to.emit(verificationFacet, "AvailableFundsIncreased")
-        .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
 
         // Wrapper
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
@@ -378,7 +378,9 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
-        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(exchangeSelfSale.payout.fermionFeeAmount);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSale.payout.fermionFeeAmount,
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Verified);
@@ -554,8 +556,8 @@ describe("Verification", function () {
           .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
         await expect(tx)
-        .to.emit(verificationFacet, "AvailableFundsIncreased")
-        .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
 
         // Wrapper
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
@@ -573,7 +575,9 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
-        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(exchangeSelfSale.payout.fermionFeeAmount);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSale.payout.fermionFeeAmount,
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Burned);
@@ -672,7 +676,7 @@ describe("Verification", function () {
         // Available funds
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
           exchangeSelfSaleSelfVerification.payout.remainder +
-          exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+            exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
         ); // buyer gets the remainder and facilitator fee back
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
@@ -701,9 +705,9 @@ describe("Verification", function () {
 
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
           exchange.payout.remainder +
-          exchange.payout.facilitatorFeeAmount +
-          exchangeSelfVerification.payout.remainder +
-          exchangeSelfVerification.payout.facilitatorFeeAmount,
+            exchange.payout.facilitatorFeeAmount +
+            exchangeSelfVerification.payout.remainder +
+            exchangeSelfVerification.payout.facilitatorFeeAmount,
         );
       });
     });
@@ -853,8 +857,8 @@ describe("Verification", function () {
           .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Rejected);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
         await expect(tx)
-        .to.emit(verificationFacet, "AvailableFundsIncreased")
-        .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
 
         // Wrapper
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
@@ -872,7 +876,9 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(verifierFee);
-        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(exchangeSelfSale.payout.fermionFeeAmount);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSale.payout.fermionFeeAmount,
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Burned);
@@ -970,7 +976,7 @@ describe("Verification", function () {
         // Available funds
         expect(await fundsFacet.getAvailableFunds(buyerId, exchangeToken)).to.equal(
           exchangeSelfSaleSelfVerification.payout.remainder +
-          exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
+            exchangeSelfSaleSelfVerification.payout.facilitatorFeeAmount,
         ); // verifier fee is 0, so it's not added
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0n);
         expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(

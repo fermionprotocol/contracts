@@ -133,7 +133,7 @@ describe("Custody", function () {
       verifierFee,
       fermionOffer.facilitatorFeePercent,
       bosonProtocolFeePercentage,
-      fermionConfig.protocolParameters.protocolFeePercentage
+      fermionConfig.protocolParameters.protocolFeePercentage,
     );
     await mockToken.approve(fermionProtocolAddress, minimalPriceSelfSale);
     await offerFacet.unwrapNFTToSelf(tokenIdSelf, minimalPriceSelfSale);
