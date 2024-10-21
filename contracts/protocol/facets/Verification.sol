@@ -141,9 +141,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             address exchangeToken = offer.exchangeToken;
             uint256 sellerDeposit = offer.sellerDeposit;
             FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
-            uint256 offerPrice = tokenLookups.itemPrice;
-            uint256 bosonProtocolFee = tokenLookups.bosonProtocolFee;
-            uint256 remainder = offerPrice - bosonProtocolFee;
+            uint256 remainder = tokenLookups.itemPrice - tokenLookups.bosonProtocolFee;
 
             {
                 uint256 withdrawalAmount = remainder + sellerDeposit;

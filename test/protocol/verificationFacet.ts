@@ -206,11 +206,6 @@ describe("Verification", function () {
     exchangeSelfSale.verifierId = verifierId;
     exchangeSelfSale.offerId = offerIdSelfSale;
     exchangeSelfSale.exchangeId = exchangeIdSelf;
-    // exchangeSelfSale.payout = {
-    //   remainder: 0n,
-    //   fermionFeeAmount: 0n,
-    //   facilitatorFeeAmount: 0n,
-    // };
     exchangeSelfSale.payout = payoutFeeCalculation(minimalPrice, bosonProtocolFeePercentage, verifierFee, 0n, 0n);
 
     // Self verification
@@ -243,16 +238,6 @@ describe("Verification", function () {
     facilitatorFeePercent: bigint,
     sellerDeposit: bigint = 0n,
   ) {
-    // TODO: Delete this before merge. It is just for reference what was the previous implementation of the payout calculation
-    // const afterBosonProtocolFee = escrowAmount - applyPercentage(escrowAmount, bosonProtocolFeePercentage);
-
-    // const afterVerifierFee = afterBosonProtocolFee - verifierFee;
-    // const fermionFeeAmount = applyPercentage(afterVerifierFee, fermionConfig.protocolParameters.protocolFeePercentage);
-    // const afterFermionFee = afterVerifierFee - fermionFeeAmount;
-    // const facilitatorFeeAmount = applyPercentage(afterFermionFee, facilitatorFeePercent);
-    // const afterFacilitatorFee = afterFermionFee - facilitatorFeeAmount;
-    // const remainder = afterFacilitatorFee + sellerDeposit;
-
     const bosonFeeAmount = applyPercentage(escrowAmount, bosonProtocolFeePercentage);
     const fermionFeeAmount = applyPercentage(escrowAmount, fermionConfig.protocolParameters.protocolFeePercentage);
     const facilitatorFeeAmount = applyPercentage(escrowAmount, facilitatorFeePercent);

@@ -49,13 +49,13 @@ library FermionStorage {
         address payable treasury;
         // Default Protocol fee
         uint16 protocolFeePercentage;
-        // Token-specific fee tables
-        mapping(address => uint256[]) tokenPriceRanges; // Price ranges for each token
-        mapping(address => uint16[]) tokenFeePercentages; // Fee percentages for each price range
         // Default verification timeout
         uint256 defaultVerificationTimeout;
         // Max verification timeout
         uint256 maxVerificationTimeout;
+        // Token-specific fee tables
+        mapping(address => uint256[]) tokenPriceRanges; // Price ranges for each token
+        mapping(address => uint16[]) tokenFeePercentages; // Fee percentages for each price range
     }
 
     // Protocol entities storage
@@ -115,11 +115,6 @@ library FermionStorage {
     struct TokenLookups {
         // item full price
         uint256 itemPrice;
-        // fees
-        uint256 bosonProtocolFee;
-        uint256 fermionFeeAmount;
-        uint256 verifierFee;
-        uint256 facilitatorFeeAmount;
         // checkout request
         FermionTypes.CheckoutRequest checkoutRequest;
         // vault amount
@@ -128,6 +123,11 @@ library FermionStorage {
         uint256 itemVerificationTimeout;
         // max verification timeout
         uint256 itemMaxVerificationTimeout;
+        // fees
+        uint256 bosonProtocolFee;
+        uint256 fermionFeeAmount;
+        uint256 verifierFee;
+        uint256 facilitatorFeeAmount;
     }
 
     struct SellerLookups {

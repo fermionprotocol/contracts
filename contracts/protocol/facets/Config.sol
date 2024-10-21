@@ -107,8 +107,9 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
         if (_priceRanges.length != _feePercentages.length)
             revert ArrayLengthMismatch(_priceRanges.length, _feePercentages.length);
         // Clear existing price ranges and percentage tiers
-        delete FermionStorage.protocolConfig().tokenPriceRanges[_tokenAddress];
-        delete FermionStorage.protocolConfig().tokenFeePercentages[_tokenAddress];
+        FermionStorage.ProtocolConfig storage protocolConfig = FermionStorage.protocolConfig();
+        delete protocolConfig.tokenPriceRanges[_tokenAddress];
+        delete protocolConfig.tokenFeePercentages[_tokenAddress];
 
         // Store fee percentage
         if (_priceRanges.length != 0) {
@@ -291,6 +292,8 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
 
     /**
      * @notice Sets the price ranges for a specific token.
+     *
+     * Reverts if priceRanges are not in ascending order.
      *
      * @param _tokenAddress - the address of the token
      * @param _priceRanges - array of price ranges for the token

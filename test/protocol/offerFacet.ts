@@ -1259,15 +1259,12 @@ describe("Offer", function () {
           });
 
           it("Price does not cover the verifier fee", async function () {
-            const minimalPriceOld = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
             const minimalPriceNew = calculateMinimalPrice(
               verifierFee,
               0,
               bosonProtocolFeePercentage,
               fermionConfig.protocolParameters.protocolFeePercentage,
             );
-            console.log(`Old Price: ${minimalPriceOld}`);
-            console.log(`New Price: ${minimalPriceNew}`);
             buyerAdvancedOrder.parameters.offer[0].startAmount = minimalPriceNew.toString();
             buyerAdvancedOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
             await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
@@ -1474,9 +1471,6 @@ describe("Offer", function () {
           bosonProtocolFeePercentage,
           fermionConfig.protocolParameters.protocolFeePercentage,
         );
-
-        console.log(`VerifierFee: ${verifierFee}`);
-        console.log(`ProtocolFeePercentage: ${bosonProtocolFeePercentage}`);
 
         it("Unwrapping", async function () {
           await mockToken.approve(fermionProtocolAddress, sellerDeposit);

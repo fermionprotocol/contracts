@@ -263,16 +263,14 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             }
             IBosonProtocol.PriceDiscovery memory _priceDiscovery;
             {
-                address wrapperAddress = pl.offerLookups[offerId].fermionFNFTAddress;
                 uint256 bosonProtocolFee;
                 (bosonProtocolFee, _priceDiscovery) = calculatePriceAndBosonFee(
                     _tokenId,
                     _buyerOrder,
                     _selfSale,
                     _exchangeAmount,
-                    offer,
                     exchangeToken,
-                    wrapperAddress
+                    pl.offerLookups[offerId].fermionFNFTAddress // wrapper address
                 );
 
                 (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = calculateAndValidateFees(
@@ -324,12 +322,31 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         );
     }
 
+    /**
+     * @notice Calculates the Boson protocol fee and price discovery details for the specified offer and token.
+     *
+     * @dev This function determines the price and Boson protocol fee depending on whether the sale is self-sale
+     *      or through an external marketplace (Seaport). It also checks that the buyer's order is valid and that
+     *      the fees (like OpenSea fees) are below the price.
+     *
+     * Reverts if:
+     * - The opensea order is not valid
+     *
+     * @param _tokenId The token ID of the F-NFT being unwrapped.
+     * @param _buyerOrder The Seaport buyer order (if not self sale).
+     * @param _selfSale Boolean flag indicating if the sale is a self-sale (unwraps to the seller).
+     * @param _exchangeAmount The exchange amount the seller is willing to pay in case of a self-sale.
+     * @param exchangeToken The address of the exchange token used for the transaction.
+     * @param wrapperAddress The address of the wrapper contract.
+     *
+     * @return bosonProtocolFee The fee amount to be paid to the Boson Protocol.
+     * @return _priceDiscovery A struct containing price discovery details for the Boson Protocol.
+     */
     function calculatePriceAndBosonFee(
         uint256 _tokenId,
         SeaportTypes.AdvancedOrder memory _buyerOrder,
         bool _selfSale,
         uint256 _exchangeAmount,
-        FermionTypes.Offer storage offer,
         address exchangeToken,
         address wrapperAddress
     ) internal returns (uint256 bosonProtocolFee, IBosonProtocol.PriceDiscovery memory _priceDiscovery) {
@@ -338,7 +355,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         _priceDiscovery.conduit = wrapperAddress;
 
         if (_selfSale) {
-            bosonProtocolFee = getBosonProtocolFee(exchangeToken, offer.verifierFee, _exchangeAmount);
+            bosonProtocolFee = getBosonProtocolFee(exchangeToken, _exchangeAmount);
             if (_exchangeAmount > 0) {
                 FundsLib.validateIncomingPayment(exchangeToken, _exchangeAmount);
                 FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), _exchangeAmount);
@@ -366,7 +383,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                     _buyerOrder.parameters.consideration[1].startAmount;
             }
 
-            bosonProtocolFee = getBosonProtocolFee(exchangeToken, offer.verifierFee, _priceDiscovery.price);
+            bosonProtocolFee = getBosonProtocolFee(exchangeToken, _priceDiscovery.price);
 
             _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
         }
@@ -374,11 +391,28 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         return (bosonProtocolFee, _priceDiscovery);
     }
 
+    /**
+     * @notice Calculates the Fermion and facilitator fees for the specified price and validates that the total
+     *         fees are below the price.
+     *
+     * @dev This function applies percentage-based fees for Fermion and the facilitator. It checks if the total
+     *      fees (including verifier and Boson protocol fees) are less than the total price.
+     *
+     * Reverts if:
+     * - The sum of all fees exceeds the price.
+     *
+     * @param price The price of the NFT being unwrapped.
+     * @param bosonProtocolFee The fee amount to be paid to the Boson Protocol.
+     * @param offer The Fermion offer containing details of the sale.
+     *
+     * @return fermionFeeAmount The calculated fee amount to be paid to the Fermion Protocol.
+     * @return facilitatorFeeAmount The calculated fee amount to be paid to the facilitator.
+     */
     function calculateAndValidateFees(
         uint256 price,
         uint256 bosonProtocolFee,
         FermionTypes.Offer storage offer
-    ) internal returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
+    ) internal view returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
         // Calculate facilitator and fermion fees
         facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
         fermionFeeAmount = FundsLib.applyPercentage(
@@ -456,15 +490,10 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * @notice returns the boson protocol
      *
      * @param _exchangeToken - the token used for the exchange
-     * @param _verifierFee - the verifier fee
      * @param _price - the price (if selfSale price is inputed from the user)
      * @return boson protocol fee amount, if exchange token is BOSON, then boson flat fee amount is returned
      */
-    function getBosonProtocolFee(
-        address _exchangeToken,
-        uint256 _verifierFee,
-        uint256 _price
-    ) internal view returns (uint256) {
+    function getBosonProtocolFee(address _exchangeToken, uint256 _price) internal view returns (uint256) {
         return BOSON_PROTOCOL.getProtocolFee(_exchangeToken, _price);
     }
 
