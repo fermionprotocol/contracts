@@ -200,6 +200,16 @@ describe("Entity", function () {
         ).to.revertedWithCustomError(fermionErrors, "NonAscendingOrder");
       });
 
+      it("price ranges and percent tiers are different length", async function () {
+        await expect(
+          configFacet.setProtocolFeeTable(wallets[10].address, [1000, 1000, 1000, 1000], [500, 1000, 2000]),
+        ).to.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch");
+
+        await expect(
+          configFacet.setProtocolFeeTable(wallets[10].address, [1000, 1000, 1000], [500, 1000, 2000, 3000]),
+        ).to.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch");
+      });
+
       it("Zero default verification timeout", async function () {
         await expect(configFacet.setDefaultVerificationTimeout(0n)).to.be.revertedWithCustomError(
           fermionErrors,
