@@ -22,7 +22,7 @@ describe("FermionFNFT - wrapper tests", function () {
     fermionProtocolSigner = wallets[1]; // wallet that simulates the fermion protocol
     wrapperContractOwner = wallets[2];
 
-    const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
+    const [mockConduit, mockBosonPriceDiscovery, openSeaRecipient] = wallets.slice(9, 12);
 
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
@@ -30,6 +30,8 @@ describe("FermionFNFT - wrapper tests", function () {
         seaport: wallets[10].address, // dummy address
         openSeaConduit: mockConduit.address,
         openSeaConduitKey: ZeroHash,
+        openSeaZoneHash: ZeroHash,
+        openSeaRecipient: openSeaRecipient,
       },
     ];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
@@ -158,7 +160,7 @@ describe("FermionFNFT - wrapper tests", function () {
     });
   });
 
-  context("wrapForAuction", function () {
+  context("wrap", function () {
     let seller: HardhatEthersSigner;
     const startTokenId = 2n ** 128n + 1n;
     const quantity = 10n;
@@ -182,7 +184,7 @@ describe("FermionFNFT - wrapper tests", function () {
       const tx = await fermionProtocolSigner.sendTransaction({
         to: await fermionWrapperProxy.getAddress(),
         data:
-          fermionWrapperProxy.interface.encodeFunctionData("wrapForAuction", [startTokenId, quantity, seller.address]) +
+          fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
           fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
       });
 
@@ -196,7 +198,7 @@ describe("FermionFNFT - wrapper tests", function () {
     context("Revert reasons", function () {
       it("Unauthorized call", async function () {
         const randomWallet = wallets[4];
-        await expect(fermionWrapperProxy.connect(randomWallet).wrapForAuction(startTokenId, quantity, seller.address))
+        await expect(fermionWrapperProxy.connect(randomWallet).wrap(startTokenId, quantity, seller.address))
           .to.be.revertedWithCustomError(mockBoson, "ERC721InsufficientApproval")
           .withArgs(await fermionWrapperProxy.getAddress(), startTokenId);
       });
@@ -207,11 +209,8 @@ describe("FermionFNFT - wrapper tests", function () {
         await fermionProtocolSigner.sendTransaction({
           to: await fermionWrapperProxy.getAddress(),
           data:
-            fermionWrapperProxy.interface.encodeFunctionData("wrapForAuction", [
-              startTokenId,
-              quantity,
-              seller.address,
-            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+            fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
+            fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
         });
 
         for (let i = 0n; i < quantity; i++) {
@@ -249,7 +248,7 @@ describe("FermionFNFT - wrapper tests", function () {
       await fermionProtocolSigner.sendTransaction({
         to: await fermionWrapperProxy.getAddress(),
         data:
-          fermionWrapperProxy.interface.encodeFunctionData("wrapForAuction", [startTokenId, quantity, seller.address]) +
+          fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
           fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
       });
     });
@@ -353,7 +352,7 @@ describe("FermionFNFT - wrapper tests", function () {
       await fermionProtocolSigner.sendTransaction({
         to: await fermionWrapperProxy.getAddress(),
         data:
-          fermionWrapperProxy.interface.encodeFunctionData("wrapForAuction", [startTokenId, quantity, seller.address]) +
+          fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
           fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
       });
 

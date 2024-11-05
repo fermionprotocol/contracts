@@ -86,8 +86,39 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * @param _length The number of tokens to wrap.
      * @param _to The address to mint the wrapped tokens to.
      */
-    function wrapForAuction(uint256 _firstTokenId, uint256 _length, address _to) external {
-        wrap(_firstTokenId, _length, _to);
+    function wrap(uint256 _firstTokenId, uint256 _length, address _to) external {
+        address msgSender = _msgSender();
+        for (uint256 i = 0; i < _length; i++) {
+            uint256 tokenId = _firstTokenId + i;
+
+            // Not using safeTransferFrom since this contract is the recipient and we are sure it can handle the vouchers
+            IERC721(voucherAddress).transferFrom(msgSender, address(this), tokenId);
+
+            // Mint to the specified address
+            _safeMint(_to, tokenId);
+        }
+    }
+
+    /**
+     * @notice List fixed order on Seaport
+     *
+     * Reverts if:
+     * - lengths of _tokenIds, _prices and _endTimes do not match
+     *
+     * @param _firstTokenId The first token id.
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function listFixedPriceOffer(
+        uint256 _firstTokenId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        address _exchangeToken
+    ) external {
+        SEAPORT_WRAPPER.functionDelegateCall(
+            abi.encodeCall(SeaportWrapper.listFixedPriceOrder, (_firstTokenId, _prices, _endTimes, _exchangeToken))
+        );
     }
 
     /**
@@ -203,26 +234,6 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
             revert InvalidStateOrCaller(_tokenId, _msgSender(), state);
         }
         return super._update(_to, _tokenId, _auth);
-    }
-
-    /**
-     * @notice Wraps the vouchers, transfer true vouchers to this contract and mint wrapped vouchers
-     *
-     * @param _firstTokenId The first token id.
-     * @param _length The number of tokens to wrap.
-     * @param _to The address to mint the wrapped tokens to.
-     */
-    function wrap(uint256 _firstTokenId, uint256 _length, address _to) internal {
-        for (uint256 i = 0; i < _length; i++) {
-            uint256 tokenId = _firstTokenId + i;
-
-            // Transfer vouchers to this contract
-            // Not using safeTransferFrom since this contract is the recipient and we are sure it can handle the vouchers
-            IERC721(voucherAddress).transferFrom(_msgSender(), address(this), tokenId);
-
-            // Mint to the specified address
-            _safeMint(_to, tokenId);
-        }
     }
 
     receive() external payable {}

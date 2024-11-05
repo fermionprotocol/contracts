@@ -30,6 +30,11 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 
+    enum WrapType {
+        OS_AUCTION,
+        OS_FIXED_PRICE
+    }
+
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
 
@@ -141,7 +146,49 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         uint256 _quantity
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
-        wrapNFTS(_offerId, bosonVoucher, startingNFTId, _quantity, FermionStorage.protocolStatus());
+        wrapNFTS(
+            _offerId,
+            bosonVoucher,
+            startingNFTId,
+            _quantity,
+            WrapType.OS_AUCTION,
+            FermionStorage.protocolStatus()
+        );
+    }
+
+    /**
+     * @notice Mint and wrap NFTs and makes a fixed price offer on seaport
+     *
+     * Emits an NFTsMinted and NFTsWrapped event
+     *
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator
+     *
+     * @param _offerId - the offer ID
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     */
+    function mintWrapAndListNFTs(
+        uint256 _offerId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+        if (_prices.length != _endTimes.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, _endTimes.length);
+
+        uint256 quantity = _prices.length;
+        (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, quantity);
+        (address wrapperAddress, address exchangeToken) = wrapNFTS(
+            _offerId,
+            bosonVoucher,
+            startingNFTId,
+            quantity,
+            WrapType.OS_FIXED_PRICE,
+            FermionStorage.protocolStatus()
+        );
+
+        wrapperAddress.listFixedPriceOffer(startingNFTId, _prices, _endTimes, exchangeToken);
     }
 
     /**
@@ -535,6 +582,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * @param _bosonVoucher - the Boson rNFT voucher contract
      * @param _startingNFTId - the starting NFT ID
      * @param _quantity - the number of NFTs to wrap
+     * @param _wrapType - the wrap type
      * @param ps - the protocol status storage pointer
      */
     function wrapNFTS(
@@ -542,12 +590,13 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         IBosonVoucher _bosonVoucher,
         uint256 _startingNFTId,
         uint256 _quantity,
+        WrapType _wrapType,
         FermionStorage.ProtocolStatus storage ps
-    ) internal {
+    ) internal returns (address wrapperAddress, address _exchangeToken) {
         address msgSender = _msgSender();
         FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
 
-        address wrapperAddress = offerLookup.fermionFNFTAddress;
+        wrapperAddress = offerLookup.fermionFNFTAddress;
         if (wrapperAddress == address(0)) {
             // Currently, the wrapper is created for each offer, since BOSON_PROTOCOL.reserveRange can be called only once
             // so else path is not possible. This is here for future proofing.
@@ -557,18 +606,13 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             offerLookup.fermionFNFTAddress = wrapperAddress;
 
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-            wrapperAddress.initialize(
-                address(_bosonVoucher),
-                msgSender,
-                offer.exchangeToken,
-                _offerId,
-                offer.metadataURI
-            );
+            _exchangeToken = offer.exchangeToken;
+            wrapperAddress.initialize(address(_bosonVoucher), msgSender, _exchangeToken, _offerId, offer.metadataURI);
         }
 
         // wrap NFTs
         _bosonVoucher.setApprovalForAll(wrapperAddress, true);
-        wrapperAddress.wrapForAuction(_startingNFTId, _quantity, msgSender);
+        wrapperAddress.wrap(_startingNFTId, _quantity, _wrapType == WrapType.OS_AUCTION ? msgSender : wrapperAddress);
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);

@@ -20,7 +20,7 @@ interface IFermionWrapper is IERC721 {
      * @param _length The number of tokens to wrap.
      * @param _to The address to mint the wrapped tokens to.
      */
-    function wrapForAuction(uint256 _firstTokenId, uint256 _length, address _to) external;
+    function wrap(uint256 _firstTokenId, uint256 _length, address _to) external;
 
     /**
      * @notice Unwraps the voucher, finalizes the auction, transfers the Boson rNFT to Fermion Protocol and F-NFT to the buyer
@@ -36,6 +36,21 @@ interface IFermionWrapper is IERC721 {
      * @param _tokenId The token id.
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external;
+
+    /**
+     * @notice List fixed order on Seaport
+     *
+     * @param _firstTokenId The first token id.
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function listFixedPriceOffer(
+        uint256 _firstTokenId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        address _exchangeToken
+    ) external;
 
     function transferOwnership(address _newOwner) external;
 }

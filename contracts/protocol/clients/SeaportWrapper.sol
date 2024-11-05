@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
+import { HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
 
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
@@ -20,6 +21,8 @@ contract SeaportWrapper is FermionFNFTBase {
         address seaport;
         address openSeaConduit;
         bytes32 openSeaConduitKey;
+        bytes32 openSeaZoneHash;
+        address payable openSeaRecipient;
     }
 
     address private immutable SEAPORT;
@@ -27,6 +30,8 @@ contract SeaportWrapper is FermionFNFTBase {
     // OpenSea Conduit
     address private immutable OS_CONDUIT;
     bytes32 private immutable OS_CONDUIT_KEY;
+    bytes32 private immutable OS_ZONE_HASH;
+    address payable private immutable OS_RECIPIENT;
 
     /**
      * @notice Constructor
@@ -43,6 +48,8 @@ contract SeaportWrapper is FermionFNFTBase {
             ? _seaportConfig.seaport
             : _seaportConfig.openSeaConduit;
         OS_CONDUIT_KEY = _seaportConfig.openSeaConduitKey;
+        OS_ZONE_HASH = _seaportConfig.openSeaZoneHash;
+        OS_RECIPIENT = _seaportConfig.openSeaRecipient;
     }
 
     function wrapOpenSea() external {
@@ -147,5 +154,76 @@ contract SeaportWrapper is FermionFNFTBase {
             fulfillments,
             address(this)
         );
+    }
+
+    /**
+     * @notice List fixed price orders on OpenSea. This contract is the owner and creates the openSea order using the validate function on Seaport.
+     *
+     * @param _firstTokenId The first token id.
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function listFixedPriceOrder(
+        uint256 _firstTokenId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        address _exchangeToken
+    ) external {
+        SeaportTypes.Order[] memory orders = new SeaportTypes.Order[](_prices.length);
+
+        for (uint256 i = 0; i < _prices.length; i++) {
+            uint256 tokenId = _firstTokenId + i;
+            uint256 tokenPrice = _prices[i];
+            uint256 reducedPrice = ((HUNDRED_PERCENT - OS_FEE_PERCENTAGE) * tokenPrice) / HUNDRED_PERCENT;
+
+            // Create order
+            SeaportTypes.OfferItem[] memory offer = new SeaportTypes.OfferItem[](1);
+            offer[0] = SeaportTypes.OfferItem({
+                itemType: SeaportTypes.ItemType.ERC721,
+                token: address(this),
+                identifierOrCriteria: tokenId,
+                startAmount: 1,
+                endAmount: 1
+            });
+
+            SeaportTypes.ConsiderationItem[] memory consideration = new SeaportTypes.ConsiderationItem[](2);
+            consideration[0] = SeaportTypes.ConsiderationItem({
+                itemType: _exchangeToken == address(0) ? SeaportTypes.ItemType.NATIVE : SeaportTypes.ItemType.ERC20,
+                token: _exchangeToken,
+                identifierOrCriteria: 0,
+                startAmount: reducedPrice,
+                endAmount: reducedPrice,
+                recipient: payable(address(this))
+            });
+
+            consideration[1] = SeaportTypes.ConsiderationItem({
+                itemType: _exchangeToken == address(0) ? SeaportTypes.ItemType.NATIVE : SeaportTypes.ItemType.ERC20,
+                token: _exchangeToken,
+                identifierOrCriteria: 0,
+                startAmount: tokenPrice - reducedPrice, // If this is too small, OS won't show the order. This can happen if the price is too low.
+                endAmount: tokenPrice - reducedPrice,
+                recipient: OS_RECIPIENT
+            });
+
+            orders[i] = SeaportTypes.Order({
+                parameters: SeaportTypes.OrderParameters({
+                    offerer: address(this),
+                    zone: OS_CONDUIT,
+                    offer: offer,
+                    consideration: consideration,
+                    orderType: SeaportTypes.OrderType.FULL_OPEN,
+                    startTime: 0,
+                    endTime: _endTimes[i],
+                    zoneHash: OS_ZONE_HASH,
+                    salt: 0,
+                    conduitKey: OS_CONDUIT_KEY,
+                    totalOriginalConsiderationItems: 2
+                }),
+                signature: ""
+            });
+        }
+
+        SeaportInterface(SEAPORT).validate(orders);
     }
 }

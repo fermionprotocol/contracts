@@ -146,8 +146,8 @@ library FermionFNFTLib {
      * @param _length The number of tokens to wrap.
      * @param _to The address to mint the wrapped tokens to.
      */
-    function wrapForAuction(address _fnft, uint256 _firstTokenId, uint256 _length, address _to) internal {
-        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.wrapForAuction, (_firstTokenId, _length, _to)));
+    function wrap(address _fnft, uint256 _firstTokenId, uint256 _length, address _to) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.wrap, (_firstTokenId, _length, _to)));
     }
 
     /**
@@ -160,6 +160,26 @@ library FermionFNFTLib {
 
         if (returndata.length != SLOT_SIZE) revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
         wrappedVoucherOwner = abi.decode(returndata, (address));
+    }
+
+    /**
+     * @notice List fixed order on Seaport
+     *
+     * @param _firstTokenId The first token id.
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function listFixedPriceOffer(
+        address _fnft,
+        uint256 _firstTokenId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        address _exchangeToken
+    ) internal {
+        _fnft.functionCallWithAddress(
+            abi.encodeCall(IFermionWrapper.listFixedPriceOffer, (_firstTokenId, _prices, _endTimes, _exchangeToken))
+        );
     }
 
     /**
