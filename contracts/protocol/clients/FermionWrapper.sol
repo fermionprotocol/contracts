@@ -143,9 +143,26 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     }
 
     /**
+     * @notice Unwraps the voucher, and transfers the sale proceeds to Boson Protocol
+     *
+     * @param _tokenId The token id.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function unwrapFixedPriced(uint256 _tokenId, address _exchangeToken) external {
+        unwrap(_tokenId);
+
+        uint256 price = Common._getFermionCommonStorage().fixedPrice[_tokenId];
+        IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
+
+        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
+    }
+
+    /**
      * @notice Unwraps the voucher, but skip the OS auction and leave the F-NFT with the seller
      *
      * @param _tokenId The token id.
+     * @param _exchangeToken The token to be used for the exchange.
+     * @param _verifierFee The verifier fee
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external {
         unwrap(_tokenId);
@@ -228,7 +245,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
         FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
         if (
-            state == FermionTypes.TokenState.Wrapped ||
+            (state == FermionTypes.TokenState.Wrapped && ownerOf(_tokenId) != address(this)) ||
             (state == FermionTypes.TokenState.Unverified && _to != address(0))
         ) {
             revert InvalidStateOrCaller(_tokenId, _msgSender(), state);

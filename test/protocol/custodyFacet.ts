@@ -16,6 +16,7 @@ import {
   TokenState,
   VerificationStatus,
   AccountRole,
+  WrapType,
 } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
@@ -116,11 +117,11 @@ describe("Custody", function () {
     await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
     const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
-    await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+    await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
     const { buyerAdvancedOrder: buyerAdvancedOrderSelfCustody, tokenId: tokenIdSelfCustody } =
       await createBuyerAdvancedOrder(buyer, offerIdSelfCustody, exchangeIdSelfCustody);
-    await offerFacet.unwrapNFT(tokenIdSelfCustody, buyerAdvancedOrderSelfCustody);
+    await offerFacet.unwrapNFT(tokenIdSelfCustody, WrapType.OS_AUCTION, buyerAdvancedOrderSelfCustody);
 
     // unwrap to self
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();

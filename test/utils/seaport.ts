@@ -4,6 +4,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
 import { BigNumberish, Contract } from "ethers";
+import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 
 const { getContractFactory, parseEther } = ethers;
 
@@ -77,15 +78,66 @@ export function createBuyerAdvancedOrderClosure(
     );
 
     const buyerOrder = await executeAllActions();
-    const buyerAdvancedOrder = {
-      ...buyerOrder,
-      numerator: 1n,
-      denominator: 1n,
-      extraData: "0x",
-    };
+    // const buyerAdvancedOrder = {
+    //   ...buyerOrder,
+    //   numerator: 1n,
+    //   denominator: 1n,
+    //   extraData: "0x",
+    // };
+    const buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
 
     const encumberedAmount = fullPrice - openSeaFee;
 
     return { buyerAdvancedOrder, tokenId, encumberedAmount };
   };
+}
+
+export function encodeBuyerAdvancedOrder(
+  buyerOrder: OrderWithCounter,
+  numerator: bigint = 1n,
+  denominator: bigint = 1n,
+  extraData: string = "0x",
+) {
+  const abiCoder = new ethers.AbiCoder();
+  const advancedOrderTupleType = `tuple(
+            tuple(
+                address offerer,
+                address zone,
+                tuple(
+                    uint8 itemType,
+                    address token,
+                    uint256 identifierOrCriteria,
+                    uint256 startAmount,
+                    uint256 endAmount
+                )[] offer,
+                tuple(
+                    uint8 itemType,
+                    address token,
+                    uint256 identifierOrCriteria,
+                    uint256 startAmount,
+                    uint256 endAmount,
+                    address recipient
+                )[] consideration,
+                uint8 orderType,
+                uint256 startTime,
+                uint256 endTime,
+                bytes32 zoneHash,
+                uint256 salt,
+                bytes32 conduitKey,
+                uint256 totalOriginalConsiderationItems
+            ) parameters,
+            uint120 numerator,
+            uint120 denominator,
+            bytes signature,
+            bytes extraData
+        )`;
+
+  const buyerAdvancedOrder = {
+    ...buyerOrder,
+    numerator,
+    denominator,
+    extraData,
+  };
+
+  return abiCoder.encode([advancedOrderTupleType], [buyerAdvancedOrder]);
 }

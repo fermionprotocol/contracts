@@ -58,6 +58,11 @@ export enum AuctionState {
   Redeemed,
 }
 
+export enum WrapType {
+  OS_AUCTION,
+  OS_FIXED_PRICE,
+}
+
 export function enumIterator(enumObject: any) {
   return Object.keys(enumObject).filter((key) => !isNaN(Number(key)));
 }

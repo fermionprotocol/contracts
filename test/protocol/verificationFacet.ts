@@ -11,7 +11,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, TokenState, VerificationStatus, AccountRole } from "../utils/enums";
+import { EntityRole, PausableRegion, TokenState, VerificationStatus, AccountRole, WrapType } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { getBosonHandler } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
@@ -151,14 +151,14 @@ describe("Verification", function () {
       offerId,
       exchangeId,
     );
-    await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+    await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
     const {
       buyerAdvancedOrder: buyerAdvancedOrderSelfVerification,
       tokenId: tokenIdSelfVerification,
       encumberedAmount: encumberedAmountSelfVerification,
     } = await createBuyerAdvancedOrder(buyer, offerIdSelfVerification, exchangeIdSelfVerification);
-    await offerFacet.unwrapNFT(tokenIdSelfVerification, buyerAdvancedOrderSelfVerification);
+    await offerFacet.unwrapNFT(tokenIdSelfVerification, WrapType.OS_AUCTION, buyerAdvancedOrderSelfVerification);
 
     // unwrap to self #1
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();

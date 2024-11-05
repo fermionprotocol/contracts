@@ -14,14 +14,15 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, TokenState, AccountRole } from "../utils/enums";
+import { EntityRole, PausableRegion, TokenState, AccountRole, WrapType } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
 import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
-import { AdvancedOrder } from "@opensea/seaport-js/lib/types";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
+import { encodeBuyerAdvancedOrder } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
+import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 
 const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
 const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
@@ -615,7 +616,7 @@ describe("Offer", function () {
     const priceSubOSAndBosonFee = priceSubOSFee - applyPercentage(priceSubOSFee, bosonProtocolFeePercentage);
     let openSeaAddress: string, buyerAddress: string;
     let bosonProtocolBalance: bigint, openSeaBalance: bigint;
-    let buyerAdvancedOrder: AdvancedOrder;
+    let buyerAdvancedOrder: string;
     let seaport: Seaport;
 
     let exchangeToken: string;
@@ -638,6 +639,7 @@ describe("Offer", function () {
 
     context("Non-zero seller deposit", function () {
       const sellerDeposit = parseEther("1");
+      let buyerOrder: OrderWithCounter;
 
       beforeEach(async function () {
         const fermionOffer = {
@@ -691,14 +693,9 @@ describe("Offer", function () {
           buyerAddress,
         );
 
-        const buyerOrder = await executeAllActions();
+        buyerOrder = await executeAllActions();
 
-        buyerAdvancedOrder = {
-          ...buyerOrder,
-          numerator: 1n,
-          denominator: 1n,
-          extraData: "0x",
-        };
+        buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
 
         bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
         openSeaBalance = await mockToken.balanceOf(openSeaAddress);
@@ -711,7 +708,7 @@ describe("Offer", function () {
         });
 
         it("Unwrapping", async function () {
-          const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+          const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
           // events:
           // fermion
@@ -775,7 +772,7 @@ describe("Offer", function () {
         it("Facilitator can unwrap", async function () {
           await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit);
 
-          const tx = await offerFacet.connect(facilitator).unwrapNFT(tokenId, buyerAdvancedOrder);
+          const tx = await offerFacet.connect(facilitator).unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
           // events:
           // fermion
@@ -794,7 +791,7 @@ describe("Offer", function () {
 
             const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, exchangeToken);
 
-            const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
             // events:
             // fermion
@@ -828,7 +825,7 @@ describe("Offer", function () {
             await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
 
             await mockToken.approve(fermionProtocolAddress, remainder);
-            const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
             // events:
             // fermion
@@ -917,17 +914,12 @@ describe("Offer", function () {
 
             const buyerOrder = await executeAllActions();
 
-            const buyerAdvancedOrder = {
-              ...buyerOrder,
-              numerator: 1n,
-              denominator: 1n,
-              extraData: "0x",
-            };
+            const buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
 
             const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
             const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
 
-            const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
             // events:
             // fermion
@@ -1025,17 +1017,12 @@ describe("Offer", function () {
 
             const buyerOrder = await executeAllActions();
 
-            const buyerAdvancedOrder = {
-              ...buyerOrder,
-              numerator: 1n,
-              denominator: 1n,
-              extraData: "0x",
-            };
+            const buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
 
             const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
             const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
 
-            const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
             // events:
             // fermion
@@ -1100,6 +1087,7 @@ describe("Offer", function () {
           const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
           const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
             tokenId,
+            WrapType.OS_AUCTION,
             buyerAdvancedOrder,
             customItemVerificationTimeout,
           );
@@ -1122,17 +1110,17 @@ describe("Offer", function () {
           it("Offer region is paused", async function () {
             await pauseFacet.pause([PausableRegion.Offer]);
 
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
               .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
               .withArgs(PausableRegion.Offer);
           });
 
           it("Caller is not the seller's assistant", async function () {
-            await verifySellerAssistantRole("unwrapNFT", [tokenId, buyerAdvancedOrder]);
+            await verifySellerAssistantRole("unwrapNFT", [tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder]);
           });
 
           it("Caller is not the facilitator defined in the offer", async function () {
-            await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, buyerAdvancedOrder))
+            await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
               .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
               .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
           });
@@ -1142,14 +1130,14 @@ describe("Offer", function () {
               // ERC20 offer - insufficient allowance
               await mockToken.approve(fermionProtocolAddress, sellerDeposit - 1n);
 
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
                 .withArgs(fermionProtocolAddress, sellerDeposit - 1n, sellerDeposit);
 
               // ERC20 offer - contract sends insufficient funds
               await mockToken.approve(fermionProtocolAddress, sellerDeposit);
               await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
                 .withArgs(sellerDeposit, sellerDeposit - 1n);
               await mockToken.setBurnAmount(0);
@@ -1158,13 +1146,13 @@ describe("Offer", function () {
               const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
               await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
 
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
                 .withArgs(defaultSigner.address, 0n, sellerDeposit);
 
               // Send native currency to ERC20 offer
               await expect(
-                offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit }),
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: sellerDeposit }),
               ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
             });
 
@@ -1175,14 +1163,14 @@ describe("Offer", function () {
               // ERC20 offer - insufficient allowance
               await mockToken.approve(fermionProtocolAddress, remainder - 1n);
 
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
                 .withArgs(fermionProtocolAddress, remainder - 1n, remainder);
 
               // ERC20 offer - contract sends insufficient funds
               await mockToken.approve(fermionProtocolAddress, remainder);
               await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
                 .withArgs(remainder, remainder - 1n);
               await mockToken.setBurnAmount(0);
@@ -1191,13 +1179,13 @@ describe("Offer", function () {
               const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
               await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
 
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
                 .withArgs(defaultSigner.address, 0n, remainder);
 
               // Send native currency to ERC20 offer
               await expect(
-                offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder }),
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: remainder }),
               ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
             });
 
@@ -1231,12 +1219,12 @@ describe("Offer", function () {
               it("Zero available funds", async function () {
                 // Native currency offer - insufficient funds
                 await expect(
-                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit - 1n }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: sellerDeposit - 1n }),
                 ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
 
                 // Native currency offer - too much sent
                 await expect(
-                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit + 1n }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: sellerDeposit + 1n }),
                 ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
@@ -1248,12 +1236,12 @@ describe("Offer", function () {
 
                 // Native currency offer - insufficient funds
                 await expect(
-                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder - 1n }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: remainder - 1n }),
                 ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
 
                 // Native currency offer - too much sent
                 await expect(
-                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder + 1n }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: remainder + 1n }),
                 ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
             });
@@ -1261,9 +1249,10 @@ describe("Offer", function () {
 
           it("Price does not cover the verifier fee", async function () {
             const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
-            buyerAdvancedOrder.parameters.offer[0].startAmount = minimalPrice.toString();
-            buyerAdvancedOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+            buyerOrder.parameters.offer[0].startAmount = minimalPrice.toString();
+            buyerOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
               .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
               .withArgs(minimalPrice - 1n, minimalPrice);
           });
@@ -1296,52 +1285,53 @@ describe("Offer", function () {
             await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
 
             const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
-            buyerAdvancedOrder.parameters.offer[0].startAmount = minimalPrice.toString();
-            buyerAdvancedOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
+            buyerOrder.parameters.offer[0].startAmount = minimalPrice.toString();
+            buyerOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
               .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
               .withArgs(minimalPrice - 1n, minimalPrice);
           });
 
           it("Buyer order does not have 1 offer", async function () {
             // two offers
-            buyerAdvancedOrder.parameters.offer.push(buyerAdvancedOrder.parameters.offer[0]);
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
+            buyerOrder.parameters.offer.push(buyerOrder.parameters.offer[0]);
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+            await expect(
+              offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
 
             // 0 offers
-            buyerAdvancedOrder.parameters.offer = [];
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
+            buyerOrder.parameters.offer = [];
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+            await expect(
+              offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
           });
 
           it("Buyer order have more than 2 considerations", async function () {
-            buyerAdvancedOrder.parameters.consideration.push(buyerAdvancedOrder.parameters.consideration[1]);
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
+            buyerOrder.parameters.consideration.push(buyerOrder.parameters.consideration[1]);
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+            await expect(
+              offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
           });
 
           it("OS fee is greater than the price", async function () {
-            buyerAdvancedOrder.parameters.offer[0].startAmount = "0";
-            buyerAdvancedOrder.parameters.consideration[1].startAmount = "1";
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
+            buyerOrder.parameters.offer[0].startAmount = "0";
+            buyerOrder.parameters.consideration[1].startAmount = "1";
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+            await expect(
+              offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
           });
 
           it("OS fee is more than expected", async function () {
-            buyerAdvancedOrder.parameters.consideration[1].startAmount += 1n;
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
+            buyerOrder.parameters.consideration[1].startAmount += 1n;
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+            await expect(
+              offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
           });
 
           it("Custom verification timeout too long", async function () {
@@ -1352,7 +1342,12 @@ describe("Offer", function () {
             await setNextBlockTimestamp(String(nextBlockTimestamp));
 
             await expect(
-              offerFacet.unwrapNFTAndSetVerificationTimeout(tokenId, buyerAdvancedOrder, customItemVerificationTimeout),
+              offerFacet.unwrapNFTAndSetVerificationTimeout(
+                tokenId,
+                WrapType.OS_AUCTION,
+                buyerAdvancedOrder,
+                customItemVerificationTimeout,
+              ),
             )
               .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
               .withArgs(
@@ -1399,7 +1394,7 @@ describe("Offer", function () {
 
             const buyerOrder = await executeAllActions();
 
-            buyerAdvancedOrder = {
+            const buyerAdvancedOrder = {
               ...buyerOrder,
               numerator: 1n,
               denominator: 1n,
@@ -1437,20 +1432,30 @@ describe("Offer", function () {
         context("Seaport tests", function () {
           // Not testing the protocol, just the interaction with Seaport
           it("Seaport should not allow invalid signature", async function () {
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder({ ...buyerOrder, signature: "0x" });
             await expect(
-              offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: "0x" }),
+              offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
             ).to.be.revertedWithCustomError(seaportContract, "InvalidSignature");
 
-            const invalidSignature = buyerAdvancedOrder.signature.replace("1", "2");
+            const invalidSignature = buyerOrder.signature.replace("1", "2");
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder({ ...buyerOrder, signature: invalidSignature });
             await expect(
-              offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: invalidSignature }),
+              offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
             ).to.be.revertedWithCustomError(seaportContract, "InvalidSigner");
           });
 
           it("Works with pre-validated orders", async function () {
             const buyer = wallets[4];
-            await seaportContract.connect(buyer).validate([buyerAdvancedOrder]);
-            await expect(offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: "0x" })).to.not.be.reverted;
+            buyerAdvancedOrder = encodeBuyerAdvancedOrder({ ...buyerOrder, signature: "0x" });
+            await seaportContract.connect(buyer).validate([
+              {
+                ...buyerOrder,
+                numerator: 1n,
+                denominator: 1n,
+                extraData: "0x",
+              },
+            ]);
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder)).to.not.be.reverted;
           });
         });
       });
@@ -2005,12 +2010,7 @@ describe("Offer", function () {
 
         const buyerOrder = await executeAllActions();
 
-        buyerAdvancedOrder = {
-          ...buyerOrder,
-          numerator: 1n,
-          denominator: 1n,
-          extraData: "0x",
-        };
+        buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
 
         bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
         openSeaBalance = await mockToken.balanceOf(openSeaAddress);
@@ -2018,7 +2018,7 @@ describe("Offer", function () {
 
       context("unwrap (with OS auction)", function () {
         it("Unwrapping", async function () {
-          const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+          const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
           // events:
           // fermion

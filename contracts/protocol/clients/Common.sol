@@ -14,6 +14,8 @@ library Common {
         mapping(uint256 => FermionTypes.TokenState) tokenState;
         // Metadata URI, used for all tokens and contract URI
         string metadataUri;
+        // token price for fixed-price sales
+        mapping(uint256 => uint256) fixedPrice;
     }
 
     // keccak256(abi.encode(uint256(keccak256("fermion.common.storage")) - 1)) & ~bytes32(uint256(0xff))

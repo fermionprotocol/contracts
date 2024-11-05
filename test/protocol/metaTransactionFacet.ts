@@ -3,7 +3,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
-import { EntityRole, PausableRegion, TokenState } from "../utils/enums";
+import { EntityRole, PausableRegion, TokenState, WrapType } from "../utils/enums";
 import { deployFermionProtocolFixture, deriveTokenId, deployMockTokens } from "../utils/common";
 import {
   getStateModifyingFunctions,
@@ -74,7 +74,7 @@ describe("MetaTransactions", function () {
     await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit); // approve to transfer seller deposit during the unwrapping
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
     const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
-    await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+    await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
   }
 
   before(async function () {

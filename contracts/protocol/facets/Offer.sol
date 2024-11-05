@@ -232,9 +232,15 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * - The price is not high enough to cover the verification fee
      *
      * @param _tokenId - the token ID
-     * @param _buyerOrder - the Seaport buyer order
+     * @param _wrapType - the wrap type
+     * @param _data - additional data, depending on the wrap type
      */
-    function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external payable {
+    function unwrapNFT(uint256 _tokenId, WrapType _wrapType, bytes calldata _data) external payable {
+        SeaportTypes.AdvancedOrder memory _buyerOrder;
+        if (_wrapType == WrapType.OS_AUCTION) {
+            _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
+        }
+
         unwrapNFT(_tokenId, _buyerOrder, false, 0);
     }
 
@@ -242,14 +248,21 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * @notice Same as unwrapNFT, but also sets the verification timeout
      *
      * @param _tokenId - the token ID
-     * @param _buyerOrder - the Seaport buyer order
+     * @param _wrapType - the wrap type
+     * @param _data - additional data, depending on the wrap type
      * @param _verificationTimeout - the verification timeout in UNIX timestamp
      */
     function unwrapNFTAndSetVerificationTimeout(
         uint256 _tokenId,
-        SeaportTypes.AdvancedOrder calldata _buyerOrder,
+        WrapType _wrapType,
+        bytes calldata _data,
         uint256 _verificationTimeout
     ) external payable {
+        SeaportTypes.AdvancedOrder memory _buyerOrder;
+        if (_wrapType == WrapType.OS_AUCTION) {
+            _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
+        }
+
         unwrapNFT(_tokenId, _buyerOrder, false, _verificationTimeout);
     }
 

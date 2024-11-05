@@ -4,6 +4,7 @@ pragma solidity 0.8.24;
 import { FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
+import { Common } from "./Common.sol";
 
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
@@ -172,10 +173,13 @@ contract SeaportWrapper is FermionFNFTBase {
     ) external {
         SeaportTypes.Order[] memory orders = new SeaportTypes.Order[](_prices.length);
 
+        mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
+
         for (uint256 i = 0; i < _prices.length; i++) {
             uint256 tokenId = _firstTokenId + i;
             uint256 tokenPrice = _prices[i];
             uint256 reducedPrice = ((HUNDRED_PERCENT - OS_FEE_PERCENTAGE) * tokenPrice) / HUNDRED_PERCENT;
+            fixedPrice[tokenId] = reducedPrice;
 
             // Create order
             SeaportTypes.OfferItem[] memory offer = new SeaportTypes.OfferItem[](1);
