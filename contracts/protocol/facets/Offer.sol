@@ -46,6 +46,12 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         BOSON_TOKEN = IBosonProtocol(_bosonProtocol).getTokenAddress();
     }
 
+    function init() external {
+        unwrapNFTFunction[WrapType.SELF_SALE] = selfSale;
+        unwrapNFTFunction[WrapType.OS_AUCTION] = openSeaAuction;
+        unwrapNFTFunction[WrapType.OS_FIXED_PRICE] = openSeaFixedPrice;
+    }
+
     /**
      * @notice Create an offer
      *
@@ -250,17 +256,25 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     function unwrapNFT(
         uint256 _tokenId,
         WrapType _wrapType,
-        bytes calldata _data,
+        bytes memory _data,
         uint256 _verificationTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         uint256 tokenId = _tokenId;
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
 
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        IBosonProtocol.PriceDiscovery memory _priceDiscovery;
+        FermionStorage.TokenLookups storage tokenLookups;
+        {
+            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+            address fermionFNFTAddress = pl.offerLookups[offerId].fermionFNFTAddress;
+            tokenLookups = pl.tokenLookups[tokenId];
 
-        pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(_tokenId, FermionTypes.TokenState.Unwrapping);
+            fermionFNFTAddress.pushToNextTokenState(tokenId, FermionTypes.TokenState.Unwrapping);
 
-        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+            _priceDiscovery.priceDiscoveryContract = fermionFNFTAddress;
+            _priceDiscovery.conduit = fermionFNFTAddress;
+        }
+
         {
             {
                 address exchangeToken = offer.exchangeToken;
@@ -273,81 +287,13 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                     handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
                 }
 
-                address wrapperAddress = pl.offerLookups[offerId].fermionFNFTAddress;
-
-                IBosonProtocol.PriceDiscovery memory _priceDiscovery;
                 _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
-                _priceDiscovery.priceDiscoveryContract = wrapperAddress;
-                _priceDiscovery.conduit = wrapperAddress;
+
                 {
-                    uint256 bosonProtocolFee;
-                    // TODO: refactor to use mapping(WrapType=>function(_priceDiscovery)) instead of using if-else
-                    if (_wrapType == WrapType.SELF_SALE) {
-                        // uint256 exchangeAmount = abi.decode(_data, (uint256)); // reference to PR #295
-                        {
-                            uint256 minimalPrice;
-                            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                                exchangeToken,
-                                offer.verifierFee,
-                                0
-                            );
-                            if (minimalPrice > 0) {
-                                FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-                                FundsLib.transferFundsFromProtocol(
-                                    exchangeToken,
-                                    payable(wrapperAddress),
-                                    minimalPrice
-                                );
-                            }
-
-                            _priceDiscovery.price = minimalPrice;
-                        }
-                        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                            IFermionWrapper.unwrapToSelf,
-                            (_tokenId, exchangeToken, _priceDiscovery.price)
-                        );
-                    } else if (_wrapType == WrapType.OS_AUCTION) {
-                        SeaportTypes.AdvancedOrder memory _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
-                        if (
-                            _buyerOrder.parameters.offer.length != 1 ||
-                            _buyerOrder.parameters.consideration.length > 2 ||
-                            _buyerOrder.parameters.consideration[1].startAmount >
-                            (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || // allow +1 in case they round up; minimal exposure
-                            _buyerOrder.parameters.offer[0].startAmount <
-                            _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
-                        ) {
-                            revert InvalidOpenSeaOrder();
-                        }
-
-                        unchecked {
-                            _priceDiscovery.price =
-                                _buyerOrder.parameters.offer[0].startAmount -
-                                _buyerOrder.parameters.consideration[1].startAmount;
-                        }
-                        {
-                            uint256 minimalPrice;
-                            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                                exchangeToken,
-                                offer.verifierFee,
-                                _priceDiscovery.price
-                            );
-                            if (_priceDiscovery.price < minimalPrice) {
-                                revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
-                            }
-                        }
-                        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                            IFermionWrapper.unwrap,
-                            (tokenId, _buyerOrder)
-                        );
-                    } else if (_wrapType == WrapType.OS_FIXED_PRICE) {
-                        _priceDiscovery.price = abi.decode(_data, (uint256)); // If this does not match the true price, Boson Protocol will revert
-                        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                            IFermionWrapper.unwrapFixedPriced,
-                            (tokenId, exchangeToken)
-                        );
-                    }
-
-                    tokenLookups.itemPrice = _priceDiscovery.price - bosonProtocolFee;
+                    WrapType wrapType = _wrapType;
+                    tokenLookups.itemPrice =
+                        _priceDiscovery.price -
+                        unwrapNFTFunction[wrapType](tokenId, _priceDiscovery, exchangeToken, offer.verifierFee, _data);
                 }
 
                 BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), tokenId, _priceDiscovery);
@@ -356,21 +302,27 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         }
 
         uint256 itemVerificationTimeout;
-        FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
-        uint256 maxItemVerificationTimeout = block.timestamp + pc.maxVerificationTimeout;
-        if (_verificationTimeout == 0) {
-            itemVerificationTimeout = block.timestamp + pc.defaultVerificationTimeout;
-        } else {
-            if (_verificationTimeout > maxItemVerificationTimeout) {
-                revert VerificationErrors.VerificationTimeoutTooLong(_verificationTimeout, maxItemVerificationTimeout);
+        uint256 maxItemVerificationTimeout;
+        {
+            FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
+            maxItemVerificationTimeout = block.timestamp + pc.maxVerificationTimeout;
+            if (_verificationTimeout == 0) {
+                itemVerificationTimeout = block.timestamp + pc.defaultVerificationTimeout;
+            } else {
+                if (_verificationTimeout > maxItemVerificationTimeout) {
+                    revert VerificationErrors.VerificationTimeoutTooLong(
+                        _verificationTimeout,
+                        maxItemVerificationTimeout
+                    );
+                }
+                itemVerificationTimeout = _verificationTimeout;
             }
-            itemVerificationTimeout = _verificationTimeout;
+            tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
+            tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
         }
-        tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
-        tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
 
         // The price that Fermion operates with (the price without the OpenSea and Boson protocol fee)
-        emit ItemPriceObserved(_tokenId, tokenLookups.itemPrice);
+        emit ItemPriceObserved(tokenId, tokenLookups.itemPrice);
 
         emit IVerificationEvents.VerificationInitiated(
             offerId,
@@ -378,6 +330,105 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             tokenId,
             itemVerificationTimeout,
             maxItemVerificationTimeout
+        );
+    }
+
+    mapping(WrapType => function(
+        uint256,
+        IBosonProtocol.PriceDiscovery memory,
+        address,
+        uint256,
+        bytes memory
+    ) returns (uint256))
+        internal unwrapNFTFunction;
+
+    function selfSale(
+        uint256 _tokenId,
+        IBosonProtocol.PriceDiscovery memory _priceDiscovery,
+        address exchangeToken,
+        uint256 verifierFee,
+        bytes memory _data
+    ) internal returns (uint256 bosonProtocolFee) {
+        // uint256 exchangeAmount = abi.decode(_data, (uint256)); // reference to PR #295
+        {
+            uint256 minimalPrice;
+            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(exchangeToken, verifierFee, 0);
+            if (minimalPrice > 0) {
+                FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
+                FundsLib.transferFundsFromProtocol(
+                    exchangeToken,
+                    payable(_priceDiscovery.priceDiscoveryContract),
+                    minimalPrice
+                );
+            }
+
+            _priceDiscovery.price = minimalPrice;
+        }
+        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+            IFermionWrapper.unwrapToSelf,
+            (_tokenId, exchangeToken, _priceDiscovery.price)
+        );
+    }
+
+    function openSeaAuction(
+        uint256 _tokenId,
+        IBosonProtocol.PriceDiscovery memory _priceDiscovery,
+        address exchangeToken,
+        uint256 verifierFee,
+        bytes memory _data
+    ) internal view returns (uint256 bosonProtocolFee) {
+        SeaportTypes.AdvancedOrder memory _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
+        if (
+            _buyerOrder.parameters.offer.length != 1 ||
+            _buyerOrder.parameters.consideration.length > 2 ||
+            _buyerOrder.parameters.consideration[1].startAmount >
+            (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || // allow +1 in case they round up; minimal exposure
+            _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
+        ) {
+            revert InvalidOpenSeaOrder();
+        }
+
+        unchecked {
+            _priceDiscovery.price =
+                _buyerOrder.parameters.offer[0].startAmount -
+                _buyerOrder.parameters.consideration[1].startAmount;
+        }
+        {
+            uint256 minimalPrice;
+            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                exchangeToken,
+                verifierFee,
+                _priceDiscovery.price
+            );
+            if (_priceDiscovery.price < minimalPrice) {
+                revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
+            }
+        }
+        _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
+    }
+
+    function openSeaFixedPrice(
+        uint256 _tokenId,
+        IBosonProtocol.PriceDiscovery memory _priceDiscovery,
+        address exchangeToken,
+        uint256 verifierFee,
+        bytes memory _data
+    ) internal view returns (uint256 bosonProtocolFee) {
+        _priceDiscovery.price = abi.decode(_data, (uint256)); // If this does not match the true price, Boson Protocol will revert
+
+        uint256 minimalPrice;
+        (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+            exchangeToken,
+            verifierFee,
+            _priceDiscovery.price
+        );
+        if (_priceDiscovery.price < minimalPrice) {
+            revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
+        }
+
+        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+            IFermionWrapper.unwrapFixedPriced,
+            (_tokenId, exchangeToken)
         );
     }
 

@@ -190,6 +190,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const init = {
       MetaTransactionFacet: [await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT"])],
       ConfigFacet: [fermionConfig.protocolParameters],
+      OfferFacet: [],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
     const initCalldatas = Object.keys(init).map((facetName) =>
