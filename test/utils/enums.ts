@@ -59,6 +59,7 @@ export enum AuctionState {
 }
 
 export enum WrapType {
+  SELF_SALE,
   OS_AUCTION,
   OS_FIXED_PRICE,
 }

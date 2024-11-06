@@ -78,12 +78,6 @@ export function createBuyerAdvancedOrderClosure(
     );
 
     const buyerOrder = await executeAllActions();
-    // const buyerAdvancedOrder = {
-    //   ...buyerOrder,
-    //   numerator: 1n,
-    //   denominator: 1n,
-    //   extraData: "0x",
-    // };
     const buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
 
     const encumberedAmount = fullPrice - openSeaFee;

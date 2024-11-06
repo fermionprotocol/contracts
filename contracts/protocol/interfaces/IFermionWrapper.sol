@@ -52,5 +52,13 @@ interface IFermionWrapper is IERC721 {
         address _exchangeToken
     ) external;
 
+    /**
+     * @notice Unwraps the voucher, and transfers the sale proceeds to Boson Protocol
+     *
+     * @param _tokenId The token id.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function unwrapFixedPriced(uint256 _tokenId, address _exchangeToken) external;
+
     function transferOwnership(address _newOwner) external;
 }

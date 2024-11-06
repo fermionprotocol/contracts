@@ -1468,7 +1468,7 @@ describe("Offer", function () {
           await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
 
           await mockToken.approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.unwrapNFTToSelf(tokenId);
+          const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
 
           // events:
           // fermion
@@ -1534,7 +1534,7 @@ describe("Offer", function () {
 
           await mockToken.mint(facilitator.address, minimalPrice);
           await mockToken.connect(facilitator).approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.connect(facilitator).unwrapNFTToSelf(tokenId);
+          const tx = await offerFacet.connect(facilitator).unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
 
           // events:
           // fermion
@@ -1555,7 +1555,7 @@ describe("Offer", function () {
             const sellerAvailableFunds = await fundsFacet.getAvailableFunds(bosonSellerId, exchangeToken);
 
             await mockToken.approve(fermionProtocolAddress, minimalPrice);
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
 
             // events:
             // fermion
@@ -1590,7 +1590,7 @@ describe("Offer", function () {
             await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
 
             await mockToken.approve(fermionProtocolAddress, remainder + minimalPrice);
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
 
             // events:
             // fermion
@@ -1651,7 +1651,7 @@ describe("Offer", function () {
               value: sellerDeposit,
             });
 
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: 0n });
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: 0n });
 
             // events:
             // fermion
@@ -1683,7 +1683,12 @@ describe("Offer", function () {
           await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
 
           await mockToken.approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.unwrapNFTToSelfAndSetVerificationTimeout(tokenId, customItemVerificationTimeout);
+          const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
+            tokenId,
+            WrapType.SELF_SALE,
+            "0x",
+            customItemVerificationTimeout,
+          );
           const itemMaxVerificationTimeout =
             BigInt((await tx.getBlock()).timestamp) + fermionConfig.protocolParameters.maxVerificationTimeout;
 
@@ -1702,17 +1707,17 @@ describe("Offer", function () {
           it("Offer region is paused", async function () {
             await pauseFacet.pause([PausableRegion.Offer]);
 
-            await expect(offerFacet.unwrapNFTToSelf(tokenId))
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
               .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
               .withArgs(PausableRegion.Offer);
           });
 
           it("Caller is not the seller's assistant", async function () {
-            await verifySellerAssistantRole("unwrapNFTToSelf", [tokenId]);
+            await verifySellerAssistantRole("unwrapNFT", [tokenId, WrapType.SELF_SALE, "0x"]);
           });
 
           it("Caller is not the facilitator defined in the offer", async function () {
-            await expect(offerFacet.connect(facilitator2).unwrapNFTToSelf(tokenId))
+            await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
               .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
               .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
           });
@@ -1722,14 +1727,14 @@ describe("Offer", function () {
               // ERC20 offer - insufficient allowance
               await mockToken.approve(fermionProtocolAddress, sellerDeposit - 1n);
 
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
                 .withArgs(fermionProtocolAddress, sellerDeposit - 1n, sellerDeposit);
 
               // ERC20 offer - contract sends insufficient funds
               await mockToken.approve(fermionProtocolAddress, sellerDeposit);
               await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
                 .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
                 .withArgs(sellerDeposit, sellerDeposit - 1n);
               await mockToken.setBurnAmount(0);
@@ -1738,15 +1743,14 @@ describe("Offer", function () {
               const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
               await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
 
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
                 .withArgs(defaultSigner.address, 0n, sellerDeposit);
 
               // Send native currency to ERC20 offer
-              await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit })).to.be.revertedWithCustomError(
-                fermionErrors,
-                "NativeNotAllowed",
-              );
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: sellerDeposit }),
+              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
             });
 
             it("Partially covered by available funds", async function () {
@@ -1757,14 +1761,14 @@ describe("Offer", function () {
               // ERC20 offer - insufficient allowance
               await mockToken.approve(fermionProtocolAddress, remainder - 1n);
 
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
                 .withArgs(fermionProtocolAddress, remainder - 1n, remainder);
 
               // ERC20 offer - contract sends insufficient funds
               await mockToken.approve(fermionProtocolAddress, remainder);
               await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
                 .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
                 .withArgs(remainder, remainder - 1n);
               await mockToken.setBurnAmount(0);
@@ -1773,15 +1777,14 @@ describe("Offer", function () {
               const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
               await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
 
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
                 .withArgs(defaultSigner.address, 0n, remainder);
 
               // Send native currency to ERC20 offer
-              await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder })).to.be.revertedWithCustomError(
-                fermionErrors,
-                "NativeNotAllowed",
-              );
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: remainder }),
+              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
             });
 
             context("offer with native currency", function () {
@@ -1811,7 +1814,7 @@ describe("Offer", function () {
 
               it("Cannot deposit native - zero available funds", async function () {
                 await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: sellerDeposit }),
                 ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
@@ -1821,10 +1824,9 @@ describe("Offer", function () {
                   value: sellerDeposit - remainder,
                 });
 
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder })).to.be.revertedWithCustomError(
-                  fermionErrors,
-                  "NativeNotAllowed",
-                );
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: remainder }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
               it.skip("Zero available funds", async function () {
@@ -1832,12 +1834,12 @@ describe("Offer", function () {
 
                 // Native currency offer - insufficient funds
                 await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit - 1n }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: sellerDeposit - 1n }),
                 ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
 
                 // Native currency offer - too much sent
                 await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit + 1n }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: sellerDeposit + 1n }),
                 ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
               });
 
@@ -1851,12 +1853,12 @@ describe("Offer", function () {
 
                 // Native currency offer - insufficient funds
                 await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: remainder - 1n }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: remainder - 1n }),
                 ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
 
                 // Native currency offer - too much sent
                 await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: remainder + 1n }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: remainder + 1n }),
                 ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
               });
             });
@@ -1868,7 +1870,7 @@ describe("Offer", function () {
 
             // insufficient allowance
             await mockToken.approve(fermionProtocolAddress, minimalPrice - 1n);
-            await expect(offerFacet.unwrapNFTToSelf(tokenId))
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
               .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
               .withArgs(fermionProtocolAddress, minimalPrice - 1n, minimalPrice);
 
@@ -1876,7 +1878,7 @@ describe("Offer", function () {
             const bosonFundsHandler = await getBosonHandler("IBosonFundsHandler");
             await mockToken.approve(fermionProtocolAddress, minimalPrice);
             await mockToken.setBurnAmount(1);
-            await expect(offerFacet.unwrapNFTToSelf(tokenId)).to.be.revertedWithCustomError(
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x")).to.be.revertedWithCustomError(
               bosonFundsHandler,
               "InsufficientValueReceived",
             );
@@ -1885,7 +1887,7 @@ describe("Offer", function () {
             // Insufficient balance
             const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
             await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
-            await expect(offerFacet.unwrapNFTToSelf(tokenId))
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
               .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
               .withArgs(defaultSigner.address, 0n, minimalPrice);
           });
@@ -1920,13 +1922,15 @@ describe("Offer", function () {
             const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
             // insufficient allowance
             await mockBosonToken.approve(fermionProtocolAddress, minimalPrice - 1n);
-            await expect(offerFacet.unwrapNFTToSelf(tokenId)).to.be.revertedWith("ERC20: insufficient allowance"); // old error style
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x")).to.be.revertedWith(
+              "ERC20: insufficient allowance",
+            ); // old error style
 
             // Insufficient balance
             await mockBosonToken.approve(fermionProtocolAddress, minimalPrice);
             const sellerBalance = await mockBosonToken.balanceOf(defaultSigner.address);
             await mockBosonToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
-            await expect(offerFacet.unwrapNFTToSelf(tokenId)).to.be.revertedWith(
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x")).to.be.revertedWith(
               "ERC20: transfer amount exceeds balance",
             ); // old error style
           });
@@ -1942,7 +1946,14 @@ describe("Offer", function () {
 
             await setNextBlockTimestamp(String(nextBlockTimestamp));
 
-            await expect(offerFacet.unwrapNFTToSelfAndSetVerificationTimeout(tokenId, customItemVerificationTimeout))
+            await expect(
+              offerFacet.unwrapNFTAndSetVerificationTimeout(
+                tokenId,
+                WrapType.SELF_SALE,
+                "0x",
+                customItemVerificationTimeout,
+              ),
+            )
               .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
               .withArgs(
                 customItemVerificationTimeout,
@@ -2046,7 +2057,7 @@ describe("Offer", function () {
 
         it("Unwrapping", async function () {
           await mockToken.approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.unwrapNFTToSelf(tokenId);
+          const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
 
           // events:
           // fermion
@@ -2095,7 +2106,7 @@ describe("Offer", function () {
           bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
 
           // await mockToken.approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: minimalPrice });
+          const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: minimalPrice });
 
           // events:
           // fermion
@@ -2123,7 +2134,7 @@ describe("Offer", function () {
             // Contract sends insufficient funds. In this case, the depositing to boson fails before fermion fails
             await mockToken.approve(fermionProtocolAddress, minimalPrice);
             await mockToken.setBurnAmount(1);
-            await expect(offerFacet.unwrapNFTToSelf(tokenId))
+            await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
               .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
               .withArgs(minimalPrice, minimalPrice - 1n);
             await mockToken.setBurnAmount(0);

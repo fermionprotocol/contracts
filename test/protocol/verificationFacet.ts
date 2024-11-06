@@ -165,14 +165,14 @@ describe("Verification", function () {
     const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
     const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
-    await offerFacet.unwrapNFTToSelf(tokenIdSelf);
+    await offerFacet.unwrapNFT(tokenIdSelf, WrapType.SELF_SALE, "0x");
 
     // unwrap to self #2
     const tokenIdSelfSaleSelfVerification = deriveTokenId(
       offerIdSelfSaleSelfVerification,
       exchangeIdSelfSaleSelfVerification,
     ).toString();
-    const tx = await offerFacet.unwrapNFTToSelf(tokenIdSelfSaleSelfVerification);
+    const tx = await offerFacet.unwrapNFT(tokenIdSelfSaleSelfVerification, WrapType.SELF_SALE, "0x");
     const timestamp = BigInt((await tx.getBlock()).timestamp);
     itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.defaultVerificationTimeout);
     itemMaxVerificationTimeout = timestamp + fermionConfig.protocolParameters.maxVerificationTimeout;

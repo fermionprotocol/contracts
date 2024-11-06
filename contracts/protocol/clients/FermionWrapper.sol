@@ -152,7 +152,9 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
         unwrap(_tokenId);
 
         uint256 price = Common._getFermionCommonStorage().fixedPrice[_tokenId];
-        IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
+        if (price > 0) {
+            IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
+        }
 
         Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
     }

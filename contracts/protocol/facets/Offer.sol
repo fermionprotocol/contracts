@@ -31,6 +31,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     using FermionFNFTLib for address;
 
     enum WrapType {
+        SELF_SALE,
         OS_AUCTION,
         OS_FIXED_PRICE
     }
@@ -192,38 +193,6 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     }
 
     /**
-     * @notice Unwraps NFT, but skips the auction and keeps the F-NFT with the seller
-     *
-     * Price is 0, so the caller must provide the verification fee in the exchange token
-     *
-     * Reverts if:
-     * - Offer region is paused
-     * - Caller is not the seller's assistant or facilitator
-     * - If seller deposit is non zero and there are not enough funds to cover it
-     * - The caller does not provide the verification fee
-     *
-     * N.B. currently, the F-NFT owner will be the assistant that wrapped it, not the caller of this function
-     * This behavior can be changed in the future
-     *
-     * @param _tokenId - the token ID
-     */
-    function unwrapNFTToSelf(uint256 _tokenId) external payable {
-        SeaportTypes.AdvancedOrder memory _emptyOrder;
-        unwrapNFT(_tokenId, _emptyOrder, true, 0);
-    }
-
-    /**
-     * @notice Same as unwrapNFTToSelf, but also sets the verification timeout
-     *
-     * @param _tokenId - the token ID
-     * @param _verificationTimeout - the verification timeout
-     */
-    function unwrapNFTToSelfAndSetVerificationTimeout(uint256 _tokenId, uint256 _verificationTimeout) external payable {
-        SeaportTypes.AdvancedOrder memory _emptyOrder;
-        unwrapNFT(_tokenId, _emptyOrder, true, _verificationTimeout);
-    }
-
-    /**
      * @notice Unwraps F-NFT, uses seaport to sell the NFT
      * Reverts if:
      * - Offer region is paused
@@ -236,12 +205,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * @param _data - additional data, depending on the wrap type
      */
     function unwrapNFT(uint256 _tokenId, WrapType _wrapType, bytes calldata _data) external payable {
-        SeaportTypes.AdvancedOrder memory _buyerOrder;
-        if (_wrapType == WrapType.OS_AUCTION) {
-            _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
-        }
-
-        unwrapNFT(_tokenId, _buyerOrder, false, 0);
+        unwrapNFT(_tokenId, _wrapType, _data, 0);
     }
 
     /**
@@ -258,12 +222,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         bytes calldata _data,
         uint256 _verificationTimeout
     ) external payable {
-        SeaportTypes.AdvancedOrder memory _buyerOrder;
-        if (_wrapType == WrapType.OS_AUCTION) {
-            _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
-        }
-
-        unwrapNFT(_tokenId, _buyerOrder, false, _verificationTimeout);
+        unwrapNFT(_tokenId, _wrapType, _data, _verificationTimeout);
     }
 
     /**
@@ -284,16 +243,17 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * - The verification timeout is too long
      *
      * @param _tokenId - the token ID
-     * @param _buyerOrder - the Seaport buyer order (if not self sale)
-     * @param _selfSale - if true, the NFT is unwrapped to the seller
+     * @param _wrapType - the wrap type
+     * @param _data - additional data, depending on the wrap type
      * @param _verificationTimeout - the verification timeout in UNIX timestamp
      */
     function unwrapNFT(
         uint256 _tokenId,
-        SeaportTypes.AdvancedOrder memory _buyerOrder,
-        bool _selfSale,
+        WrapType _wrapType,
+        bytes calldata _data,
         uint256 _verificationTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+        uint256 tokenId = _tokenId;
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
@@ -321,24 +281,33 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 _priceDiscovery.conduit = wrapperAddress;
                 {
                     uint256 bosonProtocolFee;
-                    if (_selfSale) {
-                        uint256 minimalPrice;
-                        (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                            exchangeToken,
-                            offer.verifierFee,
-                            0
-                        );
-                        if (minimalPrice > 0) {
-                            FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
-                            FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), minimalPrice);
-                        }
+                    // TODO: refactor to use mapping(WrapType=>function(_priceDiscovery)) instead of using if-else
+                    if (_wrapType == WrapType.SELF_SALE) {
+                        // uint256 exchangeAmount = abi.decode(_data, (uint256)); // reference to PR #295
+                        {
+                            uint256 minimalPrice;
+                            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                                exchangeToken,
+                                offer.verifierFee,
+                                0
+                            );
+                            if (minimalPrice > 0) {
+                                FundsLib.validateIncomingPayment(exchangeToken, minimalPrice);
+                                FundsLib.transferFundsFromProtocol(
+                                    exchangeToken,
+                                    payable(wrapperAddress),
+                                    minimalPrice
+                                );
+                            }
 
-                        _priceDiscovery.price = minimalPrice;
+                            _priceDiscovery.price = minimalPrice;
+                        }
                         _priceDiscovery.priceDiscoveryData = abi.encodeCall(
                             IFermionWrapper.unwrapToSelf,
-                            (_tokenId, exchangeToken, minimalPrice)
+                            (_tokenId, exchangeToken, _priceDiscovery.price)
                         );
-                    } else {
+                    } else if (_wrapType == WrapType.OS_AUCTION) {
+                        SeaportTypes.AdvancedOrder memory _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
                         if (
                             _buyerOrder.parameters.offer.length != 1 ||
                             _buyerOrder.parameters.consideration.length > 2 ||
@@ -355,27 +324,34 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                                 _buyerOrder.parameters.offer[0].startAmount -
                                 _buyerOrder.parameters.consideration[1].startAmount;
                         }
-
-                        uint256 minimalPrice;
-                        (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                            exchangeToken,
-                            offer.verifierFee,
-                            _priceDiscovery.price
-                        );
-                        if (_priceDiscovery.price < minimalPrice) {
-                            revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
+                        {
+                            uint256 minimalPrice;
+                            (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
+                                exchangeToken,
+                                offer.verifierFee,
+                                _priceDiscovery.price
+                            );
+                            if (_priceDiscovery.price < minimalPrice) {
+                                revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
+                            }
                         }
                         _priceDiscovery.priceDiscoveryData = abi.encodeCall(
                             IFermionWrapper.unwrap,
-                            (_tokenId, _buyerOrder)
+                            (tokenId, _buyerOrder)
+                        );
+                    } else if (_wrapType == WrapType.OS_FIXED_PRICE) {
+                        _priceDiscovery.price = abi.decode(_data, (uint256)); // If this does not match the true price, Boson Protocol will revert
+                        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+                            IFermionWrapper.unwrapFixedPriced,
+                            (tokenId, exchangeToken)
                         );
                     }
 
                     tokenLookups.itemPrice = _priceDiscovery.price - bosonProtocolFee;
                 }
 
-                BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
-                BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
+                BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), tokenId, _priceDiscovery);
+                BOSON_PROTOCOL.redeemVoucher(tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
             }
         }
 
@@ -399,7 +375,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         emit IVerificationEvents.VerificationInitiated(
             offerId,
             offer.verifierId,
-            _tokenId,
+            tokenId,
             itemVerificationTimeout,
             maxItemVerificationTimeout
         );
