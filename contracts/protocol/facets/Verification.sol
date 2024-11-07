@@ -21,17 +21,12 @@ import { EIP712 } from "../libs/EIP712.sol";
  * @notice Handles RWA verification.
  */
 contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVerificationEvents {
-    IBosonProtocol private immutable BOSON_PROTOCOL;
     using FermionFNFTLib for address;
-
-    struct SplitProposal {
-        uint16 buyer;
-        uint16 seller;
-        bool matching;
-    }
 
     bytes32 private constant SIGNED_PROPOSAL_TYPEHASH =
         keccak256(bytes("SignedProposal(uint256 tokenId,uint16 buyerPercent,bytes32 metadataURIDigest)"));
+
+    IBosonProtocol private immutable BOSON_PROTOCOL;
 
     constructor(address _bosonProtocol, address _fermionProtocolAddress) EIP712(_fermionProtocolAddress) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
@@ -456,7 +451,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                 revert DigestMismatch(expectedMetadataDigest, _metadataURIDigest);
         }
 
-        SplitProposal memory splitProposal;
+        FermionTypes.SplitProposal memory splitProposal;
 
         {
             (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);

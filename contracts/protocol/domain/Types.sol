@@ -162,4 +162,10 @@ contract FermionTypes {
         AuctionDetails details;
         Votes votes;
     }
+
+    struct SplitProposal {
+        uint16 buyer;
+        uint16 seller;
+        bool matching;
+    }
 }
