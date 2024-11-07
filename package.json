@@ -19,24 +19,24 @@
     "@bosonprotocol/boson-protocol-contracts": "git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.4.1",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
-    "@nomicfoundation/hardhat-ignition": "^0.15.6",
-    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.6",
+    "@nomicfoundation/hardhat-ignition": "^0.15.7",
+    "@nomicfoundation/hardhat-ignition-ethers": "^0.15.7",
     "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.11",
-    "@openzeppelin/contracts-upgradeable": "^5.0.2",
+    "@openzeppelin/contracts-upgradeable": "^5.1.0",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
     "@types/mocha": ">=10.0.9",
-    "@types/node": ">=22.7.5",
+    "@types/node": ">=22.9.0",
     "chai": "^4.5.0",
     "eip55": "^2.1.1",
-    "eslint": "^9.12.0",
+    "eslint": "^9.14.0",
     "eslint-config-prettier": "^9.1.0",
-    "ethers": "^6.13.3",
+    "ethers": "^6.13.4",
     "glob": "^11.0.0",
-    "hardhat": "^2.22.11",
+    "hardhat": "^2.22.15",
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.8",
     "hardhat-preprocessor": "^0.1.5",
@@ -49,11 +49,11 @@
     "solidity-coverage": "^0.8.13",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.0",
-    "typescript": ">=5.6.2",
-    "typescript-eslint": "^8.8.1"
+    "typescript": ">=5.6.3",
+    "typescript-eslint": "^8.13.0"
   },
   "dependencies": {
     "@opensea/seaport-js": "4.0.4",
-    "@openzeppelin/contracts": "^5.0.2"
+    "@openzeppelin/contracts": "^5.1.0"
   }
 }
