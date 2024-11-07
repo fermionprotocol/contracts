@@ -183,6 +183,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
      * - Transfer of phygitals is not successful
      *
      * @param _tokenIds - list of FermionFNFT token ids, for which the phygitals will be withdrawn
+     * @param _treasury - account that will receive the phygitals
      */
     function withdrawPhygitals(
         uint256[] calldata _tokenIds,
