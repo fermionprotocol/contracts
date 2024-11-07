@@ -61,7 +61,7 @@ describe("Entity", function () {
 
           for (const entityRole of enumIterator(EntityRole)) {
             const hasRole = await entityFacet.hasAccountRole(entityId, signer.address, entityRole, AccountRole.Manager);
-            expect(hasRole).to.be.true;
+            expect(hasRole).to.be.equal(true);
           }
         }
       });
@@ -288,7 +288,7 @@ describe("Entity", function () {
         // verify state
         for (const walletRole of enumIterator(AccountRole)) {
           const hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Custodian, walletRole);
-          expect(hasRole).to.be.true;
+          expect(hasRole).to.be.equal(true);
         }
       });
 
@@ -307,7 +307,7 @@ describe("Entity", function () {
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
           const hasRole = await entityFacet.hasAccountRole(entityId, wallet, entityRole, AccountRole.Assistant);
-          expect(hasRole).to.be.true;
+          expect(hasRole).to.be.equal(true);
         }
       });
 
@@ -356,14 +356,15 @@ describe("Entity", function () {
             [wallet.address],
             [[EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian]],
             [[[AccountRole.Manager], [AccountRole.Manager], [AccountRole.Manager]]],
-          ),
-            await expect(
-              entityFacet
-                .connect(wallet)
-                .addEntityAccounts(entityId, [wallets[3].address], [[]], [[[AccountRole.Assistant]]]),
-            )
-              .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
-              .withArgs(wallet.address, entityId, AccountRole.Manager);
+          );
+
+          await expect(
+            entityFacet
+              .connect(wallet)
+              .addEntityAccounts(entityId, [wallets[3].address], [[]], [[[AccountRole.Assistant]]]),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+            .withArgs(wallet.address, entityId, AccountRole.Manager);
         });
 
         it("Array mismatch", async function () {
@@ -486,7 +487,7 @@ describe("Entity", function () {
         // verify state
         for (const walletRole of enumIterator(AccountRole)) {
           const hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Custodian, walletRole);
-          expect(hasRole).to.be.false;
+          expect(hasRole).to.be.equal(false);
         }
       });
 
@@ -501,7 +502,7 @@ describe("Entity", function () {
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
           const hasRole = await entityFacet.hasAccountRole(entityId, wallet, entityRole, AccountRole.Assistant);
-          expect(hasRole).to.be.true;
+          expect(hasRole).to.be.equal(true);
         }
 
         await entityFacet.removeEntityAccounts(entityId, [wallet], entityRoles, walletRoles);
@@ -509,7 +510,7 @@ describe("Entity", function () {
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
           const hasRole = await entityFacet.hasAccountRole(entityId, wallet, entityRole, AccountRole.Assistant);
-          expect(hasRole).to.be.false;
+          expect(hasRole).to.be.equal(false);
         }
       });
 
@@ -524,7 +525,7 @@ describe("Entity", function () {
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
           const hasRole = await entityFacet.hasAccountRole(entityId, wallet, entityRole, AccountRole.Assistant);
-          expect(hasRole).to.be.true;
+          expect(hasRole).to.be.equal(true);
         }
 
         // remove entity-wide roles, but keep the specific wallet roles
@@ -544,10 +545,15 @@ describe("Entity", function () {
         const walletRoles = [[[AccountRole.Assistant]]];
 
         // check the assigned roles
-        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Manager)).to.be.true;
-        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Assistant)).to.be
-          .false;
-        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Treasury)).to.be.true;
+        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Manager)).to.be.equal(
+          true,
+        );
+        expect(
+          await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Assistant),
+        ).to.be.equal(false);
+        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Treasury)).to.be.equal(
+          true,
+        );
 
         // test event
         await expect(entityFacet.removeEntityAccounts(entityId, [wallet], entityRoles, walletRoles))
@@ -555,10 +561,15 @@ describe("Entity", function () {
           .withArgs(entityId, wallet, entityRoles[0], walletRoles[0]);
 
         // verify state, nothing should change
-        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Manager)).to.be.true;
-        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Assistant)).to.be
-          .false;
-        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Treasury)).to.be.true;
+        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Manager)).to.be.equal(
+          true,
+        );
+        expect(
+          await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Assistant),
+        ).to.be.equal(false);
+        expect(await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Seller, AccountRole.Treasury)).to.be.equal(
+          true,
+        );
       });
 
       context("Revert reasons", function () {
@@ -606,14 +617,15 @@ describe("Entity", function () {
             [wallet.address],
             [[EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian]],
             [[[AccountRole.Manager], [AccountRole.Manager], [AccountRole.Manager]]],
-          ),
-            await expect(
-              entityFacet
-                .connect(wallet)
-                .removeEntityAccounts(entityId, [wallets[3].address], [[]], [[[AccountRole.Assistant]]]),
-            )
-              .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
-              .withArgs(wallet.address, entityId, AccountRole.Manager);
+          );
+
+          await expect(
+            entityFacet
+              .connect(wallet)
+              .removeEntityAccounts(entityId, [wallets[3].address], [[]], [[[AccountRole.Assistant]]]),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "NotEntityWideRole")
+            .withArgs(wallet.address, entityId, AccountRole.Manager);
         });
 
         it("Array mismatch", async function () {
@@ -684,7 +696,7 @@ describe("Entity", function () {
         // verify state. The new admin does not get the roles yet
         for (const entityRole of enumIterator(EntityRole)) {
           const hasRole = await entityFacet.hasAccountRole(entityId, newAdmin.address, entityRole, AccountRole.Manager);
-          expect(hasRole).to.be.false;
+          expect(hasRole).to.be.equal(false);
         }
       });
 
@@ -746,7 +758,7 @@ describe("Entity", function () {
         // verify state
         for (const entityRole of enumIterator(EntityRole)) {
           const hasRole = await entityFacet.hasAccountRole(entityId, newAdmin.address, entityRole, AccountRole.Manager);
-          expect(hasRole).to.be.false;
+          expect(hasRole).to.be.equal(false);
         }
 
         // New admin should not be able to perform admin actions
@@ -827,8 +839,8 @@ describe("Entity", function () {
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(facilitators);
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.equal(true);
 
           // add another facilitator
           const facilitator3Id = 4n;
@@ -841,7 +853,7 @@ describe("Entity", function () {
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([...facilitators, facilitator3Id]);
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.equal(true);
         });
 
         it("Adding empty list does nothing", async function () {
@@ -855,8 +867,8 @@ describe("Entity", function () {
           await entityFacet.addFacilitators(sellerId, []);
 
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(facilitators);
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.equal(true);
         });
 
         context("Revert reasons", function () {
@@ -951,10 +963,10 @@ describe("Entity", function () {
           const expectedFacilitators = [facilitator4Id, facilitator2Id, facilitator3Id];
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(expectedFacilitators);
 
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.false;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.equal(false);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.equal(true);
         });
 
         it("Removing multiple facilitators", async function () {
@@ -970,10 +982,10 @@ describe("Entity", function () {
           const expectedFacilitators = [facilitator1Id, facilitator3Id];
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(expectedFacilitators);
 
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.false;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.false;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.equal(false);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.equal(false);
         });
 
         it("Removing a facilitator that was not added", async function () {
@@ -987,10 +999,10 @@ describe("Entity", function () {
             facilitator4Id,
           ]);
 
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.equal(true);
         });
 
         it("Remove the same facilitator twice", async function () {
@@ -1004,10 +1016,10 @@ describe("Entity", function () {
           const expectedFacilitators = [facilitator1Id, facilitator4Id, facilitator3Id];
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql(expectedFacilitators);
 
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.false;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.true;
-          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.true;
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator2Id)).to.be.equal(false);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator3Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersFacilitator(sellerId, facilitator4Id)).to.be.equal(true);
         });
 
         context("Revert reasons", function () {
@@ -1065,7 +1077,7 @@ describe("Entity", function () {
         for (const entityRole of entityRoles[0]) {
           for (const walletRole of enumIterator(AccountRole)) {
             const newAccounthasRole = await entityFacet.hasAccountRole(entityId, newAccount, entityRole, walletRole);
-            expect(newAccounthasRole).to.be.true;
+            expect(newAccounthasRole).to.be.equal(true);
 
             const oldAccounthasRole = await entityFacet.hasAccountRole(
               entityId,
@@ -1073,7 +1085,7 @@ describe("Entity", function () {
               entityRole,
               walletRole,
             );
-            expect(oldAccounthasRole).to.be.false;
+            expect(oldAccounthasRole).to.be.equal(false);
           }
         }
       });
@@ -1333,10 +1345,10 @@ describe("Entity", function () {
         await entityFacet.addEntityAccounts(entityId, [wallet], entityRoles, walletRoles);
 
         let hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Verifier, AccountRole.Assistant);
-        expect(hasRole).to.be.true;
+        expect(hasRole).to.be.equal(true);
 
         hasRole = await entityFacet.hasAccountRole(entityId, wallet, EntityRole.Verifier, AccountRole.Manager);
-        expect(hasRole).to.be.false;
+        expect(hasRole).to.be.equal(false);
       });
 
       it("Account does not belong to an entity", async function () {
@@ -1368,10 +1380,10 @@ describe("Entity", function () {
       });
 
       it("hasEntityRole returns correct values", async function () {
-        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Seller)).to.be.true;
-        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Verifier)).to.be.true;
-        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Custodian)).to.be.true;
-        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Buyer)).to.be.false;
+        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Seller)).to.be.equal(true);
+        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Verifier)).to.be.equal(true);
+        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Custodian)).to.be.equal(true);
+        expect(await entityFacet.hasEntityRole(entityId, EntityRole.Buyer)).to.be.equal(false);
       });
 
       context("Revert reasons", function () {
