@@ -541,9 +541,6 @@ describe("Offer", function () {
         [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
       );
 
-      const totalSellerDeposit = sellerDeposit * quantity;
-      await mockToken.mint(entityAssistant.address, totalSellerDeposit);
-
       // test event
       await expect(offerFacet.connect(entityAssistant).mintAndWrapNFTs(bosonOfferId, quantity)).to.emit(
         offerFacet,
@@ -598,6 +595,211 @@ describe("Offer", function () {
         await expect(offerFacet.mintAndWrapNFTs(bosonOfferId, 0n))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidQuantity")
           .withArgs(0);
+      });
+    });
+  });
+
+  context("mintWrapAndListNFTs", function () {
+    const bosonOfferId = 1n;
+    const sellerDeposit = 100n;
+    const quantity = 15n;
+    const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther(n.toString()));
+    const endTimes = Array(Number(quantity)).fill(MaxUint256);
+
+    beforeEach(async function () {
+      const fermionOffer = {
+        sellerId: "1",
+        sellerDeposit,
+        verifierId: "2",
+        verifierFee: 10,
+        custodianId: "3",
+        custodianFee,
+        facilitatorId,
+        facilitatorFeePercent: "0",
+        exchangeToken: await mockToken.getAddress(),
+        metadataURI: "https://example.com/offer-metadata.json",
+        metadataHash: ZeroHash,
+      };
+
+      // erc20 offer
+      await offerFacet.createOffer(fermionOffer);
+
+      // native offer
+      fermionOffer.exchangeToken = ZeroAddress;
+      await offerFacet.createOffer(fermionOffer);
+    });
+
+    it("Minting and wrapping", async function () {
+      const bosonSellerId = "1";
+      const bosonOfferHandler = await getBosonHandler("IBosonOfferHandler");
+      const bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
+      const bosonAccountHandler = await getBosonHandler("IBosonAccountHandler");
+      const [defaultCollectionAddress] = await bosonAccountHandler.getSellersCollections(bosonSellerId);
+      const bosonVoucher = await getBosonVoucher(defaultCollectionAddress);
+
+      const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
+      const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
+      const predictedWrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
+
+      // ERC20 offer
+      const tx = await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+
+      // test events
+      // fermion
+      await expect(tx).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId, startingTokenId, quantity);
+      await expect(tx)
+        .to.emit(offerFacet, "NFTsWrapped")
+        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity);
+
+      // boson
+      await expect(tx)
+        .to.emit(bosonOfferHandler, "RangeReserved")
+        .withArgs(
+          bosonOfferId,
+          bosonSellerId,
+          nextBosonExchangeId,
+          nextBosonExchangeId + quantity - 1n,
+          fermionProtocolAddress,
+          fermionProtocolAddress,
+        );
+
+      // boson voucher
+      await expect(tx)
+        .to.emit(bosonVoucher, "RangeReserved")
+        .withArgs(bosonOfferId, [startingTokenId, quantity, 0n, 0n, fermionProtocolAddress]);
+
+      // fermion wrapper
+      const fermionWrapper = await ethers.getContractAt("FermionFNFT", predictedWrapperAddress);
+      for (let i = 0; i < quantity; i++) {
+        const tokenId = startingTokenId + BigInt(i);
+
+        await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(0n, predictedWrapperAddress, tokenId);
+
+        const tokenState = await fermionWrapper.tokenState(tokenId);
+        expect(tokenState).to.equal(TokenState.Wrapped);
+      }
+
+      // Native currency offer
+      const bosonOfferId2 = bosonOfferId + 1n;
+      const nextBosonExchangeId2 = nextBosonExchangeId + quantity;
+      const startingTokenId2 = deriveTokenId(bosonOfferId2, nextBosonExchangeId2);
+      const tx2 = await offerFacet.mintWrapAndListNFTs(bosonOfferId2, prices, endTimes);
+      const predictedWrapperAddress2 = await offerFacet.predictFermionFNFTAddress(bosonOfferId2);
+
+      // test events
+      // fermion
+      await expect(tx2).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId2, startingTokenId2, quantity);
+      await expect(tx2)
+        .to.emit(offerFacet, "NFTsWrapped")
+        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity);
+
+      // boson
+      await expect(tx2)
+        .to.emit(bosonOfferHandler, "RangeReserved")
+        .withArgs(
+          bosonOfferId2,
+          bosonSellerId,
+          nextBosonExchangeId2,
+          nextBosonExchangeId2 + quantity - 1n,
+          fermionProtocolAddress,
+          fermionProtocolAddress,
+        );
+
+      // boson voucher
+      await expect(tx2)
+        .to.emit(bosonVoucher, "RangeReserved")
+        .withArgs(bosonOfferId2, [startingTokenId2, quantity, 0n, 0n, fermionProtocolAddress]);
+
+      const fermionWrapper2 = await ethers.getContractAt("FermionFNFT", predictedWrapperAddress2);
+      for (let i = 0; i < quantity; i++) {
+        const tokenId = startingTokenId2 + BigInt(i);
+
+        await expect(tx2).to.emit(fermionWrapper2, "Transfer").withArgs(0n, predictedWrapperAddress2, tokenId);
+
+        const tokenState = await fermionWrapper2.tokenState(tokenId);
+        expect(tokenState).to.equal(TokenState.Wrapped);
+      }
+
+      // not checking the state of boson contracts (protocol, voucher contract)
+      // since the change is guaranteed by the events and the state itself is checked in the boson-protocol tests
+    });
+
+    it("Assistant wallets can mint NFTs", async function () {
+      const entityAssistant = wallets[4]; // entity-wide Assistant
+      const sellerAssistant = wallets[5]; // Seller-specific Assistant
+
+      await entityFacet.addEntityAccounts(
+        sellerId,
+        [entityAssistant, sellerAssistant],
+        [[], [EntityRole.Seller]],
+        [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
+      );
+
+      const totalSellerDeposit = sellerDeposit * quantity;
+      await mockToken.mint(entityAssistant.address, totalSellerDeposit);
+
+      // test event
+      await expect(offerFacet.connect(entityAssistant).mintWrapAndListNFTs(bosonOfferId, prices, endTimes)).to.emit(
+        offerFacet,
+        "NFTsMinted",
+      );
+
+      await expect(
+        offerFacet.connect(sellerAssistant).mintWrapAndListNFTs(bosonOfferId + 1n, prices, endTimes),
+      ).to.emit(offerFacet, "NFTsMinted");
+    });
+
+    it("Facilitator wallets can mint NFTs", async function () {
+      const facilitatorAssistant = wallets[5]; // Facilitator-specific Assistant
+
+      await entityFacet
+        .connect(facilitator)
+        .addEntityAccounts(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
+
+      // test event
+      await expect(offerFacet.connect(facilitator).mintWrapAndListNFTs(bosonOfferId, prices, endTimes)).to.emit(
+        offerFacet,
+        "NFTsMinted",
+      );
+
+      await expect(
+        offerFacet.connect(facilitatorAssistant).mintWrapAndListNFTs(bosonOfferId + 1n, prices, endTimes),
+      ).to.emit(offerFacet, "NFTsMinted");
+    });
+
+    context("Revert reasons", function () {
+      it("Offer region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Offer]);
+
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Offer);
+      });
+
+      it("Caller is not the seller's assistant", async function () {
+        await verifySellerAssistantRole("mintWrapAndListNFTs", [bosonOfferId, prices, endTimes]);
+      });
+
+      it("Caller is not the facilitator defined in the offer", async function () {
+        await expect(offerFacet.connect(facilitator2).mintWrapAndListNFTs(bosonOfferId, prices, endTimes))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
+      });
+
+      it("Quantity is zero", async function () {
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, [], []))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidQuantity")
+          .withArgs(0);
+      });
+
+      it("Array length mismatch", async function () {
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, [...endTimes, MaxUint256]))
+          .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+          .withArgs(prices.length, prices.length + 1);
+
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes.slice(1)))
+          .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+          .withArgs(prices.length, prices.length - 1);
       });
     });
   });
