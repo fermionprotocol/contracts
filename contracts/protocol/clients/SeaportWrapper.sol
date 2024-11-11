@@ -178,7 +178,7 @@ contract SeaportWrapper is FermionFNFTBase {
         for (uint256 i = 0; i < _prices.length; i++) {
             uint256 tokenId = _firstTokenId + i;
             uint256 tokenPrice = _prices[i];
-            uint256 reducedPrice = ((HUNDRED_PERCENT - OS_FEE_PERCENTAGE) * tokenPrice) / HUNDRED_PERCENT;
+            uint256 reducedPrice = tokenPrice - (tokenPrice * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT;
             fixedPrice[tokenId] = reducedPrice;
 
             // Create order

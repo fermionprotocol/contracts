@@ -95,7 +95,11 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
             IERC721(voucherAddress).transferFrom(msgSender, address(this), tokenId);
 
             // Mint to the specified address
-            _safeMint(_to, tokenId);
+            if (_to == address(this)) {
+                _mint(_to, tokenId);
+            } else {
+                _safeMint(_to, tokenId);
+            }
         }
     }
 
@@ -116,6 +120,8 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
         uint256[] calldata _endTimes,
         address _exchangeToken
     ) external {
+        Common.checkStateAndCaller(_firstTokenId, FermionTypes.TokenState.Wrapped, _msgSender(), fermionProtocol);
+
         SEAPORT_WRAPPER.functionDelegateCall(
             abi.encodeCall(SeaportWrapper.listFixedPriceOrder, (_firstTokenId, _prices, _endTimes, _exchangeToken))
         );
