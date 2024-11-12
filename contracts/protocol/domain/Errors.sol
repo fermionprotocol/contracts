@@ -134,6 +134,10 @@ interface FractionalisationErrors is AuctionErrors {
     error AuctionReserved(uint256 tokenId);
 }
 
+interface WrapperErrors {
+    error ZeroPriceNotAllowed();
+}
+
 interface FermionErrors is
     FermionGeneralErrors,
     InitializationErrors,
@@ -145,5 +149,6 @@ interface FermionErrors is
     FundsErrors,
     PauseErrors,
     MetaTransactionErrors,
-    FractionalisationErrors
+    FractionalisationErrors,
+    WrapperErrors
 {}

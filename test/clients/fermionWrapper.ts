@@ -230,7 +230,7 @@ describe("FermionFNFT - wrapper tests", function () {
   context("listFixedPriceOffer", function () {
     const startTokenId = 2n ** 128n + 1n;
     const quantity = 10n;
-    const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther(n.toString()));
+    const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther((n + 1).toString()));
     const endTimes = Array(Number(quantity)).fill(MaxUint256);
     const offerId = 1n;
     let wrapperAddress: string;
@@ -246,7 +246,6 @@ describe("FermionFNFT - wrapper tests", function () {
         metadataURI,
       );
 
-      seller = wallets[3];
       wrapperAddress = await fermionWrapperProxy.getAddress();
 
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(wrapperAddress, true);
@@ -286,6 +285,22 @@ describe("FermionFNFT - wrapper tests", function () {
         )
           .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
           .withArgs(startTokenId, randomWallet.address, TokenState.Wrapped);
+      });
+
+      it("Some of the prices are zero", async function () {
+        const zeroPrices = prices.map(() => 0n);
+        await expect(
+          fermionProtocolSigner.sendTransaction({
+            to: await fermionWrapperProxy.getAddress(),
+            data:
+              fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOffer", [
+                startTokenId,
+                zeroPrices,
+                endTimes,
+                await mockERC20.getAddress(),
+              ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+          }),
+        ).to.be.revertedWithCustomError(fermionWrapperProxy, "ZeroPriceNotAllowed");
       });
     });
   });
@@ -400,7 +415,7 @@ describe("FermionFNFT - wrapper tests", function () {
     let seller: HardhatEthersSigner;
     const startTokenId = 2n ** 128n + 1n;
     const quantity = 10n;
-    const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther(n.toString()));
+    const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther((n + 1).toString()));
     const endTimes = Array(Number(quantity)).fill(MaxUint256);
     const offerId = 1n;
     let wrapperAddress: string;
@@ -435,41 +450,12 @@ describe("FermionFNFT - wrapper tests", function () {
             await mockERC20.getAddress(),
           ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
       });
-    });
 
-    it("Fermion protocol can unwrap - zero price", async function () {
-      await fermionProtocolSigner.sendTransaction({
-        to: await fermionWrapperProxy.getAddress(),
-        data:
-          fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [
-            startTokenId,
-            TokenState.Unwrapping,
-          ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
-      });
-
-      const balanceBefore = await mockERC20.balanceOf(fermionProtocolSigner.address);
-      const wrapperBalanceBefore = await mockERC20.balanceOf(wrapperAddress);
-      const bosonPriceDiscoveryBalance = await mockERC20.balanceOf(mockBosonPriceDiscovery.address);
-      const tx = await fermionWrapperProxy
-        .connect(mockBosonPriceDiscovery)
-        .unwrapFixedPriced(startTokenId, await mockERC20.getAddress());
-
-      await expect(tx)
-        .to.emit(mockBoson, "Transfer")
-        .withArgs(await fermionWrapperProxy.getAddress(), fermionProtocolSigner.address, startTokenId);
-      await expect(tx).to.not.emit(mockERC20, "Transfer");
-
-      expect(await mockBoson.ownerOf(startTokenId)).to.equal(fermionProtocolSigner.address);
-      expect(await fermionWrapperProxy.tokenState(startTokenId)).to.equal(TokenState.Unverified);
-
-      expect(await mockERC20.balanceOf(fermionProtocolSigner.address)).to.equal(balanceBefore);
-      expect(await mockERC20.balanceOf(wrapperAddress)).to.equal(wrapperBalanceBefore);
-      expect(await mockERC20.balanceOf(mockBosonPriceDiscovery.address)).to.equal(bosonPriceDiscoveryBalance);
+      await mockERC20.mint(wrapperAddress, prices[1]);
     });
 
     it("Fermion protocol can unwrap - non zero price", async function () {
       const tokenId = startTokenId + 1n;
-      await mockERC20.mint(wrapperAddress, prices[1]);
       await fermionProtocolSigner.sendTransaction({
         to: await fermionWrapperProxy.getAddress(),
         data:
@@ -533,9 +519,15 @@ describe("FermionFNFT - wrapper tests", function () {
             ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
         });
 
-        await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapFixedPriced(startTokenId, ZeroAddress);
+        await fermionWrapperProxy
+          .connect(mockBosonPriceDiscovery)
+          .unwrapFixedPriced(startTokenId, await mockERC20.getAddress());
 
-        await expect(fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapFixedPriced(startTokenId, ZeroAddress))
+        await expect(
+          fermionWrapperProxy
+            .connect(mockBosonPriceDiscovery)
+            .unwrapFixedPriced(startTokenId, await mockERC20.getAddress()),
+        )
           .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
           .withArgs(startTokenId, mockBosonPriceDiscovery.address, TokenState.Unverified);
       });
@@ -551,7 +543,9 @@ describe("FermionFNFT - wrapper tests", function () {
             ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
         });
 
-        await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapFixedPriced(startTokenId, ZeroAddress);
+        await fermionWrapperProxy
+          .connect(mockBosonPriceDiscovery)
+          .unwrapFixedPriced(startTokenId, await mockERC20.getAddress());
 
         await expect(fermionWrapperProxy.connect(seller).transferFrom(seller.address, newOwner.address, startTokenId))
           .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")

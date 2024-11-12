@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionGeneralErrors } from "../domain/Errors.sol";
+import { FermionGeneralErrors, WrapperErrors } from "../domain/Errors.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
 import { Common } from "./Common.sol";
@@ -178,6 +178,7 @@ contract SeaportWrapper is FermionFNFTBase {
         for (uint256 i = 0; i < _prices.length; i++) {
             uint256 tokenId = _firstTokenId + i;
             uint256 tokenPrice = _prices[i];
+            if (tokenPrice == 0) revert WrapperErrors.ZeroPriceNotAllowed(); // although it is possible to validate zero price offer, it's impossible to fulfill it
             uint256 reducedPrice = tokenPrice - (tokenPrice * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT;
             fixedPrice[tokenId] = reducedPrice;
 
