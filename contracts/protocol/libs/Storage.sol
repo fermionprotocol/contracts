@@ -53,6 +53,8 @@ library FermionStorage {
         uint256 defaultVerificationTimeout;
         // Max verification timeout
         uint256 maxVerificationTimeout;
+        // Max royalty percentage
+        uint16 maxRoyaltyPercentage;
     }
 
     // Protocol entities storage
@@ -127,6 +129,10 @@ library FermionStorage {
         mapping(uint256 => bool) isSellersFacilitator;
         // list of facilitators
         uint256[] sellerFacilitators;
+        // royalty recipients info
+        FermionTypes.RoyaltyRecipientInfo[] royaltyRecipients;
+        // seller id => royalty recipient => index of royalty recipient in royaltyRecipientsBySeller
+        mapping(address => uint256) royaltyRecipientIndex;
     }
 
     // Storage related to Meta Transactions

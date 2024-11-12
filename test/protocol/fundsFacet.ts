@@ -414,6 +414,7 @@ describe("Funds", function () {
         exchangeToken: mockToken1Address,
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,
+        royaltyInfo: [{ recipients: [], bps: [] }],
       };
 
       await offerFacet.createOffer(fermionOffer);

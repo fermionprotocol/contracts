@@ -55,10 +55,10 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     function createOffer(
         FermionTypes.Offer calldata _offer
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        if (
-            _offer.sellerId != _offer.facilitatorId &&
-            !FermionStorage.protocolLookups().sellerLookups[_offer.sellerId].isSellersFacilitator[_offer.facilitatorId]
-        ) {
+        FermionStorage.SellerLookups storage sellerLookups = FermionStorage.protocolLookups().sellerLookups[
+            _offer.sellerId
+        ];
+        if (_offer.sellerId != _offer.facilitatorId && !sellerLookups.isSellersFacilitator[_offer.facilitatorId]) {
             revert EntityErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
         }
         EntityLib.validateSellerAssistantOrFacilitator(_offer.sellerId, _offer.facilitatorId);
@@ -80,6 +80,9 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         if (_offer.facilitatorFeePercent > HUNDRED_PERCENT) {
             revert FermionGeneralErrors.InvalidPercentage(_offer.facilitatorFeePercent);
         }
+
+        if (_offer.royaltyInfo.length != 1) revert InvalidRoyaltyInfo();
+        validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo[0]);
 
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
@@ -204,6 +207,50 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         uint256 _verificationTimeout
     ) external payable {
         unwrapNFT(_tokenId, _buyerOrder, false, _verificationTimeout);
+    }
+
+    /**
+     * @notice Internal function to update the royalty recipients, used by both single and batch update functions.
+     *
+     * Emits an OfferRoyaltyInfoUpdated event if successful.
+     *
+     * Reverts if:
+     * - The offers region of protocol is paused
+     * - Offer does not exist
+     * - Caller is not the assistant of the offer
+     * - New royalty info is invalid
+     *
+     *  @param _offerIds - the list of the ids of the offers to be updated
+     *  @param _royaltyInfo - new royalty info
+     */
+    function updateOfferRoyaltyRecipients(
+        uint256[] calldata _offerIds,
+        FermionTypes.RoyaltyInfo calldata _royaltyInfo
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+        uint256 sellerId = 0;
+        FermionStorage.SellerLookups storage sellerLookups;
+        for (uint256 i = 0; i < _offerIds.length; i++) {
+            // Make sure the caller is the assistant, offer exists and is not voided
+            FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerIds[i]];
+            if (sellerId == 0) {
+                sellerId = offer.sellerId;
+                sellerLookups = FermionStorage.protocolLookups().sellerLookups[sellerId];
+            } else {
+                sellerLookups = sellerLookups;
+                // Stupid workaround to avoid uninitialized variable warning. Is this more efficient or is more
+                // efficient to initialize it before the loop to FermionStorage.protocolLookups().sellerLookups[0]
+            }
+
+            EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
+
+            validateRoyaltyInfo(sellerLookups, sellerId, _royaltyInfo);
+
+            // Add new entry to the royaltyInfo array
+            offer.royaltyInfo.push(_royaltyInfo);
+
+            // Notify watchers of state change
+            emit OfferRoyaltyInfoUpdated(_offerIds[i], sellerId, _royaltyInfo);
+        }
     }
 
     /**
@@ -572,5 +619,48 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);
+    }
+
+    /**
+     * @notice Validates that royalty info struct contains valid data
+     *
+     * Reverts if:
+     * - Royalty recipient is not on seller's allow list
+     * - Royalty percentage is less than the value decided by the admin
+     * - Total royalty percentage is more than max royalty percentage
+     *
+     * @param _sellerLookups -  the storage pointer to seller lookups
+     * @param _sellerId - the id of the seller
+     * @param _royaltyInfo - the royalty info struct
+     */
+    function validateRoyaltyInfo(
+        FermionStorage.SellerLookups storage _sellerLookups,
+        uint256 _sellerId,
+        FermionTypes.RoyaltyInfo memory _royaltyInfo
+    ) internal view {
+        if (_royaltyInfo.recipients.length != _royaltyInfo.bps.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_royaltyInfo.recipients.length, _royaltyInfo.bps.length);
+
+        FermionTypes.RoyaltyRecipientInfo[] storage royaltyRecipients = _sellerLookups.royaltyRecipients;
+
+        uint256 totalRoyalties;
+        for (uint256 i = 0; i < _royaltyInfo.recipients.length; i++) {
+            uint256 royaltyRecipientId;
+
+            if (_royaltyInfo.recipients[i] == address(0)) {
+                royaltyRecipientId = 1;
+            } else {
+                royaltyRecipientId = _sellerLookups.royaltyRecipientIndex[_royaltyInfo.recipients[i]];
+                if (royaltyRecipientId == 0) revert InvalidRoyaltyRecipient(_royaltyInfo.recipients[i]);
+            }
+
+            if (_royaltyInfo.bps[i] < royaltyRecipients[royaltyRecipientId - 1].minRoyaltyPercentage)
+                revert InvalidRoyaltyPercentage(_royaltyInfo.bps[i]);
+
+            totalRoyalties += _royaltyInfo.bps[i];
+        }
+
+        if (totalRoyalties > FermionStorage.protocolConfig().maxRoyaltyPercentage)
+            revert InvalidRoyaltyPercentage(totalRoyalties);
     }
 }

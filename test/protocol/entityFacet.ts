@@ -1166,6 +1166,7 @@ describe("Entity", function () {
           exchangeToken: ZeroAddress,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: "",
+          royaltyInfo: [{ recipients: [], bps: [] }],
         };
 
         await offerFacet.addSupportedToken(ZeroAddress);

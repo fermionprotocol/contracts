@@ -27,6 +27,7 @@ const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
 const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
 describe("Offer", function () {
+  // this.timeout(10000000);
   const sellerId = "1";
   const verifierId = "2";
   const custodianId = "3";
@@ -36,6 +37,7 @@ describe("Offer", function () {
     amount: parseEther("0.05"),
     period: 30n * 24n * 60n * 60n, // 30 days
   };
+  const royaltyInfo = [{ recipients: [], bps: [] }]; // one empty royalty info
   let offerFacet: Contract,
     entityFacet: Contract,
     fundsFacet: Contract,
@@ -136,6 +138,7 @@ describe("Offer", function () {
         exchangeToken,
         metadataURI,
         metadataHash: id(metadataURI),
+        royaltyInfo,
       };
     });
 
@@ -147,7 +150,11 @@ describe("Offer", function () {
           sellerId,
           verifierId,
           custodianId,
-          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          Object.values({
+            ...fermionOffer,
+            custodianFee: Object.values(fermionOffer.custodianFee),
+            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+          }),
           bosonOfferId,
         );
 
@@ -213,7 +220,11 @@ describe("Offer", function () {
           sellerId,
           sellerId,
           sellerId,
-          Object.values({ ...fermionOffer2, custodianFee: Object.values(fermionOffer2.custodianFee) }),
+          Object.values({
+            ...fermionOffer2,
+            custodianFee: Object.values(fermionOffer2.custodianFee),
+            royaltyInfo: fermionOffer2.royaltyInfo.map((ri) => Object.values(ri)),
+          }),
           bosonOfferId,
         );
 
@@ -241,7 +252,11 @@ describe("Offer", function () {
           sellerId,
           verifierId,
           custodianId,
-          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          Object.values({
+            ...fermionOffer,
+            custodianFee: Object.values(fermionOffer.custodianFee),
+            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+          }),
           bosonOfferId,
         );
 
@@ -251,7 +266,11 @@ describe("Offer", function () {
           sellerId,
           verifierId,
           custodianId,
-          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          Object.values({
+            ...fermionOffer,
+            custodianFee: Object.values(fermionOffer.custodianFee),
+            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+          }),
           "2",
         );
     });
@@ -270,7 +289,11 @@ describe("Offer", function () {
           sellerId,
           verifierId,
           custodianId,
-          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          Object.values({
+            ...fermionOffer,
+            custodianFee: Object.values(fermionOffer.custodianFee),
+            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+          }),
           bosonOfferId,
         );
 
@@ -280,7 +303,11 @@ describe("Offer", function () {
           sellerId,
           verifierId,
           custodianId,
-          Object.values({ ...fermionOffer, custodianFee: Object.values(fermionOffer.custodianFee) }),
+          Object.values({
+            ...fermionOffer,
+            custodianFee: Object.values(fermionOffer.custodianFee),
+            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+          }),
           "2",
         );
     });
@@ -379,6 +406,7 @@ describe("Offer", function () {
         exchangeToken,
         metadataURI,
         metadataHash: id(metadataURI),
+        royaltyInfo,
       };
 
       await offerFacet.createOffer(fermionOffer);
@@ -424,6 +452,7 @@ describe("Offer", function () {
         exchangeToken: await mockToken.getAddress(),
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,
+        royaltyInfo,
       };
 
       // erc20 offer
@@ -652,6 +681,7 @@ describe("Offer", function () {
           exchangeToken,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,
+          royaltyInfo,
         };
 
         await offerFacet.createOffer(fermionOffer);
@@ -876,6 +906,7 @@ describe("Offer", function () {
               exchangeToken: await mockToken.getAddress(),
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
+              royaltyInfo,
             };
 
             // erc20 offer
@@ -1222,6 +1253,7 @@ describe("Offer", function () {
                   exchangeToken: ZeroAddress,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
+                  royaltyInfo,
                 };
 
                 await offerFacet.createOffer(fermionOffer);
@@ -1290,6 +1322,7 @@ describe("Offer", function () {
               exchangeToken: bosonTokenAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
+              royaltyInfo,
             };
 
             await offerFacet.createOffer(fermionOffer);
@@ -1633,6 +1666,7 @@ describe("Offer", function () {
               exchangeToken: ZeroAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
+              royaltyInfo,
             };
 
             await offerFacet.createOffer(fermionOffer);
@@ -1798,6 +1832,7 @@ describe("Offer", function () {
                   exchangeToken: ZeroAddress,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
+                  royaltyInfo,
                 };
 
                 await offerFacet.createOffer(fermionOffer);
@@ -1907,6 +1942,7 @@ describe("Offer", function () {
               exchangeToken: bosonTokenAddress,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
+              royaltyInfo,
             };
 
             await offerFacet.createOffer(fermionOffer);
@@ -1964,6 +2000,7 @@ describe("Offer", function () {
           exchangeToken,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,
+          royaltyInfo,
         };
 
         await offerFacet.createOffer(fermionOffer);
@@ -2087,6 +2124,7 @@ describe("Offer", function () {
             exchangeToken: ZeroAddress,
             metadataURI: "https://example.com/offer-metadata.json",
             metadataHash: ZeroHash,
+            royaltyInfo,
           };
 
           await offerFacet.createOffer(fermionOffer);

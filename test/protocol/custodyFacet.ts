@@ -91,6 +91,7 @@ describe("Custody", function () {
       exchangeToken: await mockToken.getAddress(),
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
+      royaltyInfo: [{ recipients: [], bps: [] }],
     };
 
     // Make three offers one for normal sale, one of self sale and one for self custody

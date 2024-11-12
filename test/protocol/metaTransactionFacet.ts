@@ -60,6 +60,7 @@ describe("MetaTransactions", function () {
       exchangeToken: await mockToken.getAddress(),
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
+      royaltyInfo: [{ recipients: [], bps: [] }],
     };
 
     await offerFacet.createOffer(fermionOffer);

@@ -91,6 +91,7 @@ contract FermionTypes {
         address exchangeToken;
         string metadataURI;
         string metadataHash;
+        RoyaltyInfo[] royaltyInfo;
     }
 
     struct CustodianFee {
@@ -161,5 +162,15 @@ contract FermionTypes {
     struct Auction {
         AuctionDetails details;
         Votes votes;
+    }
+
+    struct RoyaltyInfo {
+        address payable[] recipients;
+        uint256[] bps;
+    }
+
+    struct RoyaltyRecipientInfo {
+        address payable wallet;
+        uint256 minRoyaltyPercentage;
     }
 }

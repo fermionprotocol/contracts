@@ -47,6 +47,9 @@ interface OfferErrors {
     error InvalidQuantity(uint256 quantity);
     error NoSuchOffer(uint256 offerId);
     error InvalidOpenSeaOrder();
+    error InvalidRoyaltyInfo();
+    error InvalidRoyaltyRecipient(address recipient);
+    error InvalidRoyaltyPercentage(uint256 percentage);
 }
 
 interface VerificationErrors {
