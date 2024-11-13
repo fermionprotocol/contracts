@@ -110,6 +110,29 @@ To deploy the Fermion protocol on a public blockchain:
 
 - The deployment info is printed into the terminal and JSON with addresses is stored in `addresses/{chainId}-{network}-{environment}.json`
 
+## Contract verification on block explorers
+
+Once the contracts are deployed to public networks, their source code is not public automatically. If you want to enable that users interact with the contracts directly on block explorers (e.g. etherscan) or the Louper, you must verify them.
+
+First, obtain the block explorers API keys and set them in Hardhat configuration variables. You need to set them only for the block explorers on which you intend to verify the contracts.
+
+```shell
+npx hardhat vars set POLYGONSCAN_API_KEY
+npx hardhat vars set ETHERSCAN_API_KEY
+```
+
+Verify the contracts by calling
+
+```shell
+  npx hardhat verify-suite --network <network> --env <environment> --contracts <contracts>
+```
+
+- `network`: the network to deploy to. The Network must be defined in `./hardhat.config.ts` and must havecorresponding Seaport parameters in `./fermion.config.ts`
+- `environment`: an optional name for the environment to deploy to. Useful to manage multiple instances on the same network. Value can be anything, typical values are `test`, `staging` and `production`.
+- `contracts`: an optional comma-separated list of contracts to verify. If not provided, all contracts will be verified.
+
+Note: if the contracts were deployed in the past and new commits were added to the branch, the verification might fail. In this case, the recommended approach is to checkout the commit at which the contracts were deployed and run the verification.
+
 ## Contributing
 
 We welcome contributions! Until now, Fermion Protocol has been largely worked on by a small dedicated team. However, the ultimate goal is for all of the Boson Protocol repositories to be fully owned by the community and contributors. Issues, pull requests, suggestions, and any sort of involvement are more than welcome.
