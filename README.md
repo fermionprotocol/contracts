@@ -102,7 +102,7 @@ To deploy the Fermion protocol on a public blockchain:
   npx hardhat deploy-suite --network <network> --env <environment> --modules <modules> [--dry-run] [--create3]
   ```
 
-  - `network`: the network to deploy to. The Network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters in `./fermion.config.ts`
+  - `network`: the network to deploy to. The Network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters set in `./fermion.config.ts`
   - `environment`: an optional name for the environment to deploy to. Useful to manage multiple instances on the same network. Value can be anything, typical values are `test`, `staging` and `production`.
   - `modules`: the deployment script is modular and can be deployed step by step. Possible values are `fnft`, `diamond`, `facets`, `initialize` and their combinations.
   - `dry-run`: an optional flag, used to simulate the deployment. If added, the script forks the network and simulates the transactions locally and doesn't submit them to the real network. It is used to test the deployment or upgrade scripts. It also provides an estimate of the cost.
@@ -127,7 +127,7 @@ Verify the contracts by calling
   npx hardhat verify-suite --network <network> --env <environment> --contracts <contracts>
 ```
 
-- `network`: the network to deploy to. The Network must be defined in `./hardhat.config.ts` and must havecorresponding Seaport parameters in `./fermion.config.ts`
+- `network`: the network to verify the contracts on. The Network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters set in `./fermion.config.ts`
 - `environment`: an optional name for the environment to deploy to. Useful to manage multiple instances on the same network. Value can be anything, typical values are `test`, `staging` and `production`.
 - `contracts`: an optional comma-separated list of contracts to verify. If not provided, all contracts will be verified.
 
