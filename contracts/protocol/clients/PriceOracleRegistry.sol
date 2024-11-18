@@ -12,7 +12,7 @@ import "../interfaces/events/IPriceOracleRegistryEvents.sol";
  * @dev Manages a registry of approved price oracles for RWAs, ensuring they comply with the IPriceOracle interface and return valid prices when added.
  */
 contract PriceOracleRegistry is Initializable, OwnableUpgradeable, IPriceOracleRegistry, IPriceOracleRegistryEvents {
-    // oracle address -> ID (e.g., "GOLD" or "REAL_ESTATE")
+    /// @notice oracle address -> ID (e.g., "GOLD" or "REAL_ESTATE")
     mapping(address => bytes32) private priceOracles;
 
     /**
