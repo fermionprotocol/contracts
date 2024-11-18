@@ -12,7 +12,8 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
-import { IPriceOracleAdapter } from "../interfaces/IPriceOracleAdapter.sol";
+import { IPriceOracle } from "../interfaces/IPriceOracle.sol";
+import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -38,9 +39,13 @@ abstract contract FermionFractions is
      * @notice Initializes the contract
      *
      * @param _exchangeToken The address of the exchange token
+     * @param _priceOracleRegistry The address of the Price Oracle Registry
      */
-    function intializeFractions(address _exchangeToken) internal virtual {
-        _getBuyoutAuctionStorage().exchangeToken = _exchangeToken;
+    function intializeFractions(address _exchangeToken, address _priceOracleRegistry) internal virtual {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+
+        $.exchangeToken = _exchangeToken;
+        $.priceOracleRegistry = _priceOracleRegistry;
     }
 
     /**
@@ -58,6 +63,7 @@ abstract contract FermionFractions is
      * - Token state is not Verified
      * - Token has been fractionalised already
      * - Caller is neither approved to transfer the NFTs nor is the fermion protocol
+     * - The oracle is not whitelisted in the oracle registry.
      *
      * @param _firstTokenId The starting token ID
      * @param _length The number of tokens to fractionalise
@@ -65,7 +71,7 @@ abstract contract FermionFractions is
      * @param _buyoutAuctionParameters The buyout auction parameters
      * @param _custodianVaultParameters The custodian vault parameters
      * @param _depositAmount The amount to deposit
-     * @param _priceOracleAdapter The address of the price oracle adapter
+     * @param _priceOracle The address of the price oracle.
      */
     function mintFractions(
         uint256 _firstTokenId,
@@ -74,7 +80,7 @@ abstract contract FermionFractions is
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
         FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
         uint256 _depositAmount,
-        address _priceOracleAdapter
+        address _priceOracle
     ) external {
         if (_length == 0) {
             revert InvalidLength();
@@ -112,8 +118,11 @@ abstract contract FermionFractions is
             revert InvalidPartialAuctionThreshold();
 
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
-        // Set the PriceOracleAdapter
-        if (_priceOracleAdapter != address(0)) $.priceOracleAdapter = _priceOracleAdapter;
+
+        if (_priceOracle != address(0)) {
+            _ensureOracleApproved($.priceOracleRegistry, _priceOracle);
+            $.priceOracle = _priceOracle;
+        }
 
         // set the default values if not provided
         if (_buyoutAuctionParameters.duration == 0) _buyoutAuctionParameters.duration = AUCTION_DURATION;
@@ -676,7 +685,8 @@ abstract contract FermionFractions is
      * - The `quorumPercent` is outside the range [MIN_QUORUM_PERCENT, HUNDRED_PERCENT]
      * - The `voteDuration` is outside the range [MIN_GOV_VOTE_DURATION, MAX_GOV_VOTE_DURATION]
      * - There is an active proposal already
-     * - The oracle adapter reverts with an error other than `InvalidPrice()`
+     * - The oracle reverts with an error other than `InvalidPrice()`
+     * - The oracle is not whitelisted in the oracle registry.
      *
      * @param newPrice The user-suggested exit price.
      * @param quorumPercent The minimum quorum percentage for the governance proposal in bps (e.g., 2000 is 20%).
@@ -701,14 +711,16 @@ abstract contract FermionFractions is
             voteDuration >= MIN_GOV_VOTE_DURATION && voteDuration <= MAX_GOV_VOTE_DURATION,
             "Invalid vote duration period"
         );
+        address oracle = $.priceOracle;
+        if (oracle != address(0)) {
+            _ensureOracleApproved($.priceOracleRegistry, oracle);
 
-        if ($.priceOracleAdapter != address(0)) {
-            try IPriceOracleAdapter($.priceOracleAdapter).getPrice() returns (uint256 oraclePrice) {
+            try IPriceOracle(oracle).getPrice() returns (uint256 oraclePrice) {
                 $.auctionParameters.exitPrice = oraclePrice;
                 emit ExitPriceUpdated(oraclePrice, true);
                 return;
             } catch (bytes memory reason) {
-                // Check for custom error InvalidPrice()
+                // Only revert if oracle reverts with error different than InvalidPrice()
                 if (!_isInvalidPriceError(reason)) {
                     revert(string(reason));
                 }
@@ -1071,6 +1083,16 @@ abstract contract FermionFractions is
         }
     }
 
+    /**
+     * @notice Adjusts the voter's records on transfer by removing votes associated with the transferred fractions.
+     *         This ensures the proposal's vote count remain accurate.
+     *
+     * @dev If the voter has no active votes or the latest proposal is not active, no adjustments are made.
+     *      If the number of fractions being transferred exceeds the voter's vote count, only the available votes are removed.
+     *
+     * @param voter The address of the voter whose votes are being adjusted.
+     * @param amount The number of fractions being transferred.
+     */
     function _adjustVotesOnTransfer(address voter, uint256 amount) internal {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.PriceUpdateProposal storage proposal = $.updateProposals[$.latestProposalId];
@@ -1109,21 +1131,25 @@ abstract contract FermionFractions is
 
     /**
      * @notice Checks if the revert reason matches the custom error InvalidPrice().
-     * @param reason The revert reason.
+     * @param _reason The revert reason.
      * @return isInvalidPrice True if the reason is InvalidPrice(), otherwise false.
      */
-    function _isInvalidPriceError(bytes memory reason) internal pure returns (bool) {
-        return reason.length == 4 && bytes4(reason) == IPriceOracleAdapter.InvalidPrice.selector;
+    function _isInvalidPriceError(bytes memory _reason) internal pure returns (bool) {
+        return _reason.length == 4 && bytes4(_reason) == IPriceOracle.InvalidPrice.selector;
     }
 
     /**
-     * @notice Adjusts the voter's records on transfer by removing votes associated with the transferred fractions.
-     *         This ensures the proposal's vote count remain accurate.
+     * @notice Ensures the given oracle is approved in the oracle registry.
      *
-     * @dev If the voter has no active votes or the latest proposal is not active, no adjustments are made.
-     *      If the number of fractions being transferred exceeds the voter's vote count, only the available votes are removed.
+     * Reverts if:
+     * - The oracle is not approved in the registry.
      *
-     * @param voter The address of the voter whose votes are being adjusted.
-     * @param amount The number of fractions being transferred.
+     * @param _oracle The address of the price oracle to check.
+     * @param _priceOracleRegistry The address of the price oracle registry.
      */
+    function _ensureOracleApproved(address _priceOracleRegistry, address _oracle) internal view {
+        if (!IPriceOracleRegistry(_priceOracleRegistry).isPriceOracleApproved(_oracle)) {
+            revert PriceOracleNotWhitelisted(_oracle);
+        }
+    }
 }

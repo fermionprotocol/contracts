@@ -2,10 +2,10 @@
 pragma solidity 0.8.24;
 
 /**
- * @title IPriceOracleAdapter
- * @dev Interface defining the price oracle adapter. All price oracle adapters should comply to this interface
+ * @title IPriceOracle
+ * @dev Interface defining the price oracle. All RWA price oracle should comply to this interface.
  */
-interface IPriceOracleAdapter {
+interface IPriceOracle {
     /**
      * @notice Gets the latest price from the oracle.
      * @return price The latest price.

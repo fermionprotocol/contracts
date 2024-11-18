@@ -562,7 +562,8 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 msgSender,
                 offer.exchangeToken,
                 _offerId,
-                offer.metadataURI
+                offer.metadataURI,
+                ps.priceOracleRegistry
             );
         }
 

@@ -148,7 +148,8 @@ contract FermionTypes {
         uint256 unrestricedRedeemableAmount;
         uint256 lockedRedeemableSupply;
         mapping(uint256 => TokenAuctionInfo) tokenInfo;
-        address priceOracleAdapter;
+        address priceOracle;
+        address priceOracleRegistry;
         uint256 latestProposalId;
         mapping(uint256 => PriceUpdateProposal) updateProposals;
     }

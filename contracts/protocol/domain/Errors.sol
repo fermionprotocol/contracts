@@ -118,6 +118,7 @@ interface FractionalisationErrors is AuctionErrors {
     error InvalidFractionsAmount(uint256 amount, uint256 min, uint256 max);
     error InvalidExitPrice(uint256 amount);
     error AlreadyFractionalized(uint256 tokenId);
+    error PriceOracleNotWhitelisted(address oracleAddress);
 
     error NotMaxBidder(uint256 tokenId, address caller, address winner);
     error AlreadyRedeemed(uint256 tokenId);

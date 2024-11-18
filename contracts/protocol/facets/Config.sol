@@ -172,6 +172,37 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
+     * @notice Sets the Price Oracle Registry address.
+     *
+     * Emits a `PriceOracleRegistryChanged` event if successful.
+     *
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The `_priceOracleRegistry` is the zero address
+     *
+     * @param _priceOracleRegistry - the address of the Price Oracle Registry
+     */
+    function setPriceOracleRegistryAddress(
+        address _priceOracleRegistry
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
+        checkNonZeroAddress(_priceOracleRegistry);
+
+        // Update the Price Oracle Registry address in protocol status
+        FermionStorage.protocolStatus().priceOracleRegistry = _priceOracleRegistry;
+
+        emit PriceOracleRegistryChanged(_priceOracleRegistry);
+    }
+
+    /**
+     * @notice Gets the current Price Oracle Registry address.
+     *
+     * @return The Price Oracle Registry address
+     */
+    function getPriceOracleRegistryAddress() external view returns (address) {
+        return FermionStorage.protocolStatus().priceOracleRegistry;
+    }
+
+    /**
      * @notice Sets the max verification timeout.
      *
      * Emits a MaxVerificationTimeoutChanged event if successful.

@@ -40,6 +40,8 @@ library FermionStorage {
         address fermionFNFTBeaconProxy;
         // Pause status
         uint256 paused;
+        // RWA Price Oracle Registry
+        address priceOracleRegistry;
     }
 
     // Protocol config storage

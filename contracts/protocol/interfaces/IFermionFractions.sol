@@ -31,7 +31,7 @@ interface IFermionFractions {
      * @param _buyoutAuctionParameters The buyout auction parameters
      * @param _custodianVaultParameters The custodian vault parameters
      * @param _depositAmount The amount to deposit
-     * @param _priceOracleAdapter The address of the price oracle adapter
+     * @param _priceOracle The address of the price oracle
      */
     function mintFractions(
         uint256 _firstTokenId,
@@ -40,7 +40,7 @@ interface IFermionFractions {
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
         FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
         uint256 _depositAmount,
-        address _priceOracleAdapter
+        address _priceOracle
     ) external;
 
     /**
