@@ -140,6 +140,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       // lock the F-NFT (erc721 transfer)
@@ -183,6 +184,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       // lock the F-NFT (erc721 transfer)
@@ -238,6 +240,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       await expect(tx)
@@ -258,6 +261,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       // lock the F-NFT (erc721 transfer)
@@ -297,6 +301,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               auctionParameters,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress
             ),
         ).to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidLength");
       });
@@ -311,6 +316,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
             auctionParameters,
             custodianVaultParameters,
             additionalDeposit,
+            ZeroAddress
           );
 
         await expect(
@@ -321,6 +327,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
             auctionParameters,
             custodianVaultParameters,
             additionalDeposit,
+            ZeroAddress
           ),
         ).to.be.revertedWithCustomError(fermionFNFTProxy, "InitialFractionalisationOnly");
       });
@@ -337,6 +344,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               auctionParameters2,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress
             ),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidExitPrice")
@@ -356,6 +364,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               auctionParameters2,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress
             ),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidPercentage")
@@ -374,6 +383,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               auctionParameters,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress
             ),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
@@ -390,6 +400,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               auctionParameters,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress
             ),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
@@ -409,6 +420,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               newFractionsPerAuction: fractionsAmountLow,
             },
             additionalDeposit,
+            ZeroAddress
           ),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
@@ -426,6 +438,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               newFractionsPerAuction: fractionsAmountHigh,
             },
             additionalDeposit,
+            ZeroAddress
           ),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidFractionsAmount")
@@ -444,6 +457,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               liquidationThreshold: custodianVaultParameters.partialAuctionThreshold + 1n,
             },
             additionalDeposit,
+            ZeroAddress
           ),
         ).to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidPartialAuctionThreshold");
       });
@@ -453,7 +467,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(
           fermionFNFTProxy
             .connect(seller)
-            .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, additionalDeposit),
+            .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, additionalDeposit, ZeroAddress),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidStateOrCaller")
           .withArgs(tokenId, seller.address, TokenState.Unverified);
@@ -463,7 +477,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(
           fermionFNFTProxy
             .connect(seller)
-            .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, additionalDeposit),
+            .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, additionalDeposit, ZeroAddress),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "InvalidStateOrCaller")
           .withArgs(tokenId, seller.address, TokenState.Verified);
@@ -473,7 +487,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(
           fermionFNFTProxy
             .connect(seller)
-            .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, additionalDeposit),
+            .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, additionalDeposit, ZeroAddress),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "ERC721NonexistentToken")
           .withArgs(tokenId);
@@ -491,6 +505,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
               auctionParameters,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress
             ),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "ERC721InsufficientApproval")
@@ -502,7 +517,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(
           fermionFNFTProxy
             .connect(seller)
-            .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, additionalDeposit),
+            .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, additionalDeposit, ZeroAddress),
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "ERC721NonexistentToken")
           .withArgs(tokenId);
@@ -540,6 +555,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
     });
 
@@ -740,6 +756,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
     });
 
@@ -802,6 +819,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
     });
 
@@ -1633,6 +1651,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
     });
 
@@ -1857,6 +1876,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       expectedAuctionDetails = {
@@ -2167,6 +2187,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       await fermionFNFTProxy.connect(seller).transfer(fractionalOwners[0].address, owner1Share);
@@ -2783,6 +2804,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       const fractions = 0n;
@@ -2818,6 +2840,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
             auctionParameters,
             custodianVaultParameters,
             additionalDeposit,
+            ZeroAddress
           ),
       ).to.be.revertedWithCustomError(fermionFNFTProxy, "InitialFractionalisationOnly");
 
@@ -2879,6 +2902,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       const fractions = 0n;
@@ -2926,6 +2950,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters2,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
       await expect(tx2).to.emit(fermionFNFTProxy, "Fractionalised").withArgs(startTokenId, fractionsPerToken2);
 
@@ -3015,6 +3040,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       await fermionFNFTProxy.connect(seller).transfer(bidders[0].address, votes1);

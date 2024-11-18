@@ -106,17 +106,19 @@ library FermionFNFTLib {
         uint256 _fractionsAmount,
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
         FermionTypes.CustodianVaultParameters memory _custodianVaultParameters,
-        uint256 _depositAmount
+        uint256 _depositAmount,
+        address _priceOracleAdapter
     ) internal {
         _fnft.functionCallWithAddress(
             abi.encodeWithSignature(
-                "mintFractions(uint256,uint256,uint256,(uint256,uint256,uint256,uint256),(uint256,uint256,uint256,uint256),uint256)",
+                "mintFractions(uint256,uint256,uint256,(uint256,uint256,uint256,uint256),(uint256,uint256,uint256,uint256),uint256,address)",
                 _firstTokenId,
                 _length,
                 _fractionsAmount,
                 _buyoutAuctionParameters,
                 _custodianVaultParameters,
-                _depositAmount
+                _depositAmount,
+                _priceOracleAdapter
             )
         );
     }

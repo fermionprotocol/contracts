@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { getInterfaceID, deployMockTokens } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, MaxUint256, ZeroHash } from "ethers";
+import { Contract, MaxUint256, ZeroHash, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { TokenState } from "../utils/enums";
 
@@ -165,6 +165,7 @@ describe("FermionFNFT", function () {
             auctionParameters,
             custodianVaultParameters,
             additionalDeposit,
+            ZeroAddress
           );
 
         approvedAccount = wallets[4];
@@ -244,6 +245,7 @@ describe("FermionFNFT", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress
         );
 
       // Approve to 0 address
