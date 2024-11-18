@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { HUNDRED_PERCENT, MINIMAL_BID_INCREMENT, MIN_FRACTIONS, MAX_FRACTIONS, TOP_BID_LOCK_TIME, AUCTION_DURATION, UNLOCK_THRESHOLD } from "../domain/Constants.sol";
+import { HUNDRED_PERCENT, MINIMAL_BID_INCREMENT, MIN_FRACTIONS, MAX_FRACTIONS, TOP_BID_LOCK_TIME, AUCTION_DURATION, UNLOCK_THRESHOLD, MIN_QUORUM_PERCENT, MIN_GOV_VOTE_DURATION, MAX_GOV_VOTE_DURATION, DEFAULT_GOV_VOTE_DURATION } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
@@ -12,6 +12,7 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
+import { IPriceOracleAdapter } from "../interfaces/IPriceOracleAdapter.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -63,7 +64,8 @@ abstract contract FermionFractions is
      * @param _fractionsAmount The number of fractions to mint for each NFT
      * @param _buyoutAuctionParameters The buyout auction parameters
      * @param _custodianVaultParameters The custodian vault parameters
-     * @param _depositAmount - the amount to deposit
+     * @param _depositAmount The amount to deposit
+     * @param _priceOracleAdapter The address of the price oracle adapter
      */
     function mintFractions(
         uint256 _firstTokenId,
@@ -71,7 +73,8 @@ abstract contract FermionFractions is
         uint256 _fractionsAmount,
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
         FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
-        uint256 _depositAmount
+        uint256 _depositAmount,
+        address _priceOracleAdapter
     ) external {
         if (_length == 0) {
             revert InvalidLength();
@@ -79,7 +82,6 @@ abstract contract FermionFractions is
 
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         if ($.nftCount > 0) {
-            // if other tokens are fractionalised already, use `mintFractions(uint256 _firstTokenId, uint256 _length)` instead
             revert InitialFractionalisationOnly();
         }
 
@@ -110,6 +112,8 @@ abstract contract FermionFractions is
             revert InvalidPartialAuctionThreshold();
 
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
+        // Set the PriceOracleAdapter
+        if (_priceOracleAdapter != address(0)) $.priceOracleAdapter = _priceOracleAdapter;
 
         // set the default values if not provided
         if (_buyoutAuctionParameters.duration == 0) _buyoutAuctionParameters.duration = AUCTION_DURATION;
@@ -662,6 +666,165 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Updates the exit price directly if the oracle provides a valid price, otherwise initiates a governance proposal.
+     * 
+     * Emits a `PriceUpdated` event if the exit price is updated via the oracle.
+     * Emits a `ProposalCreated` event if a governance proposal is created.
+     *
+     * Reverts if:
+     * - Caller is not a fraction owner
+     * - The `quorumPercent` is outside the range [MIN_QUORUM_PERCENT, HUNDRED_PERCENT]
+     * - The `voteDuration` is outside the range [MIN_GOV_VOTE_DURATION, MAX_GOV_VOTE_DURATION]
+     * - There is an active proposal already
+     * - The oracle adapter reverts with an error other than `InvalidPrice()`
+     *
+     * @param newPrice The user-suggested exit price.
+     * @param quorumPercent The minimum quorum percentage for the governance proposal in bps (e.g., 2000 is 20%).
+     * @param voteDuration The duration of the governance proposal in seconds.
+     */
+    function updateExitPrice(uint256 newPrice, uint256 quorumPercent, uint256 voteDuration) external {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+
+        // Ensure there is no ongoing proposal
+        if ($.latestProposalId > 0) {
+            FermionTypes.PriceUpdateProposal storage lastProposal = $.updateProposals[$.latestProposalId];
+            require(lastProposal.state != FermionTypes.PriceUpdateProposalState.Active, "Ongoing proposal exists");
+        }
+
+        require(balanceOf(msg.sender) > 0, "Only fraction owners can initiate updates");
+        require(quorumPercent >= MIN_QUORUM_PERCENT && quorumPercent <= HUNDRED_PERCENT, "Invalid quorum percent");
+
+        if (voteDuration == 0) {
+            voteDuration = DEFAULT_GOV_VOTE_DURATION;
+        }
+        require(voteDuration >= MIN_GOV_VOTE_DURATION && voteDuration <= MAX_GOV_VOTE_DURATION, "Invalid vote duration period");
+
+        if ($.priceOracleAdapter != address(0)) {
+            try IPriceOracleAdapter($.priceOracleAdapter).getPrice() returns (uint256 oraclePrice) {
+                $.auctionParameters.exitPrice = oraclePrice;
+                emit ExitPriceUpdated(oraclePrice, true);
+                return;
+            } catch (bytes memory reason) {
+                // Check for custom error InvalidPrice()
+                if (!_isInvalidPriceError(reason)) {
+                    revert(string(reason));
+                }
+            }
+        }
+        _createProposal(newPrice, quorumPercent, voteDuration);
+    }
+
+    /**
+     * @notice Creates a new governance proposal to update the exit price.
+     * @param newExitPrice The proposed new exit price.
+     * @param quorumPercent The required quorum percentage.
+     * @param duration The voting period duration in seconds.
+     */
+    function _createProposal(uint256 newExitPrice, uint256 quorumPercent, uint256 duration) internal {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        $.latestProposalId++;
+        FermionTypes.PriceUpdateProposal storage proposal = $.updateProposals[$.latestProposalId];
+        proposal.proposalId = $.latestProposalId;
+        proposal.newExitPrice = newExitPrice;
+        proposal.votingDeadline = block.timestamp + duration;
+        proposal.quorumPercent = quorumPercent;
+        proposal.state = FermionTypes.PriceUpdateProposalState.Active;
+
+        emit PriceUpdateProposalCreated($.latestProposalId, newExitPrice, proposal.votingDeadline, quorumPercent);
+    }
+
+   /**
+     * @notice Allows a fraction holder to vote on the latest active buyout exit price proposal.
+     *         If the voting deadline has passed before the vote, the proposal is finalized first.
+     * 
+     * Invariants:
+     * - If the voting deadline has passed, `_finalizeProposal` is called to finalize the proposal.
+     * - After `_finalizeProposal` is called, the proposal must no longer be in the `Active` state.
+     * 
+     * Emits:
+     * - `PriceUpdateVoted` when a fraction holder casts their vote.
+     * - `ExitPriceUpdated` if the proposal is finalized successfully during this call.
+     * - `PriceUpdateProposalFinalized` if the proposal is finalized during this call, regardless of success or failure.
+     * 
+     * Reverts if:
+     * - The latest proposal is not in an `Active` state when the function is called.
+     * - The proposal is finalized during this call and is no longer in the `Active` state, preventing further votes.
+     * - The caller has already voted on the latest proposal.
+     * - The caller has no voting power (fraction balance is zero).
+     * 
+     * @param voteYes True to vote yes, false to vote no.
+     */
+    function voteOnProposal(bool voteYes) external {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        uint256 proposalId = $.latestProposalId;
+        FermionTypes.PriceUpdateProposal storage proposal = $.updateProposals[proposalId];
+
+        // Ensure the proposal is active
+        require(proposal.state == FermionTypes.PriceUpdateProposalState.Active, "Proposal is not active");
+
+        // Finalize the proposal before the vote, if the voting deadline has passed
+        if (block.timestamp > proposal.votingDeadline) {
+            _finalizeProposal(proposal);
+            assert(proposal.state != FermionTypes.PriceUpdateProposalState.Active);
+            return;
+        }
+
+        FermionTypes.PriceUpdateVoter storage voter = proposal.voters[msg.sender];
+        require(!voter.hasVoted, "Already voted");
+
+        uint256 voterBalance = balanceOf(msg.sender);
+        require(voterBalance > 0, "No voting power");
+
+        voter.hasVoted = true;
+        voter.votedYes = voteYes;
+        voter.voteCount = voterBalance;
+
+        if (voteYes) {
+            proposal.yesVotes += voterBalance;
+        } else {
+            proposal.noVotes += voterBalance;
+        }
+
+        emit PriceUpdateVoted(proposalId, msg.sender, voterBalance, voteYes);
+    }
+
+   /**
+     * @notice Finalizes a proposal by applying the following rules:
+     * - A proposal is successful and `exitPrice` is updated if:
+     *     1. A quorum is reached.
+     *     2. `yesVotes` are greater than `noVotes`.
+     * - A proposal fails if:
+     *     1. Quorum is not reached.
+     *     2. Quorum is reached, but `noVotes` are greater than `yesVotes`.
+     *
+     * Emits:
+     * - `ExitPriceUpdated` if the proposal is successful.
+     * - `PriceUpdateProposalFinalized` regardless of success or failure.
+     *
+     * @param proposal The proposal to finalize.
+     */
+    function _finalizeProposal(FermionTypes.PriceUpdateProposal storage proposal) internal {
+        uint256 totalVotes = proposal.yesVotes + proposal.noVotes;
+        uint256 quorumRequired = (liquidSupply() * proposal.quorumPercent) / HUNDRED_PERCENT;
+
+        if (totalVotes >= quorumRequired) {
+            if (proposal.yesVotes > proposal.noVotes) {
+                proposal.state = FermionTypes.PriceUpdateProposalState.Executed;
+                _getBuyoutAuctionStorage().auctionParameters.exitPrice = proposal.newExitPrice;
+                emit ExitPriceUpdated(proposal.newExitPrice, false);
+            } 
+            else {
+                proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
+            }
+        } 
+        else {
+            proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
+        }
+
+        emit PriceUpdateProposalFinalized(proposal.proposalId, proposal.state == FermionTypes.PriceUpdateProposalState.Executed);
+    }
+
+    /**
      * @notice Locks the F-NFTs and mints the fractions.
      *
      * Reverts if:
@@ -903,4 +1066,60 @@ abstract contract FermionFractions is
             FundsLib.transferFundsFromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
         }
     }
+
+        function _adjustVotesOnTransfer(address voter, uint256 amount) internal {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.PriceUpdateProposal storage proposal = $.updateProposals[$.latestProposalId];
+
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
+            return;
+        }
+
+        FermionTypes.PriceUpdateVoter storage voterData = proposal.voters[voter];
+
+        if (!voterData.hasVoted || voterData.voteCount == 0) {
+            return;
+        }
+
+        uint256 votesToRemove = (amount > voterData.voteCount) ? voterData.voteCount : amount;
+
+        if (voterData.votedYes) {
+            unchecked {
+                proposal.yesVotes -= votesToRemove;
+            }
+        } else {
+            unchecked {
+                proposal.noVotes -= votesToRemove;
+            }
+        }
+
+        unchecked {
+            voterData.voteCount -= votesToRemove;
+        }
+
+        // Clear the `hasVoted` flag only if all votes are removed
+        if (voterData.voteCount == 0) {
+            voterData.hasVoted = false;
+        }
+    }
+
+    /**
+     * @notice Checks if the revert reason matches the custom error InvalidPrice().
+     * @param reason The revert reason.
+     * @return isInvalidPrice True if the reason is InvalidPrice(), otherwise false.
+     */
+    function _isInvalidPriceError(bytes memory reason) internal pure returns (bool) {
+        return reason.length == 4 && bytes4(reason) == IPriceOracleAdapter.InvalidPrice.selector;
+    }
+
+    /**
+     * @notice Adjusts the voter's records on transfer by removing votes associated with the transferred fractions.
+     *         This ensures the proposal's vote count remain accurate.
+     *
+     * @dev If the voter has no active votes or the latest proposal is not active, no adjustments are made.
+     *      If the number of fractions being transferred exceeds the voter's vote count, only the available votes are removed.
+     *
+     * @param voter The address of the voter whose votes are being adjusted.
+     * @param amount The number of fractions being transferred.
+     */
 }

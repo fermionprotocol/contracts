@@ -24,4 +24,9 @@ interface IFermionFractionsEvents {
     event Fractionalised(uint256 indexed tokenId, uint256 fractionsCount);
     event FractionsSetup(uint256 initialFractionsAmount, FermionTypes.BuyoutAuctionParameters buyoutAuctionParameters);
     event AdditionalFractionsMinted(uint256 additionalAmount, uint256 totalFractionsAmount);
+    // Buyout Exit Price Governance Update Events
+    event PriceUpdateProposalCreated(uint256 indexed proposalId, uint256 newExitPrice, uint256 votingDeadline, uint256 quorumRequired);
+    event PriceUpdateProposalFinalized(uint256 indexed proposalId, bool success);
+    event PriceUpdateVoted(uint256 indexed proposalId, address indexed voter, uint256 voteCount, bool votedYes);
+    event ExitPriceUpdated(uint256 newPrice, bool isOracleUpdate);
 }
