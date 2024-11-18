@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { VerificationErrors, FermionGeneralErrors } from "../domain/Errors.sol";
+import { VerificationErrors, FermionGeneralErrors, SignatureErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -38,9 +38,14 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
      *
      * Emits an VerdictSubmitted event
      *
+     * If the revised metadata was already submitted, the verifier can submit the verdict only
+     * by calling `removeRevisedMetadataAndSubmitVerdict`.
+     *
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the verifier's assistant
+     * - Verdict is already submitted
+     * - The revised metadata was submitted
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
@@ -83,13 +88,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
             );
         }
 
-        tokenLookups.revisedMetadata = _newMetadata;
-
-        // updating the metadata resets the proposals
-        delete tokenLookups.buyerSplitProposal;
-        delete tokenLookups.sellerSplitProposal;
-
-        emit RevisedMetadataSubmitted(_tokenId, _newMetadata);
+        updateMetadataAndResetProposals(tokenLookups, _newMetadata, _tokenId);
     }
 
     /**
@@ -121,9 +120,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
             FermionTypes.AccountRole.Assistant
         );
 
-        delete tokenLookups.revisedMetadata;
-
-        emit RevisedMetadataSubmitted(_tokenId, "");
+        updateMetadataAndResetProposals(tokenLookups, "", _tokenId);
 
         submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
@@ -470,6 +467,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                     splitProposal.seller = tokenLookups.sellerSplitProposal;
                     splitProposal.matching = _buyerPercent <= splitProposal.seller;
                 } else {
+                    EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId, _otherSigner);
                     tokenLookups.sellerSplitProposal = _buyerPercent;
                     splitProposal.seller = _buyerPercent;
                     splitProposal.matching = true;
@@ -486,6 +484,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                     splitProposal.matching = splitProposal.buyer > 0 && _buyerPercent >= splitProposal.buyer;
                     if (splitProposal.matching) tokenLookups.buyerSplitProposal = _buyerPercent;
                 } else {
+                    if (_otherSigner != initialBuyer) revert SignatureErrors.InvalidSigner(initialBuyer, _otherSigner);
                     tokenLookups.buyerSplitProposal = _buyerPercent;
                     splitProposal.buyer = _buyerPercent;
                     splitProposal.matching = true;
@@ -498,5 +497,24 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         if (splitProposal.matching) {
             submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Verified, false);
         }
+    }
+
+    /**
+     * @notice Updates the metadata and resets the proposals
+     *
+     * Emits a RevisedMetadataSubmitted event
+     */
+    function updateMetadataAndResetProposals(
+        FermionStorage.TokenLookups storage tokenLookups,
+        string memory _newMetadata,
+        uint256 _tokenId
+    ) internal {
+        tokenLookups.revisedMetadata = _newMetadata;
+
+        // updating the metadata resets the proposals
+        delete tokenLookups.buyerSplitProposal;
+        delete tokenLookups.sellerSplitProposal;
+
+        emit RevisedMetadataSubmitted(_tokenId, _newMetadata);
     }
 }

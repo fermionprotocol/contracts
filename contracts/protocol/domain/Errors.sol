@@ -116,6 +116,7 @@ interface MetaTransactionErrors {
 interface SignatureErrors {
     error InvalidSignature(); // Somethihing is wrong with the signature
     error SignatureValidationFailed(); // Signature might be correct, but the validation failed
+    error InvalidSigner(address expected, address actual);
 }
 
 interface FractionalisationErrors is AuctionErrors {
