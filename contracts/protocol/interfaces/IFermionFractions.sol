@@ -41,7 +41,6 @@ interface IFermionFractions {
         FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
         uint256 _depositAmount,
         address _priceOracleAdapter
-
     ) external;
 
     /**

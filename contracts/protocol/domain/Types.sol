@@ -64,12 +64,11 @@ contract FermionTypes {
         CheckedOut,
         Burned
     }
-    enum PriceUpdateProposalState { 
-        Active, 
-        Executed, 
-        Failed 
+    enum PriceUpdateProposalState {
+        Active,
+        Executed,
+        Failed
     }
-
 
     struct EntityData {
         address admin;

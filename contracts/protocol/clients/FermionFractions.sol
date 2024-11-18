@@ -667,7 +667,7 @@ abstract contract FermionFractions is
 
     /**
      * @notice Updates the exit price directly if the oracle provides a valid price, otherwise initiates a governance proposal.
-     * 
+     *
      * Emits a `PriceUpdated` event if the exit price is updated via the oracle.
      * Emits a `ProposalCreated` event if a governance proposal is created.
      *
@@ -697,7 +697,10 @@ abstract contract FermionFractions is
         if (voteDuration == 0) {
             voteDuration = DEFAULT_GOV_VOTE_DURATION;
         }
-        require(voteDuration >= MIN_GOV_VOTE_DURATION && voteDuration <= MAX_GOV_VOTE_DURATION, "Invalid vote duration period");
+        require(
+            voteDuration >= MIN_GOV_VOTE_DURATION && voteDuration <= MAX_GOV_VOTE_DURATION,
+            "Invalid vote duration period"
+        );
 
         if ($.priceOracleAdapter != address(0)) {
             try IPriceOracleAdapter($.priceOracleAdapter).getPrice() returns (uint256 oraclePrice) {
@@ -733,25 +736,25 @@ abstract contract FermionFractions is
         emit PriceUpdateProposalCreated($.latestProposalId, newExitPrice, proposal.votingDeadline, quorumPercent);
     }
 
-   /**
+    /**
      * @notice Allows a fraction holder to vote on the latest active buyout exit price proposal.
      *         If the voting deadline has passed before the vote, the proposal is finalized first.
-     * 
+     *
      * Invariants:
      * - If the voting deadline has passed, `_finalizeProposal` is called to finalize the proposal.
      * - After `_finalizeProposal` is called, the proposal must no longer be in the `Active` state.
-     * 
+     *
      * Emits:
      * - `PriceUpdateVoted` when a fraction holder casts their vote.
      * - `ExitPriceUpdated` if the proposal is finalized successfully during this call.
      * - `PriceUpdateProposalFinalized` if the proposal is finalized during this call, regardless of success or failure.
-     * 
+     *
      * Reverts if:
      * - The latest proposal is not in an `Active` state when the function is called.
      * - The proposal is finalized during this call and is no longer in the `Active` state, preventing further votes.
      * - The caller has already voted on the latest proposal.
      * - The caller has no voting power (fraction balance is zero).
-     * 
+     *
      * @param voteYes True to vote yes, false to vote no.
      */
     function voteOnProposal(bool voteYes) external {
@@ -788,7 +791,7 @@ abstract contract FermionFractions is
         emit PriceUpdateVoted(proposalId, msg.sender, voterBalance, voteYes);
     }
 
-   /**
+    /**
      * @notice Finalizes a proposal by applying the following rules:
      * - A proposal is successful and `exitPrice` is updated if:
      *     1. A quorum is reached.
@@ -812,16 +815,17 @@ abstract contract FermionFractions is
                 proposal.state = FermionTypes.PriceUpdateProposalState.Executed;
                 _getBuyoutAuctionStorage().auctionParameters.exitPrice = proposal.newExitPrice;
                 emit ExitPriceUpdated(proposal.newExitPrice, false);
-            } 
-            else {
+            } else {
                 proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
             }
-        } 
-        else {
+        } else {
             proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
         }
 
-        emit PriceUpdateProposalFinalized(proposal.proposalId, proposal.state == FermionTypes.PriceUpdateProposalState.Executed);
+        emit PriceUpdateProposalFinalized(
+            proposal.proposalId,
+            proposal.state == FermionTypes.PriceUpdateProposalState.Executed
+        );
     }
 
     /**
@@ -1067,7 +1071,7 @@ abstract contract FermionFractions is
         }
     }
 
-        function _adjustVotesOnTransfer(address voter, uint256 amount) internal {
+    function _adjustVotesOnTransfer(address voter, uint256 amount) internal {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.PriceUpdateProposal storage proposal = $.updateProposals[$.latestProposalId];
 

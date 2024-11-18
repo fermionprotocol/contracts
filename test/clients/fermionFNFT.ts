@@ -165,7 +165,7 @@ describe("FermionFNFT", function () {
             auctionParameters,
             custodianVaultParameters,
             additionalDeposit,
-            ZeroAddress
+            ZeroAddress,
           );
 
         approvedAccount = wallets[4];
@@ -245,7 +245,7 @@ describe("FermionFNFT", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
-          ZeroAddress
+          ZeroAddress,
         );
 
       // Approve to 0 address
