@@ -8,7 +8,7 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 
 /**
- * @title EntityLib
+ * @title CustodyLib
  *
  * @notice Custody methods used by multiple facets.
  */

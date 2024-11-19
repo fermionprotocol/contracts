@@ -545,7 +545,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         FermionStorage.ProtocolStatus storage ps
     ) internal {
         address msgSender = _msgSender();
-        // FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
 
         address wrapperAddress = offerLookup.fermionFNFTAddress;

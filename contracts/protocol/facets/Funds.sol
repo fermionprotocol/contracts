@@ -10,7 +10,6 @@ import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
-import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 
 /**
  * @title FundsFacet
@@ -223,13 +222,15 @@ contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
                 entityIdCached = _entityId;
             }
 
+            tokenLookups.phygitalsRecipient = type(uint256).max;
+
             FermionTypes.Phygital[] memory phygitals = tokenLookups.phygitals; // all items are accessed, copy everything to memory
             uint256 len = phygitals.length;
             for (uint256 j; j < len; j++) {
                 transferERC721FromProtocol(phygitals[j].contractAddress, _treasury, phygitals[j].tokenId);
             }
 
-            tokenLookups.phygitalsRecipient = type(uint256).max;
+            emit PhygitalsWithdrawn(_tokenIds[i], phygitals);
         }
     }
 
@@ -365,6 +366,8 @@ contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
     /**
      * @notice Internal helper function for depositing or withdrawing phygitals.
      *
+     * Emits PhygitalsDeposited or PhygitalsWithdrawn events if successful.
+     *
      * Reverts if:
      * - Funds region is paused
      * - Length of _tokenIds and _phygitals does not match
@@ -403,6 +406,8 @@ contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
 
                     transferERC721ToProtocol(_phygitals[i][j].contractAddress, msgSender, _phygitals[i][j].tokenId);
                 }
+
+                emit PhygitalsDeposited(tokenId, _phygitals[i]);
             } else {
                 // only the seller can withdraw the phygitals
                 EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId, msgSender);
@@ -427,6 +432,8 @@ contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
                     }
 
                     transferERC721FromProtocol(_phygitals[i][j].contractAddress, msgSender, _phygitals[i][j].tokenId);
+
+                    emit PhygitalsWithdrawn(tokenId, _phygitals[i]);
                 }
             }
         }

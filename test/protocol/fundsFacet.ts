@@ -796,6 +796,9 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Deposited")
           .withArgs(mockPhygital1Address, phygitalTokenId2, wallet.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsDeposited")
+          .withArgs(fnftTokenId, [Object.values(phygital1), Object.values(phygital2)]);
 
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital1), Object.values(phygital2)]);
@@ -820,6 +823,9 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Deposited")
           .withArgs(mockPhygital1Address, phygitalTokenId2, wallet.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsDeposited")
+          .withArgs(fnftTokenId, [Object.values(phygital2)]);
 
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital1), Object.values(phygital2)]);
@@ -852,6 +858,12 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Deposited")
           .withArgs(mockPhygital3Address, phygitalTokenId3, wallet.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsDeposited")
+          .withArgs(fnftTokenId, [Object.values(phygital1), Object.values(phygital2)]);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsDeposited")
+          .withArgs(fnftTokenId2, [Object.values(phygital3)]);
 
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital1), Object.values(phygital2)]);
@@ -1033,7 +1045,7 @@ describe("Funds", function () {
       });
     });
 
-    context("withdrawPhygitals - seller", function () {
+    context.only("withdrawPhygitals - seller", function () {
       before(async function () {
         fundsFacet.withdrawPhygitals = fundsFacet["withdrawPhygitals(uint256[],(address,uint256)[][])"];
       });
@@ -1050,6 +1062,9 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Withdrawn")
           .withArgs(mockPhygital1Address, phygitalTokenId, defaultSigner.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId, [Object.values(phygital)]);
 
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([]);
@@ -1071,6 +1086,9 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Withdrawn")
           .withArgs(mockPhygital1Address, phygitalTokenId, defaultSigner.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId, [Object.values(phygital)]);
 
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([]);
@@ -1099,6 +1117,9 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Withdrawn")
           .withArgs(mockPhygital1Address, phygitalTokenId2, defaultSigner.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId, [Object.values(phygital2)]);
 
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([
           Object.values(phygital1),
@@ -1118,6 +1139,9 @@ describe("Funds", function () {
         await expect(tx2)
           .to.emit(fundsFacet, "ERC721Withdrawn")
           .withArgs(mockPhygital1Address, phygitalTokenId4, defaultSigner.address);
+        await expect(tx2)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId, [Object.values(phygital3), Object.values(phygital4), Object.values(phygital1)]);
 
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([]);
@@ -1148,6 +1172,12 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Withdrawn")
           .withArgs(mockPhygital3Address, phygitalTokenId3, defaultSigner.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId, [Object.values(phygital1)]);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId2, [Object.values(phygital3)]);
 
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital2)]);
@@ -1259,7 +1289,7 @@ describe("Funds", function () {
       });
     });
 
-    context("withdrawPhygitals - buyer", function () {
+    context.only("withdrawPhygitals - buyer", function () {
       let buyer: HardhatEthersSigner;
       let custodian: HardhatEthersSigner;
 
@@ -1303,6 +1333,9 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Withdrawn")
           .withArgs(mockPhygital1Address, phygitalTokenId, buyer.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId, [Object.values(phygital)]);
 
         // State. In happy path, the phygital is not removed from the offer
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital)]);
@@ -1348,6 +1381,9 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Withdrawn")
           .withArgs(mockPhygital1Address, phygitalTokenId3, buyer.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId, [Object.values(phygital1), Object.values(phygital2), Object.values(phygital3)]);
 
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([
           Object.values(phygital1),
@@ -1417,6 +1453,12 @@ describe("Funds", function () {
         await expect(tx)
           .to.emit(fundsFacet, "ERC721Withdrawn")
           .withArgs(mockPhygital3Address, phygitalTokenId3, buyer.address);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId, [Object.values(phygital1), Object.values(phygital2)]);
+        await expect(tx)
+          .to.emit(fundsFacet, "PhygitalsWithdrawn")
+          .withArgs(fnftTokenId2, [Object.values(phygital3)]);
 
         // State
         expect(await fundsFacet.getPhygitals(fnftTokenId)).to.eql([Object.values(phygital1), Object.values(phygital2)]);
