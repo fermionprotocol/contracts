@@ -153,7 +153,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address to,
         uint256 value
     ) public virtual override(IFermionFractions, FermionFractions) returns (bool) {
-        _adjustVotesOnTransfer(msg.sender, value);
+        _adjustVotesOnTransfer(_msgSender(), value);
         return FermionFractions.transfer(to, value);
     }
 
