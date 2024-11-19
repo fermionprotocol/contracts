@@ -47,15 +47,13 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
      * @param _exchangeToken The address of the exchange token
      * @param _offerId The offer id
      * @param _metadataUri The metadata URI, used for all tokens and contract URI
-     * @param _priceOracleRegistry The address of the Price Oracle Registry
      */
     function initialize(
         address _voucherAddress,
         address _owner,
         address _exchangeToken,
         uint256 _offerId,
-        string memory _metadataUri,
-        address _priceOracleRegistry
+        string memory _metadataUri
     ) external initializer {
         if (address(this) == THIS_CONTRACT) {
             revert InvalidInitialization();
@@ -65,7 +63,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         voucherAddress = _voucherAddress;
 
         initializeWrapper(_owner, _metadataUri);
-        intializeFractions(_exchangeToken, _priceOracleRegistry);
+        intializeFractions(_exchangeToken);
 
         string memory _offerIdString = Strings.toString(_offerId);
         __ERC721_init(string.concat("Fermion FNFT ", _offerIdString), string.concat("FFNFT_", _offerIdString));

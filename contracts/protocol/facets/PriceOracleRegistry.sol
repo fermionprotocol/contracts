@@ -1,34 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "../interfaces/IPriceOracle.sol";
-import "../interfaces/IPriceOracleRegistry.sol";
-import "../interfaces/events/IPriceOracleRegistryEvents.sol";
+import { FermionStorage } from "../libs/Storage.sol";
+import { Access } from "../libs/Access.sol";
+import { FermionErrors } from "../domain/Errors.sol";
+import { IPriceOracle } from "../interfaces/IPriceOracle.sol";
+import { IPriceOracleRegistryEvents } from "../interfaces/events/IPriceOracleRegistryEvents.sol";
+import { ADMIN } from "../domain/Constants.sol";
 
 /**
- * @title PriceOracleRegistry
- * @dev Manages a registry of approved price oracles for RWAs, ensuring they comply with the IPriceOracle interface and return valid prices when added.
+ * @title PriceOracleRegistryFacet
+ * @dev Manages a registry of approved price oracles for RWAs within the protocol, with admin restrictions.
  */
-contract PriceOracleRegistry is Initializable, OwnableUpgradeable, IPriceOracleRegistry, IPriceOracleRegistryEvents {
-    /// @notice oracle address -> ID (e.g., "GOLD" or "REAL_ESTATE")
-    mapping(address => bytes32) private priceOracles;
-
-    /**
-     * @notice Initializes the contract.
-     * @param _owner The address of the owner.
-     */
-    function initialize(address _owner) external initializer {
-        __Ownable_init(_owner);
-    }
-
+contract PriceOracleRegistry is Access, FermionErrors, IPriceOracleRegistryEvents {
     /**
      * @notice Adds a new Price Oracle to the registry.
      *
      * Emits a `PriceOracleAdded` event if successful.
      *
      * Reverts if:
+     * - The caller is not an admin.
      * - The oracle address is zero.
      * - The identifier is empty.
      * - The oracle address is already approved.
@@ -38,14 +29,16 @@ contract PriceOracleRegistry is Initializable, OwnableUpgradeable, IPriceOracleR
      * @param oracleAddress The address of the oracle to add.
      * @param identifier A simple identifier (e.g., "GOLD" or "REAL_ESTATE") for the associated RWA.
      */
-    function addPriceOracle(address oracleAddress, bytes32 identifier) external onlyOwner {
+    function addPriceOracle(address oracleAddress, bytes32 identifier) external onlyRole(ADMIN) {
+        FermionStorage.PriceOracleRegistryStorage storage registry = FermionStorage.priceOracleRegistryStorage();
+
         if (oracleAddress == address(0)) {
-            revert InvalidOracleAddress();
+            revert InvalidAddress();
         }
         if (identifier == bytes32(0)) {
             revert InvalidIdentifier();
         }
-        if (priceOracles[oracleAddress] != bytes32(0)) {
+        if (registry.priceOracles[oracleAddress] != bytes32(0)) {
             revert OracleAlreadyApproved();
         }
 
@@ -57,7 +50,7 @@ contract PriceOracleRegistry is Initializable, OwnableUpgradeable, IPriceOracleR
             revert OracleValidationFailed();
         }
 
-        priceOracles[oracleAddress] = identifier;
+        registry.priceOracles[oracleAddress] = identifier;
 
         emit PriceOracleAdded(oracleAddress, identifier);
     }
@@ -68,16 +61,19 @@ contract PriceOracleRegistry is Initializable, OwnableUpgradeable, IPriceOracleR
      * Emits a `PriceOracleRemoved` event if successful.
      *
      * Reverts if:
+     * - The caller is not an admin.
      * - The oracle address is not approved.
      *
      * @param oracleAddress The address of the oracle to remove.
      */
-    function removePriceOracle(address oracleAddress) external onlyOwner {
-        if (priceOracles[oracleAddress] == bytes32(0)) {
+    function removePriceOracle(address oracleAddress) external onlyRole(ADMIN) {
+        FermionStorage.PriceOracleRegistryStorage storage registry = FermionStorage.priceOracleRegistryStorage();
+
+        if (registry.priceOracles[oracleAddress] == bytes32(0)) {
             revert OracleNotApproved();
         }
 
-        delete priceOracles[oracleAddress];
+        delete registry.priceOracles[oracleAddress];
         emit PriceOracleRemoved(oracleAddress);
     }
 
@@ -87,7 +83,7 @@ contract PriceOracleRegistry is Initializable, OwnableUpgradeable, IPriceOracleR
      * @return True if the oracle is approved, false otherwise.
      */
     function isPriceOracleApproved(address oracleAddress) external view returns (bool) {
-        return priceOracles[oracleAddress] != bytes32(0);
+        return FermionStorage.priceOracleRegistryStorage().priceOracles[oracleAddress] != bytes32(0);
     }
 
     /**
@@ -96,6 +92,6 @@ contract PriceOracleRegistry is Initializable, OwnableUpgradeable, IPriceOracleR
      * @return The identifier of the associated RWA, or zero if not found.
      */
     function getPriceOracleIdentifier(address oracleAddress) external view returns (bytes32) {
-        return priceOracles[oracleAddress];
+        return FermionStorage.priceOracleRegistryStorage().priceOracles[oracleAddress];
     }
 }

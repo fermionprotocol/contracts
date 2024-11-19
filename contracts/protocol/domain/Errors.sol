@@ -133,8 +133,22 @@ interface FractionalisationErrors is AuctionErrors {
     error TokenNotFractionalised(uint256 tokenId);
     error InvalidAuctionIndex(uint256 auctionIndex, uint256 numberOfAuctions); // auctionIndex should be less than numberOfAuctions
     error AuctionReserved(uint256 tokenId);
+    error ProposalNotActive(uint256 proposalId);
+    error AlreadyVoted(uint256 proposalId, address voter);
+    error NoVotingPower(address voter);
+    error OnlyFractionOwner();
+    error InvalidVoteDuration(uint256 voteDuration);
+    error OngoingProposalExists();
 }
 
+interface PriceOracleRegistryErrors {
+    error InvalidOracleAddress();
+    error InvalidIdentifier();
+    error OracleAlreadyApproved();
+    error OracleNotApproved();
+    error OracleValidationFailed();
+    error OracleReturnedInvalidPrice();
+}
 interface FermionErrors is
     FermionGeneralErrors,
     InitializationErrors,
@@ -146,5 +160,6 @@ interface FermionErrors is
     FundsErrors,
     PauseErrors,
     MetaTransactionErrors,
-    FractionalisationErrors
+    FractionalisationErrors,
+    PriceOracleRegistryErrors
 {}

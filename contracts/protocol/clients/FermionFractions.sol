@@ -39,13 +39,10 @@ abstract contract FermionFractions is
      * @notice Initializes the contract
      *
      * @param _exchangeToken The address of the exchange token
-     * @param _priceOracleRegistry The address of the Price Oracle Registry
      */
-    function intializeFractions(address _exchangeToken, address _priceOracleRegistry) internal virtual {
+    function intializeFractions(address _exchangeToken) internal virtual {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-
         $.exchangeToken = _exchangeToken;
-        $.priceOracleRegistry = _priceOracleRegistry;
     }
 
     /**
@@ -120,7 +117,7 @@ abstract contract FermionFractions is
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 
         if (_priceOracle != address(0)) {
-            _ensureOracleApproved($.priceOracleRegistry, _priceOracle);
+            _ensureOracleApproved(_priceOracle);
             $.priceOracle = _priceOracle;
         }
 
@@ -675,121 +672,126 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice Updates the exit price directly if the oracle provides a valid price, otherwise initiates a governance proposal.
+     * @notice Updates the exit price using either an oracle or a governance proposal.
+     *         If the oracle provides a valid price, it is updated directly; otherwise,
+     *         a governance proposal is created.
      *
-     * Emits a `PriceUpdated` event if the exit price is updated via the oracle.
-     * Emits a `ProposalCreated` event if a governance proposal is created.
+     * @dev Only callable by fraction owners.
+     *      If an oracle is set, the price is fetched and used if valid; otherwise, the fallback
+     *      governance proposal mechanism is used.
      *
-     * Reverts if:
-     * - Caller is not a fraction owner
-     * - The `quorumPercent` is outside the range [MIN_QUORUM_PERCENT, HUNDRED_PERCENT]
-     * - The `voteDuration` is outside the range [MIN_GOV_VOTE_DURATION, MAX_GOV_VOTE_DURATION]
-     * - There is an active proposal already
-     * - The oracle reverts with an error other than `InvalidPrice()`
-     * - The oracle is not whitelisted in the oracle registry.
+     * Emits:
+     * - `ExitPriceUpdated` if the exit price is updated via the oracle.
+     * - `PriceUpdateProposalCreated` if a governance proposal is created.
      *
-     * @param newPrice The user-suggested exit price.
-     * @param quorumPercent The minimum quorum percentage for the governance proposal in bps (e.g., 2000 is 20%).
+     * @param newPrice The proposed new exit price.
+     * @param quorumPercent The required quorum percentage for the governance proposal (in basis points).
      * @param voteDuration The duration of the governance proposal in seconds.
+     *
+     * Reverts:
+     * - `OnlyFractionOwner()` if the caller is not a fraction owner.
+     * - `InvalidQuorumPercent()` if the quorumPercent is outside the allowed range.
+     * - `InvalidVoteDuration()` if the voteDuration is outside the allowed range.
+     * - `OngoingProposalExists()` if there is an active proposal.
      */
     function updateExitPrice(uint256 newPrice, uint256 quorumPercent, uint256 voteDuration) external {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
 
-        // Ensure there is no ongoing proposal
-        if ($.latestProposalId > 0) {
-            FermionTypes.PriceUpdateProposal storage lastProposal = $.updateProposals[$.latestProposalId];
-            require(lastProposal.state != FermionTypes.PriceUpdateProposalState.Active, "Ongoing proposal exists");
+        if (balanceOf(_msgSender()) == 0) {
+            revert OnlyFractionOwner();
         }
 
-        require(balanceOf(msg.sender) > 0, "Only fraction owners can initiate updates");
-        require(quorumPercent >= MIN_QUORUM_PERCENT && quorumPercent <= HUNDRED_PERCENT, "Invalid quorum percent");
+        if (quorumPercent < MIN_QUORUM_PERCENT || quorumPercent > HUNDRED_PERCENT) {
+            revert InvalidPercentage(quorumPercent);
+        }
 
         if (voteDuration == 0) {
             voteDuration = DEFAULT_GOV_VOTE_DURATION;
         }
-        require(
-            voteDuration >= MIN_GOV_VOTE_DURATION && voteDuration <= MAX_GOV_VOTE_DURATION,
-            "Invalid vote duration period"
-        );
+
+        if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
+            revert InvalidVoteDuration(voteDuration);
+        }
+
+        if ($.currentProposal.state == FermionTypes.PriceUpdateProposalState.Active) {
+            revert OngoingProposalExists();
+        }
+
         address oracle = $.priceOracle;
         if (oracle != address(0)) {
-            _ensureOracleApproved($.priceOracleRegistry, oracle);
+            _ensureOracleApproved(oracle);
 
             try IPriceOracle(oracle).getPrice() returns (uint256 oraclePrice) {
                 $.auctionParameters.exitPrice = oraclePrice;
                 emit ExitPriceUpdated(oraclePrice, true);
                 return;
             } catch (bytes memory reason) {
-                // Only revert if oracle reverts with error different than InvalidPrice()
                 if (!_isInvalidPriceError(reason)) {
                     revert(string(reason));
                 }
             }
         }
-        _createProposal(newPrice, quorumPercent, voteDuration);
+
+        $.currentProposal.proposalId += 1;
+        $.currentProposal.newExitPrice = newPrice;
+        $.currentProposal.votingDeadline = block.timestamp + voteDuration;
+        $.currentProposal.quorumPercent = quorumPercent;
+        $.currentProposal.yesVotes = 0;
+        $.currentProposal.noVotes = 0;
+        $.currentProposal.state = FermionTypes.PriceUpdateProposalState.Active;
+
+        emit PriceUpdateProposalCreated(
+            $.currentProposal.proposalId,
+            newPrice,
+            $.currentProposal.votingDeadline,
+            quorumPercent
+        );
     }
 
     /**
-     * @notice Creates a new governance proposal to update the exit price.
-     * @param newExitPrice The proposed new exit price.
-     * @param quorumPercent The required quorum percentage.
-     * @param duration The voting period duration in seconds.
-     */
-    function _createProposal(uint256 newExitPrice, uint256 quorumPercent, uint256 duration) internal {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        $.latestProposalId++;
-        FermionTypes.PriceUpdateProposal storage proposal = $.updateProposals[$.latestProposalId];
-        proposal.proposalId = $.latestProposalId;
-        proposal.newExitPrice = newExitPrice;
-        proposal.votingDeadline = block.timestamp + duration;
-        proposal.quorumPercent = quorumPercent;
-        proposal.state = FermionTypes.PriceUpdateProposalState.Active;
-
-        emit PriceUpdateProposalCreated($.latestProposalId, newExitPrice, proposal.votingDeadline, quorumPercent);
-    }
-
-    /**
-     * @notice Allows a fraction holder to vote on the latest active buyout exit price proposal.
-     *         If the voting deadline has passed before the vote, the proposal is finalized first.
+     * @notice Allows a fraction owner to vote on the current active proposal.
+     *         If the voting deadline has passed, the proposal is finalized first.
      *
-     * Invariants:
-     * - If the voting deadline has passed, `_finalizeProposal` is called to finalize the proposal.
-     * - After `_finalizeProposal` is called, the proposal must no longer be in the `Active` state.
+     * @dev The proposal must be active, and the caller must not have voted on it yet.
      *
      * Emits:
-     * - `PriceUpdateVoted` when a fraction holder casts their vote.
+     * - `PriceUpdateVoted` when a fraction owner casts their vote.
      * - `ExitPriceUpdated` if the proposal is finalized successfully during this call.
-     * - `PriceUpdateProposalFinalized` if the proposal is finalized during this call, regardless of success or failure.
-     *
-     * Reverts if:
-     * - The latest proposal is not in an `Active` state when the function is called.
-     * - The proposal is finalized during this call and is no longer in the `Active` state, preventing further votes.
-     * - The caller has already voted on the latest proposal.
-     * - The caller has no voting power (fraction balance is zero).
+     * - `PriceUpdateProposalFinalized` if the proposal is finalized during this call.
      *
      * @param voteYes True to vote yes, false to vote no.
+     *
+     * Reverts:
+     * - `ProposalNotActive()` if the current proposal is not active.
+     * - `AlreadyVoted()` if the caller has already voted on the proposal.
+     * - `NoVotingPower()` if the caller has no voting power.
      */
     function voteOnProposal(bool voteYes) external {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        uint256 proposalId = $.latestProposalId;
-        FermionTypes.PriceUpdateProposal storage proposal = $.updateProposals[proposalId];
+        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
 
-        // Ensure the proposal is active
-        require(proposal.state == FermionTypes.PriceUpdateProposalState.Active, "Proposal is not active");
-
-        // Finalize the proposal before the vote, if the voting deadline has passed
-        if (block.timestamp > proposal.votingDeadline) {
-            _finalizeProposal(proposal);
-            assert(proposal.state != FermionTypes.PriceUpdateProposalState.Active);
-            return;
+        if (_finalizeProposal(proposal)) {
+            return; // Exit early if the proposal was finalized
         }
 
-        FermionTypes.PriceUpdateVoter storage voter = proposal.voters[msg.sender];
-        require(!voter.hasVoted, "Already voted");
+        // Ensure the proposal is still active
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
+            revert ProposalNotActive(proposal.proposalId);
+        }
 
-        uint256 voterBalance = balanceOf(msg.sender);
-        require(voterBalance > 0, "No voting power");
+        FermionTypes.PriceUpdateVoter storage voter = proposal.voters[_msgSender()];
 
+        // Check if the voter has already voted on this proposal
+        if (voter.proposalId == proposal.proposalId && voter.hasVoted) {
+            revert AlreadyVoted(proposal.proposalId, _msgSender());
+        }
+
+        uint256 voterBalance = balanceOf(_msgSender());
+        if (voterBalance == 0) {
+            revert NoVotingPower(_msgSender());
+        }
+
+        voter.proposalId = proposal.proposalId;
         voter.hasVoted = true;
         voter.votedYes = voteYes;
         voter.voteCount = voterBalance;
@@ -800,7 +802,7 @@ abstract contract FermionFractions is
             proposal.noVotes += voterBalance;
         }
 
-        emit PriceUpdateVoted(proposalId, msg.sender, voterBalance, voteYes);
+        emit PriceUpdateVoted(proposal.proposalId, _msgSender(), voterBalance, voteYes);
     }
 
     /**
@@ -817,8 +819,13 @@ abstract contract FermionFractions is
      * - `PriceUpdateProposalFinalized` regardless of success or failure.
      *
      * @param proposal The proposal to finalize.
+     * @return finalized True if the proposal was finalized, otherwise false.
      */
-    function _finalizeProposal(FermionTypes.PriceUpdateProposal storage proposal) internal {
+    function _finalizeProposal(FermionTypes.PriceUpdateProposal storage proposal) internal returns (bool finalized) {
+        if (block.timestamp <= proposal.votingDeadline) {
+            return false; // Proposal is still active
+        }
+
         uint256 totalVotes = proposal.yesVotes + proposal.noVotes;
         uint256 quorumRequired = (liquidSupply() * proposal.quorumPercent) / HUNDRED_PERCENT;
 
@@ -838,6 +845,8 @@ abstract contract FermionFractions is
             proposal.proposalId,
             proposal.state == FermionTypes.PriceUpdateProposalState.Executed
         );
+
+        return true;
     }
 
     /**
@@ -1085,9 +1094,9 @@ abstract contract FermionFractions is
 
     /**
      * @notice Adjusts the voter's records on transfer by removing votes associated with the transferred fractions.
-     *         This ensures the proposal's vote count remain accurate.
+     *         This ensures the proposal's vote count remains accurate.
      *
-     * @dev If the voter has no active votes or the latest proposal is not active, no adjustments are made.
+     * @dev If the voter has no active votes or the current proposal is not active, no adjustments are made.
      *      If the number of fractions being transferred exceeds the voter's vote count, only the available votes are removed.
      *
      * @param voter The address of the voter whose votes are being adjusted.
@@ -1095,7 +1104,7 @@ abstract contract FermionFractions is
      */
     function _adjustVotesOnTransfer(address voter, uint256 amount) internal {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        FermionTypes.PriceUpdateProposal storage proposal = $.updateProposals[$.latestProposalId];
+        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
             return;
@@ -1103,7 +1112,7 @@ abstract contract FermionFractions is
 
         FermionTypes.PriceUpdateVoter storage voterData = proposal.voters[voter];
 
-        if (!voterData.hasVoted || voterData.voteCount == 0) {
+        if (voterData.proposalId != proposal.proposalId || !voterData.hasVoted || voterData.voteCount == 0) {
             return;
         }
 
@@ -1145,10 +1154,9 @@ abstract contract FermionFractions is
      * - The oracle is not approved in the registry.
      *
      * @param _oracle The address of the price oracle to check.
-     * @param _priceOracleRegistry The address of the price oracle registry.
      */
-    function _ensureOracleApproved(address _priceOracleRegistry, address _oracle) internal view {
-        if (!IPriceOracleRegistry(_priceOracleRegistry).isPriceOracleApproved(_oracle)) {
+    function _ensureOracleApproved(address _oracle) internal view {
+        if (!IPriceOracleRegistry(fermionProtocol).isPriceOracleApproved(_oracle)) {
             revert PriceOracleNotWhitelisted(_oracle);
         }
     }

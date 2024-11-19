@@ -28,7 +28,6 @@ library FermionFNFTLib {
      * @param _exchangeToken The address of the exchange token
      * @param _offerId The offer id
      * @param _metadataUri The metadata URI, used for all tokens and contract URI
-     * @param _priceOracleRegistry The address of the Price Oracle Registry
      */
     function initialize(
         address _fnft,
@@ -36,14 +35,10 @@ library FermionFNFTLib {
         address _owner,
         address _exchangeToken,
         uint256 _offerId,
-        string memory _metadataUri,
-        address _priceOracleRegistry
+        string memory _metadataUri
     ) internal {
         _fnft.functionCallWithAddress(
-            abi.encodeCall(
-                IFermionFNFT.initialize,
-                (_voucherAddress, _owner, _exchangeToken, _offerId, _metadataUri, _priceOracleRegistry)
-            )
+            abi.encodeCall(IFermionFNFT.initialize, (_voucherAddress, _owner, _exchangeToken, _offerId, _metadataUri))
         );
     }
 

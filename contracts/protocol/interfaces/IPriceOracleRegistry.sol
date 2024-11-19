@@ -6,13 +6,6 @@ pragma solidity 0.8.24;
  * @dev Interface for the PriceOracleRegistry contract.
  */
 interface IPriceOracleRegistry {
-    error InvalidOracleAddress();
-    error InvalidIdentifier();
-    error OracleAlreadyApproved();
-    error OracleNotApproved();
-    error OracleValidationFailed();
-    error OracleReturnedInvalidPrice();
-
     /**
      * @notice Adds a new Price Oracle to the registry.
      * @param oracleAddress The address of the oracle to add.
