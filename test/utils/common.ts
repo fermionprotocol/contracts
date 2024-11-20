@@ -15,6 +15,11 @@ import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/ta
 // We use loadFixture to run this setup once, snapshot that state,
 // and reset Hardhat Network to that snapshot in every test.
 // Use the same deployment script that is used in the deploy-suite task
+// If you want to pass env or defaultSigner to this fixture, do it like this:
+// ```
+// const fixtureArgs = { env, defaultSigner };
+// await loadFixture(deployFermionProtocolFixture.bind(fixtureArgs)))
+// ```
 export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersSigner) {
   const {
     diamondAddress,
@@ -24,12 +29,11 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
     seaportAddress,
     seaportContract,
     bosonTokenAddress,
-  } = await deploySuite();
+  } = await deploySuite(this.env);
 
   const fermionErrors = await ethers.getContractAt("FermionErrors", diamondAddress);
-
   const wallets = await ethers.getSigners();
-  defaultSigner = wallets[1];
+  defaultSigner = defaultSigner || this.defaultSigner || wallets[1];
 
   const implementationAddresses = {};
   for (const facetName of Object.keys(facets)) {
