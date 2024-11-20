@@ -707,12 +707,11 @@ abstract contract FermionFractions is
 
         if (voteDuration == 0) {
             voteDuration = DEFAULT_GOV_VOTE_DURATION;
+        } else {
+            if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
+                revert InvalidVoteDuration(voteDuration);
+            }
         }
- else {
-        if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
-            revert InvalidVoteDuration(voteDuration);
-        }
-}
 
         if ($.currentProposal.state == FermionTypes.PriceUpdateProposalState.Active) {
             revert OngoingProposalExists();
@@ -751,59 +750,52 @@ abstract contract FermionFractions is
 
     /**
      * @notice Allows a fraction owner to vote on the current active proposal.
-     *         If the voting deadline has passed, the proposal is finalized first.
+     *         If the caller has acquired additional fractions, the vote will be updated
+     *         to include the newly acquired fractions.
      *
-     * @dev The proposal must be active, and the caller must not have voted on it yet.
+     * @dev The caller must vote with all fractions they own at the time of calling.
+     *      If the caller has already voted, the vote must match the previous choice
+     *      (YES or NO). Additional votes are automatically added to the previous choice.
      *
      * Emits:
-     * - `PriceUpdateVoted` when a fraction owner casts their vote.
-     * - `ExitPriceUpdated` if the proposal is finalized successfully during this call.
-     * - `PriceUpdateProposalFinalized` if the proposal is finalized during this call.
-     *
-     * @param voteYes True to vote yes, false to vote no.
+     * - `PriceUpdateVoted` when a fraction owner casts or updates their vote.
      *
      * Reverts:
-     * - `ProposalNotActive()` if the current proposal is not active.
-     * - `AlreadyVoted()` if the caller has already voted on the proposal.
-     * - `NoVotingPower()` if the caller has no voting power.
+     * - `ProposalNotActive` if the proposal is not active.
+     * - `NoVotingPower` if the caller has no fractions to vote with.
+     * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
+     * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
+     *
+     * @param voteYes True to vote YES, false to vote NO.
      */
     function voteOnProposal(bool voteYes) external {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
 
-        if (_finalizeProposal(proposal)) {
-            return; // Exit early if the proposal was finalized
-        }
-
-        // Ensure the proposal is still active
-        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active)
             revert ProposalNotActive(proposal.proposalId);
-        }
+
+        uint256 balance = balanceOf(_msgSender());
+        if (balance == 0) revert NoVotingPower(_msgSender());
 
         FermionTypes.PriceUpdateVoter storage voter = proposal.voters[_msgSender()];
+        uint256 additionalVotes = balance > voter.voteCount ? balance - voter.voteCount : 0;
 
-        // Check if the voter has already voted on this proposal
-        if (voter.proposalId == proposal.proposalId && voter.hasVoted) {
-            revert AlreadyVoted(proposal.proposalId, _msgSender());
-        }
-
-        uint256 voterBalance = balanceOf(_msgSender());
-        if (voterBalance == 0) {
-            revert NoVotingPower(_msgSender());
-        }
-
-        voter.proposalId = proposal.proposalId;
-        voter.hasVoted = true;
-        voter.votedYes = voteYes;
-        voter.voteCount = voterBalance;
-
-        if (voteYes) {
-            proposal.yesVotes += voterBalance;
+        if (voter.hasVoted) {
+            if (voter.votedYes != voteYes) revert ConflictingVote();
+            if (additionalVotes == 0) revert AlreadyVoted();
+            voter.voteCount += additionalVotes;
         } else {
-            proposal.noVotes += voterBalance;
+            voter.hasVoted = true;
+            voter.votedYes = voteYes;
+            voter.voteCount = balance;
+            additionalVotes = balance;
         }
 
-        emit PriceUpdateVoted(proposal.proposalId, _msgSender(), voterBalance, voteYes);
+        if (voteYes) proposal.yesVotes += additionalVotes;
+        else proposal.noVotes += additionalVotes;
+
+        emit PriceUpdateVoted(proposal.proposalId, _msgSender(), balance, voteYes);
     }
 
     /**

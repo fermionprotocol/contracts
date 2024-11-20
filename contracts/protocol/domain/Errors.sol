@@ -134,11 +134,12 @@ interface FractionalisationErrors is AuctionErrors {
     error InvalidAuctionIndex(uint256 auctionIndex, uint256 numberOfAuctions); // auctionIndex should be less than numberOfAuctions
     error AuctionReserved(uint256 tokenId);
     error ProposalNotActive(uint256 proposalId);
-    error AlreadyVoted(uint256 proposalId, address voter);
+    error AlreadyVoted();
     error NoVotingPower(address voter);
     error OnlyFractionOwner();
     error InvalidVoteDuration(uint256 voteDuration);
     error OngoingProposalExists();
+    error ConflictingVote();
 }
 
 interface PriceOracleRegistryErrors {
