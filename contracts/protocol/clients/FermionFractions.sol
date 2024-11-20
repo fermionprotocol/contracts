@@ -708,10 +708,11 @@ abstract contract FermionFractions is
         if (voteDuration == 0) {
             voteDuration = DEFAULT_GOV_VOTE_DURATION;
         }
-
+ else {
         if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
             revert InvalidVoteDuration(voteDuration);
         }
+}
 
         if ($.currentProposal.state == FermionTypes.PriceUpdateProposalState.Active) {
             revert OngoingProposalExists();
