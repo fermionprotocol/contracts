@@ -25,6 +25,10 @@ export async function setupDryRun(env: string, adminAddress: string = "") {
     url: hre.config.networks[networkName].url,
     enabled: true,
     // blockNumber: "0x" + blockNumber.toString(16), // if performance is too slow, try commenting this line out
+    originalChain: {
+      chainId: forkedChainId,
+      name: networkName,
+    },
   };
 
   checkDeployerAddress(networkName);

@@ -37,29 +37,31 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, bosonTokenAddress: string;
   let seaportAddress: string, seaportContract: Contract;
   let wrappedNativeAddress: string;
-  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[network.name];
-  if (network.name === "hardhat" || network.name === "localhost") {
-    const isForking = hre.config.networks["hardhat"].forking;
-    const deployerBalance = isForking ? await ethers.provider.getBalance(deployerAddress) : 0n;
-
+  const isForking = hre.config.networks["hardhat"].forking;
+  const networkName = isForking ? isForking.originalChain.name : network.name;
+  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[networkName];
+  if ((network.name === "hardhat" && !isForking) || network.name === "localhost") {
     let weth: BaseContract;
     ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress, weth } =
       await initBosonProtocolFixture(false));
     ({ seaportAddress, seaportContract } = await initSeaportFixture());
     seaportConfig.seaport = seaportAddress;
     wrappedNativeAddress = await weth.getAddress();
-
-    if (isForking) {
-      await network.provider.send("hardhat_setBalance", [deployerAddress, "0x" + deployerBalance.toString(16)]);
-    }
   } else {
+    if (isForking) {
+      // At least one tx is needed for fork to work properly
+      const [deployer] = await ethers.getSigners();
+      await deployer.sendTransaction({ to: deployer.address });
+    }
+
     checkDeployerAddress(network.name);
 
     // Get boson protocol address
-    const { chainId } = await ethers.provider.getNetwork();
+    const { chainId } = isForking ? isForking.originalChain : await ethers.provider.getNetwork();
+
     const { contracts: bosonContracts } = JSON.parse(
       fs.readFileSync(
-        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${network.name.toLowerCase()}-${env}.json`,
+        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${networkName.toLowerCase()}-${env.replace("-dry-run", "")}.json`,
         "utf8",
       ),
     );
@@ -70,6 +72,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       (contract) => contract.name === "BosonPriceDiscoveryClient",
     )?.address;
     const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler", bosonProtocolAddress);
+
     bosonTokenAddress = await bosonConfigHandler.getTokenAddress();
 
     if (!bosonProtocolAddress || !bosonPriceDiscoveryAddress || !bosonTokenAddress) {
