@@ -16,7 +16,7 @@ import fermionConfig from "./../../fermion.config";
 const { ZeroAddress, parseEther } = ethers;
 const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
-describe("Offer", function () {
+describe("[@skip-on-coverage] Seaport integration test", function () {
   const sellerId = "1";
   const verifierId = "1";
   const custodianId = "1";
@@ -33,11 +33,6 @@ describe("Offer", function () {
   let bosonProtocolAddress: string;
 
   async function setupOfferTest() {
-    // Create three entities
-    // Seller, Verifier, Custodian combined
-    // Verifier only
-    // Custodian only
-    // Facilitator
     const metadataURI = "https://example.com/seller-metadata.json";
     await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI); // "1"
 
@@ -49,8 +44,6 @@ describe("Offer", function () {
       "0x56BC75E2D63100000", // 100 ETH
     ]);
 
-    // await entityFacet.addFacilitators(sellerId, [facilitatorId, facilitator2Id]);
-
     [mockToken] = await deployMockTokens(["ERC20"]);
     mockToken = mockToken.connect(defaultSigner);
     await mockToken.mint(defaultSigner.address, parseEther("1000"));
@@ -60,7 +53,10 @@ describe("Offer", function () {
   }
 
   before(async function () {
+    if (hre.network.name === "hardhat") this.skip();
+
     const env = "prod";
+
     await setupDryRun(env, "", true);
     [defaultSigner] = await ethers.getSigners();
 

@@ -29,11 +29,11 @@ export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersS
     seaportAddress,
     seaportContract,
     bosonTokenAddress,
-  } = await deploySuite(this.env);
+  } = await deploySuite(this?.env);
 
   const fermionErrors = await ethers.getContractAt("FermionErrors", diamondAddress);
   const wallets = await ethers.getSigners();
-  defaultSigner = defaultSigner || this.defaultSigner || wallets[1];
+  defaultSigner = defaultSigner || this?.defaultSigner || wallets[1];
 
   const implementationAddresses = {};
   for (const facetName of Object.keys(facets)) {
