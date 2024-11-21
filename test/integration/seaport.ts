@@ -3,7 +3,7 @@ import { applyPercentage, deployFermionProtocolFixture, deployMockTokens, derive
 import { setupDryRun } from "../../scripts/dry-run";
 import { getBosonHandler } from "../utils/boson-protocol";
 import { expect } from "chai";
-import { ethers } from "hardhat";
+import hre, { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole } from "../utils/enums";
@@ -60,8 +60,8 @@ describe("Offer", function () {
   }
 
   before(async function () {
-    const env = "test";
-    await setupDryRun(env);
+    const env = "prod";
+    await setupDryRun(env, "", true);
     [defaultSigner] = await ethers.getSigners();
 
     const fixtureArgs = { env, defaultSigner };
@@ -85,7 +85,7 @@ describe("Offer", function () {
     let tokenId: string;
     let bosonSellerId: bigint; // Fermion's seller id inside Boson
 
-    const quantity = 15n;
+    const quantity = 1n;
     const verifierFee = parseEther("0.01");
     // const bosonSellerId = "1"; // Fermion's seller id inside Boson
 
@@ -105,9 +105,8 @@ describe("Offer", function () {
 
     before(async function () {
       const bosonAccountHandler = await getBosonHandler("IBosonAccountHandler", bosonProtocolAddress);
-      bosonSellerId = (await bosonAccountHandler.getNextAccountId()) - 1n;
+      bosonSellerId = (await bosonAccountHandler.getNextAccountId()) - 3n; // reduce for seller, buyer, dr
       [defaultCollectionAddress] = await bosonAccountHandler.getSellersCollections(bosonSellerId);
-      // bosonVoucher = await getBosonVoucher(defaultCollectionAddress);
 
       const bosonOfferHandler = await getBosonHandler("IBosonOfferHandler", bosonProtocolAddress);
       bosonOfferId = await bosonOfferHandler.getNextOfferId();
@@ -119,7 +118,6 @@ describe("Offer", function () {
       tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
 
       wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
-      // fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
     });
 
     context("Zero seller deposit", function () {
@@ -144,7 +142,8 @@ describe("Offer", function () {
         await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
 
         // const openSea = wallets[5]; // a mock OS address
-        openSeaAddress = fermionConfig.externalContracts.amoy.seaportConfig.openSeaConduit;
+        const networkName = hre.config.networks["hardhat"].forking.originalChain.name;
+        openSeaAddress = fermionConfig.externalContracts[networkName].seaportConfig.openSeaConduit;
         buyerAddress = buyer.address;
         seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
 
@@ -172,6 +171,7 @@ describe("Offer", function () {
                 recipient: openSeaAddress,
               },
             ],
+            startTime: 0,
           },
           buyerAddress,
         );

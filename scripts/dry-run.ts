@@ -6,7 +6,7 @@ const { ethers } = hre;
 const { getSigners, parseEther, getContractAt } = hre.ethers;
 const networkName = hre.network.name;
 
-export async function setupDryRun(env: string, adminAddress: string = "") {
+export async function setupDryRun(env: string, adminAddress: string = "", isTest: boolean = false) {
   let forkedEnv = env;
 
   console.warn("This is a dry run. No actual upgrade will be performed");
@@ -31,7 +31,7 @@ export async function setupDryRun(env: string, adminAddress: string = "") {
     },
   };
 
-  checkDeployerAddress(networkName);
+  if (!isTest) checkDeployerAddress(networkName);
   hre.config.networks["hardhat"].accounts = [
     { privateKey: hre.config.networks[networkName].accounts[0], balance: deployerBalance.toString() },
   ];
