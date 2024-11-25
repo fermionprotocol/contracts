@@ -530,6 +530,103 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     }
 
     /**
+     * @notice Gets EIP2981 style royalty information for a chosen offer or exchange.
+     *
+     * EIP2981 supports only 1 recipient, therefore this method defaults to the recipient at index 0.
+     * This method is not exactly compliant with EIP2981, since it does not accept `salePrice` and does not return `royaltyAmount,
+     * but it rather returns `royaltyPercentage` which is the sum of all bps (exchange can have multiple royalty recipients).
+     *
+     * This function is meant to be primarily used by Fermion FNFT, which implements EIP2981.
+     *
+     * @param _tokenId -  token id
+     * @return receiver - the address of the royalty receiver
+     * @return royaltyPercentage - the royalty percentage in bps
+     */
+    function getEIP2981Royalties(uint256 _tokenId) external view returns (address receiver, uint256 royaltyPercentage) {
+        // EIP2981 returns only 1 recipient. Sum all bps and return treasury address as recipient
+        (FermionTypes.RoyaltyInfo storage royaltyInfo, , address defaultTreasury) = fetchRoyalties(_tokenId);
+
+        uint256 recipientLength = royaltyInfo.recipients.length;
+        if (recipientLength == 0) return (address(0), uint256(0));
+
+        uint256 totalBps = getTotalRoyaltyPercentage(royaltyInfo.bps);
+
+        return (royaltyInfo.recipients[0] == address(0) ? defaultTreasury : royaltyInfo.recipients[0], totalBps);
+    }
+
+    /**
+     * @notice Gets royalty information for a given token.
+     *
+     * Returns a list of royalty recipients and corresponding bps. Format is compatible with Manifold and Foundation royalties
+     * and can be directly used by royalty registry.
+     *
+     * @param _tokenId - tokenId
+     * @return recipients - list of royalty recipients
+     * @return bps - list of corresponding bps
+     */
+    function getRoyalties(
+        uint256 _tokenId
+    ) external view returns (address payable[] memory recipients, uint256[] memory bps) {
+        (FermionTypes.RoyaltyInfo memory royaltyInfo, , address treasury) = fetchRoyalties(_tokenId);
+
+        // replace default recipient with the treasury address
+        for (uint256 i = 0; i < royaltyInfo.recipients.length; i++) {
+            if (royaltyInfo.recipients[i] == address(0)) {
+                // get treasury address!
+                royaltyInfo.recipients[i] = payable(treasury);
+                break;
+            }
+        }
+
+        return (royaltyInfo.recipients, royaltyInfo.bps);
+    }
+
+    /**
+     * @notice Internal helper to get royalty information and seller for a chosen token id.
+     *
+     * Reverts if offer has no royalties.
+     *
+     * @param _tokenId - the token id
+     * @return royaltyInfo - list of royalty recipients and corresponding bps
+     * @return royaltyInfoIndex - index of the royalty info
+     * @return defaultTreasury - the seller's default treasury address
+     */
+    function fetchRoyalties(
+        uint256 _tokenId
+    )
+        internal
+        view
+        returns (FermionTypes.RoyaltyInfo storage royaltyInfo, uint256 royaltyInfoIndex, address defaultTreasury)
+    {
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+
+        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
+
+        defaultTreasury = pe.entityData[offer.sellerId].admin;
+        FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
+
+        uint256 royaltyInfoLength = royaltyInfoAll.length;
+        if (royaltyInfoLength == 0) revert OfferWithoutRoyalties(offerId);
+
+        royaltyInfoIndex = royaltyInfoLength - 1;
+        // get the last royalty info
+        return (royaltyInfoAll[royaltyInfoIndex], royaltyInfoIndex, defaultTreasury);
+    }
+
+    /**
+     * @notice Helper function that calculates the total royalty percentage for a given exchange
+     *
+     * @param _bps - storage slot for array of royalty percentages
+     * @return totalBps - the total royalty percentage
+     */
+    function getTotalRoyaltyPercentage(uint256[] storage _bps) internal view returns (uint256 totalBps) {
+        uint256 bpsLength = _bps.length;
+        for (uint256 i = 0; i < bpsLength; i++) {
+            totalBps += _bps[i];
+        }
+    }
+
+    /**
      * @notice Mint NFTs
      *
      * Reserves range in Boson protocol, premints Boson rNFT, creates wrapper and wrap NFTs
