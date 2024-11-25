@@ -12,7 +12,7 @@ import { ADMIN } from "../domain/Constants.sol";
  * @title PriceOracleRegistryFacet
  * @dev Manages a registry of approved price oracles for RWAs within the protocol, with admin restrictions.
  */
-contract PriceOracleRegistry is Access, FermionErrors, IPriceOracleRegistryEvents {
+contract PriceOracleRegistryFacet is Access, FermionErrors, IPriceOracleRegistryEvents {
     /**
      * @notice Adds a new Price Oracle to the registry.
      *
