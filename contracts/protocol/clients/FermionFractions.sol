@@ -12,6 +12,7 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
+import { FundsFacet } from "../facets/Funds.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -816,6 +817,11 @@ abstract contract FermionFractions is
 
             FundsLib.transferFundsFromProtocol($.exchangeToken, payable(auctionDetails.maxBidder), claimAmount);
             auctionProceeds += (releasedFromVault - claimAmount);
+        }
+
+        if (auctionProceeds > 0) {
+            FundsLib.transferFundsFromProtocol($.exchangeToken, payable(fermionProtocol), auctionProceeds);
+            auctionProceeds -= FundsFacet(fermionProtocol).collectRoyalties(_tokenId, auctionProceeds);
         }
 
         uint256 lockedVotes = votes.total;

@@ -12,7 +12,8 @@ contract FermionTypes {
         Seller,
         Buyer,
         Verifier,
-        Custodian
+        Custodian,
+        RoyaltyRecipient
     }
 
     // Make at most 8 roles so they can be compacted into a byte

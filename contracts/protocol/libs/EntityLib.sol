@@ -321,16 +321,24 @@ library EntityLib {
         }
     }
 
-    function getOrCreateBuyerId(
-        address _buyerAddress,
+    /** @notice Returns the entity id for the account address. If the entity not exist, it creates one with the provided role.
+     *
+     * @param _entityAddress - the entity's address
+     * @param _role - the entity's role
+     * @param pl - the protocol lookups storage
+     * @return entityId - the entity's id
+     */
+    function getOrCreateEntityId(
+        address _entityAddress,
+        FermionTypes.EntityRole _role,
         FermionStorage.ProtocolLookups storage pl
-    ) internal returns (uint256 buyerId) {
-        buyerId = pl.accountId[_buyerAddress];
+    ) internal returns (uint256 entityId) {
+        entityId = pl.accountId[_entityAddress];
 
-        if (buyerId == 0) {
+        if (entityId == 0) {
             FermionTypes.EntityRole[] memory _roles = new FermionTypes.EntityRole[](1);
-            _roles[0] = FermionTypes.EntityRole.Buyer;
-            buyerId = createEntity(_buyerAddress, _roles, "", pl);
+            _roles[0] = _role;
+            entityId = createEntity(_entityAddress, _roles, "", pl);
         }
     }
 }

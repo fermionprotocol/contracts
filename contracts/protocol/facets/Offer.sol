@@ -572,7 +572,6 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         // replace default recipient with the treasury address
         for (uint256 i = 0; i < royaltyInfo.recipients.length; i++) {
             if (royaltyInfo.recipients[i] == address(0)) {
-                // get treasury address!
                 royaltyInfo.recipients[i] = payable(treasury);
                 break;
             }
@@ -600,9 +599,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
-        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
-
-        defaultTreasury = pe.entityData[offer.sellerId].admin;
+        defaultTreasury = FermionStorage.protocolEntities().entityData[offer.sellerId].admin;
         FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
 
         uint256 royaltyInfoLength = royaltyInfoAll.length;

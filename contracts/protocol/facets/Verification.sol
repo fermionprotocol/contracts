@@ -180,7 +180,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
         } else {
             address buyerAddress = pl.offerLookups[offerId].fermionFNFTAddress.burn(tokenId);
 
-            uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
+            uint256 buyerId = EntityLib.getOrCreateEntityId(buyerAddress, FermionTypes.EntityRole.Buyer, pl);
 
             if (_afterTimeout) {
                 remainder += offer.verifierFee;

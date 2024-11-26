@@ -161,6 +161,9 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
      * Reverts if:
      * - Custody region is paused
      * - Caller is not the F-NFT contract owning the token
+     *
+     * @param _tokenId - the token id to repay the debt for
+     * @param _repaidAmount - the amount repaid
      */
     function repayDebt(
         uint256 _tokenId,
@@ -348,7 +351,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         FundsLib.increaseAvailableFunds(fractionAuction.bidderId, exchangeToken, previousBid);
 
         address msgSender = _msgSender();
-        uint256 bidderId = EntityLib.getOrCreateBuyerId(msgSender, pl);
+        uint256 bidderId = EntityLib.getOrCreateEntityId(msgSender, FermionTypes.EntityRole.Buyer, pl);
 
         fractionAuction.maxBid = _bidAmount;
         fractionAuction.bidderId = bidderId;
@@ -566,18 +569,5 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, ICustodyEve
         // no need to worry this gets overwritten. If `setupCustodianOfferVault` is called the second time with the same offer it
         // it means that all items from the collection were recombined, and new parameters can be set
         pl.offerLookups[offerId].custodianVaultParameters = _custodianVaultParameters;
-    }
-
-    /** Checks if the caller is the F-NFT contract owning the token.
-     *
-     * Reverts if:
-     * - The caller is not the F-NFT contract owning the token
-     *
-     * @param _offerId - offer ID associated with the vault
-     * @param pl - the number of tokens to add to the vault
-     */
-    function verifyFermionFNFTCaller(uint256 _offerId, FermionStorage.ProtocolLookups storage pl) internal view {
-        if (msg.sender != pl.offerLookups[_offerId].fermionFNFTAddress)
-            revert FermionGeneralErrors.AccessDenied(msg.sender); // not using _msgSender() since the FNFT will never use meta transactions
     }
 }
