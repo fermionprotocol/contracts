@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { SLOT_SIZE } from "../domain/Constants.sol";
+import { SLOT_SIZE, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
@@ -15,7 +15,9 @@ import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeab
 import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC2981 } from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { OfferFacet } from "../facets/Offer.sol";
 
 /**
  * @title Fermion F-NFT contract
@@ -80,7 +82,8 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
             super.supportsInterface(_interfaceId) ||
             _interfaceId == type(IFermionWrapper).interfaceId ||
             _interfaceId == type(IFermionFractions).interfaceId ||
-            _interfaceId == type(IFermionFNFT).interfaceId;
+            _interfaceId == type(IFermionFNFT).interfaceId ||
+            _interfaceId == type(IERC2981).interfaceId;
     }
 
     /**
@@ -134,6 +137,26 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
      */
     function tokenState(uint256 _tokenId) external view returns (FermionTypes.TokenState) {
         return Common._getFermionCommonStorage().tokenState[_tokenId];
+    }
+
+    /**
+     * @notice Provides royalty info. (EIP-2981)
+     * Called with the sale price to determine how much royalty is owed and to whom.
+     *
+     * @param _tokenId - the voucher queried for royalty information
+     * @param _salePrice - the sale price of the voucher specified by _tokenId
+     *
+     * @return receiver - address of who should be sent the royalty payment
+     * @return royaltyAmount - the royalty payment amount for the given sale price
+     */
+    function royaltyInfo(
+        uint256 _tokenId,
+        uint256 _salePrice
+    ) external view returns (address receiver, uint256 royaltyAmount) {
+        uint256 royaltyPercentage;
+        (receiver, royaltyPercentage) = OfferFacet(fermionProtocol).getEIP2981Royalties(_tokenId);
+
+        royaltyAmount = (_salePrice * royaltyPercentage) / HUNDRED_PERCENT;
     }
 
     ///////// overrides ///////////
