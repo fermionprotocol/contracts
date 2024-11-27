@@ -3512,7 +3512,6 @@ describe("FermionFNFT - fractionalisation tests", function () {
             .to.emit(fermionFNFTProxy, "PriceUpdateProposalCreated")
             .withArgs(1, parseEther("2"), blockTimestamp + MIN_GOV_VOTE_DURATION, 7500);
 
-          // Additional check using `getCurrentProposalDetails`
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.proposalId).to.equal(1);
           expect(proposal.newExitPrice).to.equal(parseEther("2"));
@@ -3624,10 +3623,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
           await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
 
           proposal = await fermionFNFTProxy.getCurrentProposalDetails();
-          expect(proposal.yesVotes).to.equal(owner1InitialBalance + additionalFractions); // Updated arithmetic
+          expect(proposal.yesVotes).to.equal(owner1InitialBalance + additionalFractions);
 
           const voterDetails = await fermionFNFTProxy.getVoterDetails(owner1.address);
-          expect(voterDetails.voteCount).to.equal(owner1InitialBalance + additionalFractions); // Updated arithmetic
+          expect(voterDetails.voteCount).to.equal(owner1InitialBalance + additionalFractions);
           expect(voterDetails.hasVoted).to.equal(true);
           expect(voterDetails.votedYes).to.equal(true);
         });
@@ -3646,7 +3645,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           const transferAmount: bigint = owner1Balance / 2n;
 
           await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(false); // Vote "no"
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(false);
 
           let proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.noVotes).to.equal(owner1Balance);
