@@ -140,6 +140,7 @@ interface FractionalisationErrors is AuctionErrors {
     error InvalidVoteDuration(uint256 voteDuration);
     error OngoingProposalExists();
     error ConflictingVote();
+    error OracleInternalError();
 }
 
 interface PriceOracleRegistryErrors {

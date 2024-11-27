@@ -693,6 +693,8 @@ abstract contract FermionFractions is
      * - `InvalidQuorumPercent()` if the quorumPercent is outside the allowed range.
      * - `InvalidVoteDuration()` if the voteDuration is outside the allowed range.
      * - `OngoingProposalExists()` if there is an active proposal.
+     * - `OracleInternalError()` if oracle getPrice reverts with error different than InvalidPrice()
+     * - `PriceOracleNotWhitelisted()` if oracle is not whitelisted in the registry
      */
     function updateExitPrice(uint256 newPrice, uint256 quorumPercent, uint256 voteDuration) external {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
@@ -707,10 +709,8 @@ abstract contract FermionFractions is
 
         if (voteDuration == 0) {
             voteDuration = DEFAULT_GOV_VOTE_DURATION;
-        } else {
-            if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
-                revert InvalidVoteDuration(voteDuration);
-            }
+        } else if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
+            revert InvalidVoteDuration(voteDuration);
         }
 
         if ($.currentProposal.state == FermionTypes.PriceUpdateProposalState.Active) {
@@ -727,7 +727,7 @@ abstract contract FermionFractions is
                 return;
             } catch (bytes memory reason) {
                 if (!_isInvalidPriceError(reason)) {
-                    revert(string(reason));
+                    revert OracleInternalError();
                 }
             }
         }
@@ -747,7 +747,6 @@ abstract contract FermionFractions is
             quorumPercent
         );
     }
-
     /**
      * @notice Allows a fraction owner to vote on the current active proposal.
      *         If the caller has acquired additional fractions, the vote will be updated
@@ -775,27 +774,84 @@ abstract contract FermionFractions is
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active)
             revert ProposalNotActive(proposal.proposalId);
 
-        uint256 balance = balanceOf(_msgSender());
-        if (balance == 0) revert NoVotingPower(_msgSender());
+        if (!_finalizeProposal(proposal)) {
+            uint256 balance = FermionFractionsERC20Base.balanceOf(_msgSender());
+            if (balance == 0) revert NoVotingPower(_msgSender());
 
-        FermionTypes.PriceUpdateVoter storage voter = proposal.voters[_msgSender()];
-        uint256 additionalVotes = balance > voter.voteCount ? balance - voter.voteCount : 0;
+            FermionTypes.PriceUpdateVoter storage voter = proposal.voters[_msgSender()];
+            uint256 additionalVotes = balance > voter.voteCount ? balance - voter.voteCount : 0;
 
-        if (voter.hasVoted) {
-            if (voter.votedYes != voteYes) revert ConflictingVote();
-            if (additionalVotes == 0) revert AlreadyVoted();
-            voter.voteCount += additionalVotes;
-        } else {
-            voter.hasVoted = true;
-            voter.votedYes = voteYes;
-            voter.voteCount = balance;
-            additionalVotes = balance;
+            if (voter.hasVoted && voter.proposalId == proposal.proposalId) {
+                if (voter.votedYes != voteYes) revert ConflictingVote();
+                if (additionalVotes == 0) revert AlreadyVoted();
+                voter.voteCount += additionalVotes;
+            } else {
+                voter.proposalId = proposal.proposalId;
+                voter.hasVoted = true;
+                voter.votedYes = voteYes;
+                voter.voteCount = balance;
+                additionalVotes = balance;
+            }
+
+            if (voteYes) proposal.yesVotes += additionalVotes;
+            else proposal.noVotes += additionalVotes;
+
+            emit PriceUpdateVoted(proposal.proposalId, _msgSender(), balance, voteYes);
         }
+    }
 
-        if (voteYes) proposal.yesVotes += additionalVotes;
-        else proposal.noVotes += additionalVotes;
+    /**
+     * @notice Returns the non-mapping details of the current active proposal.
+     *
+     * @return proposalId The unique ID of the proposal.
+     * @return newExitPrice The proposed exit price.
+     * @return votingDeadline The deadline for voting.
+     * @return quorumPercent The required quorum percentage.
+     * @return yesVotes The number of votes in favor.
+     * @return noVotes The number of votes against.
+     * @return state The state of the proposal (Active, Executed, or Failed).
+     */
+    function getCurrentProposalDetails()
+        external
+        view
+        returns (
+            uint256 proposalId,
+            uint256 newExitPrice,
+            uint256 votingDeadline,
+            uint256 quorumPercent,
+            uint256 yesVotes,
+            uint256 noVotes,
+            FermionTypes.PriceUpdateProposalState state
+        )
+    {
+        FermionTypes.PriceUpdateProposal storage proposal = _getBuyoutAuctionStorage().currentProposal;
+        return (
+            proposal.proposalId,
+            proposal.newExitPrice,
+            proposal.votingDeadline,
+            proposal.quorumPercent,
+            proposal.yesVotes,
+            proposal.noVotes,
+            proposal.state
+        );
+    }
 
-        emit PriceUpdateVoted(proposal.proposalId, _msgSender(), balance, voteYes);
+    /**
+     * @notice Returns the vote details for a specific voter in the current proposal.
+     *
+     * @param voter The address of the voter.
+     * @return proposalId id of proposal voter has voted
+     * @return hasVoted Whether the voter has cast their vote.
+     * @return votedYes Whether the voter voted in favor (true) or against (false).
+     * @return voteCount The number of votes the voter has cast.
+     */
+    function getVoterDetails(
+        address voter
+    ) external view returns (uint256 proposalId, bool hasVoted, bool votedYes, uint256 voteCount) {
+        FermionTypes.PriceUpdateProposal storage currentProposal = _getBuyoutAuctionStorage().currentProposal;
+        FermionTypes.PriceUpdateVoter storage voterDetails = currentProposal.voters[voter];
+
+        return (voterDetails.proposalId, voterDetails.hasVoted, voterDetails.votedYes, voterDetails.voteCount);
     }
 
     /**

@@ -10,3 +10,12 @@ export const DEFAULT_FRACTION_AMOUNT = 10n ** 6n * MIN_FRACTIONS;
 export const PARTIAL_THRESHOLD_MULTIPLIER = 12n;
 export const LIQUIDATION_THRESHOLD_MULTIPLIER = 3n;
 export const PARTIAL_AUCTION_DURATION_DIVISOR = 4n;
+export const MIN_GOV_VOTE_DURATION = 86_400; // 1 day
+export const MAX_GOV_VOTE_DURATION = 604_800; // 7 days
+export const DEFAULT_GOV_VOTE_DURATION = 259_200; // 3 days
+export const enum PriceUpdateProposalState {
+  NotInit = 0, // Explicitly represents an uninitialized state
+  Active = 1,
+  Executed = 2,
+  Failed = 3,
+}

@@ -65,6 +65,7 @@ contract FermionTypes {
         Burned
     }
     enum PriceUpdateProposalState {
+        NotInit, // Explicitly represents an uninitialized state
         Active,
         Executed,
         Failed

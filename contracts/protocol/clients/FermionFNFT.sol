@@ -16,6 +16,7 @@ import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contr
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import "hardhat/console.sol";
 
 /**
  * @title Fermion F-NFT contract
@@ -157,8 +158,10 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
 
     function transferFrom(address from, address to, uint256 tokenIdOrValue) public virtual override(IERC721, ERC721) {
         if (tokenIdOrValue > type(uint128).max) {
+            console.log("token value");
             ERC721.transferFrom(from, to, tokenIdOrValue);
         } else {
+            console.log("token id");
             _adjustVotesOnTransfer(from, tokenIdOrValue);
             bool success = transferFractionsFrom(from, to, tokenIdOrValue);
             assembly {
