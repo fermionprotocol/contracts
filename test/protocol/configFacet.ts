@@ -83,11 +83,24 @@ describe("Entity", function () {
       feeTier = feePercentages[feePercentages.length - 1];
       expect(await configFacet.getProtocolFeePercentage(usdcAddress, exchangeAmount)).to.equal(feeTier);
 
+      let [retrievedRanges, retrievedPercentages] = await configFacet.getProtocolFeeTable(usdcAddress);
+      expect(retrievedRanges).to.deep.equal(feePriceRanges, "Incorrect price ranges");
+      expect(retrievedPercentages).to.deep.equal(feePercentages, "Incorrect fee percentages");
+
       // Delete the protocol fee table
       await configFacet.setProtocolFeeTable(usdcAddress, [], []);
       const defaultFeePercentage = await configFacet.getProtocolFeePercentage();
-
       expect(await configFacet.getProtocolFeePercentage(usdcAddress, exchangeAmount)).to.equal(defaultFeePercentage);
+
+      [retrievedRanges, retrievedPercentages] = await configFacet.getProtocolFeeTable(usdcAddress);
+      expect(retrievedRanges.map((r: { toString: () => any }) => r.toString())).to.deep.equal(
+        [],
+        "Incorrect price ranges",
+      );
+      expect(retrievedPercentages.map((p: { toNumber: () => any }) => p.toNumber())).to.deep.equal(
+        [],
+        "Incorrect fee percentages",
+      );
     });
 
     it("Set the default verification timeout", async function () {

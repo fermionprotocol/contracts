@@ -120,6 +120,24 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
+     * @notice Gets the current fee table for a given token.
+     *
+     * @dev This funciton is used to check price ranges config. If you need to apply percentage based on
+     *      _exchangeToken and offerPrice, use getProtocolFeePercentage(address,uint256)
+     *
+     * @param _tokenAddress - the address of the token
+     * @return priceRanges - array of token price ranges
+     * @return feePercentages - array of fee percentages corresponding to each price range
+     */
+    function getProtocolFeeTable(
+        address _tokenAddress
+    ) external view returns (uint256[] memory priceRanges, uint16[] memory feePercentages) {
+        FermionStorage.ProtocolConfig storage protocolConfig = FermionStorage.protocolConfig();
+        priceRanges = protocolConfig.tokenPriceRanges[_tokenAddress];
+        feePercentages = protocolConfig.tokenFeePercentages[_tokenAddress];
+    }
+
+    /**
      * @notice Gets the protocol default fee percentage.
      *
      * @return the protocol fee percentage
