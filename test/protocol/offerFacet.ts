@@ -1,5 +1,6 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
+  applyPercentage,
   calculateMinimalPrice,
   deployFermionProtocolFixture,
   deployMockTokens,
@@ -1729,10 +1730,11 @@ describe("Offer", function () {
           await mockToken.approve(fermionProtocolAddress, exchangeAmount);
           const tx = await offerFacet.unwrapNFTToSelf(tokenId, exchangeAmount);
 
-          const fermionFee = (BigInt(exchangeAmount) * BigInt(expectedFeePercentage)) / BigInt(10000);
+          const fermionFee = applyPercentage(exchangeAmount,expectedFeePercentage);
 
           const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-          const bosonProtocolFee = (BigInt(exchangeAmount) * BigInt(bosonProtocolFeePercentage)) / BigInt(10000);
+          const bosonProtocolFee = applyPercentage(exchangeAmount,bosonProtocolFeePercentage);
+
           // Events and validations
           const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
           const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
