@@ -642,4 +642,29 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);
     }
+
+    /**
+     * @notice Gets all fee details for the particular item
+     *
+     * @param _tokenId - the token ID
+     * @return bosonProtocolFee The Boson Protocol fee
+     * @return fermionFeeAmount The Fermion Protocol fee
+     * @return verifierFee The verifier fee
+     * @return facilitatorFeeAmount The facilitator fee
+     */
+    function getItemFees(
+        uint256 _tokenId
+    )
+        external
+        view
+        returns (uint256 bosonProtocolFee, uint256 fermionFeeAmount, uint256 verifierFee, uint256 facilitatorFeeAmount)
+    {
+        FermionStorage.TokenLookups storage tokenLookup = FermionStorage.protocolLookups().tokenLookups[_tokenId];
+        return (
+            tokenLookup.bosonProtocolFee,
+            tokenLookup.fermionFeeAmount,
+            tokenLookup.verifierFee,
+            tokenLookup.facilitatorFeeAmount
+        );
+    }
 }

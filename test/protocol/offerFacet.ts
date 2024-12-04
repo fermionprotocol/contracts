@@ -40,7 +40,8 @@ describe("Offer", function () {
     entityFacet: Contract,
     fundsFacet: Contract,
     pauseFacet: Contract,
-    verificationFacet: Contract;
+    verificationFacet: Contract,
+    configFacet: Contract;
   let mockToken: Contract, mockBosonToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -90,6 +91,7 @@ describe("Offer", function () {
         FundsFacet: fundsFacet,
         PauseFacet: pauseFacet,
         VerificationFacet: verificationFacet,
+        ConfigFacet: configFacet,
       },
       fermionErrors,
       wallets,
@@ -1709,6 +1711,45 @@ describe("Offer", function () {
 
           // State:
           expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
+        });
+
+        it("Uses the FeeTable percentage when configured", async function () {
+          const feeRanges = [parseEther("1").toString(), parseEther("5").toString(), parseEther("10").toString()];
+          const feePercentages = [500, 1000, 1500]; // 5%, 10%, 15%
+
+          // Set the protocol FeeTable for the exchange token
+          await configFacet.setProtocolFeeTable(exchangeToken, feeRanges, feePercentages);
+
+          const exchangeAmount = parseEther("3"); // Within the second range
+          const expectedFeePercentage = feePercentages[1]; // 10%
+
+          await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+          await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+          await mockToken.approve(fermionProtocolAddress, exchangeAmount);
+          const tx = await offerFacet.unwrapNFTToSelf(tokenId, exchangeAmount);
+
+          const fermionFee = (BigInt(exchangeAmount) * BigInt(expectedFeePercentage)) / BigInt(10000);
+
+          const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+          const bosonProtocolFee = (BigInt(exchangeAmount) * BigInt(bosonProtocolFeePercentage)) / BigInt(10000);
+          // Events and validations
+          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+          const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+
+          await expect(tx)
+            .to.emit(offerFacet, "VerificationInitiated")
+            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, exchangeAmount);
+
+          const [bosonProtocolFeeAmount, fermionFeeAmount, verifierFeeAmount, facilitatorFeeAmount] =
+            await offerFacet.getItemFees(tokenId);
+
+          expect(bosonProtocolFeeAmount).to.equal(bosonProtocolFee);
+          expect(fermionFeeAmount).to.equal(fermionFee);
+          expect(verifierFeeAmount).to.equal(verifierFee);
+          expect(facilitatorFeeAmount).to.equal(0);
         });
 
         context("Revert reasons", function () {

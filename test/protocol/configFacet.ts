@@ -82,6 +82,12 @@ describe("Entity", function () {
       exchangeAmount = BigInt(feePriceRanges[feePriceRanges.length - 1]) * BigInt(2);
       feeTier = feePercentages[feePercentages.length - 1];
       expect(await configFacet.getProtocolFeePercentage(usdcAddress, exchangeAmount)).to.equal(feeTier);
+
+      // Delete the protocol fee table
+      await configFacet.setProtocolFeeTable(usdcAddress, [], []);
+      const defaultFeePercentage = await configFacet.getProtocolFeePercentage();
+
+      expect(await configFacet.getProtocolFeePercentage(usdcAddress, exchangeAmount)).to.equal(defaultFeePercentage);
     });
 
     it("Set the default verification timeout", async function () {
