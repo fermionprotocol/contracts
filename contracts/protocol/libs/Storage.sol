@@ -26,7 +26,7 @@ library FermionStorage {
         0x1b00ae0f5ca50b57738405440d11dc84d7b23d830f08bc0a651be8df02efae00;
     // keccak256(abi.encode(uint256(keccak256("fermion.price.oracle.registry")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant PRICE_ORACLE_REGISTRY_STORAGE_POSITION =
-        0xe5e450b2d6d59f69c87f2369a4a1cbbca82f32c735ab1b19824df6e7b3375c00;
+        0xf3e4b6e521454dd4d56ea49cf25ff76edb944d588972b9362ced848f4db54500;
 
     // Protocol status storage
     /// @custom:storage-location erc7201:fermion.protocol.status
