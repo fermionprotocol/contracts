@@ -1730,10 +1730,10 @@ describe("Offer", function () {
           await mockToken.approve(fermionProtocolAddress, exchangeAmount);
           const tx = await offerFacet.unwrapNFTToSelf(tokenId, exchangeAmount);
 
-          const fermionFee = applyPercentage(exchangeAmount,expectedFeePercentage);
+          const fermionFee = applyPercentage(exchangeAmount, expectedFeePercentage);
 
           const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-          const bosonProtocolFee = applyPercentage(exchangeAmount,bosonProtocolFeePercentage);
+          const bosonProtocolFee = applyPercentage(exchangeAmount, bosonProtocolFeePercentage);
 
           // Events and validations
           const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
