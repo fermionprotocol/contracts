@@ -3587,7 +3587,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
           const owner1Balance = await fermionFNFTProxy.balanceOfERC20(owner1);
 
           await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          const tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+
+          expect(tx).to.emit(fermionFNFTProxy, "PriceUpdateVoted").withArgs(1, owner1.address, owner1Balance, true);
 
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.yesVotes).to.equal(owner1Balance);

@@ -327,8 +327,7 @@ abstract contract FermionFractions is
      */
     function startAuction(uint256 _tokenId) external {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
-        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
+        FermionTypes.AuctionDetails storage auctionDetails = getLastAuction(_tokenId, $).details;
 
         if (!$.tokenInfo[_tokenId].isFractionalised) {
             revert TokenNotFractionalised(_tokenId);
@@ -341,7 +340,7 @@ abstract contract FermionFractions is
         uint256 exitPrice = $.auctionParameters.exitPrice;
         uint256 maxBid = auctionDetails.maxBid;
         if (maxBid <= exitPrice) {
-            revert BidBelowExitPrice(_tokenId, auctionDetails.maxBid, exitPrice);
+            revert BidBelowExitPrice(_tokenId, maxBid, exitPrice);
         }
 
         startAuctionInternal(_tokenId);
@@ -721,7 +720,6 @@ abstract contract FermionFractions is
             } else {
                 voter.proposalId = proposal.proposalId;
                 voter.votedYes = voteYes;
-                voter.voteCount = balance;
                 additionalVotes = balance;
             }
             voter.voteCount = balance;
@@ -1243,7 +1241,7 @@ abstract contract FermionFractions is
         uint256 votesToRemove = (amount > voteCount) ? voteCount : amount;
 
         unchecked {
-            voterData.voteCount = voteCount -= votesToRemove;
+            voterData.voteCount = voteCount - votesToRemove;
             if (voterData.votedYes) {
                 proposal.yesVotes -= votesToRemove;
             } else {
