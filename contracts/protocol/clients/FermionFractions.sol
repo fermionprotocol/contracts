@@ -41,8 +41,7 @@ abstract contract FermionFractions is
      * @param _exchangeToken The address of the exchange token
      */
     function intializeFractions(address _exchangeToken) internal virtual {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        $.exchangeToken = _exchangeToken;
+        _getBuyoutAuctionStorage().exchangeToken = _exchangeToken;
     }
 
     /**
@@ -117,7 +116,7 @@ abstract contract FermionFractions is
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 
         if (_priceOracle != address(0)) {
-            _ensureOracleApproved(_priceOracle);
+            if (!_isOracleApproved(_priceOracle)) revert PriceOracleNotWhitelisted(_priceOracle);
             $.priceOracle = _priceOracle;
         }
 
@@ -268,7 +267,7 @@ abstract contract FermionFractions is
                 // user removes the bid. To avoid this, at least one bid must exist.
                 if (auctionDetails.maxBid == 0) revert NoBids(_tokenId);
 
-                startAuction(_tokenId);
+                startAuctionInternal(_tokenId);
             }
         }
 
@@ -311,6 +310,41 @@ abstract contract FermionFractions is
         }
 
         emit VoteRemoved(_tokenId, msgSender, _fractionAmount);
+    }
+
+    /**
+     * @notice Starts the auction for a specific fractionalized token. Can be called by anyone.
+     *
+     * Emits:
+     * - `AuctionStarted` event indicating the start of the auction.
+     *
+     * Reverts:
+     * - `TokenNotFractionalised` if the specified token has not been fractionalized.
+     * - `AuctionOngoing` if the auction is already ongoing or has transitioned to a state other than `NotStarted`.
+     * - `BidBelowExitPrice` if the highest bid is below the required exit price set for the auction.
+     *
+     * @param _tokenId The ID of the fractionalized token for which the auction is being started.
+     */
+    function startAuction(uint256 _tokenId) external {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
+
+        if (!$.tokenInfo[_tokenId].isFractionalised) {
+            revert TokenNotFractionalised(_tokenId);
+        }
+
+        if (auctionDetails.state != FermionTypes.AuctionState.NotStarted) {
+            revert AuctionOngoing(_tokenId, auctionDetails.timer);
+        }
+
+        uint256 exitPrice = $.auctionParameters.exitPrice;
+        uint256 maxBid = auctionDetails.maxBid;
+        if (maxBid <= exitPrice) {
+            revert BidBelowExitPrice(_tokenId, auctionDetails.maxBid, exitPrice);
+        }
+
+        startAuctionInternal(_tokenId);
     }
 
     /**
@@ -359,7 +393,7 @@ abstract contract FermionFractions is
                 fractionsPerToken = liquidSupply() / $.nftCount;
                 if (_price > auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
                     // If price is above the exit price, the cutoff date is set
-                    startAuction(_tokenId);
+                    startAuctionInternal(_tokenId);
                 } else {
                     // reset ticker for Unbidding
                     auctionDetails.timer = block.timestamp + auctionParameters.topBidLockTime;
@@ -381,7 +415,7 @@ abstract contract FermionFractions is
             // If the locked fractions belong to other users, the bidder must still pay the corresponding price.
             _fractions = availableFractions;
 
-            if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuction(_tokenId);
+            if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuctionInternal(_tokenId);
             auctionDetails.state = FermionTypes.AuctionState.Reserved;
         }
 
@@ -568,6 +602,179 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Updates the exit price using either an oracle or a governance proposal.
+     *         If the oracle provides a valid price, it is updated directly; otherwise,
+     *         a governance proposal is created.
+     *
+     * @dev If an oracle is set, the price is fetched and used if valid. Anyone can update
+     *      the price if oracle has bee configured.
+     *
+     * Emits:
+     * - `ExitPriceUpdated` if the exit price is updated via the oracle.
+     * - `PriceUpdateProposalCreated` if a governance proposal is created.
+     *
+     * Reverts:
+     * - `OnlyFractionOwner` if the caller is not a fraction owner.
+     * - `InvalidQuorumPercent` if the `quorumPercent` is outside the allowed range.
+     * - `InvalidVoteDuration` if the `voteDuration` is outside the allowed range.
+     * - `OngoingProposalExists` if there is an active proposal.
+     * - `OracleInternalError` if the oracle's `getPrice` reverts with an error different from `InvalidPrice`.
+     * - `PriceOracleNotWhitelisted` if the oracle is not whitelisted in the registry.
+     *
+     * @param newPrice The proposed new exit price.
+     * @param quorumPercent The required quorum percentage for the governance proposal (in basis points).
+     * @param voteDuration The duration of the governance proposal in seconds.
+     */
+    function updateExitPrice(uint256 newPrice, uint256 quorumPercent, uint256 voteDuration) external {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.PriceUpdateProposal storage currentProposal = $.currentProposal;
+
+        if (currentProposal.state == FermionTypes.PriceUpdateProposalState.Active) {
+            revert OngoingProposalExists();
+        }
+
+        address oracle = $.priceOracle;
+        if (oracle != address(0)) {
+            if (_isOracleApproved(oracle)) {
+                try IPriceOracle(oracle).getPrice() returns (uint256 oraclePrice) {
+                    $.auctionParameters.exitPrice = oraclePrice;
+                    emit ExitPriceUpdated(oraclePrice, true);
+                    return;
+                } catch (bytes memory reason) {
+                    if (!_isInvalidPriceError(reason)) {
+                        revert OracleInternalError();
+                    }
+                }
+            }
+        }
+
+        if (balanceOf(_msgSender()) == 0) {
+            revert OnlyFractionOwner();
+        }
+
+        if (quorumPercent < MIN_QUORUM_PERCENT || quorumPercent > HUNDRED_PERCENT) {
+            revert InvalidPercentage(quorumPercent);
+        }
+
+        if (voteDuration == 0) {
+            voteDuration = DEFAULT_GOV_VOTE_DURATION;
+        } else if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
+            revert InvalidVoteDuration(voteDuration);
+        }
+
+        currentProposal.proposalId += 1;
+        currentProposal.newExitPrice = newPrice;
+        currentProposal.votingDeadline = block.timestamp + voteDuration;
+        currentProposal.quorumPercent = quorumPercent;
+        currentProposal.yesVotes = 0;
+        currentProposal.noVotes = 0;
+        currentProposal.state = FermionTypes.PriceUpdateProposalState.Active;
+
+        emit PriceUpdateProposalCreated(
+            currentProposal.proposalId,
+            newPrice,
+            currentProposal.votingDeadline,
+            quorumPercent
+        );
+    }
+    /**
+     * @notice Allows a fraction owner to vote on the current active proposal.
+     *         If the caller has acquired additional fractions, the vote will be updated
+     *         to include the newly acquired fractions.
+     *
+     * @dev The caller must vote with all fractions they own at the time of calling.
+     *      If the caller has already voted, the vote must match the previous choice
+     *      (YES or NO). Additional votes are automatically added to the previous choice.
+     *
+     * Emits:
+     * - `PriceUpdateVoted` when a fraction owner casts or updates their vote.
+     *
+     * Reverts:
+     * - `ProposalNotActive` if the proposal is not active.
+     * - `NoVotingPower` if the caller has no fractions to vote with.
+     * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
+     * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
+     *
+     * @param voteYes True to vote YES, false to vote NO.
+     */
+    function voteOnProposal(bool voteYes) external {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
+        address msgSender = _msgSender();
+
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active)
+            revert ProposalNotActive(proposal.proposalId);
+
+        if (!_finalizeProposal(proposal)) {
+            uint256 balance = FermionFractionsERC20Base.balanceOf(msgSender);
+            if (balance == 0) revert NoVotingPower(msgSender);
+
+            FermionTypes.PriceUpdateVoter storage voter = proposal.voters[msgSender];
+            uint256 additionalVotes;
+
+            if (voter.proposalId == proposal.proposalId) {
+                if (voter.votedYes != voteYes) revert ConflictingVote();
+                unchecked {
+                    additionalVotes = balance > voter.voteCount ? balance - voter.voteCount : 0;
+                }
+                if (additionalVotes == 0) revert AlreadyVoted();
+            } else {
+                voter.proposalId = proposal.proposalId;
+                voter.votedYes = voteYes;
+                voter.voteCount = balance;
+                additionalVotes = balance;
+            }
+            voter.voteCount = balance;
+
+            if (voteYes) proposal.yesVotes += additionalVotes;
+            else proposal.noVotes += additionalVotes;
+
+            emit PriceUpdateVoted(proposal.proposalId, msgSender, balance, voteYes);
+        }
+    }
+
+    /**
+     * @notice Allows a voter to explicitly remove their vote on an active proposal.
+     *
+     * @dev removes the complete vote count for the msg.sender
+     *
+     * Emits:
+     * - `PriceUpdateVoteRemoved` when a vote is successfully removed.
+     *
+     * Reverts:
+     * - `ProposalNotActive` if the proposal is not active.
+     * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
+     *
+     */
+    function removeVoteOnProposal() external {
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
+        address msgSender = _msgSender();
+
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active)
+            revert ProposalNotActive(proposal.proposalId);
+
+        FermionTypes.PriceUpdateVoter storage voter = proposal.voters[msgSender];
+
+        // Ensure the voter has a vote on the current proposal
+        if (voter.proposalId != proposal.proposalId) revert NoVotingPower(msgSender);
+
+        uint256 votesToRemove = voter.voteCount;
+
+        unchecked {
+            if (voter.votedYes) {
+                proposal.yesVotes -= votesToRemove;
+            } else {
+                proposal.noVotes -= votesToRemove;
+            }
+        }
+
+        delete proposal.voters[msgSender];
+
+        emit PriceUpdateVoteRemoved(msgSender, votesToRemove);
+    }
+
+    /**
      * @notice Returns the number of fractions. Represents the ERC20 balanceOf method
      *
      * @param _owner The address to check
@@ -672,135 +879,6 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice Updates the exit price using either an oracle or a governance proposal.
-     *         If the oracle provides a valid price, it is updated directly; otherwise,
-     *         a governance proposal is created.
-     *
-     * @dev Only callable by fraction owners.
-     *      If an oracle is set, the price is fetched and used if valid; otherwise, the fallback
-     *      governance proposal mechanism is used.
-     *
-     * Emits:
-     * - `ExitPriceUpdated` if the exit price is updated via the oracle.
-     * - `PriceUpdateProposalCreated` if a governance proposal is created.
-     *
-     * @param newPrice The proposed new exit price.
-     * @param quorumPercent The required quorum percentage for the governance proposal (in basis points).
-     * @param voteDuration The duration of the governance proposal in seconds.
-     *
-     * Reverts:
-     * - `OnlyFractionOwner()` if the caller is not a fraction owner.
-     * - `InvalidQuorumPercent()` if the quorumPercent is outside the allowed range.
-     * - `InvalidVoteDuration()` if the voteDuration is outside the allowed range.
-     * - `OngoingProposalExists()` if there is an active proposal.
-     * - `OracleInternalError()` if oracle getPrice reverts with error different than InvalidPrice()
-     * - `PriceOracleNotWhitelisted()` if oracle is not whitelisted in the registry
-     */
-    function updateExitPrice(uint256 newPrice, uint256 quorumPercent, uint256 voteDuration) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-
-        if (balanceOf(_msgSender()) == 0) {
-            revert OnlyFractionOwner();
-        }
-
-        if (quorumPercent < MIN_QUORUM_PERCENT || quorumPercent > HUNDRED_PERCENT) {
-            revert InvalidPercentage(quorumPercent);
-        }
-
-        if (voteDuration == 0) {
-            voteDuration = DEFAULT_GOV_VOTE_DURATION;
-        } else if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
-            revert InvalidVoteDuration(voteDuration);
-        }
-
-        if ($.currentProposal.state == FermionTypes.PriceUpdateProposalState.Active) {
-            revert OngoingProposalExists();
-        }
-
-        address oracle = $.priceOracle;
-        if (oracle != address(0)) {
-            _ensureOracleApproved(oracle);
-
-            try IPriceOracle(oracle).getPrice() returns (uint256 oraclePrice) {
-                $.auctionParameters.exitPrice = oraclePrice;
-                emit ExitPriceUpdated(oraclePrice, true);
-                return;
-            } catch (bytes memory reason) {
-                if (!_isInvalidPriceError(reason)) {
-                    revert OracleInternalError();
-                }
-            }
-        }
-
-        $.currentProposal.proposalId += 1;
-        $.currentProposal.newExitPrice = newPrice;
-        $.currentProposal.votingDeadline = block.timestamp + voteDuration;
-        $.currentProposal.quorumPercent = quorumPercent;
-        $.currentProposal.yesVotes = 0;
-        $.currentProposal.noVotes = 0;
-        $.currentProposal.state = FermionTypes.PriceUpdateProposalState.Active;
-
-        emit PriceUpdateProposalCreated(
-            $.currentProposal.proposalId,
-            newPrice,
-            $.currentProposal.votingDeadline,
-            quorumPercent
-        );
-    }
-    /**
-     * @notice Allows a fraction owner to vote on the current active proposal.
-     *         If the caller has acquired additional fractions, the vote will be updated
-     *         to include the newly acquired fractions.
-     *
-     * @dev The caller must vote with all fractions they own at the time of calling.
-     *      If the caller has already voted, the vote must match the previous choice
-     *      (YES or NO). Additional votes are automatically added to the previous choice.
-     *
-     * Emits:
-     * - `PriceUpdateVoted` when a fraction owner casts or updates their vote.
-     *
-     * Reverts:
-     * - `ProposalNotActive` if the proposal is not active.
-     * - `NoVotingPower` if the caller has no fractions to vote with.
-     * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
-     * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
-     *
-     * @param voteYes True to vote YES, false to vote NO.
-     */
-    function voteOnProposal(bool voteYes) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
-        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
-
-        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active)
-            revert ProposalNotActive(proposal.proposalId);
-
-        if (!_finalizeProposal(proposal)) {
-            uint256 balance = FermionFractionsERC20Base.balanceOf(_msgSender());
-            if (balance == 0) revert NoVotingPower(_msgSender());
-
-            FermionTypes.PriceUpdateVoter storage voter = proposal.voters[_msgSender()];
-            uint256 additionalVotes = balance > voter.voteCount ? balance - voter.voteCount : 0;
-
-            if (voter.hasVoted && voter.proposalId == proposal.proposalId) {
-                if (voter.votedYes != voteYes) revert ConflictingVote();
-                if (additionalVotes == 0) revert AlreadyVoted();
-                voter.voteCount += additionalVotes;
-            } else {
-                voter.proposalId = proposal.proposalId;
-                voter.hasVoted = true;
-                voter.votedYes = voteYes;
-                voter.voteCount = balance;
-                additionalVotes = balance;
-            }
-
-            if (voteYes) proposal.yesVotes += additionalVotes;
-            else proposal.noVotes += additionalVotes;
-
-            emit PriceUpdateVoted(proposal.proposalId, _msgSender(), balance, voteYes);
-        }
-    }
-
-    /**
      * @notice Returns the non-mapping details of the current active proposal.
      *
      * @return proposalId The unique ID of the proposal.
@@ -840,18 +918,10 @@ abstract contract FermionFractions is
      * @notice Returns the vote details for a specific voter in the current proposal.
      *
      * @param voter The address of the voter.
-     * @return proposalId id of proposal voter has voted
-     * @return hasVoted Whether the voter has cast their vote.
-     * @return votedYes Whether the voter voted in favor (true) or against (false).
-     * @return voteCount The number of votes the voter has cast.
+     * @return voterDetails The details of the voter's vote.
      */
-    function getVoterDetails(
-        address voter
-    ) external view returns (uint256 proposalId, bool hasVoted, bool votedYes, uint256 voteCount) {
-        FermionTypes.PriceUpdateProposal storage currentProposal = _getBuyoutAuctionStorage().currentProposal;
-        FermionTypes.PriceUpdateVoter storage voterDetails = currentProposal.voters[voter];
-
-        return (voterDetails.proposalId, voterDetails.hasVoted, voterDetails.votedYes, voterDetails.voteCount);
+    function getVoterDetails(address voter) external view returns (FermionTypes.PriceUpdateVoter memory voterDetails) {
+        voterDetails = _getBuyoutAuctionStorage().currentProposal.voters[voter];
     }
 
     /**
@@ -875,8 +945,13 @@ abstract contract FermionFractions is
             return false; // Proposal is still active
         }
 
-        uint256 totalVotes = proposal.yesVotes + proposal.noVotes;
-        uint256 quorumRequired = (liquidSupply() * proposal.quorumPercent) / HUNDRED_PERCENT;
+        uint256 totalVotes;
+        uint256 quorumRequired;
+
+        unchecked {
+            totalVotes = proposal.yesVotes + proposal.noVotes;
+            quorumRequired = (liquidSupply() * proposal.quorumPercent) / HUNDRED_PERCENT;
+        }
 
         if (totalVotes >= quorumRequired) {
             if (proposal.yesVotes > proposal.noVotes) {
@@ -950,7 +1025,7 @@ abstract contract FermionFractions is
      *
      * @param _tokenId The token ID
      */
-    function startAuction(uint256 _tokenId) internal virtual {
+    function startAuctionInternal(uint256 _tokenId) internal virtual {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
         FermionTypes.AuctionDetails storage auctionDetails = getLastAuction(_tokenId, $).details;
 
@@ -1160,30 +1235,20 @@ abstract contract FermionFractions is
         }
 
         FermionTypes.PriceUpdateVoter storage voterData = proposal.voters[voter];
+        uint256 voteCount = voterData.voteCount;
 
-        if (voterData.proposalId != proposal.proposalId || !voterData.hasVoted || voterData.voteCount == 0) {
+        if (voterData.voteCount == 0 || voterData.proposalId != proposal.proposalId) {
             return;
         }
-
-        uint256 votesToRemove = (amount > voterData.voteCount) ? voterData.voteCount : amount;
-
-        if (voterData.votedYes) {
-            unchecked {
-                proposal.yesVotes -= votesToRemove;
-            }
-        } else {
-            unchecked {
-                proposal.noVotes -= votesToRemove;
-            }
-        }
+        uint256 votesToRemove = (amount > voteCount) ? voteCount : amount;
 
         unchecked {
-            voterData.voteCount -= votesToRemove;
-        }
-
-        // Clear the `hasVoted` flag only if all votes are removed
-        if (voterData.voteCount == 0) {
-            voterData.hasVoted = false;
+            voterData.voteCount = voteCount -= votesToRemove;
+            if (voterData.votedYes) {
+                proposal.yesVotes -= votesToRemove;
+            } else {
+                proposal.noVotes -= votesToRemove;
+            }
         }
     }
 
@@ -1197,16 +1262,18 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice Ensures the given oracle is approved in the oracle registry.
-     *
-     * Reverts if:
-     * - The oracle is not approved in the registry.
+     * @notice Checks if the given oracle is approved in the oracle registry.
      *
      * @param _oracle The address of the price oracle to check.
+     * @return isApproved True if the oracle is approved, otherwise false.
      */
-    function _ensureOracleApproved(address _oracle) internal view {
-        if (!IPriceOracleRegistry(fermionProtocol).isPriceOracleApproved(_oracle)) {
-            revert PriceOracleNotWhitelisted(_oracle);
-        }
+    function _isOracleApproved(address _oracle) internal view returns (bool) {
+        return IPriceOracleRegistry(fermionProtocol).isPriceOracleApproved(_oracle);
+    }
+
+    ///////// overrides ///////////
+    function _update(address from, address to, uint256 value) internal virtual override {
+        _adjustVotesOnTransfer(from, value);
+        return super._update(from, to, value);
     }
 }

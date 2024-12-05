@@ -151,7 +151,6 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address to,
         uint256 value
     ) public virtual override(IFermionFractions, FermionFractions) returns (bool) {
-        _adjustVotesOnTransfer(_msgSender(), value);
         return FermionFractions.transfer(to, value);
     }
 
@@ -159,7 +158,6 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         if (tokenIdOrValue > type(uint128).max) {
             ERC721.transferFrom(from, to, tokenIdOrValue);
         } else {
-            _adjustVotesOnTransfer(from, tokenIdOrValue);
             bool success = transferFractionsFrom(from, to, tokenIdOrValue);
             assembly {
                 return(success, SLOT_SIZE)

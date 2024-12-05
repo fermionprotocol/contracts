@@ -179,7 +179,6 @@ contract FermionTypes {
 
     struct PriceUpdateVoter {
         uint256 proposalId; // Tracks the ID of the proposal the voter last voted on
-        bool hasVoted;
         bool votedYes;
         uint256 voteCount;
     }

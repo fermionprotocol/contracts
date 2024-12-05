@@ -74,6 +74,7 @@ interface AuctionErrors {
     error AuctionFinalized(uint256 tokenId);
     error NoFractionsAvailable(uint256 tokenId);
     error NoBids(uint256 tokenId);
+    error BidBelowExitPrice(uint256 tokenId, uint256 bid, uint256 exitPrice);
 }
 
 interface CustodianVaultErrors is AuctionErrors {
