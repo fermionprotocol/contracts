@@ -33,8 +33,13 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     constructor(
         address _bosonPriceDiscovery,
         address _seaportWrapper,
-        address _wrappedNative
-    ) FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative) ERC2771Context(address(0)) {}
+        address _wrappedNative,
+        address _fermionFNFTPriceManager
+    )
+        FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative)
+        ERC2771Context(address(0))
+        FermionFractions(_fermionFNFTPriceManager)
+    {}
 
     /**
      * @notice Initializes the contract
