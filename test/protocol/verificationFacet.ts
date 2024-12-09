@@ -79,7 +79,8 @@ describe("Verification", function () {
 
   let itemVerificationTimeout: string;
   let itemMaxVerificationTimeout: bigint;
-  const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+  const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+  const defaultFermionFee = BigInt(fermionConfig.protocolParameters.protocolFeePercentage);
 
   async function setupVerificationTest() {
     // Create three entities
@@ -167,7 +168,6 @@ describe("Verification", function () {
 
     const feeRanges = [parseEther("1").toString(), parseEther("5").toString(), parseEther("10").toString()];
     const feePercentages = [750, 1000, 1500]; // 7.5%, 10%, 15%
-    const defaultFermionFee = BigInt(fermionConfig.protocolParameters.protocolFeePercentage);
     // Set the protocol FeeTable for the exchange token
     await configFacet.setProtocolFeeTable(await mockToken.getAddress(), feeRanges, feePercentages);
 
@@ -250,6 +250,9 @@ describe("Verification", function () {
 
     exchangeToken = await mockToken.getAddress();
     bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
+
+    // reset the protocol fee table
+    await configFacet.setProtocolFeeTable(await mockToken.getAddress(), [], []);
   }
 
   function payoutFeeCalculation(
@@ -263,7 +266,7 @@ describe("Verification", function () {
   ) {
     const bosonFeeAmount = applyPercentage(escrowAmount, bosonProtocolFeePercentage);
     const revisedBuyerPayout = applyPercentage(escrowAmount, revisedBuyerPercentage);
-    escrowAmount -= bosonFeeAmount;
+    escrowAmount -= revisedBuyerPayout;
     const fermionFeeAmount = applyPercentage(escrowAmount, fermionFeePercentage);
     const facilitatorFeeAmount = applyPercentage(escrowAmount, facilitatorFeePercent);
     const feeSum = bosonFeeAmount + fermionFeeAmount + facilitatorFeeAmount + verifierFee;
@@ -893,9 +896,13 @@ describe("Verification", function () {
 
         // Events
         // Fermion
+        // Note: verifier fee is not paid in this tx, since it was already paid in submitRevisedMetadata
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Verified);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created in happy path
         await expect(tx).to.emit(verificationFacet, "RevisedMetadataSubmitted").withArgs(exchangeSelfSale.tokenId, "");
 
@@ -913,7 +920,9 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
-        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSale.payout.fermionFeeAmount,
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Verified);
@@ -1147,9 +1156,13 @@ describe("Verification", function () {
 
         // Events
         // Fermion
+        // Note: verifier fee is not paid in this tx, since it was already paid in submitRevisedMetadata
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Rejected);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
         await expect(tx).to.emit(verificationFacet, "RevisedMetadataSubmitted").withArgs(exchangeSelfSale.tokenId, "");
 
@@ -1167,7 +1180,9 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(verifierFee);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
-        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSale.payout.fermionFeeAmount,
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Burned);
@@ -1715,6 +1730,7 @@ describe("Verification", function () {
           verifierFee,
           facilitatorFeePercent,
           sellerDeposit,
+          defaultFermionFee,
           sellerProposal,
         );
 
@@ -1777,6 +1793,7 @@ describe("Verification", function () {
           verifierFee,
           facilitatorFeePercent,
           sellerDeposit,
+          defaultFermionFee,
           buyerProposal,
         );
 
@@ -1837,6 +1854,7 @@ describe("Verification", function () {
           verifierFee,
           facilitatorFeePercent,
           sellerDeposit,
+          defaultFermionFee,
           buyerProposal,
         );
 
@@ -2002,6 +2020,7 @@ describe("Verification", function () {
           verifierFee,
           facilitatorFeePercent,
           sellerDeposit,
+          defaultFermionFee,
           sellerProposal,
         );
 
@@ -2074,6 +2093,7 @@ describe("Verification", function () {
           verifierFee,
           facilitatorFeePercent,
           sellerDeposit,
+          defaultFermionFee,
           buyerProposal,
         );
 
@@ -2483,6 +2503,12 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "VerdictSubmitted")
           .withArgs(exchangeSelfSale.verifierId, exchangeSelfSale.tokenId, VerificationStatus.Rejected);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
+        await expect(tx)
+          .to.emit(verificationFacet, "AvailableFundsIncreased")
+          .withArgs(sellerId, exchangeToken, verifierFee);
         await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
 
         // Wrapper
@@ -2501,7 +2527,9 @@ describe("Verification", function () {
         expect(await fundsFacet.getAvailableFunds(exchangeSelfSale.verifierId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(facilitatorId, exchangeToken)).to.equal(0);
         expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(verifierFee);
-        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(0);
+        expect(await fundsFacet.getAvailableFunds(protocolId, exchangeToken)).to.equal(
+          exchangeSelfSale.payout.fermionFeeAmount,
+        );
 
         // Wrapper
         expect(await wrapper.tokenState(exchangeSelfSale.tokenId)).to.equal(TokenState.Burned);

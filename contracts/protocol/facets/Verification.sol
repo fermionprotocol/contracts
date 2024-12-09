@@ -378,8 +378,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                     uint256 facilitatorFeeAmount;
                     (fermionFeeAmount, facilitatorFeeAmount) = FeeLib.calculateAndValidateFees(
                         remainder,
-                        tokenLookups.bosonProtocolFee -
-                            FundsLib.applyPercentage(tokenLookups.bosonProtocolFee, buyerSplitProposal),
+                        tokenLookups.bosonProtocolFee,
                         offer
                     );
                     tokenLookups.fermionFeeAmount = fermionFeeAmount;
@@ -387,6 +386,7 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                 } else {
                     fermionFeeAmount = tokenLookups.fermionFeeAmount;
                 }
+                remainder = remainder - tokenLookups.bosonProtocolFee - offer.verifierFee; // Remove what was already paid
 
                 // fermion fee
                 FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
