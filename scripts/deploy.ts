@@ -193,7 +193,12 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // Prepare init call
     const init = {
       MetaTransactionFacet: [await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT"])],
-      ConfigFacet: [fermionConfig.protocolParameters],
+      ConfigFacet: [
+        fermionConfig.protocolParameters.treasury,
+        fermionConfig.protocolParameters.protocolFeePercentage,
+        fermionConfig.protocolParameters.maxVerificationTimeout,
+        fermionConfig.protocolParameters.defaultVerificationTimeout,
+      ],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
     const initCalldatas = Object.keys(init).map((facetName) =>
