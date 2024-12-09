@@ -186,36 +186,38 @@ contract VerificationFacet is Context, Access, VerificationErrors, FundsLib, IVe
         bool _afterTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         uint256 tokenId = _tokenId;
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
-        uint256 verifierId = offer.verifierId;
-
-        if (!_afterTimeout) {
-            // Check the caller is the verifier's assistant
-            EntityLib.validateAccountRole(
-                verifierId,
-                _msgSender(),
-                FermionTypes.EntityRole.Verifier,
-                FermionTypes.AccountRole.Assistant
-            );
-        }
-
-        // If offer is listed with phygitals, they must be verified before the verdict can be submitted
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[tokenId];
-        bool hasPhygitals = offer.withPhygital;
-        if (
-            hasPhygitals &&
-            _verificationStatus == FermionTypes.VerificationStatus.Verified && // if the item is rejected, phygitals are not required
-            tokenLookups.phygitalsRecipient == 0
-        ) revert PhygitalsVerificationMissing(tokenId);
-
-        BOSON_PROTOCOL.completeExchange(tokenId & type(uint128).max);
+        uint256 verifierId;
         {
+            (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
+            verifierId = offer.verifierId;
+
+            if (!_afterTimeout) {
+                // Check the caller is the verifier's assistant
+                EntityLib.validateAccountRole(
+                    verifierId,
+                    _msgSender(),
+                    FermionTypes.EntityRole.Verifier,
+                    FermionTypes.AccountRole.Assistant
+                );
+            }
+
+            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+            FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+            bool hasPhygitals = offer.withPhygital;
+            if (
+                hasPhygitals &&
+                _verificationStatus == FermionTypes.VerificationStatus.Verified && // if the item is rejected, phygitals are not required
+                tokenLookups.phygitalsRecipient == 0
+            ) revert PhygitalsVerificationMissing(tokenId);
+
+            BOSON_PROTOCOL.completeExchange(tokenId & type(uint128).max);
+
             address exchangeToken = offer.exchangeToken;
             uint256 sellerDeposit = offer.sellerDeposit;
-            uint256 offerPrice = tokenLookups.itemPrice;
+            uint256 remainder = tokenLookups.itemPrice - tokenLookups.bosonProtocolFee;
+
             {
-                uint256 withdrawalAmount = offerPrice + sellerDeposit;
+                uint256 withdrawalAmount = remainder + sellerDeposit;
                 if (withdrawalAmount > 0) {
                     uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
                     address[] memory tokenList = new address[](1);
@@ -226,41 +228,36 @@ contract VerificationFacet is Context, Access, VerificationErrors, FundsLib, IVe
                 }
             }
 
-            uint256 remainder = offerPrice;
             unchecked {
                 // pay the verifier
-                uint256 verifierFee = offer.verifierFee;
+                uint256 verifierFee = tokenLookups.verifierFee;
                 if (!_afterTimeout) increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
                 remainder -= verifierFee; // guaranteed to be positive
 
-                // fermion fee
-                uint256 fermionFeeAmount = applyPercentage(
-                    remainder,
-                    FermionStorage.protocolConfig().protocolFeePercentage
-                );
-                increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
+                uint256 fermionFeeAmount = tokenLookups.fermionFeeAmount;
+                increaseAvailableFunds(0, exchangeToken, tokenLookups.fermionFeeAmount); // Protocol fees are stored in entity 0
                 remainder -= fermionFeeAmount;
             }
 
             if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
                 // pay the facilitator
-                uint256 facilitatorFeeAmount = applyPercentage(remainder, offer.facilitatorFeePercent);
+                uint256 facilitatorFeeAmount = tokenLookups.facilitatorFeeAmount;
                 increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
                 remainder = remainder - facilitatorFeeAmount + sellerDeposit;
 
                 // transfer the remainder to the seller
                 increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
-                address fermionFNFTAddress = pl.offerLookups[offerId].fermionFNFTAddress;
-                fermionFNFTAddress.pushToNextTokenState(tokenId, FermionTypes.TokenState.Verified);
-
-                // If item is verified, the phygital recipient is already stored
+                pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(
+                    tokenId,
+                    FermionTypes.TokenState.Verified
+                );
             } else {
                 address buyerAddress = pl.offerLookups[offerId].fermionFNFTAddress.burn(tokenId);
 
                 uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
 
                 if (_afterTimeout) {
-                    remainder += offer.verifierFee;
+                    remainder += tokenLookups.verifierFee;
                 }
 
                 // transfer the remainder to the buyer
@@ -271,7 +268,6 @@ contract VerificationFacet is Context, Access, VerificationErrors, FundsLib, IVe
                 }
             }
         }
-
         emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
     }
 }

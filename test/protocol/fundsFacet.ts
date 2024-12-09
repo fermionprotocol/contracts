@@ -1,5 +1,11 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { applyPercentage, deployFermionProtocolFixture, deployMockTokens, deriveTokenId } from "../utils/common";
+import {
+  applyPercentage,
+  deployFermionProtocolFixture,
+  deployMockTokens,
+  deriveTokenId,
+  calculateMinimalPrice,
+} from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroAddress, ZeroHash } from "ethers";
@@ -40,6 +46,13 @@ describe("Funds", function () {
     amount: parseEther("0.05"),
     period: 30n * 24n * 60n * 60n, // 30 days
   };
+  const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+  const minimalPrice = calculateMinimalPrice(
+    verifierFee,
+    0, // facilitatorFee 0
+    bosonProtocolFeePercentage,
+    fermionConfig.protocolParameters.protocolFeePercentage,
+  );
 
   async function setupFundsTest() {
     // Create three entities
@@ -193,7 +206,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFTToSelf(fnftTokenId);
+      await offerFacet.unwrapNFTToSelf(fnftTokenId, minimalPrice);
       await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
       await custodyFacet.connect(verifier).checkIn(fnftTokenId);
 
@@ -504,15 +517,13 @@ describe("Funds", function () {
       // Submit verdicts
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Rejected);
 
-      const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-      const afterBosonProtocolFee = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
-      const afterVerifierFee = afterBosonProtocolFee - verifierFee;
+      const bosonFeeAmount = applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
       const fermionFeeAmount = applyPercentage(
-        afterVerifierFee,
+        encumberedAmount,
         fermionConfig.protocolParameters.protocolFeePercentage,
       );
-      const afterFermionFee = afterVerifierFee - fermionFeeAmount;
-      const expectedPayout = afterFermionFee + sellerDeposit;
+      const feesSum = fermionFeeAmount + bosonFeeAmount + verifierFee;
+      const expectedPayout = encumberedAmount - feesSum + sellerDeposit;
 
       const buyerBalance = await mockToken1.balanceOf(buyer.address);
       const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);
@@ -560,7 +571,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFTToSelf(fnftTokenId);
+      await offerFacet.unwrapNFTToSelf(fnftTokenId, minimalPrice);
       await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
       await custodyFacet.connect(verifier).checkIn(fnftTokenId);
 
@@ -896,7 +907,7 @@ describe("Funds", function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-        await offerFacet.unwrapNFTToSelf(phygitalFnftTokenId);
+        await offerFacet.unwrapNFTToSelf(phygitalFnftTokenId, minimalPrice);
         await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
         await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
 
@@ -946,9 +957,9 @@ describe("Funds", function () {
 
         it("Phygitals are already verified", async function () {
           await fundsFacet.connect(wallet).depositPhygitals([fnftTokenId], [[phygital]]);
-          await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+          await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
           await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-          await offerFacet.unwrapNFTToSelf(fnftTokenId);
+          await offerFacet.unwrapNFTToSelf(fnftTokenId, minimalPrice);
           const abiCoder = new ethers.AbiCoder();
           const encoded = abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]);
           const digest = ethers.keccak256(encoded);
@@ -1045,7 +1056,7 @@ describe("Funds", function () {
       });
     });
 
-    context.only("withdrawPhygitals - seller", function () {
+    context("withdrawPhygitals - seller", function () {
       before(async function () {
         fundsFacet.withdrawPhygitals = fundsFacet["withdrawPhygitals(uint256[],(address,uint256)[][])"];
       });
@@ -1071,9 +1082,9 @@ describe("Funds", function () {
       });
 
       it("Seller can withdraw the if the RWA does not get verified", async function () {
-        await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+        await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-        await offerFacet.unwrapNFTToSelf(fnftTokenId);
+        await offerFacet.unwrapNFTToSelf(fnftTokenId, minimalPrice);
         const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
         await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
@@ -1194,7 +1205,7 @@ describe("Funds", function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-        await offerFacet.unwrapNFTToSelf(phygitalFnftTokenId);
+        await offerFacet.unwrapNFTToSelf(phygitalFnftTokenId, minimalPrice);
         await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
         await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
 
@@ -1246,9 +1257,9 @@ describe("Funds", function () {
         });
 
         it("Phygitals are already verified", async function () {
-          await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+          await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
           await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-          await offerFacet.unwrapNFTToSelf(fnftTokenId);
+          await offerFacet.unwrapNFTToSelf(fnftTokenId, minimalPrice);
           const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
           await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
@@ -1289,7 +1300,7 @@ describe("Funds", function () {
       });
     });
 
-    context.only("withdrawPhygitals - buyer", function () {
+    context("withdrawPhygitals - buyer", function () {
       let buyer: HardhatEthersSigner;
       let custodian: HardhatEthersSigner;
 

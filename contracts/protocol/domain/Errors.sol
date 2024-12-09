@@ -11,6 +11,8 @@ interface FermionGeneralErrors {
     error InvalidPercentage(uint256 percentage);
     error ZeroNotAllowed();
     error UnexpectedDataReturned(bytes data);
+    // Array elements that are not in ascending order (i.e arr[i-1] > arr[i])
+    error NonAscendingOrder();
 }
 
 interface InitializationErrors {

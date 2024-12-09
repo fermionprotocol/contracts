@@ -9,6 +9,7 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
+import { FeeTableLib } from "../libs/FeeTableLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
@@ -147,7 +148,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     /**
      * @notice Unwraps NFT, but skips the auction and keeps the F-NFT with the seller
      *
-     * Price is 0, so the caller must provide the verification fee in the exchange token
+     * Price is 0, so the caller must provide the verification fee in the exchange token,
+     * along with the exchange amount the caller is willing to pay
      *
      * Reverts if:
      * - Offer region is paused
@@ -159,10 +161,11 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * This behavior can be changed in the future
      *
      * @param _tokenId - the token ID
+     * @param _exchangeAmount - exchange amount the caller is willing to pay
      */
-    function unwrapNFTToSelf(uint256 _tokenId) external payable {
+    function unwrapNFTToSelf(uint256 _tokenId, uint256 _exchangeAmount) external payable {
         SeaportTypes.AdvancedOrder memory _emptyOrder;
-        unwrapNFT(_tokenId, _emptyOrder, true, 0);
+        unwrapNFT(_tokenId, _emptyOrder, true, 0, _exchangeAmount);
     }
 
     /**
@@ -170,10 +173,15 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      *
      * @param _tokenId - the token ID
      * @param _verificationTimeout - the verification timeout
+     * @param _exchangeAmount - exchange amount the caller is willing to pay
      */
-    function unwrapNFTToSelfAndSetVerificationTimeout(uint256 _tokenId, uint256 _verificationTimeout) external payable {
+    function unwrapNFTToSelfAndSetVerificationTimeout(
+        uint256 _tokenId,
+        uint256 _verificationTimeout,
+        uint256 _exchangeAmount
+    ) external payable {
         SeaportTypes.AdvancedOrder memory _emptyOrder;
-        unwrapNFT(_tokenId, _emptyOrder, true, _verificationTimeout);
+        unwrapNFT(_tokenId, _emptyOrder, true, _verificationTimeout, _exchangeAmount);
     }
 
     /**
@@ -188,7 +196,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * @param _buyerOrder - the Seaport buyer order
      */
     function unwrapNFT(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external payable {
-        unwrapNFT(_tokenId, _buyerOrder, false, 0);
+        unwrapNFT(_tokenId, _buyerOrder, false, 0, 0);
     }
 
     /**
@@ -203,7 +211,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         SeaportTypes.AdvancedOrder calldata _buyerOrder,
         uint256 _verificationTimeout
     ) external payable {
-        unwrapNFT(_tokenId, _buyerOrder, false, _verificationTimeout);
+        unwrapNFT(_tokenId, _buyerOrder, false, _verificationTimeout, 0);
     }
 
     /**
@@ -227,113 +235,82 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * @param _buyerOrder - the Seaport buyer order (if not self sale)
      * @param _selfSale - if true, the NFT is unwrapped to the seller
      * @param _verificationTimeout - the verification timeout in UNIX timestamp
+     * @param _exchangeAmount - if selfSale, then this amount is taken into account to base fee calculation on
      */
+
     function unwrapNFT(
         uint256 _tokenId,
         SeaportTypes.AdvancedOrder memory _buyerOrder,
         bool _selfSale,
-        uint256 _verificationTimeout
+        uint256 _verificationTimeout,
+        uint256 _exchangeAmount
     ) internal notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
 
         pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(_tokenId, FermionTypes.TokenState.Unwrapping);
 
         FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
         {
+            address exchangeToken = offer.exchangeToken;
+
+            // Check the caller is the seller's assistant
             {
-                address exchangeToken = offer.exchangeToken;
+                uint256 sellerId = offer.sellerId;
+                EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
 
-                // Check the caller is the the seller's assistant
-                {
-                    uint256 sellerId = offer.sellerId;
-                    EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
-
-                    handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
-                }
-
-                address wrapperAddress = pl.offerLookups[offerId].fermionFNFTAddress;
-
-                IBosonProtocol.PriceDiscovery memory _priceDiscovery;
-                _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
-                _priceDiscovery.priceDiscoveryContract = wrapperAddress;
-                _priceDiscovery.conduit = wrapperAddress;
-                {
-                    uint256 bosonProtocolFee;
-                    if (_selfSale) {
-                        uint256 minimalPrice;
-                        (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                            exchangeToken,
-                            offer.verifierFee,
-                            0
-                        );
-                        if (minimalPrice > 0) {
-                            validateIncomingPayment(exchangeToken, minimalPrice);
-                            transferERC20FromProtocol(exchangeToken, payable(wrapperAddress), minimalPrice);
-                        }
-
-                        _priceDiscovery.price = minimalPrice;
-                        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                            IFermionWrapper.unwrapToSelf,
-                            (_tokenId, exchangeToken, minimalPrice)
-                        );
-                    } else {
-                        if (
-                            _buyerOrder.parameters.offer.length != 1 ||
-                            _buyerOrder.parameters.consideration.length > 2 ||
-                            _buyerOrder.parameters.consideration[1].startAmount >
-                            (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || // allow +1 in case they round up; minimal exposure
-                            _buyerOrder.parameters.offer[0].startAmount <
-                            _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
-                        ) {
-                            revert InvalidOpenSeaOrder();
-                        }
-
-                        unchecked {
-                            _priceDiscovery.price =
-                                _buyerOrder.parameters.offer[0].startAmount -
-                                _buyerOrder.parameters.consideration[1].startAmount;
-                        }
-
-                        uint256 minimalPrice;
-                        (minimalPrice, bosonProtocolFee) = getMinimalPriceAndBosonProtocolFee(
-                            exchangeToken,
-                            offer.verifierFee,
-                            _priceDiscovery.price
-                        );
-                        if (_priceDiscovery.price < minimalPrice) {
-                            revert FundsErrors.PriceTooLow(_priceDiscovery.price, minimalPrice);
-                        }
-                        _priceDiscovery.priceDiscoveryData = abi.encodeCall(
-                            IFermionWrapper.unwrap,
-                            (_tokenId, _buyerOrder)
-                        );
-                    }
-
-                    tokenLookups.itemPrice = _priceDiscovery.price - bosonProtocolFee;
-                }
-
-                BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
-                BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
+                handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
             }
+            IBosonProtocol.PriceDiscovery memory _priceDiscovery;
+            {
+                uint256 bosonProtocolFee;
+                (bosonProtocolFee, _priceDiscovery) = calculatePriceAndBosonFee(
+                    _tokenId,
+                    _buyerOrder,
+                    _selfSale,
+                    _exchangeAmount,
+                    exchangeToken,
+                    pl.offerLookups[offerId].fermionFNFTAddress // wrapper address
+                );
+
+                (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = calculateAndValidateFees(
+                    _priceDiscovery.price,
+                    bosonProtocolFee,
+                    offer
+                );
+
+                // Store item full price along with all fees
+                tokenLookups.itemPrice = _priceDiscovery.price;
+                tokenLookups.bosonProtocolFee = bosonProtocolFee;
+                tokenLookups.fermionFeeAmount = fermionFeeAmount;
+                tokenLookups.verifierFee = offer.verifierFee;
+                tokenLookups.facilitatorFeeAmount = facilitatorFeeAmount;
+            }
+            BOSON_PROTOCOL.commitToPriceDiscoveryOffer(payable(address(this)), _tokenId, _priceDiscovery);
+            BOSON_PROTOCOL.redeemVoucher(_tokenId & type(uint128).max); // Exchange id is in the lower 128 bits
         }
 
+        // Verification timeout logic
         uint256 itemVerificationTimeout;
-        FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
-        uint256 maxItemVerificationTimeout = block.timestamp + pc.maxVerificationTimeout;
-        if (_verificationTimeout == 0) {
-            itemVerificationTimeout = block.timestamp + pc.defaultVerificationTimeout;
-        } else {
-            if (_verificationTimeout > maxItemVerificationTimeout) {
-                revert VerificationErrors.VerificationTimeoutTooLong(_verificationTimeout, maxItemVerificationTimeout);
+        uint256 maxItemVerificationTimeout;
+        {
+            FermionStorage.ProtocolConfig storage pc = FermionStorage.protocolConfig();
+            maxItemVerificationTimeout = block.timestamp + pc.maxVerificationTimeout;
+            if (_verificationTimeout == 0) {
+                itemVerificationTimeout = block.timestamp + pc.defaultVerificationTimeout;
+            } else {
+                if (_verificationTimeout > maxItemVerificationTimeout) {
+                    revert VerificationErrors.VerificationTimeoutTooLong(
+                        _verificationTimeout,
+                        maxItemVerificationTimeout
+                    );
+                }
+                itemVerificationTimeout = _verificationTimeout;
             }
-            itemVerificationTimeout = _verificationTimeout;
+            tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
+            tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
         }
-        tokenLookups.itemVerificationTimeout = itemVerificationTimeout;
-        tokenLookups.itemMaxVerificationTimeout = maxItemVerificationTimeout;
 
-        // The price that Fermion operates with (the price without the OpenSea and Boson protocol fee)
         emit ItemPriceObserved(_tokenId, tokenLookups.itemPrice);
 
         emit IVerificationEvents.VerificationInitiated(
@@ -343,6 +320,114 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             itemVerificationTimeout,
             maxItemVerificationTimeout
         );
+    }
+
+    /**
+     * @notice Calculates the Boson protocol fee and price discovery details for the specified offer and token.
+     *
+     * @dev This function determines the price and Boson protocol fee depending on whether the sale is self-sale
+     *      or through an external marketplace (Seaport). It also checks that the buyer's order is valid and that
+     *      the fees (like OpenSea fees) are below the price.
+     *
+     * Reverts if:
+     * - The opensea order is not valid
+     *
+     * @param _tokenId The token ID of the F-NFT being unwrapped.
+     * @param _buyerOrder The Seaport buyer order (if not self sale).
+     * @param _selfSale Boolean flag indicating if the sale is a self-sale (unwraps to the seller).
+     * @param _exchangeAmount The exchange amount the seller is willing to pay in case of a self-sale.
+     * @param exchangeToken The address of the exchange token used for the transaction.
+     * @param wrapperAddress The address of the wrapper contract.
+     *
+     * @return bosonProtocolFee The fee amount to be paid to the Boson Protocol.
+     * @return _priceDiscovery A struct containing price discovery details for the Boson Protocol.
+     */
+    function calculatePriceAndBosonFee(
+        uint256 _tokenId,
+        SeaportTypes.AdvancedOrder memory _buyerOrder,
+        bool _selfSale,
+        uint256 _exchangeAmount,
+        address exchangeToken,
+        address wrapperAddress
+    ) internal returns (uint256 bosonProtocolFee, IBosonProtocol.PriceDiscovery memory _priceDiscovery) {
+        _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
+        _priceDiscovery.priceDiscoveryContract = wrapperAddress;
+        _priceDiscovery.conduit = wrapperAddress;
+
+        if (_selfSale) {
+            bosonProtocolFee = getBosonProtocolFee(exchangeToken, _exchangeAmount);
+            if (_exchangeAmount > 0) {
+                validateIncomingPayment(exchangeToken, _exchangeAmount);
+                transferERC20FromProtocol(exchangeToken, payable(wrapperAddress), _exchangeAmount);
+            }
+
+            _priceDiscovery.price = _exchangeAmount;
+            _priceDiscovery.priceDiscoveryData = abi.encodeCall(
+                IFermionWrapper.unwrapToSelf,
+                (_tokenId, exchangeToken, _exchangeAmount)
+            );
+        } else {
+            if (
+                _buyerOrder.parameters.offer.length != 1 ||
+                _buyerOrder.parameters.consideration.length > 2 ||
+                _buyerOrder.parameters.consideration[1].startAmount >
+                (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 ||
+                _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount
+            ) {
+                revert InvalidOpenSeaOrder();
+            }
+
+            unchecked {
+                _priceDiscovery.price =
+                    _buyerOrder.parameters.offer[0].startAmount -
+                    _buyerOrder.parameters.consideration[1].startAmount;
+            }
+
+            bosonProtocolFee = getBosonProtocolFee(exchangeToken, _priceDiscovery.price);
+
+            _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
+        }
+
+        return (bosonProtocolFee, _priceDiscovery);
+    }
+
+    /**
+     * @notice Calculates the Fermion and facilitator fees for the specified price and validates that the total
+     *         fees are below the price.
+     *
+     * @dev This function applies percentage-based fees for Fermion and the facilitator. It checks if the total
+     *      fees (including verifier and Boson protocol fees) are less than the total price.
+     *
+     * Reverts if:
+     * - The sum of all fees exceeds the price.
+     *
+     * @param price The price of the NFT being unwrapped.
+     * @param bosonProtocolFee The fee amount to be paid to the Boson Protocol.
+     * @param offer The Fermion offer containing details of the sale.
+     *
+     * @return fermionFeeAmount The calculated fee amount to be paid to the Fermion Protocol.
+     * @return facilitatorFeeAmount The calculated fee amount to be paid to the facilitator.
+     */
+    function calculateAndValidateFees(
+        uint256 price,
+        uint256 bosonProtocolFee,
+        FermionTypes.Offer storage offer
+    ) internal view returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
+        // Calculate facilitator and fermion fees
+        facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
+        fermionFeeAmount = FundsLib.applyPercentage(
+            price,
+            FeeTableLib.getProtocolFeePercentage(offer.exchangeToken, price)
+        );
+        // Calculate the sum of all fees
+        uint256 feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee + bosonProtocolFee;
+
+        // Check if the sum of all fees is lower than the price
+        if (price < feesSum) {
+            revert FundsErrors.PriceTooLow(price, feesSum);
+        }
+
+        return (fermionFeeAmount, facilitatorFeeAmount);
     }
 
     /**
@@ -402,30 +487,14 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     }
 
     /**
-     * @notice calculate the minimal price in order to cover the verifier fee and the Boson protocol fee
+     * @notice returns the boson protocol
      *
      * @param _exchangeToken - the token used for the exchange
-     * @param _verifierFee - the verifier fee
-     * @param _price - the price (if not selfSale)
-     * @return minimalPrice - the minimal price
+     * @param _price - the price (if selfSale price is inputed from the user)
+     * @return boson protocol fee amount, if exchange token is BOSON, then boson flat fee amount is returned
      */
-    function getMinimalPriceAndBosonProtocolFee(
-        address _exchangeToken,
-        uint256 _verifierFee,
-        uint256 _price
-    ) internal view returns (uint256 minimalPrice, uint256 bosonProtocolFee) {
-        if (_exchangeToken == BOSON_TOKEN) {
-            bosonProtocolFee = BOSON_PROTOCOL.getProtocolFeeFlatBoson();
-            minimalPrice = _verifierFee + bosonProtocolFee;
-        } else {
-            if (_verifierFee == 0 && _price == 0) return (0, 0); // to avoid the contract call
-            uint256 bosonProtocolFeePercentage = BOSON_PROTOCOL.getProtocolFeePercentage();
-            if (_verifierFee > 0) {
-                minimalPrice = (HUNDRED_PERCENT * _verifierFee) / (HUNDRED_PERCENT - bosonProtocolFeePercentage);
-                if (_price == 0) _price = minimalPrice; // self sale
-            }
-            bosonProtocolFee = (_price * bosonProtocolFeePercentage) / HUNDRED_PERCENT; // price is guaranteed to be > 0, so this must always be calculated
-        }
+    function getBosonProtocolFee(address _exchangeToken, uint256 _price) internal view returns (uint256) {
+        return BOSON_PROTOCOL.getProtocolFee(_exchangeToken, _price);
     }
 
     /**
@@ -572,5 +641,30 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);
+    }
+
+    /**
+     * @notice Gets all fee details for the particular item
+     *
+     * @param _tokenId - the token ID
+     * @return bosonProtocolFee The Boson Protocol fee
+     * @return fermionFeeAmount The Fermion Protocol fee
+     * @return verifierFee The verifier fee
+     * @return facilitatorFeeAmount The facilitator fee
+     */
+    function getItemFees(
+        uint256 _tokenId
+    )
+        external
+        view
+        returns (uint256 bosonProtocolFee, uint256 fermionFeeAmount, uint256 verifierFee, uint256 facilitatorFeeAmount)
+    {
+        FermionStorage.TokenLookups storage tokenLookup = FermionStorage.protocolLookups().tokenLookups[_tokenId];
+        return (
+            tokenLookup.bosonProtocolFee,
+            tokenLookup.fermionFeeAmount,
+            tokenLookup.verifierFee,
+            tokenLookup.facilitatorFeeAmount
+        );
     }
 }
