@@ -14,6 +14,7 @@ import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC721Metadata } from "@openzeppelin/contracts/token/ERC721/extensions/IERC721Metadata.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
@@ -237,7 +238,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 sellerLookups = FermionStorage.protocolLookups().sellerLookups[sellerId];
             } else {
                 sellerLookups = sellerLookups;
-                // Stupid workaround to avoid uninitialized variable warning. Is this more efficient or is more
+                // Stupid workaround to avoid uninitialized variable warning. TODO: Is this more efficient or is more
                 // efficient to initialize it before the loop to FermionStorage.protocolLookups().sellerLookups[0]
             }
 
@@ -560,6 +561,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
      * Returns a list of royalty recipients and corresponding bps. Format is compatible with Manifold and Foundation royalties
      * and can be directly used by royalty registry.
      *
+     *
      * @param _tokenId - tokenId
      * @return recipients - list of royalty recipients
      * @return bps - list of corresponding bps
@@ -598,6 +600,19 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         returns (FermionTypes.RoyaltyInfo storage royaltyInfo, uint256 royaltyInfoIndex, address defaultTreasury)
     {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+
+        address fermionFNFTAddress = FermionStorage.protocolLookups().offerLookups[offerId].fermionFNFTAddress;
+        if (fermionFNFTAddress == address(0)) {
+            // Token not preminted and wrapped yet
+            revert InvalidTokenId(fermionFNFTAddress, _tokenId);
+        } else if (fermionFNFTAddress != msg.sender) {
+            // This check is necessary only if the call is not from the FNFT contract, since that contract does the check anyway
+            try IERC721Metadata(fermionFNFTAddress).tokenURI(_tokenId) returns (string memory uri) {
+                // fermionFNFT will not return malformed URIs, so we can safely ignore the return value
+            } catch {
+                revert InvalidTokenId(fermionFNFTAddress, _tokenId);
+            }
+        }
 
         defaultTreasury = FermionStorage.protocolEntities().entityData[offer.sellerId].admin;
         FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;

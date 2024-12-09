@@ -38,6 +38,7 @@ describe("Offer", function () {
     period: 30n * 24n * 60n * 60n, // 30 days
   };
   const royaltyInfo = [{ recipients: [], bps: [] }]; // one empty royalty info
+  const royaltyInfoStruct = royaltyInfo.map((ri) => Object.values(ri));
   let offerFacet: Contract,
     entityFacet: Contract,
     fundsFacet: Contract,
@@ -153,7 +154,7 @@ describe("Offer", function () {
           Object.values({
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
-            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+            royaltyInfo: royaltyInfoStruct,
           }),
           bosonOfferId,
         );
@@ -168,6 +169,7 @@ describe("Offer", function () {
       expect(offer.exchangeToken).to.equal(exchangeToken);
       expect(offer.metadataURI).to.equal(metadataURI);
       expect(offer.metadataHash).to.equal(id(metadataURI));
+      expect(offer.royaltyInfo).to.eql(royaltyInfoStruct);
     });
 
     it("Boson Offer is created", async function () {
@@ -255,7 +257,7 @@ describe("Offer", function () {
           Object.values({
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
-            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+            royaltyInfo: royaltyInfoStruct,
           }),
           bosonOfferId,
         );
@@ -269,7 +271,7 @@ describe("Offer", function () {
           Object.values({
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
-            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+            royaltyInfo: royaltyInfoStruct,
           }),
           "2",
         );
@@ -292,7 +294,7 @@ describe("Offer", function () {
           Object.values({
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
-            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+            royaltyInfo: royaltyInfoStruct,
           }),
           bosonOfferId,
         );
@@ -306,7 +308,7 @@ describe("Offer", function () {
           Object.values({
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
-            royaltyInfo: fermionOffer.royaltyInfo.map((ri) => Object.values(ri)),
+            royaltyInfo: royaltyInfoStruct,
           }),
           "2",
         );

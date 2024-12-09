@@ -821,7 +821,9 @@ abstract contract FermionFractions is
 
         if (auctionProceeds > 0) {
             FundsLib.transferFundsFromProtocol($.exchangeToken, payable(fermionProtocol), auctionProceeds);
-            auctionProceeds -= FundsFacet(fermionProtocol).collectRoyalties(_tokenId, auctionProceeds);
+            unchecked {
+                auctionProceeds -= FundsFacet(fermionProtocol).collectRoyalties(_tokenId, auctionProceeds);
+            }
         }
 
         uint256 lockedVotes = votes.total;

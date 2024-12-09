@@ -10,7 +10,6 @@ import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
-
 /**
  * @title FundsFacet
  *
@@ -150,9 +149,7 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
 
         FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
         uint256 royaltyInfoLength = royaltyInfoAll.length;
-
         if (royaltyInfoLength == 0) return 0;
-
         FermionTypes.RoyaltyInfo memory royaltyInfo = royaltyInfoAll[royaltyInfoLength - 1];
 
         address tokenAddress = offer.exchangeToken;
@@ -173,6 +170,9 @@ contract FundsFacet is Context, FundsErrors, Access, IFundsEvents {
 
             FundsLib.increaseAvailableFunds(_entityId, tokenAddress, amount);
         }
+
+        // return the remainder
+        FundsLib.transferFundsFromProtocol(tokenAddress, payable(msg.sender), _saleProceeds - royalties);
     }
 
     /**

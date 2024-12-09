@@ -153,6 +153,8 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         uint256 _tokenId,
         uint256 _salePrice
     ) external view returns (address receiver, uint256 royaltyAmount) {
+        _requireOwned(_tokenId);
+
         uint256 royaltyPercentage;
         (receiver, royaltyPercentage) = OfferFacet(fermionProtocol).getEIP2981Royalties(_tokenId);
 

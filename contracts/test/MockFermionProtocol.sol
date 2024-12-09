@@ -15,6 +15,7 @@ contract MockFermion {
     address private immutable EXCHANGE_TOKEN;
     address private destinationOverride;
     int256 private amountToRelease;
+    uint256 private royalties;
 
     constructor(address _destination, address _exchangeToken) {
         DESTINATION = _destination;
@@ -42,7 +43,7 @@ contract MockFermion {
         }
     }
 
-    function repayDebt(uint256 _tokenId, uint256 _repaidAmount) external {
+    function repayDebt(uint256, uint256) external {
         //do nothing
     }
 
@@ -52,6 +53,15 @@ contract MockFermion {
 
     function setAmountToRelease(int256 _amount) external {
         amountToRelease = _amount;
+    }
+
+    function collectRoyalties(uint256, uint256 _proceeds) external returns (uint256) {
+        IERC20(EXCHANGE_TOKEN).transfer(msg.sender, _proceeds - royalties);
+        return royalties;
+    }
+
+    function setRoyalties(uint256 _royalties) external {
+        royalties = _royalties;
     }
 
     fallback() external payable {

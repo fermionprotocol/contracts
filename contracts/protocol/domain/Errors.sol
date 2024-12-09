@@ -51,6 +51,7 @@ interface OfferErrors {
     error InvalidRoyaltyRecipient(address recipient);
     error InvalidRoyaltyPercentage(uint256 percentage);
     error OfferWithoutRoyalties(uint256 offerId);
+    error InvalidTokenId(address fnftAddress, uint256 tokenId);
 }
 
 interface VerificationErrors {
