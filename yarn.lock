@@ -35,11 +35,11 @@
     js-tokens "^4.0.0"
     picocolors "^1.0.0"
 
-"@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.4.1":
+"@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#d9e78dc7bc92779b5cc579e8a50ce474b7299e4c":
   version "2.4.1"
-  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#174ae30fcdee39fa7048a2dfb3ac00e9d22445d5"
+  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#d9e78dc7bc92779b5cc579e8a50ce474b7299e4c"
   dependencies:
-    "@openzeppelin/contracts" "^4.9.0"
+    "@openzeppelin/contracts" "^4.9.6"
     "@openzeppelin/contracts-upgradeable" "4.9.3"
 
 "@colors/colors@1.5.0":
@@ -858,7 +858,7 @@
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-5.1.0.tgz#4d37648b7402929c53e2ff6e45749ecff91eb2b6"
   integrity sha512-AIElwP5Ck+cslNE+Hkemf5SxjJoF4wBvvjxc27Rp+9jaPs/CLIaUBMYe1FNzhdiN0cYuwGRmYaRHmmntuiju4Q==
 
-"@openzeppelin/contracts@^4.9.0", "@openzeppelin/contracts@^4.9.6":
+"@openzeppelin/contracts@^4.9.6":
   version "4.9.6"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.6.tgz#2a880a24eb19b4f8b25adc2a5095f2aa27f39677"
   integrity sha512-xSmezSupL+y9VkHZJGDoCBpmnB2ogM13ccaYDWqJTfS3dbuHkgjuwDFUmaFauBCboQMGB/S5UqUl2y54X99BmA==

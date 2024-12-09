@@ -1,16 +1,10 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import {
-  applyPercentage,
-  deployFermionProtocolFixture,
-  deployMockTokens,
-  setNextBlockTimestamp,
-} from "../utils/common";
+import { deployFermionProtocolFixture, deployMockTokens, setNextBlockTimestamp } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, PausableRegion, VerificationStatus } from "../utils/enums";
-import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import {
   AUCTION_END_BUFFER,
@@ -124,10 +118,9 @@ describe("CustodyVault", function () {
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
 
       if (i == 0n) {
-        const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
         exchange.tokenId = tokenId;
         exchange.custodianId = custodianId;
-        exchange.price = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
+        exchange.price = encumberedAmount;
       }
     }
 
