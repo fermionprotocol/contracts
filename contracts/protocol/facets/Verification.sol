@@ -8,6 +8,7 @@ import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
+import { FeeLib } from "../libs/FeeLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
@@ -318,8 +319,8 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
         BOSON_PROTOCOL.completeExchange(_tokenId & type(uint128).max);
 
         address exchangeToken = offer.exchangeToken;
-        uint256 withdrawalAmount = FermionStorage.protocolLookups().tokenLookups[_tokenId].itemPrice +
-            offer.sellerDeposit;
+        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
+        uint256 withdrawalAmount = tokenLookups.itemPrice - tokenLookups.bosonProtocolFee + offer.sellerDeposit;
         if (withdrawalAmount > 0) {
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
             address[] memory tokenList = new address[](1);
@@ -359,11 +360,13 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
             address exchangeToken = offer.exchangeToken;
             uint256 sellerDeposit = offer.sellerDeposit;
             FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[tokenId];
-            uint256 remainder = tokenLookups.itemPrice - offer.verifierFee;
+            // uint256 remainder = tokenLookups.itemPrice - tokenLookups.bosonProtocolFee;
+            uint256 remainder = tokenLookups.itemPrice;
 
             unchecked {
-                // if the item was revised, payout the buyer and do the other calcualtion on a new price
+                // if the item was revised, payout the buyer and do the other calculation on a new price
                 uint256 buyerSplitProposal = tokenLookups.buyerSplitProposal;
+                uint256 fermionFeeAmount;
                 if (buyerSplitProposal > 0) {
                     uint256 buyerRevisedPayout = FundsLib.applyPercentage(remainder, buyerSplitProposal);
 
@@ -371,20 +374,28 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
 
                     uint256 buyerId = EntityLib.getOrCreateBuyerId(tokenLookups.initialBuyer, pl);
                     FundsLib.increaseAvailableFunds(buyerId, exchangeToken, buyerRevisedPayout);
+
+                    uint256 facilitatorFeeAmount;
+                    (fermionFeeAmount, facilitatorFeeAmount) = FeeLib.calculateAndValidateFees(
+                        remainder,
+                        tokenLookups.bosonProtocolFee -
+                            FundsLib.applyPercentage(tokenLookups.bosonProtocolFee, buyerSplitProposal),
+                        offer
+                    );
+                    tokenLookups.fermionFeeAmount = fermionFeeAmount;
+                    tokenLookups.facilitatorFeeAmount = facilitatorFeeAmount;
+                } else {
+                    fermionFeeAmount = tokenLookups.fermionFeeAmount;
                 }
 
                 // fermion fee
-                uint256 fermionFeeAmount = FundsLib.applyPercentage(
-                    remainder,
-                    FermionStorage.protocolConfig().protocolFeePercentage
-                );
                 FundsLib.increaseAvailableFunds(0, exchangeToken, fermionFeeAmount); // Protocol fees are stored in entity 0
                 remainder -= fermionFeeAmount;
             }
 
             if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
                 // pay the facilitator
-                uint256 facilitatorFeeAmount = FundsLib.applyPercentage(remainder, offer.facilitatorFeePercent);
+                uint256 facilitatorFeeAmount = tokenLookups.facilitatorFeeAmount;
                 FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
                 remainder = remainder - facilitatorFeeAmount + sellerDeposit;
 
@@ -406,9 +417,9 @@ contract VerificationFacet is Context, Access, EIP712, VerificationErrors, IVeri
                 // transfer the remainder to the buyer
                 FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
             }
-        }
 
-        emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
+            emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
+        }
     }
 
     /**

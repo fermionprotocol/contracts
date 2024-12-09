@@ -434,15 +434,14 @@ describe("Funds", function () {
       // Submit verdicts
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Rejected);
 
-      const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-      const afterBosonProtocolFee = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
-      const afterVerifierFee = afterBosonProtocolFee - verifierFee;
+      const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+      const bosonFeeAmount = applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
       const fermionFeeAmount = applyPercentage(
-        afterVerifierFee,
+        encumberedAmount,
         fermionConfig.protocolParameters.protocolFeePercentage,
       );
-      const afterFermionFee = afterVerifierFee - fermionFeeAmount;
-      const expectedPayout = afterFermionFee + sellerDeposit;
+      const feesSum = fermionFeeAmount + bosonFeeAmount + verifierFee;
+      const expectedPayout = encumberedAmount - feesSum + sellerDeposit;
 
       const buyerBalance = await mockToken1.balanceOf(buyer.address);
       const [buyerEntityId] = await entityFacet["getEntity(address)"](buyer.address);
