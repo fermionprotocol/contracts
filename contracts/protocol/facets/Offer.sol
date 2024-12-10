@@ -40,6 +40,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
 
+    mapping(WrapType => function(uint256, IBosonProtocol.PriceDiscovery memory, address, bytes memory))
+        internal unwrapNFTFunction;
+
     constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
@@ -240,13 +243,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * Reverts if:
      * - Caller is not the seller's assistant or facilitator
      * - If seller deposit is non zero and there are not enough funds to cover it
-     * - It is self sale and the caller does not provide the verification fee
-     * - It is a normal sale and the price is not high enough to cover the verification fee
-     * - The buyer order validation fails:
-     *   - There is more than 1 offer in the order
-     *   - There are more than 2 considerations in the order
-     *   - OpenSea fee is higher than the price
-     *   - OpenSea fee is higher than the expected fee
+     * - Any internal unwrapping functions revert. See `selfSale`, `openSeaAuction`, `openSeaFixedPrice` for details
+     * - The price is not high enough to cover the protocol fees (Boson, Fermion, facilitator, verifier)
      * - The verification timeout is too long
      *
      * @param _tokenId - the token ID
@@ -275,25 +273,19 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
 
             _priceDiscovery.priceDiscoveryContract = fermionFNFTAddress;
             _priceDiscovery.conduit = fermionFNFTAddress;
+            _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
         }
 
         {
             address exchangeToken = offer.exchangeToken;
 
             // Check the caller is the seller's assistant
-            {
-                uint256 sellerId = offer.sellerId;
-                EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
-                handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
-            }
+            uint256 sellerId = offer.sellerId;
+            EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
+            handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
 
-            _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
-
-            {
-                WrapType wrapType = _wrapType;
-                unwrapNFTFunction[wrapType](tokenId, _priceDiscovery, exchangeToken, _data);
-                tokenLookups.itemPrice = _priceDiscovery.price;
-            }
+            WrapType wrapType = _wrapType;
+            unwrapNFTFunction[wrapType](tokenId, _priceDiscovery, exchangeToken, _data);
 
             uint256 bosonProtocolFee = getBosonProtocolFee(exchangeToken, _priceDiscovery.price);
             (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = FeeLib.calculateAndValidateFees(
@@ -345,9 +337,19 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         );
     }
 
-    mapping(WrapType => function(uint256, IBosonProtocol.PriceDiscovery memory, address, bytes memory))
-        internal unwrapNFTFunction;
-
+    /** [unwrapNFTFunction] Handles the case where the seller unwraps the NFT to themselves.
+     *
+     * `_data` encodes `uint256 exchangeAmount` - the exchange amount the seller is willing to pay in case of a self-sale.
+     *
+     * Reverts if:
+     * - The caller does not provide enough funds to cover the exchangeAmount
+     * - The exchange token transfer fails
+     *
+     * @param _tokenId - the token ID
+     * @param _priceDiscovery - the price discovery object
+     * @param exchangeToken - the exchange token
+     * @param _data - abi encoded exchange amount (uint256)
+     */
     function selfSale(
         uint256 _tokenId,
         IBosonProtocol.PriceDiscovery memory _priceDiscovery,
@@ -368,10 +370,24 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         );
     }
 
+    /** [unwrapNFTFunction] Handles the case where the seller unwraps the NFT via an OpenSea auction.
+     *
+     * `_data` encodes `SeaportTypes.AdvancedOrder memory _buyerOrder` - the valid buyer order, submitted to OpenSea.
+     *
+     * Reverts if:
+     *   - There is more than 1 offer in the order
+     *   - There are more than 2 considerations in the order
+     *   - OpenSea fee is higher than the price
+     *   - OpenSea fee is higher than the expected fee
+     *
+     * @param _tokenId - the token ID
+     * @param _priceDiscovery - the price discovery object
+     * @param _data - abi encoded exchange amount (uint256)
+     */
     function openSeaAuction(
         uint256 _tokenId,
         IBosonProtocol.PriceDiscovery memory _priceDiscovery,
-        address exchangeToken,
+        address,
         bytes memory _data
     ) internal view {
         SeaportTypes.AdvancedOrder memory _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
@@ -394,6 +410,20 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
     }
 
+    /** [unwrapNFTFunction] Handles the case where the seller unwraps the NFT after it was sold on OpenSea for a fixed price.
+     *
+     * `_data` encodes `uint256 price` - the price paid by the buyer, reduced by the OpenSea fee.
+     *
+     * Reverts if:
+     *   - There is more than 1 offer in the order
+     *   - There are more than 2 considerations in the order
+     *   - OpenSea fee is higher than the price
+     *   - OpenSea fee is higher than the expected fee
+     *
+     * @param _tokenId - the token ID
+     * @param _priceDiscovery - the price discovery object
+     * @param _data - abi encoded exchange amount (uint256)
+     */
     function openSeaFixedPrice(
         uint256 _tokenId,
         IBosonProtocol.PriceDiscovery memory _priceDiscovery,
