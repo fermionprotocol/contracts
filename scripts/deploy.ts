@@ -181,7 +181,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const constructorArgs = {
       MetaTransactionFacet: [diamondAddress],
       OfferFacet: [bosonProtocolAddress, fnftCodeHash],
-      VerificationFacet: [bosonProtocolAddress, fnftCodeHash],
+      VerificationFacet: [bosonProtocolAddress, fnftCodeHash, diamondAddress],
       CustodyFacet: [fnftCodeHash],
       CustodyVaultFacet: [fnftCodeHash],
       FundsFacet: [fnftCodeHash],

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { HUNDRED_PERCENT, SLOT_SIZE } from "../domain/Constants.sol";
+import { SLOT_SIZE } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -350,15 +350,5 @@ contract FundsLib {
                 }
             }
         }
-    }
-
-    /**
-     * @notice Applies a percentage to the amount.
-     *
-     * @param _amount - the amount to apply the percentage to
-     * @param _percentage - the percentage to apply
-     */
-    function applyPercentage(uint256 _amount, uint256 _percentage) internal pure returns (uint256) {
-        return (_amount * _percentage) / HUNDRED_PERCENT;
     }
 }

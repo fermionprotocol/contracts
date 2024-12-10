@@ -9,7 +9,7 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
-import { FeeTableLib } from "../libs/FeeTableLib.sol";
+import { FeeLib } from "../libs/FeeLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
@@ -273,7 +273,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
                     pl.offerLookups[offerId].fermionFNFTAddress // wrapper address
                 );
 
-                (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = calculateAndValidateFees(
+                (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = FeeLib.calculateAndValidateFees(
                     _priceDiscovery.price,
                     bosonProtocolFee,
                     offer
@@ -389,45 +389,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         }
 
         return (bosonProtocolFee, _priceDiscovery);
-    }
-
-    /**
-     * @notice Calculates the Fermion and facilitator fees for the specified price and validates that the total
-     *         fees are below the price.
-     *
-     * @dev This function applies percentage-based fees for Fermion and the facilitator. It checks if the total
-     *      fees (including verifier and Boson protocol fees) are less than the total price.
-     *
-     * Reverts if:
-     * - The sum of all fees exceeds the price.
-     *
-     * @param price The price of the NFT being unwrapped.
-     * @param bosonProtocolFee The fee amount to be paid to the Boson Protocol.
-     * @param offer The Fermion offer containing details of the sale.
-     *
-     * @return fermionFeeAmount The calculated fee amount to be paid to the Fermion Protocol.
-     * @return facilitatorFeeAmount The calculated fee amount to be paid to the facilitator.
-     */
-    function calculateAndValidateFees(
-        uint256 price,
-        uint256 bosonProtocolFee,
-        FermionTypes.Offer storage offer
-    ) internal view returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
-        // Calculate facilitator and fermion fees
-        facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
-        fermionFeeAmount = FundsLib.applyPercentage(
-            price,
-            FeeTableLib.getProtocolFeePercentage(offer.exchangeToken, price)
-        );
-        // Calculate the sum of all fees
-        uint256 feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee + bosonProtocolFee;
-
-        // Check if the sum of all fees is lower than the price
-        if (price < feesSum) {
-            revert FundsErrors.PriceTooLow(price, feesSum);
-        }
-
-        return (fermionFeeAmount, facilitatorFeeAmount);
     }
 
     /**

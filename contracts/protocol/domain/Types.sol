@@ -164,6 +164,12 @@ contract FermionTypes {
         Votes votes;
     }
 
+    struct SplitProposal {
+        uint16 buyer;
+        uint16 seller;
+        bool matching;
+    }
+
     struct Phygital {
         address contractAddress;
         uint256 tokenId;

@@ -56,6 +56,9 @@ interface VerificationErrors {
     // Verification errors
     error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
     error VerificationTimeoutTooLong(uint256 verificationTimeout, uint256 maxVerificationTimeout);
+    error EmptyMetadata();
+    error DigestMismatch(bytes32 expected, bytes32 actual);
+    error AlreadyVerified(FermionTypes.VerificationStatus status);
     error InvalidTokenState(uint256 tokenId, FermionTypes.TokenState tokenState);
     error PhygitalsAlreadyVerified(uint256 tokenId);
     error PhygitalsDigestMismatch(uint256 tokenId, bytes32 expectedDigest, bytes32 actualDigest);
@@ -116,9 +119,13 @@ interface MetaTransactionErrors {
     error NonceUsedAlready();
     error FunctionNotAllowlisted();
     error InvalidFunctionName();
+    error FunctionCallFailed();
+}
+
+interface SignatureErrors {
     error InvalidSignature(); // Somethihing is wrong with the signature
     error SignatureValidationFailed(); // Signature might be correct, but the validation failed
-    error FunctionCallFailed();
+    error InvalidSigner(address expected, address actual);
 }
 
 interface FractionalisationErrors is AuctionErrors {
@@ -154,5 +161,6 @@ interface FermionErrors is
     FundsErrors,
     PauseErrors,
     MetaTransactionErrors,
-    FractionalisationErrors
+    FractionalisationErrors,
+    SignatureErrors
 {}
