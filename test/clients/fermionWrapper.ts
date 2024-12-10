@@ -1,4 +1,4 @@
-import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
+import { loadFixture, setCode } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { deployMockTokens } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
@@ -15,7 +15,7 @@ describe("FermionFNFT - wrapper tests", function () {
   let fermionProtocolSigner: HardhatEthersSigner;
   let wrapperContractOwner: HardhatEthersSigner;
   let mockBosonPriceDiscovery: HardhatEthersSigner;
-  let mockBoson: Contract, mockERC20: Contract;
+  let mockBoson: Contract, mockERC20: Contract, mockFermion: Contract;
   let seaportAddress: string;
   const metadataURI = "https://example.com";
 
@@ -54,6 +54,14 @@ describe("FermionFNFT - wrapper tests", function () {
     const fermionWrapperProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
 
     const [mockBoson, mockERC20] = await deployMockTokens(["ERC721", "ERC20"]);
+
+    const mockFermionFactory = await ethers.getContractFactory("MockFermion");
+    mockFermion = await mockFermionFactory.deploy(ZeroAddress, ZeroAddress);
+    const code = await ethers.provider.getCode(await mockFermion.getAddress());
+    mockFermion = mockFermion.attach(await fermionProtocolSigner.getAddress());
+
+    await setCode(await fermionProtocolSigner.getAddress(), code);
+
     return { fermionWrapper, fermionWrapperProxy, mockBoson, mockBosonPriceDiscovery, mockERC20 };
   }
 
@@ -66,6 +74,12 @@ describe("FermionFNFT - wrapper tests", function () {
 
   afterEach(async function () {
     await loadFixture(setupFermionWrapperTest);
+  });
+
+  after(async function () {
+    // make the account "normal" again
+    // `setCode` helper from the toolbox does not accept empty code, so we use the provider directly
+    await ethers.provider.send("hardhat_setCode", [await fermionProtocolSigner.getAddress(), "0x"]);
   });
 
   context("initialize", function () {
@@ -584,6 +598,32 @@ describe("FermionFNFT - wrapper tests", function () {
       for (let i = 0n; i < quantity; i++) {
         const tokenId = startTokenId + i;
         expect(await fermionWrapperProxy.tokenURI(tokenId)).to.equal(metadataURI);
+      }
+    });
+
+    it("Some tokens have revised URI", async function () {
+      const seller = wallets[3];
+      const revisedMetadataURI = "https://revised.com";
+      await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
+      await fermionProtocolSigner.sendTransaction({
+        to: await fermionWrapperProxy.getAddress(),
+        data:
+          fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
+          fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+      });
+
+      for (let i = 0n; i < quantity; i = i + 2n) {
+        const tokenId = startTokenId + i;
+        await mockFermion.setRevisedMetadata(tokenId, `${revisedMetadataURI}${i}`);
+      }
+
+      for (let i = 0n; i < quantity; i++) {
+        const tokenId = startTokenId + i;
+        if (i % 2n == 0n) {
+          expect(await fermionWrapperProxy.tokenURI(tokenId)).to.equal(`${revisedMetadataURI}${i}`);
+        } else {
+          expect(await fermionWrapperProxy.tokenURI(tokenId)).to.equal(metadataURI);
+        }
       }
     });
 

@@ -1,5 +1,6 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
+  calculateMinimalPrice,
   deployFermionProtocolFixture,
   deployMockTokens,
   deriveTokenId,
@@ -7,7 +8,7 @@ import {
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroAddress, ZeroHash } from "ethers";
+import { Contract, toBeHex, ZeroAddress, ZeroHash, parseEther } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   EntityRole,
@@ -20,8 +21,7 @@ import {
 } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
-
-const { parseEther } = ethers;
+import fermionConfig from "../../fermion.config";
 
 describe("Custody", function () {
   let offerFacet: Contract,
@@ -55,7 +55,7 @@ describe("Custody", function () {
   const exchangeSelfSale = { tokenId: "", custodianId: "" };
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
   let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
-
+  let minimalPriceSelfSale: bigint;
   async function setupCustodyTest() {
     // Create three entities
     // Seller, Verifier, Custodian combined
@@ -90,6 +90,7 @@ describe("Custody", function () {
       facilitatorId: sellerId,
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
+      withPhygital: false,
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
     };
@@ -125,10 +126,17 @@ describe("Custody", function () {
 
     // unwrap to self
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
-    const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-    const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
-    await mockToken.approve(fermionProtocolAddress, minimalPrice);
-    await offerFacet.unwrapNFT(tokenIdSelf, WrapType.SELF_SALE, "0x");
+    const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+
+    // Calculate the minimal price that accounts for both the absolute verifierFee and percentage-based fees
+    minimalPriceSelfSale = calculateMinimalPrice(
+      verifierFee,
+      fermionOffer.facilitatorFeePercent,
+      bosonProtocolFeePercentage,
+      fermionConfig.protocolParameters.protocolFeePercentage,
+    );
+    await mockToken.approve(fermionProtocolAddress, minimalPriceSelfSale);
+    await offerFacet.unwrapNFT(tokenIdSelf, WrapType.SELF_SALE, toBeHex(minimalPriceSelfSale, 32));
 
     exchange.tokenId = tokenId;
     exchange.custodianId = custodianId;
@@ -145,7 +153,6 @@ describe("Custody", function () {
     await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
     await verificationFacet.connect(verifier).submitVerdict(tokenIdSelf, VerificationStatus.Verified);
     await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified);
-
     const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
 
@@ -309,7 +316,7 @@ describe("Custody", function () {
         });
 
         it("Cannot check-in if not verified or rejected", async function () {
-          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
           // Unwrapped but not verified
           await expect(custodyFacet.checkIn(tokenId))
@@ -482,7 +489,7 @@ describe("Custody", function () {
         });
 
         it("Cannot request check-out if not verified or rejected", async function () {
-          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
           // Unwrapped but not verified
           await expect(custodyFacet.requestCheckOut(tokenId))
@@ -656,7 +663,7 @@ describe("Custody", function () {
         });
 
         it("Cannot submit tax amount if not verified or rejected", async function () {
-          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
           // Unwrapped but not verified
           await expect(custodyFacet.submitTaxAmount(tokenId, taxAmount))
@@ -886,7 +893,7 @@ describe("Custody", function () {
           });
 
           it("Cannot clear checkout request if not verified or rejected", async function () {
-            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
             // Unwrapped but not verified
             await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
@@ -1062,7 +1069,7 @@ describe("Custody", function () {
           });
 
           it("Cannot clear checkout request if not verified or rejected", async function () {
-            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
             // Unwrapped but not verified
             await expect(custodyFacet.clearCheckoutRequest(tokenId))
@@ -1245,7 +1252,7 @@ describe("Custody", function () {
         });
 
         it("Cannot check item out if not verified or rejected", async function () {
-          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
           // Unwrapped but not verified
           await expect(custodyFacet.checkOut(tokenId))

@@ -1,6 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
   applyPercentage,
+  calculateMinimalPrice,
   deployFermionProtocolFixture,
   deployMockTokens,
   deriveTokenId,
@@ -12,7 +13,7 @@ import PriceDiscovery from "@bosonprotocol/boson-protocol-contracts/scripts/doma
 import Side from "@bosonprotocol/boson-protocol-contracts/scripts/domain/Side.js";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroHash } from "ethers";
+import { Contract, toBeHex, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, PausableRegion, TokenState, AccountRole, WrapType } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
@@ -25,7 +26,7 @@ import fermionConfig from "./../../fermion.config";
 import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 
 const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
-const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
 describe("Offer", function () {
   const sellerId = "1";
@@ -41,7 +42,8 @@ describe("Offer", function () {
     entityFacet: Contract,
     fundsFacet: Contract,
     pauseFacet: Contract,
-    verificationFacet: Contract;
+    verificationFacet: Contract,
+    configFacet: Contract;
   let mockToken: Contract, mockBosonToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -91,6 +93,7 @@ describe("Offer", function () {
         FundsFacet: fundsFacet,
         PauseFacet: pauseFacet,
         VerificationFacet: verificationFacet,
+        ConfigFacet: configFacet,
       },
       fermionErrors,
       wallets,
@@ -121,6 +124,7 @@ describe("Offer", function () {
     let exchangeToken: string;
     let fermionOffer: FermionTypes.OfferStruct;
     const bosonOfferId = "1";
+    const withPhygital = false;
 
     before(async function () {
       exchangeToken = await mockToken.getAddress();
@@ -135,6 +139,7 @@ describe("Offer", function () {
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken,
+        withPhygital,
         metadataURI,
         metadataHash: id(metadataURI),
       };
@@ -367,6 +372,7 @@ describe("Offer", function () {
       const sellerDeposit = 100;
       const verifierFee = 10;
       const metadataURI = "https://example.com/offer-metadata.json";
+      const withPhygital = false;
 
       const fermionOffer = {
         sellerId,
@@ -378,6 +384,7 @@ describe("Offer", function () {
         facilitatorId: sellerId,
         facilitatorFeePercent: "0",
         exchangeToken,
+        withPhygital,
         metadataURI,
         metadataHash: id(metadataURI),
       };
@@ -412,6 +419,7 @@ describe("Offer", function () {
     const bosonOfferId = 1n;
     const sellerDeposit = 100n;
     const quantity = 15n;
+    const withPhygital = false;
     beforeEach(async function () {
       const fermionOffer = {
         sellerId: "1",
@@ -423,6 +431,7 @@ describe("Offer", function () {
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
+        withPhygital,
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,
       };
@@ -605,6 +614,7 @@ describe("Offer", function () {
     const quantity = 15n;
     const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther((n + 1).toString()));
     const endTimes = Array(Number(quantity)).fill(MaxUint256);
+    const withPhygital = false;
 
     beforeEach(async function () {
       const fermionOffer = {
@@ -617,6 +627,7 @@ describe("Offer", function () {
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
+        withPhygital,
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,
       };
@@ -821,9 +832,9 @@ describe("Offer", function () {
     const exchangeId = 1n;
     const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
     const fullPrice = parseEther("10");
-    const openSeaFee = (fullPrice * 2_50n) / 10_000n;
+    const openSeaFee = (fullPrice * 2_50n) / 100_00n;
+    const withPhygital = false;
     const priceSubOSFee = fullPrice - openSeaFee;
-    const priceSubOSAndBosonFee = priceSubOSFee - applyPercentage(priceSubOSFee, bosonProtocolFeePercentage);
     let openSeaAddress: string, buyerAddress: string;
     let bosonProtocolBalance: bigint, openSeaBalance: bigint;
     let buyerAdvancedOrder: string;
@@ -863,6 +874,7 @@ describe("Offer", function () {
             facilitatorId,
             facilitatorFeePercent: "0",
             exchangeToken,
+            withPhygital,
             metadataURI: "https://example.com/offer-metadata.json",
             metadataHash: ZeroHash,
           };
@@ -930,7 +942,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
             // Boson:
             await expect(tx)
@@ -1001,7 +1013,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
           });
 
           context("Boson seller deposit covered from the available funds", function () {
@@ -1022,7 +1034,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
               // Boson:
               await expect(tx)
@@ -1057,7 +1069,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
               // Boson:
               await expect(tx)
@@ -1092,6 +1104,7 @@ describe("Offer", function () {
                 facilitatorId: sellerId,
                 facilitatorFeePercent: "0",
                 exchangeToken: await mockToken.getAddress(),
+                withPhygital,
                 metadataURI: "https://example.com/offer-metadata.json",
                 metadataHash: ZeroHash,
               };
@@ -1152,7 +1165,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
               // Boson:
               await expect(tx)
@@ -1325,7 +1338,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
             // State:
             expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
@@ -1433,6 +1446,7 @@ describe("Offer", function () {
                     facilitatorId: sellerId,
                     facilitatorFeePercent: "0",
                     exchangeToken: ZeroAddress,
+                    withPhygital,
                     metadataURI: "https://example.com/offer-metadata.json",
                     metadataHash: ZeroHash,
                   };
@@ -1477,13 +1491,18 @@ describe("Offer", function () {
             });
 
             it("Price does not cover the verifier fee", async function () {
-              const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
-              buyerOrder.parameters.offer[0].startAmount = minimalPrice.toString();
+              const minimalPriceNew = calculateMinimalPrice(
+                verifierFee,
+                0,
+                bosonProtocolFeePercentage,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
+              buyerOrder.parameters.offer[0].startAmount = minimalPriceNew.toString();
               buyerOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
               buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
               await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
-                .withArgs(minimalPrice - 1n, minimalPrice);
+                .withArgs(minimalPriceNew - 1n, minimalPriceNew);
             });
 
             it("Price does not cover the verifier fee [BOSON]", async function () {
@@ -1506,6 +1525,7 @@ describe("Offer", function () {
                 facilitatorId: sellerId,
                 facilitatorFeePercent: "0",
                 exchangeToken: bosonTokenAddress,
+                withPhygital,
                 metadataURI: "https://example.com/offer-metadata.json",
                 metadataHash: ZeroHash,
               };
@@ -1513,7 +1533,12 @@ describe("Offer", function () {
               await offerFacet.createOffer(fermionOffer);
               await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
 
-              const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
+              const minimalPrice = calculateMinimalPrice(
+                verifierFee,
+                fermionOffer.facilitatorFeePercent,
+                bosonProtocolFlatFee,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
               buyerOrder.parameters.offer[0].startAmount = minimalPrice.toString();
               buyerOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
               buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
@@ -1690,14 +1715,19 @@ describe("Offer", function () {
         });
 
         context("unwrapToSelf", function () {
-          const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
+          const minimalPrice = calculateMinimalPrice(
+            verifierFee,
+            0, // facilitatorFee 0
+            bosonProtocolFeePercentage,
+            fermionConfig.protocolParameters.protocolFeePercentage,
+          );
 
           it("Unwrapping", async function () {
             await mockToken.approve(fermionProtocolAddress, sellerDeposit);
             await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
 
             await mockToken.approve(fermionProtocolAddress, minimalPrice);
-            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
             // events:
             // fermion
@@ -1708,7 +1738,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
             // Boson:
             await expect(tx)
@@ -1766,7 +1796,9 @@ describe("Offer", function () {
 
             await mockToken.mint(facilitator.address, minimalPrice);
             await mockToken.connect(facilitator).approve(fermionProtocolAddress, minimalPrice);
-            const tx = await offerFacet.connect(facilitator).unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+            const tx = await offerFacet
+              .connect(facilitator)
+              .unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
             // events:
             // fermion
@@ -1777,7 +1809,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
           });
 
           context("Boson seller deposit covered from the available funds", function () {
@@ -1788,7 +1820,7 @@ describe("Offer", function () {
               const sellerAvailableFunds = await fundsFacet.getAvailableFunds(bosonSellerId, exchangeToken);
 
               await mockToken.approve(fermionProtocolAddress, minimalPrice);
-              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
               // events:
               // fermion
@@ -1800,7 +1832,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
               // Boson:
               await expect(tx)
@@ -1824,7 +1856,7 @@ describe("Offer", function () {
               await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
 
               await mockToken.approve(fermionProtocolAddress, remainder + minimalPrice);
-              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
               // events:
               // fermion
@@ -1836,7 +1868,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
               // Boson:
               await expect(tx)
@@ -1871,6 +1903,7 @@ describe("Offer", function () {
                 facilitatorId: sellerId,
                 facilitatorFeePercent: "0",
                 exchangeToken: ZeroAddress,
+                withPhygital,
                 metadataURI: "https://example.com/offer-metadata.json",
                 metadataHash: ZeroHash,
               };
@@ -1886,7 +1919,7 @@ describe("Offer", function () {
                 value: sellerDeposit,
               });
 
-              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: 0n });
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash, { value: 0n });
 
               // events:
               // fermion
@@ -1898,7 +1931,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, 0);
 
               // Boson:
               await expect(tx)
@@ -1922,7 +1955,7 @@ describe("Offer", function () {
             const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
               tokenId,
               WrapType.SELF_SALE,
-              "0x",
+              toBeHex(minimalPrice, 32),
               customItemVerificationTimeout,
             );
             const itemMaxVerificationTimeout =
@@ -1933,27 +1966,70 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
             // State:
             expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
+          });
+
+          it("Uses the FeeTable percentage when configured", async function () {
+            const feeRanges = [parseEther("1").toString(), parseEther("5").toString(), parseEther("10").toString()];
+            const feePercentages = [500, 1000, 1500]; // 5%, 10%, 15%
+
+            // Set the protocol FeeTable for the exchange token
+            await configFacet.setProtocolFeeTable(exchangeToken, feeRanges, feePercentages);
+
+            const exchangeAmount = parseEther("3"); // Within the second range
+            const expectedFeePercentage = feePercentages[1]; // 10%
+
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+            await mockToken.approve(fermionProtocolAddress, exchangeAmount);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(exchangeAmount, 32));
+
+            const fermionFee = applyPercentage(exchangeAmount, expectedFeePercentage);
+
+            const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+            const bosonProtocolFee = applyPercentage(exchangeAmount, bosonProtocolFeePercentage);
+
+            // Events and validations
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, exchangeAmount);
+
+            const [bosonProtocolFeeAmount, fermionFeeAmount, verifierFeeAmount, facilitatorFeeAmount] =
+              await offerFacet.getItemFees(tokenId);
+
+            expect(bosonProtocolFeeAmount).to.equal(bosonProtocolFee);
+            expect(fermionFeeAmount).to.equal(fermionFee);
+            expect(verifierFeeAmount).to.equal(verifierFee);
+            expect(facilitatorFeeAmount).to.equal(0);
           });
 
           context("Revert reasons", function () {
             it("Offer region is paused", async function () {
               await pauseFacet.pause([PausableRegion.Offer]);
 
-              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                 .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
                 .withArgs(PausableRegion.Offer);
             });
 
             it("Caller is not the seller's assistant", async function () {
-              await verifySellerAssistantRole("unwrapNFT", [tokenId, WrapType.SELF_SALE, "0x"]);
+              await verifySellerAssistantRole("unwrapNFT", [tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)]);
             });
 
             it("Caller is not the facilitator defined in the offer", async function () {
-              await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+              await expect(
+                offerFacet.connect(facilitator2).unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              )
                 .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
                 .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
             });
@@ -1963,14 +2039,14 @@ describe("Offer", function () {
                 // ERC20 offer - insufficient allowance
                 await mockToken.approve(fermionProtocolAddress, sellerDeposit - 1n);
 
-                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                   .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
                   .withArgs(fermionProtocolAddress, sellerDeposit - 1n, sellerDeposit);
 
                 // ERC20 offer - contract sends insufficient funds
                 await mockToken.approve(fermionProtocolAddress, sellerDeposit);
                 await mockToken.setBurnAmount(1);
-                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                   .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
                   .withArgs(sellerDeposit, sellerDeposit - 1n);
                 await mockToken.setBurnAmount(0);
@@ -1979,13 +2055,15 @@ describe("Offer", function () {
                 const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
                 await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
 
-                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                   .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
                   .withArgs(defaultSigner.address, 0n, sellerDeposit);
 
                 // Send native currency to ERC20 offer
                 await expect(
-                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: sellerDeposit }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(sellerDeposit, 32), {
+                    value: sellerDeposit,
+                  }),
                 ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
@@ -1997,14 +2075,14 @@ describe("Offer", function () {
                 // ERC20 offer - insufficient allowance
                 await mockToken.approve(fermionProtocolAddress, remainder - 1n);
 
-                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                   .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
                   .withArgs(fermionProtocolAddress, remainder - 1n, remainder);
 
                 // ERC20 offer - contract sends insufficient funds
                 await mockToken.approve(fermionProtocolAddress, remainder);
                 await mockToken.setBurnAmount(1);
-                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                   .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
                   .withArgs(remainder, remainder - 1n);
                 await mockToken.setBurnAmount(0);
@@ -2013,13 +2091,13 @@ describe("Offer", function () {
                 const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
                 await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
 
-                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                   .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
                   .withArgs(defaultSigner.address, 0n, remainder);
 
                 // Send native currency to ERC20 offer
                 await expect(
-                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: remainder }),
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32), { value: remainder }),
                 ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
               });
 
@@ -2040,6 +2118,7 @@ describe("Offer", function () {
                     facilitatorId: sellerId,
                     facilitatorFeePercent: "0",
                     exchangeToken: ZeroAddress,
+                    withPhygital,
                     metadataURI: "https://example.com/offer-metadata.json",
                     metadataHash: ZeroHash,
                   };
@@ -2050,7 +2129,9 @@ describe("Offer", function () {
 
                 it("Cannot deposit native - zero available funds", async function () {
                   await expect(
-                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: sellerDeposit }),
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(sellerDeposit, 32), {
+                      value: sellerDeposit,
+                    }),
                   ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
                 });
 
@@ -2061,7 +2142,7 @@ describe("Offer", function () {
                   });
 
                   await expect(
-                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: remainder }),
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(remainder, 32), { value: remainder }),
                   ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
                 });
 
@@ -2070,12 +2151,16 @@ describe("Offer", function () {
 
                   // Native currency offer - insufficient funds
                   await expect(
-                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: sellerDeposit - 1n }),
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(sellerDeposit, 32), {
+                      value: sellerDeposit - 1n,
+                    }),
                   ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
 
                   // Native currency offer - too much sent
                   await expect(
-                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: sellerDeposit + 1n }),
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(sellerDeposit, 32), {
+                      value: sellerDeposit + 1n,
+                    }),
                   ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
                 });
 
@@ -2089,12 +2174,16 @@ describe("Offer", function () {
 
                   // Native currency offer - insufficient funds
                   await expect(
-                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: remainder - 1n }),
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(remainder - 1n, 32), {
+                      value: remainder - 1n,
+                    }),
                   ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
 
                   // Native currency offer - too much sent
                   await expect(
-                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: remainder + 1n }),
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(remainder + 1n, 32), {
+                      value: remainder + 1n,
+                    }),
                   ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
                 });
               });
@@ -2106,7 +2195,7 @@ describe("Offer", function () {
 
               // insufficient allowance
               await mockToken.approve(fermionProtocolAddress, minimalPrice - 1n);
-              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
                 .withArgs(fermionProtocolAddress, minimalPrice - 1n, minimalPrice);
 
@@ -2114,16 +2203,15 @@ describe("Offer", function () {
               const bosonFundsHandler = await getBosonHandler("IBosonFundsHandler");
               await mockToken.approve(fermionProtocolAddress, minimalPrice);
               await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x")).to.be.revertedWithCustomError(
-                bosonFundsHandler,
-                "InsufficientValueReceived",
-              );
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              ).to.be.revertedWithCustomError(bosonFundsHandler, "InsufficientValueReceived");
               await mockToken.setBurnAmount(0);
 
               // Insufficient balance
               const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
               await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
-              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                 .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
                 .withArgs(defaultSigner.address, 0n, minimalPrice);
             });
@@ -2148,6 +2236,7 @@ describe("Offer", function () {
                 facilitatorId: sellerId,
                 facilitatorFeePercent: "0",
                 exchangeToken: bosonTokenAddress,
+                withPhygital,
                 metadataURI: "https://example.com/offer-metadata.json",
                 metadataHash: ZeroHash,
               };
@@ -2155,20 +2244,25 @@ describe("Offer", function () {
               await offerFacet.createOffer(fermionOffer);
               await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
 
-              const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
+              const minimalPrice = calculateMinimalPrice(
+                verifierFee,
+                fermionOffer.facilitatorFeePercent,
+                0,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
               // insufficient allowance
               await mockBosonToken.approve(fermionProtocolAddress, minimalPrice - 1n);
-              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x")).to.be.revertedWith(
-                "ERC20: insufficient allowance",
-              ); // old error style
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              ).to.be.revertedWith("ERC20: insufficient allowance"); // old error style
 
               // Insufficient balance
               await mockBosonToken.approve(fermionProtocolAddress, minimalPrice);
               const sellerBalance = await mockBosonToken.balanceOf(defaultSigner.address);
               await mockBosonToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
-              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x")).to.be.revertedWith(
-                "ERC20: transfer amount exceeds balance",
-              ); // old error style
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              ).to.be.revertedWith("ERC20: transfer amount exceeds balance"); // old error style
             });
 
             it("Custom verification timeout too long", async function () {
@@ -2186,7 +2280,7 @@ describe("Offer", function () {
                 offerFacet.unwrapNFTAndSetVerificationTimeout(
                   tokenId,
                   WrapType.SELF_SALE,
-                  "0x",
+                  toBeHex(minimalPrice, 32),
                   customItemVerificationTimeout,
                 ),
               )
@@ -2217,6 +2311,7 @@ describe("Offer", function () {
             facilitatorId,
             facilitatorFeePercent: "0",
             exchangeToken,
+            withPhygital,
             metadataURI: "https://example.com/offer-metadata.json",
             metadataHash: ZeroHash,
           };
@@ -2295,7 +2390,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
             // Boson:
             await expect(tx)
@@ -2361,7 +2456,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
           });
 
           context("Boson seller deposit covered from the available funds", function () {
@@ -2382,7 +2477,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
               // Boson:
               await expect(tx)
@@ -2417,7 +2512,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
               // Boson:
               await expect(tx)
@@ -2452,6 +2547,7 @@ describe("Offer", function () {
                 facilitatorId: sellerId,
                 facilitatorFeePercent: "0",
                 exchangeToken: await mockToken.getAddress(),
+                withPhygital,
                 metadataURI: "https://example.com/offer-metadata.json",
                 metadataHash: ZeroHash,
               };
@@ -2525,7 +2621,7 @@ describe("Offer", function () {
               await expect(tx)
                 .to.emit(offerFacet, "VerificationInitiated")
                 .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
               // Boson:
               await expect(tx)
@@ -2596,7 +2692,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
             // State:
             expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
@@ -2704,6 +2800,7 @@ describe("Offer", function () {
                     facilitatorId: sellerId,
                     facilitatorFeePercent: "0",
                     exchangeToken: ZeroAddress,
+                    withPhygital,
                     metadataURI: "https://example.com/offer-metadata.json",
                     metadataHash: ZeroHash,
                   };
@@ -2748,7 +2845,12 @@ describe("Offer", function () {
             });
 
             it("Price does not cover the verifier fee", async function () {
-              const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
+              const minimalPrice = calculateMinimalPrice(
+                verifierFee,
+                0,
+                bosonProtocolFeePercentage,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
               const encodedPrice = abiCoder.encode(["uint256"], [minimalPrice - 1n]);
               await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
                 .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
@@ -2775,6 +2877,7 @@ describe("Offer", function () {
                 facilitatorId: sellerId,
                 facilitatorFeePercent: "0",
                 exchangeToken: bosonTokenAddress,
+                withPhygital,
                 metadataURI: "https://example.com/offer-metadata.json",
                 metadataHash: ZeroHash,
               };
@@ -2782,7 +2885,14 @@ describe("Offer", function () {
               await offerFacet.createOffer(fermionOffer);
               await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
 
-              const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
+              // const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
+              const minimalPrice = calculateMinimalPrice(
+                verifierFee,
+                0,
+                bosonProtocolFlatFee,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+                true,
+              );
               const encodedPrice = abiCoder.encode(["uint256"], [minimalPrice - 1n]);
               await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
                 .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
@@ -2817,7 +2927,6 @@ describe("Offer", function () {
 
     context("Zero seller deposit", function () {
       const sellerDeposit = 0n;
-
       context("Auction type", async function () {
         beforeEach(async function () {
           const fermionOffer = {
@@ -2830,6 +2939,7 @@ describe("Offer", function () {
             facilitatorId: sellerId,
             facilitatorFeePercent: "0",
             exchangeToken,
+            withPhygital,
             metadataURI: "https://example.com/offer-metadata.json",
             metadataHash: ZeroHash,
           };
@@ -2892,7 +3002,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
             // Boson:
             await expect(tx)
@@ -2906,11 +3016,16 @@ describe("Offer", function () {
         });
 
         context("unwrapToSelf", function () {
-          const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
+          const minimalPrice = calculateMinimalPrice(
+            verifierFee,
+            0,
+            bosonProtocolFeePercentage,
+            fermionConfig.protocolParameters.protocolFeePercentage,
+          );
 
           it("Unwrapping", async function () {
             await mockToken.approve(fermionProtocolAddress, minimalPrice);
-            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x");
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
             // events:
             // fermion
@@ -2922,7 +3037,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
             // Boson:
             await expect(tx)
@@ -2950,6 +3065,7 @@ describe("Offer", function () {
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: ZeroAddress,
+              withPhygital,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
             };
@@ -2960,7 +3076,9 @@ describe("Offer", function () {
             bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
 
             // await mockToken.approve(fermionProtocolAddress, minimalPrice);
-            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x", { value: minimalPrice });
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32), {
+              value: minimalPrice,
+            });
 
             // events:
             // fermion
@@ -2971,7 +3089,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
             // Boson:
             await expect(tx)
@@ -2989,7 +3107,7 @@ describe("Offer", function () {
               // Contract sends insufficient funds. In this case, the depositing to boson fails before fermion fails
               await mockToken.approve(fermionProtocolAddress, minimalPrice);
               await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, "0x"))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                 .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
                 .withArgs(minimalPrice, minimalPrice - 1n);
               await mockToken.setBurnAmount(0);
@@ -3015,6 +3133,7 @@ describe("Offer", function () {
             facilitatorId: sellerId,
             facilitatorFeePercent: "0",
             exchangeToken,
+            withPhygital,
             metadataURI: "https://example.com/offer-metadata.json",
             metadataHash: ZeroHash,
           };
@@ -3088,7 +3207,7 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
             // Boson:
             await expect(tx)
