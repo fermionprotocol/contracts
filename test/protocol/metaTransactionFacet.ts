@@ -58,6 +58,7 @@ describe("MetaTransactions", function () {
       facilitatorId: sellerId,
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
+      withPhygital: false,
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
     };
@@ -164,7 +165,7 @@ describe("MetaTransactions", function () {
             expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
             expect(response.metadataURI).to.equal(metadataURI);
 
-            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.true;
+            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.equal(true);
           });
 
           it("Forwarded call fails", async function () {
@@ -563,7 +564,7 @@ describe("MetaTransactions", function () {
           expect(response.roles.map(String)).to.have.members(entityRoles.map(String));
           expect(response.metadataURI).to.equal(metadataURI);
 
-          expect(await metaTransactionFacet.isUsedNonce(adminWallet, message.nonce)).to.be.true;
+          expect(await metaTransactionFacet.isUsedNonce(adminWallet, message.nonce)).to.be.equal(true);
         });
 
         context("Revert reasons", function () {
@@ -839,9 +840,9 @@ describe("MetaTransactions", function () {
               .withArgs(entity.address, fermionProtocolAddress, true);
 
             // Verify the state
-            expect(await fermionFNFT.isApprovedForAll(entity.address, fermionProtocolAddress)).to.be.true;
+            expect(await fermionFNFT.isApprovedForAll(entity.address, fermionProtocolAddress)).to.be.equal(true);
 
-            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.true;
+            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.equal(true);
           });
 
           it("Forwarded call fails", async function () {
@@ -1208,7 +1209,7 @@ describe("MetaTransactions", function () {
         it("should update state", async function () {
           // Functions should be disabled by default
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(false);
           }
 
           // Enable functions
@@ -1216,7 +1217,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be enabled
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(true);
           }
 
           // Disable functions
@@ -1224,7 +1225,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be disabled
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(false);
           }
         });
 
@@ -1255,14 +1256,14 @@ describe("MetaTransactions", function () {
 
           // Functions should be enabled
           for (const func of stateModifyingFunctionsHashes) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(true);
           }
         });
 
         it("should return correct value", async function () {
           // Functions should be disabled by default
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(false);
           }
 
           // Enable functions
@@ -1270,7 +1271,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be enabled
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(true);
           }
 
           // Disable functions
@@ -1278,7 +1279,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be disabled
           for (const func of functionHashList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](func)).to.be.equal(false);
           }
         });
       });
@@ -1292,14 +1293,14 @@ describe("MetaTransactions", function () {
           ]);
 
           for (const func of stateModifyingFunctions) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.equal(true);
           }
         });
 
         it("should return correct value", async function () {
           // Functions should be disabled by default
           for (const func of functionList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.equal(false);
           }
 
           // Enable functions
@@ -1307,7 +1308,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be enabled
           for (const func of functionList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.true;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.equal(true);
           }
 
           // Disable functions
@@ -1315,7 +1316,7 @@ describe("MetaTransactions", function () {
 
           // Functions should be disabled
           for (const func of functionList) {
-            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.false;
+            expect(await metaTransactionFacet["isFunctionAllowlisted(string)"](func)).to.be.equal(false);
           }
         });
       });

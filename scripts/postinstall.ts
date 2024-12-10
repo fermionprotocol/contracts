@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-var-requires */
-const { symlinkSync, existsSync, rmSync, mkdirSync } = require("fs");
-const { resolve } = require("path");
+import { symlinkSync, existsSync, rmSync, mkdirSync } from "fs";
+import { resolve } from "path";
 
 const createLink = async (linkPath, target) => {
   while (existsSync(linkPath)) {
@@ -18,12 +17,7 @@ const createLink = async (linkPath, target) => {
 };
 
 const protocol = {
-  target: `${resolve(
-    __dirname,
-    "..",
-    "node_modules",
-    "@bosonprotocol/boson-protocol-contracts/contracts",
-  )}`,
+  target: `${resolve(__dirname, "..", "node_modules", "@bosonprotocol/boson-protocol-contracts/contracts")}`,
   linkPath: `${resolve(__dirname, "..", "contracts/external/boson-protocol-contracts")}`,
 };
 

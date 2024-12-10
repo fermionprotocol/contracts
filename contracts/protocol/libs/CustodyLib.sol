@@ -8,11 +8,11 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 
 /**
- * @title EntityLib
+ * @title CustodyLib
  *
  * @notice Custody methods used by multiple facets.
  */
-library CustodyLib {
+abstract contract CustodyLib is FundsLib {
     /**
      * @notice Creates a custodian vault for a tokenId
      * The amount for first period is encumbered (it is available in the protocol since the verification time).
@@ -39,7 +39,7 @@ library CustodyLib {
     function closeCustodianItemVault(uint256 _tokenId, uint256 _custodianId, address _exchangeToken) internal {
         FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().tokenLookups[_tokenId].vault;
 
-        FundsLib.increaseAvailableFunds(_custodianId, _exchangeToken, vault.amount);
+        increaseAvailableFunds(_custodianId, _exchangeToken, vault.amount);
 
         vault.period = 0;
         vault.amount = 0;
@@ -125,7 +125,7 @@ library CustodyLib {
         offerVault.amount += amountToTransferToOfferVault;
 
         if (_externalCall && returnedAmount > 0) {
-            FundsLib.transferFundsFromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
+            transferERC20FromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
         }
         emit ICustodyEvents.VaultBalanceUpdated(offerId, offerVault.amount);
     }

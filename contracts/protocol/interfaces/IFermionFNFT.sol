@@ -54,4 +54,8 @@ interface IFermionFNFT is IFermionWrapper, IFermionFractions {
      * @param _tokenId The token id.
      */
     function pushToNextTokenState(uint256 _tokenId, FermionTypes.TokenState _newState) external;
+
+    function tokenState(uint256 _tokenId) external view returns (FermionTypes.TokenState);
+
+    function balanceOfERC20(address owner) external view returns (uint256);
 }

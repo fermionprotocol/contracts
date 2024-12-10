@@ -44,7 +44,7 @@ describe("DiamondTest", async function () {
     const reentrancyTest = await reentracyContract.deploy();
     await reentrancyTest.waitForDeployment();
 
-    expect(await reentrancyTest.testStaticCall(diamondAddress)).to.not.be.reverted;
+    expect(await reentrancyTest.testStaticCall(diamondAddress)).to.not.revertedWithPanic();
   });
 
   it("facets should have the right function selectors -- call to facetFunctionSelectors function", async () => {

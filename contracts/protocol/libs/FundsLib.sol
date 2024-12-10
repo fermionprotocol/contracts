@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { HUNDRED_PERCENT, SLOT_SIZE } from "../domain/Constants.sol";
+import { SLOT_SIZE } from "../domain/Constants.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
@@ -9,6 +9,8 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 import { FundsErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { ContextLib } from "../libs/Context.sol";
+import { FermionFNFTLib } from "./FermionFNFTLib.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
 
 /**
@@ -16,8 +18,15 @@ import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
  *
  * @dev
  */
-library FundsLib {
+contract FundsLib {
     using SafeERC20 for IERC20;
+    using FermionFNFTLib for address;
+
+    bytes32 private immutable FNFT_CODEHASH;
+
+    constructor(bytes32 _fnftCodeHash) {
+        FNFT_CODEHASH = _fnftCodeHash;
+    }
 
     /**
      * @notice Validates that incoming payments matches expectation. If token is a native currency, it makes sure
@@ -42,12 +51,12 @@ library FundsLib {
             if (msg.value != 0) revert FundsErrors.NativeNotAllowed();
 
             // if transfer is in ERC20 token, try to transfer the amount from buyer to the protocol
-            transferFundsToProtocol(_exchangeToken, ContextLib._msgSender(), _value);
+            transferERC20ToProtocol(_exchangeToken, ContextLib._msgSender(), _value);
         }
     }
 
     /**
-     * @notice Tries to transfer tokens from the caller to the protocol.
+     * @notice Tries to transfer tokens from the specified address to the protocol.
      *
      * Reverts if:
      * - The called contract is ERC721
@@ -57,55 +66,31 @@ library FundsLib {
      *
      * N.B. Special caution is needed when interacting with the FermionFNFT contract,
      * as it treats _msgSender() differently when the caller is the Fermion protocol.
-     * Currently, interactions with FermionFNFT in this function are prevented
-     * because it returns true for IERC165.supportsInterface(IERC721) and reverts.
-     * If this check is removed, a special check should be introduced to prevent FermionFNFT interactions.
-     * Alternatively, if interactions with FermionFNFT become allowed at some point,
-     * those interactions should be conducted via FermionFNFTLib to ensure the correct _msgSender() is used.
+     * If FundsLib methods are used in the contracts that are not part of the diamond,
+     * `checkFNFTContract` should be overridden to return false.
      *
      * @param _tokenAddress - address of the token to be transferred
      * @param _from - address to transfer funds from
      * @param _amount - amount to be transferred
      */
-    function transferFundsToProtocol(address _tokenAddress, address _from, uint256 _amount) internal {
-        // prevent ERC721 deposits
-        (bool success, bytes memory returnData) = _tokenAddress.staticcall(
-            abi.encodeCall(IERC165.supportsInterface, (type(IERC721).interfaceId))
-        );
-
-        if (success) {
-            if (returnData.length != SLOT_SIZE) {
-                revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
-            } else {
-                // If returned value equals 1 (= true), the contract is ERC721 and we should revert
-                uint256 result = abi.decode(returnData, (uint256)); // decoding into uint256 not bool to cover all cases
-                if (result == 1) {
-                    revert FundsErrors.ERC721NotAllowed(_tokenAddress);
-                } else if (result > 1) {
-                    revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
-                }
-                // If returned value equals 0 (= false), the contract is not ERC721 and we can continue.
-            }
-        } else {
-            if (returnData.length == 0) {
-                // Do nothing. ERC20 not implementing IERC721 interface is expected to revert without reason
-            } else {
-                // If an actual error message is returned, revert with it
-                /// @solidity memory-safe-assembly
-                assembly {
-                    revert(add(SLOT_SIZE, returnData), mload(returnData))
-                }
-            }
-        }
-
+    function transferERC20ToProtocol(address _tokenAddress, address _from, uint256 _amount) internal {
         // protocol balance before the transfer
-        uint256 protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
+        uint256 protocolTokenBalanceBefore;
+        uint256 protocolTokenBalanceAfter;
 
         // transfer ERC20 tokens from the caller
-        IERC20(_tokenAddress).safeTransferFrom(_from, address(this), _amount);
+        if (checkFNFTContract(_tokenAddress)) {
+            protocolTokenBalanceBefore = IFermionFNFT(_tokenAddress).balanceOfERC20(address(this));
+            _tokenAddress.transferFrom(_from, address(this), _amount);
+            protocolTokenBalanceAfter = IFermionFNFT(_tokenAddress).balanceOfERC20(address(this));
+        } else {
+            // prevent ERC721 deposits
+            isERC721Contract(_tokenAddress, false);
 
-        // protocol balance after the transfer
-        uint256 protocolTokenBalanceAfter = IERC20(_tokenAddress).balanceOf(address(this));
+            protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
+            IERC20(_tokenAddress).safeTransferFrom(_from, address(this), _amount);
+            protocolTokenBalanceAfter = IERC20(_tokenAddress).balanceOf(address(this));
+        }
 
         // make sure that expected amount of tokens was transferred
         uint256 receivedAmount = protocolTokenBalanceAfter - protocolTokenBalanceBefore;
@@ -155,7 +140,7 @@ library FundsLib {
      * @param _to - address of the recipient
      * @param _amount - amount to be transferred
      */
-    function transferFundsFromProtocol(
+    function transferERC20FromProtocol(
         uint256 _entityId,
         address _tokenAddress,
         address payable _to,
@@ -165,7 +150,7 @@ library FundsLib {
         decreaseAvailableFunds(_entityId, _tokenAddress, _amount);
 
         // try to transfer the funds
-        transferFundsFromProtocol(_tokenAddress, _to, _amount);
+        transferERC20FromProtocol(_tokenAddress, _to, _amount);
 
         // notify the external observers
         emit IFundsEvents.FundsWithdrawn(_entityId, _to, _tokenAddress, _amount);
@@ -183,7 +168,7 @@ library FundsLib {
      * @param _to - address of the recipient
      * @param _amount - amount to be transferred
      */
-    function transferFundsFromProtocol(address _tokenAddress, address payable _to, uint256 _amount) internal {
+    function transferERC20FromProtocol(address _tokenAddress, address payable _to, uint256 _amount) internal {
         // try to transfer the funds
         if (_tokenAddress == address(0)) {
             // transfer native currency
@@ -191,8 +176,23 @@ library FundsLib {
             if (!success) revert FundsErrors.TokenTransferFailed(_to, _amount, errorMessage);
         } else {
             // transfer ERC20 tokens
-            IERC20(_tokenAddress).safeTransfer(_to, _amount);
+            if (checkFNFTContract(_tokenAddress)) {
+                _tokenAddress.transfer(_to, _amount);
+            } else {
+                IERC20(_tokenAddress).safeTransfer(_to, _amount);
+            }
         }
+    }
+
+    /**
+     * @notice Checks if the contract at the token address is FNFN or not.
+     *
+     * @dev override this function in the child contract does not need this check
+     *
+     * @param _tokenAddress - address of the token to be transferred
+     */
+    function checkFNFTContract(address _tokenAddress) internal view virtual returns (bool) {
+        return _tokenAddress.codehash == FNFT_CODEHASH;
     }
 
     /**
@@ -249,12 +249,106 @@ library FundsLib {
     }
 
     /**
-     * @notice Applies a percentage to the amount.
+     * @notice Tries to transfer ERC721 tokens from the specified address to the protocol.
      *
-     * @param _amount - the amount to apply the percentage to
-     * @param _percentage - the percentage to apply
+     * Emits ERC721Deposited event if successful.
+     *
+     * Reverts if:
+     * - Contract at token address does not support ERC721 function transferFrom
+     * - Calling transferFrom on token fails for some reason (e.g. protocol is not approved to transfer)
+     * - The protocol does not own the token after the transfer
+     *
+     * @param _tokenAddress - address of the token to be transferred
+     * @param _from - address to transfer erc721 from
+     * @param _tokenId - token id to be transferred
      */
-    function applyPercentage(uint256 _amount, uint256 _percentage) internal pure returns (uint256) {
-        return (_amount * _percentage) / HUNDRED_PERCENT;
+    function transferERC721ToProtocol(address _tokenAddress, address _from, uint256 _tokenId) internal {
+        isERC721Contract(_tokenAddress, true);
+
+        // transfer ERC721 tokens from the caller
+        if (checkFNFTContract(_tokenAddress)) {
+            _tokenAddress.transferFrom(_from, address(this), _tokenId);
+        } else {
+            IERC721(_tokenAddress).transferFrom(_from, address(this), _tokenId);
+        }
+
+        // make sure that expected token was transferred
+        if (IERC721(_tokenAddress).ownerOf(_tokenId) != address(this)) {
+            revert FundsErrors.ERC721TokenNotTransferred(_tokenAddress, _tokenId);
+        }
+
+        emit IFundsEvents.ERC721Deposited(_tokenAddress, _tokenId, _from);
+    }
+
+    /** @notice Tries to transfer ERC721 tokens from the protocol to the recipient.
+     *
+     * Emits ERC721Withdrawn event if successful.
+     *
+     * Reverts if:
+     * - Transfer of ERC721 tokens is not successful (i.e. recipient is a contract which reverts)
+     */
+    function transferERC721FromProtocol(address _tokenAddress, address _to, uint256 _tokenId) internal {
+        // N.B. We do not check if the token is ERC721 here since:
+        // 1. If the seller is withdrawing the token, it must be attached to some offer and it was validated upon deposit#
+        // 2. If the buyer is withdrawing the token, they cannot plug in an arbitrary token address
+
+        // transfer ERC721 tokens from the protocol
+        if (checkFNFTContract(_tokenAddress)) {
+            _tokenAddress.safeTransferFrom(address(this), _to, _tokenId);
+        } else {
+            IERC721(_tokenAddress).safeTransferFrom(address(this), _to, _tokenId);
+        }
+
+        emit IFundsEvents.ERC721Withdrawn(_tokenAddress, _tokenId, _to);
+    }
+
+    /**
+     * @notice Checks if the contract at the token address is ERC721 or not.
+     *
+     * Reverts if:
+     * - Call succeeded but returned unexpected data
+     * - Call failed with a reason
+     * - Returned value is not 0 or 1
+     * - Call suceeded but the result is not as expected
+     * - Call failed with a reason
+     * - Call failed with a reason and the ERC721 is expected
+     *
+     * @param _tokenAddress - address of the token to be transferred
+     * @param _erc721expected - true if the contract is expected to be ERC721, false otherwise
+     */
+    function isERC721Contract(address _tokenAddress, bool _erc721expected) internal view {
+        (bool success, bytes memory returnData) = _tokenAddress.staticcall(
+            abi.encodeCall(IERC165.supportsInterface, (type(IERC721).interfaceId))
+        );
+
+        if (success) {
+            if (returnData.length != SLOT_SIZE) {
+                revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
+            } else {
+                // If returned value equals 1 (= true), the contract is ERC721 and we should revert
+                uint256 result = abi.decode(returnData, (uint256)); // decoding into uint256 not bool to cover all cases
+
+                if (result > 1) revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
+
+                // If we expect ERC721 and the contract is not ERC721, revert.
+                // If we do not expect ERC721 and the contract is ERC721, revert.
+                if ((result == 1) != _erc721expected)
+                    revert FundsErrors.ERC721CheckFailed(_tokenAddress, _erc721expected);
+            }
+        } else {
+            if (returnData.length == 0) {
+                if (_erc721expected) {
+                    revert FundsErrors.ERC721CheckFailed(_tokenAddress, _erc721expected);
+                }
+
+                // If ERC721 is not expected, do nothing. ERC20 not implementing IERC721 interface is expected to revert without reason.
+            } else {
+                // If an actual error message is returned, revert with it
+                /// @solidity memory-safe-assembly
+                assembly {
+                    revert(add(SLOT_SIZE, returnData), mload(returnData))
+                }
+            }
+        }
     }
 }

@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import { IERC721Receiver } from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract ContractWallet is IERC1271 {
     error UnknownValidity();
@@ -79,10 +80,11 @@ contract ContractWallet is IERC1271 {
     }
 }
 
-contract ContractWalletWithReceive is ContractWallet {
+contract ContractWalletWithReceive is ContractWallet, IERC721Receiver {
     error NotAcceptingMoney();
 
     event FundsReceived(address indexed sender, uint256 value);
+    event PhygitalReceived(address tokenContract, uint256 tokenId);
 
     bool private acceptingMoney = true;
 
@@ -96,5 +98,15 @@ contract ContractWalletWithReceive is ContractWallet {
         }
 
         emit FundsReceived(msg.sender, msg.value);
+    }
+
+    function onERC721Received(address, address, uint256 tokenId, bytes calldata) external override returns (bytes4) {
+        if (!acceptingMoney) {
+            revert NotAcceptingMoney();
+        }
+
+        emit PhygitalReceived(msg.sender, tokenId);
+
+        return IERC721Receiver.onERC721Received.selector;
     }
 }
