@@ -128,6 +128,10 @@ library FermionStorage {
         uint256 fermionFeeAmount;
         uint256 verifierFee;
         uint256 facilitatorFeeAmount;
+        // pyhgitals
+        FermionTypes.Phygital[] phygitals;
+        // phygitals recipient
+        uint256 phygitalsRecipient;
     }
 
     struct SellerLookups {

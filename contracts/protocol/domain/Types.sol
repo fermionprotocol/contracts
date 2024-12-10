@@ -89,6 +89,7 @@ contract FermionTypes {
         uint256 facilitatorId;
         uint256 facilitatorFeePercent;
         address exchangeToken;
+        bool withPhygital;
         string metadataURI;
         string metadataHash;
     }
@@ -161,5 +162,10 @@ contract FermionTypes {
     struct Auction {
         AuctionDetails details;
         Votes votes;
+    }
+
+    struct Phygital {
+        address contractAddress;
+        uint256 tokenId;
     }
 }

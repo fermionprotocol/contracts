@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
-import { VerificationErrors, FermionGeneralErrors } from "../domain/Errors.sol";
+import { VerificationErrors, FermionGeneralErrors, OfferErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -11,17 +11,18 @@ import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 
 /**
  * @title VerificationFacet
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, Access, VerificationErrors, IVerificationEvents {
+contract VerificationFacet is Context, Access, VerificationErrors, FundsLib, IVerificationEvents {
     IBosonProtocol private immutable BOSON_PROTOCOL;
     using FermionFNFTLib for address;
 
-    constructor(address _bosonProtocol) {
+    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }
@@ -34,12 +35,75 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the verifier's assistant
+     * - Offer has phygitals and the phygitals have not been verified
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
      */
     function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
         submitVerdictInternal(_tokenId, _verificationStatus, false);
+    }
+
+    /**
+     * @notice Confirm that the phygitals in the vault match the items described in the item metadata
+     *
+     * Emits an PhygitalsVerified event
+     *
+     * Reverts if:
+     * - Verification region is paused
+     * - The offer does not have phygitals
+     * - The phygitals have already been verified
+     * - The caller is not the verifier or the buyer
+     * - The FNFT is not in the unverified state
+     * - The digest does not match the expected digest
+     *
+     * @param _tokenId - the token ID
+     * @param _phygitalsDigest - the keccak256 digest of the phygitals
+     */
+    function verifyPhygitals(
+        uint256 _tokenId,
+        bytes32 _phygitalsDigest
+    ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
+        // check that the offer has phygitals
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        if (!offer.withPhygital) revert OfferErrors.NoPhygitalOffer(_tokenId);
+
+        // check that phygitals not already verified
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+        if (tokenLookups.phygitalsRecipient != 0) revert VerificationErrors.PhygitalsAlreadyVerified(_tokenId);
+
+        // FNFT must be in the unverified state
+        IFermionFNFT fermionFNFT = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress);
+        FermionTypes.TokenState tokenState = fermionFNFT.tokenState(_tokenId);
+        if (tokenState != FermionTypes.TokenState.Unverified) revert InvalidTokenState(_tokenId, tokenState);
+
+        // only the verifier or the buyer can call this function
+        address msgSender = _msgSender();
+
+        address buyerAddress = fermionFNFT.ownerOf(_tokenId);
+
+        if (
+            buyerAddress != msgSender &&
+            !EntityLib.hasAccountRole(
+                offer.verifierId,
+                msgSender,
+                FermionTypes.EntityRole.Verifier,
+                FermionTypes.AccountRole.Assistant,
+                false
+            )
+        ) {
+            revert FermionGeneralErrors.AccessDenied(msgSender);
+        }
+
+        // check that the digest is correct
+        bytes32 expectedDigest = keccak256(abi.encode(tokenLookups.phygitals));
+        if (expectedDigest != _phygitalsDigest)
+            revert PhygitalsDigestMismatch(_tokenId, expectedDigest, _phygitalsDigest);
+
+        tokenLookups.phygitalsRecipient = type(uint256).max;
+
+        emit PhygitalsVerified(_tokenId, msgSender);
     }
 
     /**
@@ -50,6 +114,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * Reverts if:
      * - Verification region is paused
      * - Verification timeout has not passed
+     * - Offer has phygitals and the phygitals have not been verified
      *
      * @param _tokenId - the token ID
      */
@@ -109,6 +174,7 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
      * Reverts if:
      * - Verification region is paused
      * - Caller is not the verifier's assistant
+     * - Offer has phygitals and the phygitals have not been verified
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
@@ -135,12 +201,19 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
                 );
             }
 
+            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+            FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+            bool hasPhygitals = offer.withPhygital;
+            if (
+                hasPhygitals &&
+                _verificationStatus == FermionTypes.VerificationStatus.Verified && // if the item is rejected, phygitals are not required
+                tokenLookups.phygitalsRecipient == 0
+            ) revert PhygitalsVerificationMissing(tokenId);
+
             BOSON_PROTOCOL.completeExchange(tokenId & type(uint128).max);
 
-            FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
             address exchangeToken = offer.exchangeToken;
             uint256 sellerDeposit = offer.sellerDeposit;
-            FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
             uint256 remainder = tokenLookups.itemPrice - tokenLookups.bosonProtocolFee;
 
             {
@@ -158,22 +231,22 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
             unchecked {
                 // pay the verifier
                 uint256 verifierFee = tokenLookups.verifierFee;
-                if (!_afterTimeout) FundsLib.increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
+                if (!_afterTimeout) increaseAvailableFunds(verifierId, exchangeToken, verifierFee);
                 remainder -= verifierFee; // guaranteed to be positive
 
                 uint256 fermionFeeAmount = tokenLookups.fermionFeeAmount;
-                FundsLib.increaseAvailableFunds(0, exchangeToken, tokenLookups.fermionFeeAmount); // Protocol fees are stored in entity 0
+                increaseAvailableFunds(0, exchangeToken, tokenLookups.fermionFeeAmount); // Protocol fees are stored in entity 0
                 remainder -= fermionFeeAmount;
             }
 
             if (_verificationStatus == FermionTypes.VerificationStatus.Verified) {
                 // pay the facilitator
                 uint256 facilitatorFeeAmount = tokenLookups.facilitatorFeeAmount;
-                FundsLib.increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
+                increaseAvailableFunds(offer.facilitatorId, exchangeToken, facilitatorFeeAmount);
                 remainder = remainder - facilitatorFeeAmount + sellerDeposit;
 
                 // transfer the remainder to the seller
-                FundsLib.increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
+                increaseAvailableFunds(offer.sellerId, exchangeToken, remainder);
                 pl.offerLookups[offerId].fermionFNFTAddress.pushToNextTokenState(
                     tokenId,
                     FermionTypes.TokenState.Verified
@@ -188,7 +261,11 @@ contract VerificationFacet is Context, Access, VerificationErrors, IVerification
                 }
 
                 // transfer the remainder to the buyer
-                FundsLib.increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
+                increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
+
+                if (hasPhygitals) {
+                    pl.tokenLookups[tokenId].phygitalsRecipient = 0; // reset phygitals verification status, so the seller can withdraw them
+                }
             }
         }
         emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);

@@ -27,14 +27,14 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  *
  * @notice Handles offer listing.
  */
-contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
+contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
 
-    constructor(address _bosonProtocol) {
+    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
@@ -357,8 +357,8 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         if (_selfSale) {
             bosonProtocolFee = getBosonProtocolFee(exchangeToken, _exchangeAmount);
             if (_exchangeAmount > 0) {
-                FundsLib.validateIncomingPayment(exchangeToken, _exchangeAmount);
-                FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), _exchangeAmount);
+                validateIncomingPayment(exchangeToken, _exchangeAmount);
+                transferERC20FromProtocol(exchangeToken, payable(wrapperAddress), _exchangeAmount);
             }
 
             _priceDiscovery.price = _exchangeAmount;
@@ -457,13 +457,13 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             ];
 
             if (availableFunds >= _sellerDeposit) {
-                FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
+                decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
             } else {
                 // For offers in native token, the seller deposit cannot be sent at the time of unwrapping.
                 // It must be deposited in advance, using `depositFunds` method.
                 if (_exchangeToken == address(0)) revert FundsErrors.NativeNotAllowed();
 
-                FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, availableFunds); // Use all available funds
+                decreaseAvailableFunds(_sellerId, _exchangeToken, availableFunds); // Use all available funds
 
                 uint256 remainder;
                 unchecked {
@@ -471,7 +471,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 }
 
                 // Transfer the remainder from the seller
-                FundsLib.validateIncomingPayment(_exchangeToken, remainder);
+                validateIncomingPayment(_exchangeToken, remainder);
             }
 
             // Deposit to the boson protocol

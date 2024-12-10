@@ -22,4 +22,5 @@ interface IVerificationEvents {
         uint256 indexed nftId,
         FermionTypes.VerificationStatus verificationStatus
     );
+    event PhygitalsVerified(uint256 indexed nftId, address verifier);
 }

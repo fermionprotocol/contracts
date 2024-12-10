@@ -49,12 +49,17 @@ interface OfferErrors {
     error InvalidQuantity(uint256 quantity);
     error NoSuchOffer(uint256 offerId);
     error InvalidOpenSeaOrder();
+    error NoPhygitalOffer(uint256 offerId);
 }
 
 interface VerificationErrors {
     // Verification errors
     error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
     error VerificationTimeoutTooLong(uint256 verificationTimeout, uint256 maxVerificationTimeout);
+    error InvalidTokenState(uint256 tokenId, FermionTypes.TokenState tokenState);
+    error PhygitalsAlreadyVerified(uint256 tokenId);
+    error PhygitalsDigestMismatch(uint256 tokenId, bytes32 expectedDigest, bytes32 actualDigest);
+    error PhygitalsVerificationMissing(uint256 tokenId);
 }
 
 interface CustodyErrors {
@@ -90,12 +95,14 @@ interface FundsErrors {
     // Funds errors
     error WrongValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
-    error ERC721NotAllowed(address tokenAddress);
     error PriceTooLow(uint256 price, uint256 minimumPrice);
     error ZeroDepositNotAllowed();
     error NothingToWithdraw();
     error TokenTransferFailed(address to, uint256 amount, bytes errorMessage);
     error InsufficientAvailableFunds(uint256 availableFunds, uint256 requestedFunds);
+    error ERC721CheckFailed(address tokenAddress, bool erc721expected);
+    error ERC721TokenNotTransferred(address tokenAddress, uint256 tokenId);
+    error PhygitalsNotFound(uint256 tokenId, FermionTypes.Phygital phygital);
 }
 
 interface PauseErrors {
