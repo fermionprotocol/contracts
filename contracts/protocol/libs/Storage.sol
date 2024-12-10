@@ -135,6 +135,10 @@ library FermionStorage {
         uint16 buyerSplitProposal;
         // initial buyer
         address initialBuyer;
+        // pyhgitals
+        FermionTypes.Phygital[] phygitals;
+        // phygitals recipient
+        uint256 phygitalsRecipient;
     }
 
     struct SellerLookups {

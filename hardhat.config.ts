@@ -70,6 +70,7 @@ const config: HardhatUserConfig = {
               yul: true,
             },
           },
+          metadata: { bytecodeHash: "none", appendCBOR: false },
           evmVersion: "cancun",
           outputSelection: {
             "*": {

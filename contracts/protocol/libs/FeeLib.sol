@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 import { FermionStorage } from "./Storage.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FundsErrors } from "../domain/Errors.sol";
-import { FundsLib } from "./FundsLib.sol";
+import { MathLib } from "./MathLib.sol";
 
 /**
  * @title FeeLib
@@ -70,8 +70,8 @@ library FeeLib {
         FermionTypes.Offer storage offer
     ) internal view returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
         // Calculate facilitator and fermion fees
-        facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
-        fermionFeeAmount = FundsLib.applyPercentage(price, getProtocolFeePercentage(offer.exchangeToken, price));
+        facilitatorFeeAmount = MathLib.applyPercentage(price, offer.facilitatorFeePercent);
+        fermionFeeAmount = MathLib.applyPercentage(price, getProtocolFeePercentage(offer.exchangeToken, price));
         // Calculate the sum of all fees
         uint256 feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee + bosonProtocolFee;
 
