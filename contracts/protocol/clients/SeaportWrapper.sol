@@ -237,21 +237,17 @@ contract SeaportWrapper is FermionFNFTBase {
      *
      * Reverts if:
      * - The token id does not exist.
-     * - The token id does not match the order.
-     * - The order's token does not match the contract.
+     * - The contract is not the owner of the token.
      *
-     * @param _firstTokenId The first token id.
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(uint256 _firstTokenId, SeaportTypes.OrderComponents[] calldata _orders) external {
+    function cancelFixedPriceOrder(SeaportTypes.OrderComponents[] calldata _orders) external {
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
         for (uint256 i = 0; i < _orders.length; i++) {
-            uint256 tokenId = _firstTokenId + i;
-            _requireOwned(tokenId);
+            uint256 tokenId = _orders[i].offer[0].identifierOrCriteria;
 
-            if (tokenId != _orders[i].offer[0].identifierOrCriteria || address(this) != _orders[i].offer[0].token) {
-                revert WrapperErrors.InvalidOrder(tokenId, _orders[i]);
-            }
+            if (ownerOf(tokenId) != address(this))
+                revert WrapperErrors.InvalidOwner(tokenId, address(this), ownerOf(tokenId));
 
             fixedPrice[tokenId] = 0;
         }

@@ -55,10 +55,9 @@ interface IFermionWrapper is IERC721 {
     /**
      * @notice Cancel fixed price orders on OpenSea.
      *
-     * @param _firstTokenId The first token id.
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(uint256 _firstTokenId, SeaportTypes.OrderComponents[] calldata _orders) external;
+    function cancelFixedPriceOrder(SeaportTypes.OrderComponents[] calldata _orders) external;
 
     /**
      * @notice Unwraps the voucher, and transfers the sale proceeds to Boson Protocol

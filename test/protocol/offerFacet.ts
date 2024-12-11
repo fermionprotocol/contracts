@@ -13,7 +13,7 @@ import PriceDiscovery from "@bosonprotocol/boson-protocol-contracts/scripts/doma
 import Side from "@bosonprotocol/boson-protocol-contracts/scripts/domain/Side.js";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, toBeHex, ZeroHash } from "ethers";
+import { Contract, toBeHex, ZeroHash, id, MaxUint256, ZeroAddress, parseEther } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, PausableRegion, TokenState, AccountRole, WrapType } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
@@ -25,7 +25,6 @@ import { encodeBuyerAdvancedOrder } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
 import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 
-const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
 const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
 describe("Offer", function () {

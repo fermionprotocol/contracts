@@ -224,7 +224,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
 
         FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[offerId];
 
-        offerLookup.fermionFNFTAddress.cancelFixedPriceOrder(_firstTokenId, _orders);
+        offerLookup.fermionFNFTAddress.cancelFixedPriceOrder(_orders);
     }
 
     /**

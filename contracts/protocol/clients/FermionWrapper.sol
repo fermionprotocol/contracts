@@ -136,15 +136,14 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * - The token id does not match the order.
      * - The order's token does not match the contract.
      *
-     * @param _firstTokenId The first token id.
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(uint256 _firstTokenId, SeaportTypes.OrderComponents[] calldata _orders) external {
-        Common.checkStateAndCaller(_firstTokenId, FermionTypes.TokenState.Wrapped, _msgSender(), fermionProtocol);
+    function cancelFixedPriceOrder(SeaportTypes.OrderComponents[] calldata _orders) external {
+        if (fermionProtocol != _msgSender()) {
+            revert FermionGeneralErrors.AccessDenied(_msgSender());
+        }
 
-        SEAPORT_WRAPPER.functionDelegateCall(
-            abi.encodeCall(SeaportWrapper.cancelFixedPriceOrder, (_firstTokenId, _orders))
-        );
+        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.cancelFixedPriceOrder, (_orders)));
     }
 
     /**

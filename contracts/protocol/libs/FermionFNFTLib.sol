@@ -201,15 +201,10 @@ library FermionFNFTLib {
     /**
      * @notice Cancel fixed price orders on OpenSea.
      *
-     * @param _firstTokenId The first token id.
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(
-        address _fnft,
-        uint256 _firstTokenId,
-        SeaportTypes.OrderComponents[] calldata _orders
-    ) internal {
-        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.cancelFixedPriceOrder, (_firstTokenId, _orders)));
+    function cancelFixedPriceOrder(address _fnft, SeaportTypes.OrderComponents[] calldata _orders) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.cancelFixedPriceOrder, (_orders)));
     }
 
     /**
