@@ -129,6 +129,25 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     }
 
     /**
+     * @notice Cancel fixed price orders on OpenSea.
+     *
+     * Reverts if:
+     * - The token id does not exist.
+     * - The token id does not match the order.
+     * - The order's token does not match the contract.
+     *
+     * @param _firstTokenId The first token id.
+     * @param _orders The orders to cancel.
+     */
+    function cancelFixedPriceOrder(uint256 _firstTokenId, SeaportTypes.OrderComponents[] calldata _orders) external {
+        Common.checkStateAndCaller(_firstTokenId, FermionTypes.TokenState.Wrapped, _msgSender(), fermionProtocol);
+
+        SEAPORT_WRAPPER.functionDelegateCall(
+            abi.encodeCall(SeaportWrapper.cancelFixedPriceOrder, (_firstTokenId, _orders))
+        );
+    }
+
+    /**
      * @notice Unwraps the voucher, finalizes the auction, transfers the Boson rNFT to Fermion Protocol and F-NFT to the buyer
      *
      * @param _tokenId The token id.

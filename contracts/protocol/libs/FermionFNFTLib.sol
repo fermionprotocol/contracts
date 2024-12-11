@@ -10,6 +10,7 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 /**
  * @title FermionFNFTLib
@@ -195,6 +196,20 @@ library FermionFNFTLib {
         _fnft.functionCallWithAddress(
             abi.encodeCall(IFermionWrapper.listFixedPriceOffer, (_firstTokenId, _prices, _endTimes, _exchangeToken))
         );
+    }
+
+    /**
+     * @notice Cancel fixed price orders on OpenSea.
+     *
+     * @param _firstTokenId The first token id.
+     * @param _orders The orders to cancel.
+     */
+    function cancelFixedPriceOrder(
+        address _fnft,
+        uint256 _firstTokenId,
+        SeaportTypes.OrderComponents[] calldata _orders
+    ) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.cancelFixedPriceOrder, (_firstTokenId, _orders)));
     }
 
     /**

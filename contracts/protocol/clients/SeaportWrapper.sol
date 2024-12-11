@@ -231,4 +231,31 @@ contract SeaportWrapper is FermionFNFTBase {
 
         SeaportInterface(SEAPORT).validate(orders);
     }
+
+    /**
+     * @notice Cancel fixed price orders on OpenSea.
+     *
+     * Reverts if:
+     * - The token id does not exist.
+     * - The token id does not match the order.
+     * - The order's token does not match the contract.
+     *
+     * @param _firstTokenId The first token id.
+     * @param _orders The orders to cancel.
+     */
+    function cancelFixedPriceOrder(uint256 _firstTokenId, SeaportTypes.OrderComponents[] calldata _orders) external {
+        mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
+        for (uint256 i = 0; i < _orders.length; i++) {
+            uint256 tokenId = _firstTokenId + i;
+            _requireOwned(tokenId);
+
+            if (tokenId != _orders[i].offer[0].identifierOrCriteria || address(this) != _orders[i].offer[0].token) {
+                revert WrapperErrors.InvalidOrder(tokenId, _orders[i]);
+            }
+
+            fixedPrice[tokenId] = 0;
+        }
+
+        SeaportInterface(SEAPORT).cancel(_orders);
+    }
 }

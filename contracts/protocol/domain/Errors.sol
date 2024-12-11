@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "./Types.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 interface FermionGeneralErrors {
     // General errors
@@ -152,6 +153,7 @@ interface FractionalisationErrors is AuctionErrors {
 
 interface WrapperErrors {
     error ZeroPriceNotAllowed();
+    error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
 }
 
 interface FermionErrors is

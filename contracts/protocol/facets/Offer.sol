@@ -203,6 +203,31 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     }
 
     /**
+     * @notice Cancel fixed price orders on OpenSea.
+     *
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator
+     * - The token id does not exist.
+     * - The token id does not match the order.
+     * - The order's token does not match the contract.
+     *
+     * @param _firstTokenId The first token id.
+     * @param _orders The orders to cancel.
+     */
+    function cancelFixedPriceOrder(
+        uint256 _firstTokenId,
+        SeaportTypes.OrderComponents[] calldata _orders
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_firstTokenId);
+        EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
+
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[offerId];
+
+        offerLookup.fermionFNFTAddress.cancelFixedPriceOrder(_firstTokenId, _orders);
+    }
+
+    /**
      * @notice Unwraps F-NFT, uses seaport to sell the NFT
      * Reverts if:
      * - Offer region is paused
