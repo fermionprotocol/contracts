@@ -31,17 +31,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 
-    enum WrapType {
-        SELF_SALE,
-        OS_AUCTION,
-        OS_FIXED_PRICE
-    }
-
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
-
-    mapping(WrapType => function(uint256, IBosonProtocol.PriceDiscovery memory, address, bytes memory))
-        internal unwrapNFTFunction;
 
     constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
@@ -51,9 +42,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     }
 
     function init() external {
-        unwrapNFTFunction[WrapType.SELF_SALE] = selfSale;
-        unwrapNFTFunction[WrapType.OS_AUCTION] = openSeaAuction;
-        unwrapNFTFunction[WrapType.OS_FIXED_PRICE] = openSeaFixedPrice;
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        pl.deriveAndValidatePriceDiscoveryData[FermionTypes.WrapType.SELF_SALE] = selfSale;
+        pl.deriveAndValidatePriceDiscoveryData[FermionTypes.WrapType.OS_AUCTION] = openSeaAuction;
+        pl.deriveAndValidatePriceDiscoveryData[FermionTypes.WrapType.OS_FIXED_PRICE] = openSeaFixedPrice;
     }
 
     /**
@@ -162,7 +154,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             bosonVoucher,
             startingNFTId,
             _quantity,
-            WrapType.OS_AUCTION,
+            FermionTypes.WrapType.OS_AUCTION,
             FermionStorage.protocolStatus()
         );
     }
@@ -195,7 +187,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             bosonVoucher,
             startingNFTId,
             quantity,
-            WrapType.OS_FIXED_PRICE,
+            FermionTypes.WrapType.OS_FIXED_PRICE,
             FermionStorage.protocolStatus()
         );
 
@@ -236,7 +228,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * @param _wrapType - the wrap type
      * @param _data - additional data, depending on the wrap type
      */
-    function unwrapNFT(uint256 _tokenId, WrapType _wrapType, bytes calldata _data) external payable {
+    function unwrapNFT(uint256 _tokenId, FermionTypes.WrapType _wrapType, bytes calldata _data) external payable {
         unwrapNFT(_tokenId, _wrapType, _data, 0);
     }
 
@@ -250,7 +242,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      */
     function unwrapNFTAndSetVerificationTimeout(
         uint256 _tokenId,
-        WrapType _wrapType,
+        FermionTypes.WrapType _wrapType,
         bytes calldata _data,
         uint256 _verificationTimeout
     ) external payable {
@@ -277,7 +269,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
 
     function unwrapNFT(
         uint256 _tokenId,
-        WrapType _wrapType,
+        FermionTypes.WrapType _wrapType,
         bytes memory _data,
         uint256 _verificationTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
@@ -286,6 +278,12 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
 
         IBosonProtocol.PriceDiscovery memory _priceDiscovery;
         FermionStorage.TokenLookups storage tokenLookups;
+        function(
+            uint256,
+            IBosonProtocol.PriceDiscovery memory,
+            address,
+            bytes memory
+        ) deriveAndValidatePriceDiscoveryData;
         {
             FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
             address fermionFNFTAddress = pl.offerLookups[offerId].fermionFNFTAddress;
@@ -296,6 +294,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             _priceDiscovery.priceDiscoveryContract = fermionFNFTAddress;
             _priceDiscovery.conduit = fermionFNFTAddress;
             _priceDiscovery.side = IBosonProtocol.Side.Wrapper;
+
+            deriveAndValidatePriceDiscoveryData = pl.deriveAndValidatePriceDiscoveryData[_wrapType];
         }
 
         {
@@ -306,8 +306,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
             handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
 
-            WrapType wrapType = _wrapType;
-            unwrapNFTFunction[wrapType](tokenId, _priceDiscovery, exchangeToken, _data);
+            // WrapType wrapType = _wrapType;
+            deriveAndValidatePriceDiscoveryData(tokenId, _priceDiscovery, exchangeToken, _data);
 
             uint256 bosonProtocolFee = getBosonProtocolFee(exchangeToken, _priceDiscovery.price);
             (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = FeeLib.calculateAndValidateFees(
@@ -642,7 +642,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         IBosonVoucher _bosonVoucher,
         uint256 _startingNFTId,
         uint256 _quantity,
-        WrapType _wrapType,
+        FermionTypes.WrapType _wrapType,
         FermionStorage.ProtocolStatus storage ps
     ) internal returns (address wrapperAddress, address _exchangeToken) {
         address msgSender = _msgSender();
@@ -664,7 +664,11 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
 
         // wrap NFTs
         _bosonVoucher.setApprovalForAll(wrapperAddress, true);
-        wrapperAddress.wrap(_startingNFTId, _quantity, _wrapType == WrapType.OS_AUCTION ? msgSender : wrapperAddress);
+        wrapperAddress.wrap(
+            _startingNFTId,
+            _quantity,
+            _wrapType == FermionTypes.WrapType.OS_AUCTION ? msgSender : wrapperAddress
+        );
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
         emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);

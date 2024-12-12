@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
+import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 
 /**
  * @title FermionStorage
@@ -90,6 +91,13 @@ library FermionStorage {
         mapping(uint256 => TokenLookups) tokenLookups;
         // entity id => seller lookups
         mapping(uint256 => SellerLookups) sellerLookups;
+        // unwraping function storage slot
+        mapping(FermionTypes.WrapType => function(
+            uint256,
+            IBosonProtocol.PriceDiscovery memory,
+            address,
+            bytes memory
+        )) deriveAndValidatePriceDiscoveryData;
     }
 
     struct EntityLookups {
