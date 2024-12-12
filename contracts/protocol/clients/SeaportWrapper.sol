@@ -165,7 +165,7 @@ contract SeaportWrapper is FermionFNFTBase {
      * @param _endTimes The end times for each token.
      * @param _exchangeToken The token to be used for the exchange.
      */
-    function listFixedPriceOrder(
+    function listFixedPriceOrders(
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
@@ -241,7 +241,7 @@ contract SeaportWrapper is FermionFNFTBase {
      *
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(SeaportTypes.OrderComponents[] calldata _orders) external {
+    function cancelFixedPriceOrders(SeaportTypes.OrderComponents[] calldata _orders) external {
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
         for (uint256 i = 0; i < _orders.length; i++) {
             uint256 tokenId = _orders[i].offer[0].identifierOrCriteria;

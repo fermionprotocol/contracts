@@ -186,7 +186,7 @@ library FermionFNFTLib {
      * @param _endTimes The end times for each token.
      * @param _exchangeToken The token to be used for the exchange.
      */
-    function listFixedPriceOrder(
+    function listFixedPriceOrders(
         address _fnft,
         uint256 _firstTokenId,
         uint256[] calldata _prices,
@@ -194,7 +194,7 @@ library FermionFNFTLib {
         address _exchangeToken
     ) internal {
         _fnft.functionCallWithAddress(
-            abi.encodeCall(IFermionWrapper.listFixedPriceOrder, (_firstTokenId, _prices, _endTimes, _exchangeToken))
+            abi.encodeCall(IFermionWrapper.listFixedPriceOrders, (_firstTokenId, _prices, _endTimes, _exchangeToken))
         );
     }
 
@@ -203,8 +203,8 @@ library FermionFNFTLib {
      *
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(address _fnft, SeaportTypes.OrderComponents[] calldata _orders) internal {
-        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.cancelFixedPriceOrder, (_orders)));
+    function cancelFixedPriceOrders(address _fnft, SeaportTypes.OrderComponents[] calldata _orders) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.cancelFixedPriceOrders, (_orders)));
     }
 
     /**

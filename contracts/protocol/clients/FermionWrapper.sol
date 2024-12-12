@@ -115,7 +115,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * @param _endTimes The end times for each token.
      * @param _exchangeToken The token to be used for the exchange.
      */
-    function listFixedPriceOrder(
+    function listFixedPriceOrders(
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
@@ -124,7 +124,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
         Common.checkStateAndCaller(_firstTokenId, FermionTypes.TokenState.Wrapped, _msgSender(), fermionProtocol);
 
         SEAPORT_WRAPPER.functionDelegateCall(
-            abi.encodeCall(SeaportWrapper.listFixedPriceOrder, (_firstTokenId, _prices, _endTimes, _exchangeToken))
+            abi.encodeCall(SeaportWrapper.listFixedPriceOrders, (_firstTokenId, _prices, _endTimes, _exchangeToken))
         );
     }
 
@@ -138,12 +138,12 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      *
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(SeaportTypes.OrderComponents[] calldata _orders) external {
+    function cancelFixedPriceOrders(SeaportTypes.OrderComponents[] calldata _orders) external {
         if (fermionProtocol != _msgSender()) {
             revert FermionGeneralErrors.AccessDenied(_msgSender());
         }
 
-        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.cancelFixedPriceOrder, (_orders)));
+        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.cancelFixedPriceOrders, (_orders)));
     }
 
     /**

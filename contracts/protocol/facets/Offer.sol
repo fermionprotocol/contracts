@@ -199,7 +199,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             FermionStorage.protocolStatus()
         );
 
-        wrapperAddress.listFixedPriceOrder(startingNFTId, _prices, _endTimes, exchangeToken);
+        wrapperAddress.listFixedPriceOrders(startingNFTId, _prices, _endTimes, exchangeToken);
     }
 
     /**
@@ -212,7 +212,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * @param _offerId The offer id
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(
+    function cancelFixedPriceOrders(
         uint256 _offerId,
         SeaportTypes.OrderComponents[] calldata _orders
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
@@ -221,7 +221,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
 
         FermionStorage.OfferLookups storage offerLookups = FermionStorage.protocolLookups().offerLookups[_offerId];
 
-        offerLookups.fermionFNFTAddress.cancelFixedPriceOrder(_orders);
+        offerLookups.fermionFNFTAddress.cancelFixedPriceOrders(_orders);
     }
 
     /**

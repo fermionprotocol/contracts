@@ -820,7 +820,7 @@ describe("Offer", function () {
     });
   });
 
-  context("cancelFixedPriceOrder", function () {
+  context("cancelFixedPriceOrders", function () {
     const bosonOfferId = 1n;
     const sellerDeposit = 100n;
     const quantity = 15n;
@@ -888,14 +888,14 @@ describe("Offer", function () {
     });
 
     it("Cancel single order", async function () {
-      await offerFacet.cancelFixedPriceOrder(bosonOfferId, orders.slice(0, 1));
+      await offerFacet.cancelFixedPriceOrders(bosonOfferId, orders.slice(0, 1));
 
       const orderStatus = await getOrderStatus(orders[0]);
       expect(orderStatus.isCancelled).to.equal(true);
     });
 
     it("Cancel multiple orders", async function () {
-      await offerFacet.cancelFixedPriceOrder(bosonOfferId, orders);
+      await offerFacet.cancelFixedPriceOrders(bosonOfferId, orders);
 
       for (let i = 0; i < quantity; i++) {
         const orderStatus = await getOrderStatus(orders[i]);
@@ -914,12 +914,12 @@ describe("Offer", function () {
         [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
       );
 
-      await offerFacet.connect(entityAssistant).cancelFixedPriceOrder(bosonOfferId, orders.slice(0, 1));
+      await offerFacet.connect(entityAssistant).cancelFixedPriceOrders(bosonOfferId, orders.slice(0, 1));
 
       const orderStatus = await getOrderStatus(orders[0]);
       expect(orderStatus.isCancelled).to.equal(true);
 
-      await offerFacet.connect(sellerAssistant).cancelFixedPriceOrder(bosonOfferId, orders.slice(1, 2));
+      await offerFacet.connect(sellerAssistant).cancelFixedPriceOrders(bosonOfferId, orders.slice(1, 2));
 
       const orderStatus2 = await getOrderStatus(orders[1]);
       expect(orderStatus2.isCancelled).to.equal(true);
@@ -932,12 +932,12 @@ describe("Offer", function () {
         .connect(facilitator)
         .addEntityAccounts(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
 
-      await offerFacet.connect(facilitator).cancelFixedPriceOrder(bosonOfferId, orders.slice(0, 1));
+      await offerFacet.connect(facilitator).cancelFixedPriceOrders(bosonOfferId, orders.slice(0, 1));
 
       const orderStatus = await getOrderStatus(orders[0]);
       expect(orderStatus.isCancelled).to.equal(true);
 
-      await offerFacet.connect(facilitatorAssistant).cancelFixedPriceOrder(bosonOfferId, orders.slice(1, 2));
+      await offerFacet.connect(facilitatorAssistant).cancelFixedPriceOrders(bosonOfferId, orders.slice(1, 2));
 
       const orderStatus2 = await getOrderStatus(orders[1]);
       expect(orderStatus2.isCancelled).to.equal(true);
@@ -947,17 +947,17 @@ describe("Offer", function () {
       it("Offer region is paused", async function () {
         await pauseFacet.pause([PausableRegion.Offer]);
 
-        await expect(offerFacet.cancelFixedPriceOrder(bosonOfferId, orders))
+        await expect(offerFacet.cancelFixedPriceOrders(bosonOfferId, orders))
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Offer);
       });
 
       it("Caller is not the seller's assistant", async function () {
-        await verifySellerAssistantRole("cancelFixedPriceOrder", [bosonOfferId, orders]);
+        await verifySellerAssistantRole("cancelFixedPriceOrders", [bosonOfferId, orders]);
       });
 
       it("Caller is not the facilitator defined in the offer", async function () {
-        await expect(offerFacet.connect(facilitator2).cancelFixedPriceOrder(bosonOfferId, orders))
+        await expect(offerFacet.connect(facilitator2).cancelFixedPriceOrders(bosonOfferId, orders))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
       });
@@ -967,7 +967,7 @@ describe("Offer", function () {
         const { executeAllActions } = await seaport.fulfillOrder({
           order: { parameters: orders[0], signature: "0x" },
         });
-        await offerFacet.cancelFixedPriceOrder(bosonOfferId, orders.slice(0, 1));
+        await offerFacet.cancelFixedPriceOrders(bosonOfferId, orders.slice(0, 1));
 
         const orderHash = seaport.getOrderHash(orders[0]);
         await expect(executeAllActions())

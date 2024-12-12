@@ -45,7 +45,7 @@ interface IFermionWrapper is IERC721 {
      * @param _endTimes The end times for each token.
      * @param _exchangeToken The token to be used for the exchange.
      */
-    function listFixedPriceOrder(
+    function listFixedPriceOrders(
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
@@ -57,7 +57,7 @@ interface IFermionWrapper is IERC721 {
      *
      * @param _orders The orders to cancel.
      */
-    function cancelFixedPriceOrder(SeaportTypes.OrderComponents[] calldata _orders) external;
+    function cancelFixedPriceOrders(SeaportTypes.OrderComponents[] calldata _orders) external;
 
     /**
      * @notice Unwraps the voucher, and transfers the sale proceeds to Boson Protocol
