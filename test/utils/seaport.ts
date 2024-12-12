@@ -5,8 +5,9 @@ import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
 import { BigNumberish, Contract } from "ethers";
 import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
+import { OrderComponents } from "@opensea/seaport-js/lib/types";
 
-const { getContractFactory, parseEther } = ethers;
+const { getContractFactory, parseEther, ZeroAddress } = ethers;
 
 // Deploys WETH, Boson Protocol Diamond, Boson Price Discovery, Boson Voucher Implementation, Boson Voucher Beacon Client
 export async function initSeaportFixture() {
@@ -134,4 +135,78 @@ export function encodeBuyerAdvancedOrder(
   };
 
   return abiCoder.encode([advancedOrderTupleType], [buyerAdvancedOrder]);
+}
+
+export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, wrapperAddress: string) {
+  return async function getOrderParameters(tokenId: string, exchangeToken: string, fullPrice: bigint, endTime: string) {
+    const openSeaFee = (fullPrice * 2_50n) / 100_00n;
+    const { executeAllActions } = await seaport.createOrder(
+      {
+        offer: [
+          {
+            itemType: ItemType.ERC721,
+            token: wrapperAddress,
+            identifier: tokenId,
+          },
+        ],
+        consideration: [
+          {
+            itemType: ItemType.ERC20,
+            token: exchangeToken,
+            amount: (fullPrice - openSeaFee).toString(),
+          },
+          {
+            itemType: ItemType.ERC20,
+            token: exchangeToken,
+            amount: openSeaFee.toString(),
+            recipient: seaportConfig.openSeaRecipient,
+          },
+        ],
+        conduitKey: seaportConfig.openSeaConduitKey,
+        zone:
+          seaportConfig.openSeaConduit == ZeroAddress
+            ? await seaport.contract.getAddress()
+            : seaportConfig.openSeaConduit,
+        zoneHash: seaportConfig.openSeaZoneHash,
+        startTime: "0",
+        endTime,
+        salt: "0",
+      },
+      wrapperAddress,
+    );
+    const fixedPriceOrder = await executeAllActions();
+
+    return fixedPriceOrder.parameters;
+  };
+}
+
+export function getOrderStatusClosure(seaport: Seaport) {
+  return async function getOrderStatus(orderComponents: OrderComponents) {
+    const orderHash = seaport.getOrderHash(orderComponents);
+    const orderStatus = await seaport.getOrderStatus(orderHash);
+
+    return orderStatus;
+  };
+}
+
+export function getOrderParametersAndStatusClosure(
+  getOrderParameters: (
+    tokenId: string,
+    exchangeToken: string,
+    fullPrice: bigint,
+    endTime: string,
+  ) => Promise<OrderComponents>,
+  getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>,
+) {
+  return async function getOrderParametersAndStatus(
+    tokenId: string,
+    exchangeToken: string,
+    fullPrice: bigint,
+    endTime: string,
+  ) {
+    const orderComponents = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTime);
+    const orderStatus = await getOrderStatus(orderComponents);
+
+    return { orderComponents, orderStatus };
+  };
 }

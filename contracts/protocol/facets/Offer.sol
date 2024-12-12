@@ -208,23 +208,20 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * Reverts if:
      * - Offer region is paused
      * - Caller is not the seller's assistant or facilitator
-     * - The token id does not exist.
-     * - The token id does not match the order.
-     * - The order's token does not match the contract.
      *
-     * @param _firstTokenId The first token id.
+     * @param _offerId The offer id
      * @param _orders The orders to cancel.
      */
     function cancelFixedPriceOrder(
-        uint256 _firstTokenId,
+        uint256 _offerId,
         SeaportTypes.OrderComponents[] calldata _orders
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_firstTokenId);
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
 
-        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[offerId];
+        FermionStorage.OfferLookups storage offerLookups = FermionStorage.protocolLookups().offerLookups[_offerId];
 
-        offerLookup.fermionFNFTAddress.cancelFixedPriceOrder(_orders);
+        offerLookups.fermionFNFTAddress.cancelFixedPriceOrder(_orders);
     }
 
     /**

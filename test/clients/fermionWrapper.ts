@@ -5,9 +5,13 @@ import { ethers } from "hardhat";
 import { Contract, MaxUint256 } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { TokenState } from "../utils/enums";
-import { initSeaportFixture } from "../utils/seaport";
+import {
+  initSeaportFixture,
+  getOrderParametersClosure,
+  getOrderStatusClosure,
+  getOrderParametersAndStatusClosure,
+} from "../utils/seaport";
 import { Seaport } from "@opensea/seaport-js";
-import { ItemType } from "@opensea/seaport-js/lib/constants";
 import fermionConfig from "./../../fermion.config";
 import { OrderComponents } from "@opensea/seaport-js/lib/types";
 
@@ -255,62 +259,26 @@ describe("FermionFNFT - wrapper tests", function () {
     const offerId = 1n;
     let wrapperAddress: string;
 
-    async function getOrderParametersAndStatus(
+    let getOrderParameters: (
       tokenId: string,
       exchangeToken: string,
       fullPrice: bigint,
       endTime: string,
-    ) {
-      const orderComponents = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTime);
-      const orderStatus = await getOrderStatus(orderComponents);
+    ) => Promise<OrderComponents>;
+    let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
+    let getOrderParametersAndStatus: (
+      tokenId: string,
+      exchangeToken: string,
+      fullPrice: bigint,
+      endTime: string,
+    ) => Promise<{ orderComponents: OrderComponents; orderStatus: { isCancelled: boolean; isValidated: boolean } }>;
 
-      return { orderComponents, orderStatus };
-    }
-
-    async function getOrderParameters(tokenId: string, exchangeToken: string, fullPrice: bigint, endTime: string) {
-      const openSeaFee = (fullPrice * 2_50n) / 100_00n;
-      const { executeAllActions } = await seaport.createOrder(
-        {
-          offer: [
-            {
-              itemType: ItemType.ERC721,
-              token: wrapperAddress,
-              identifier: tokenId,
-            },
-          ],
-          consideration: [
-            {
-              itemType: ItemType.ERC20,
-              token: exchangeToken,
-              amount: (fullPrice - openSeaFee).toString(),
-            },
-            {
-              itemType: ItemType.ERC20,
-              token: exchangeToken,
-              amount: openSeaFee.toString(),
-              recipient: seaportConfig.openSeaRecipient,
-            },
-          ],
-          conduitKey: seaportConfig.openSeaConduitKey,
-          zone: seaportConfig.openSeaConduit == ZeroAddress ? seaportAddress : seaportConfig.openSeaConduit,
-          zoneHash: seaportConfig.openSeaZoneHash,
-          startTime: "0",
-          endTime,
-          salt: "0",
-        },
-        wrapperAddress,
-      );
-      const fixedPriceOrder = await executeAllActions();
-
-      return fixedPriceOrder.parameters;
-    }
-
-    async function getOrderStatus(orderComponents: OrderComponents) {
-      const orderHash = seaport.getOrderHash(orderComponents);
-      const orderStatus = await seaport.getOrderStatus(orderHash);
-
-      return orderStatus;
-    }
+    before(async function () {
+      wrapperAddress = await fermionWrapperProxy.getAddress();
+      getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress, seaportAddress);
+      getOrderStatus = getOrderStatusClosure(seaport);
+      getOrderParametersAndStatus = getOrderParametersAndStatusClosure(getOrderParameters, getOrderStatus);
+    });
 
     beforeEach(async function () {
       await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity + 1n);
@@ -322,8 +290,6 @@ describe("FermionFNFT - wrapper tests", function () {
         offerId,
         metadataURI,
       );
-
-      wrapperAddress = await fermionWrapperProxy.getAddress();
 
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(wrapperAddress, true);
       await fermionProtocolSigner.sendTransaction({

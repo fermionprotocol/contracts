@@ -19,9 +19,10 @@ import { EntityRole, PausableRegion, TokenState, AccountRole, WrapType } from ".
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
 import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
+import { OrderComponents } from "@opensea/seaport-js/lib/types";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
-import { encodeBuyerAdvancedOrder } from "../utils/seaport";
+import { encodeBuyerAdvancedOrder, getOrderParametersClosure, getOrderStatusClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
 import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 
@@ -745,9 +746,6 @@ describe("Offer", function () {
         [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
       );
 
-      const totalSellerDeposit = sellerDeposit * quantity;
-      await mockToken.mint(entityAssistant.address, totalSellerDeposit);
-
       // test event
       await expect(offerFacet.connect(entityAssistant).mintWrapAndListNFTs(bosonOfferId, prices, endTimes)).to.emit(
         offerFacet,
@@ -818,6 +816,163 @@ describe("Offer", function () {
         await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes.slice(1)))
           .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
           .withArgs(prices.length, prices.length - 1);
+      });
+    });
+  });
+
+  context("cancelFixedPriceOrder", function () {
+    const bosonOfferId = 1n;
+    const sellerDeposit = 100n;
+    const quantity = 15n;
+    const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther((n + 1).toString()));
+    const endTimes = Array(Number(quantity)).fill(MaxUint256);
+    const withPhygital = false;
+    let startingTokenId: bigint;
+    let orders: OrderComponents[];
+    let seaport: Seaport;
+
+    let getOrderParameters: (
+      tokenId: string,
+      exchangeToken: string,
+      fullPrice: bigint,
+      endTime: string,
+    ) => Promise<OrderComponents>;
+    let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
+
+    before(async function () {
+      const randomWallet = wallets[4];
+      const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
+      seaport = new Seaport(randomWallet, {
+        overrides: { seaportVersion: "1.6", contractAddress: seaportAddress },
+      });
+      const wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
+      getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
+      getOrderStatus = getOrderStatusClosure(seaport);
+    });
+
+    beforeEach(async function () {
+      const fermionOffer = {
+        sellerId: "1",
+        sellerDeposit,
+        verifierId: "2",
+        verifierFee: 10,
+        custodianId: "3",
+        custodianFee,
+        facilitatorId,
+        facilitatorFeePercent: "0",
+        exchangeToken: await mockToken.getAddress(),
+        withPhygital,
+        metadataURI: "https://example.com/offer-metadata.json",
+        metadataHash: ZeroHash,
+      };
+
+      await offerFacet.createOffer(fermionOffer);
+
+      const bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
+      const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
+      startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
+
+      await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+
+      const exchangeToken = await mockToken.getAddress();
+      orders = await Promise.all(
+        prices.map((price, i) => {
+          return getOrderParameters(
+            (startingTokenId + BigInt(i)).toString(),
+            exchangeToken,
+            price,
+            endTimes[i].toString(),
+          );
+        }),
+      );
+    });
+
+    it("Cancel single order", async function () {
+      await offerFacet.cancelFixedPriceOrder(bosonOfferId, orders.slice(0, 1));
+
+      const orderStatus = await getOrderStatus(orders[0]);
+      expect(orderStatus.isCancelled).to.equal(true);
+    });
+
+    it("Cancel multiple orders", async function () {
+      await offerFacet.cancelFixedPriceOrder(bosonOfferId, orders);
+
+      for (let i = 0; i < quantity; i++) {
+        const orderStatus = await getOrderStatus(orders[i]);
+        expect(orderStatus.isCancelled).to.equal(true);
+      }
+    });
+
+    it("Assistant wallets can cancel orders", async function () {
+      const entityAssistant = wallets[4]; // entity-wide Assistant
+      const sellerAssistant = wallets[5]; // Seller-specific Assistant
+
+      await entityFacet.addEntityAccounts(
+        sellerId,
+        [entityAssistant, sellerAssistant],
+        [[], [EntityRole.Seller]],
+        [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
+      );
+
+      await offerFacet.connect(entityAssistant).cancelFixedPriceOrder(bosonOfferId, orders.slice(0, 1));
+
+      const orderStatus = await getOrderStatus(orders[0]);
+      expect(orderStatus.isCancelled).to.equal(true);
+
+      await offerFacet.connect(sellerAssistant).cancelFixedPriceOrder(bosonOfferId, orders.slice(1, 2));
+
+      const orderStatus2 = await getOrderStatus(orders[1]);
+      expect(orderStatus2.isCancelled).to.equal(true);
+    });
+
+    it("Facilitator wallets can cancel orders", async function () {
+      const facilitatorAssistant = wallets[5]; // Facilitator-specific Assistant
+
+      await entityFacet
+        .connect(facilitator)
+        .addEntityAccounts(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
+
+      await offerFacet.connect(facilitator).cancelFixedPriceOrder(bosonOfferId, orders.slice(0, 1));
+
+      const orderStatus = await getOrderStatus(orders[0]);
+      expect(orderStatus.isCancelled).to.equal(true);
+
+      await offerFacet.connect(facilitatorAssistant).cancelFixedPriceOrder(bosonOfferId, orders.slice(1, 2));
+
+      const orderStatus2 = await getOrderStatus(orders[1]);
+      expect(orderStatus2.isCancelled).to.equal(true);
+    });
+
+    context("Revert reasons", function () {
+      it("Offer region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Offer]);
+
+        await expect(offerFacet.cancelFixedPriceOrder(bosonOfferId, orders))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Offer);
+      });
+
+      it("Caller is not the seller's assistant", async function () {
+        await verifySellerAssistantRole("cancelFixedPriceOrder", [bosonOfferId, orders]);
+      });
+
+      it("Caller is not the facilitator defined in the offer", async function () {
+        await expect(offerFacet.connect(facilitator2).cancelFixedPriceOrder(bosonOfferId, orders))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
+      });
+
+      it("Cannot fullfil cancelled order", async function () {
+        await mockToken.mint(wallets[4].address, prices[0]);
+        const { executeAllActions } = await seaport.fulfillOrder({
+          order: { parameters: orders[0], signature: "0x" },
+        });
+        await offerFacet.cancelFixedPriceOrder(bosonOfferId, orders.slice(0, 1));
+
+        const orderHash = seaport.getOrderHash(orders[0]);
+        await expect(executeAllActions())
+          .to.be.revertedWithCustomError(seaport.contract, "OrderIsCancelled")
+          .withArgs(orderHash);
       });
     });
   });
@@ -2321,54 +2476,21 @@ describe("Offer", function () {
           const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
 
           const buyer = wallets[4];
-          openSeaAddress = seaportConfig.openSeaRecipient;
           buyerAddress = buyer.address;
-          seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
-
           await mockToken.mint(buyerAddress, fullPrice);
 
-          const { executeAllActions } = await seaport.createOrder(
-            {
-              offer: [
-                {
-                  itemType: ItemType.ERC721,
-                  token: wrapperAddress,
-                  identifier: tokenId,
-                },
-              ],
-              consideration: [
-                {
-                  itemType: ItemType.ERC20,
-                  token: exchangeToken,
-                  amount: (fullPrice - openSeaFee).toString(),
-                },
-                {
-                  itemType: ItemType.ERC20,
-                  token: exchangeToken,
-                  amount: openSeaFee.toString(),
-                  recipient: seaportConfig.openSeaRecipient,
-                },
-              ],
-              conduitKey: seaportConfig.openSeaConduitKey,
-              zone: seaportConfig.openSeaConduit == ZeroAddress ? seaportAddress : seaportConfig.openSeaConduit,
-              zoneHash: seaportConfig.openSeaZoneHash,
-              startTime: "0",
-              endTime: endTimes[0].toString(),
-              salt: "0",
-            },
-            wrapperAddress,
-          );
+          seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+          const getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
+          const parameters = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTimes[0].toString());
 
-          // just to get the order
-          const fixedPriceOrder = await executeAllActions();
-
-          const { executeAllActions: executeAllActionsBuyer } = await seaport.fulfillOrder({
-            order: { ...fixedPriceOrder, signature: "0x" },
+          const { executeAllActions } = await seaport.fulfillOrder({
+            order: { parameters, signature: "0x" },
           });
-          await executeAllActionsBuyer();
+          await executeAllActions();
 
           bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-          openSeaBalance = await mockToken.balanceOf(openSeaAddress);
+          openSeaAddress = seaportConfig.openSeaRecipient;
+          openSeaBalance = await mockToken.balanceOf(seaportConfig.openSeaRecipient);
         });
 
         context("unwrap fix-priced OS offer", function () {
@@ -3145,52 +3267,18 @@ describe("Offer", function () {
           const buyer = wallets[4];
           openSeaAddress = seaportConfig.openSeaRecipient;
           buyerAddress = buyer.address;
-          seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
-
           await mockToken.mint(buyerAddress, fullPrice);
 
-          const { executeAllActions } = await seaport.createOrder(
-            {
-              offer: [
-                {
-                  itemType: ItemType.ERC721,
-                  token: wrapperAddress,
-                  identifier: tokenId,
-                },
-              ],
-              consideration: [
-                {
-                  itemType: ItemType.ERC20,
-                  token: exchangeToken,
-                  amount: (fullPrice - openSeaFee).toString(),
-                },
-                {
-                  itemType: ItemType.ERC20,
-                  token: exchangeToken,
-                  amount: openSeaFee.toString(),
-                  recipient: seaportConfig.openSeaRecipient,
-                },
-              ],
-              conduitKey: seaportConfig.openSeaConduitKey,
-              zone: seaportConfig.openSeaConduit == ZeroAddress ? seaportAddress : seaportConfig.openSeaConduit,
-              zoneHash: seaportConfig.openSeaZoneHash,
-              startTime: "0",
-              endTime: endTimes[0].toString(),
-              salt: "0",
-            },
-            wrapperAddress,
-          );
+          seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+          const getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
+          const parameters = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTimes[0].toString());
 
-          // just to get the order
-          const fixedPriceOrder = await executeAllActions();
-
-          const { executeAllActions: executeAllActionsBuyer } = await seaport.fulfillOrder({
-            order: { ...fixedPriceOrder, signature: "0x" },
+          const { executeAllActions } = await seaport.fulfillOrder({
+            order: { parameters, signature: "0x" },
           });
-          await executeAllActionsBuyer();
+          await executeAllActions();
 
           bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-          openSeaBalance = await mockToken.balanceOf(openSeaAddress);
         });
 
         context("unwrap fix-priced OS offer", function () {
