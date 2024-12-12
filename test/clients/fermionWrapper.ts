@@ -334,12 +334,12 @@ describe("FermionFNFT - wrapper tests", function () {
       });
     });
 
-    context("listFixedPriceOffer", function () {
+    context("listFixedPriceOrder", function () {
       it("Protocol can list fixed price offer", async function () {
         await fermionProtocolSigner.sendTransaction({
           to: await fermionWrapperProxy.getAddress(),
           data:
-            fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOffer", [
+            fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrder", [
               startTokenId,
               prices,
               endTimes,
@@ -369,7 +369,7 @@ describe("FermionFNFT - wrapper tests", function () {
           await expect(
             fermionWrapperProxy
               .connect(randomWallet)
-              .listFixedPriceOffer(startTokenId, prices, endTimes, await mockBoson.getAddress()),
+              .listFixedPriceOrder(startTokenId, prices, endTimes, await mockBoson.getAddress()),
           )
             .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
             .withArgs(startTokenId, randomWallet.address, TokenState.Wrapped);
@@ -381,7 +381,7 @@ describe("FermionFNFT - wrapper tests", function () {
             fermionProtocolSigner.sendTransaction({
               to: await fermionWrapperProxy.getAddress(),
               data:
-                fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOffer", [
+                fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrder", [
                   startTokenId,
                   zeroPrices,
                   endTimes,
@@ -614,7 +614,7 @@ describe("FermionFNFT - wrapper tests", function () {
       await fermionProtocolSigner.sendTransaction({
         to: await fermionWrapperProxy.getAddress(),
         data:
-          fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOffer", [
+          fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrder", [
             startTokenId,
             prices,
             endTimes,

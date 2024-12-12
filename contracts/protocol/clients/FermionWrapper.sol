@@ -115,7 +115,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * @param _endTimes The end times for each token.
      * @param _exchangeToken The token to be used for the exchange.
      */
-    function listFixedPriceOffer(
+    function listFixedPriceOrder(
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,

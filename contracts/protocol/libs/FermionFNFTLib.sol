@@ -186,7 +186,7 @@ library FermionFNFTLib {
      * @param _endTimes The end times for each token.
      * @param _exchangeToken The token to be used for the exchange.
      */
-    function listFixedPriceOffer(
+    function listFixedPriceOrder(
         address _fnft,
         uint256 _firstTokenId,
         uint256[] calldata _prices,
@@ -194,7 +194,7 @@ library FermionFNFTLib {
         address _exchangeToken
     ) internal {
         _fnft.functionCallWithAddress(
-            abi.encodeCall(IFermionWrapper.listFixedPriceOffer, (_firstTokenId, _prices, _endTimes, _exchangeToken))
+            abi.encodeCall(IFermionWrapper.listFixedPriceOrder, (_firstTokenId, _prices, _endTimes, _exchangeToken))
         );
     }
 

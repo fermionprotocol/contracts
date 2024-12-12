@@ -199,7 +199,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             FermionStorage.protocolStatus()
         );
 
-        wrapperAddress.listFixedPriceOffer(startingNFTId, _prices, _endTimes, exchangeToken);
+        wrapperAddress.listFixedPriceOrder(startingNFTId, _prices, _endTimes, exchangeToken);
     }
 
     /**
