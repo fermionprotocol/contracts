@@ -19,15 +19,32 @@ import { Context } from "../libs/Context.sol";
  *      It works in conjunction with the FermionFractions contract, which hosts all
  *      getter functions for the associated data. The logic here manages the creation and
  *      finalization of price update proposals, oracle-based price updates, and voting mechanisms.
- *
  * @notice - Getters for proposal and voter details are implemented in the main FermionFractions contract.
  *         - All state-modifying functions (e.g., price updates, voting) are implemented in this contract.
+ *         - NOTE: This contract is expected to be called only by FermionFractions via `delegateCall`.
+ *           Any direct call to its external methods will have no impact on the protocol state, as they
+ *           rely on the context and storage of the calling contract.
  */
 contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
     /**
      * @notice Updates the exit price using either an oracle or a governance proposal.
-     *         If the oracle provides a valid price, it is updated directly; otherwise,
-     *         a governance proposal is created.
+     *
+     * Emits:
+     * - `ExitPriceUpdated` if the exit price is updated via the oracle.
+     * - `PriceUpdateProposalCreated` if a governance proposal is created.
+     *
+     * Reverts:
+     * - `OnlyFractionOwner` if the caller is not a fraction owner.
+     * - `InvalidQuorumPercent` if the `quorumPercent` is outside the allowed range.
+     * - `InvalidVoteDuration` if the `voteDuration` is outside the allowed range.
+     * - `OngoingProposalExists` if there is an active proposal.
+     * - `OracleInternalError` if the oracle's `getPrice` reverts with an error different from `InvalidPrice`.
+     *
+     * @param newPrice The proposed new exit price.
+     * @param quorumPercent The required quorum percentage for the governance proposal (in basis points).
+     * @param voteDuration The duration of the governance proposal in seconds.
+     * @param _fermionProtocol Fermion diamond address containing the Oracle Registry Facet.
+     * @param fractionsBalance The fractions balance of the caller.
      */
     function updateExitPrice(
         uint256 newPrice,
@@ -88,6 +105,22 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
         );
     }
 
+    /**
+     * @notice Allows a fraction owner to vote on the current active proposal.
+     *
+     * Emits:
+     * - `PriceUpdateVoted` when a fraction owner casts or updates their vote.
+     *
+     * Reverts:
+     * - `ProposalNotActive` if the proposal is not active.
+     * - `NoVotingPower` if the caller has no fractions to vote with.
+     * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
+     * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
+     *
+     * @param voteYes True to vote YES, false to vote NO.
+     * @param fractionsBalance The fractions balance of the voter.
+     * @param totalSupply Total supply of fractions for quorum calculation.
+     */
     function voteOnProposal(bool voteYes, uint256 fractionsBalance, uint256 totalSupply) external {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
@@ -126,6 +159,17 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
             emit IFermionFractionsEvents.PriceUpdateVoted(proposal.proposalId, msgSender, fractionsBalance, voteYes);
         }
     }
+
+    /**
+     * @notice Allows a voter to explicitly remove their vote on an active proposal.
+     *
+     * Emits:
+     * - `PriceUpdateVoteRemoved` when a vote is successfully removed.
+     *
+     * Reverts:
+     * - `ProposalNotActive` if the proposal is not active.
+     * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
+     */
     function removeVoteOnProposal() external {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
@@ -141,8 +185,9 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
 
         uint256 votesToRemove = voter.voteCount;
 
+        bool votedYes = voter.votedYes;
         unchecked {
-            if (voter.votedYes) {
+            if (votedYes) {
                 proposal.yesVotes -= votesToRemove;
             } else {
                 proposal.noVotes -= votesToRemove;
@@ -151,9 +196,20 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
 
         delete proposal.voters[msgSender];
 
-        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(msgSender, votesToRemove);
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(proposal.proposalId, msgSender, votesToRemove, votedYes);
     }
 
+    /**
+     * @notice Finalizes the active proposal if the voting deadline has passed.
+     *
+     * Emits:
+     * - PriceUpdateProposalFinalized (when the proposal is finalized)
+     * - ExitPriceUpdated (if the proposal is executed successfully)
+     *
+     * @param proposal The active price update proposal to finalize.
+     * @param liquidSupply The liquid supply of fractions, used to calculate the required quorum.
+     * @return finalized True if the proposal was successfully finalized, otherwise false.
+     */
     function _finalizeProposal(
         FermionTypes.PriceUpdateProposal storage proposal,
         uint256 liquidSupply

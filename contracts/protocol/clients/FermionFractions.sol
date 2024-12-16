@@ -1076,11 +1076,12 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice Adjusts the voter's records on transfer by removing votes associated with the transferred fractions.
+     * @notice Adjusts the voter's records on transfer by removing votes if the remaining balance cannot support them.
      *         This ensures the proposal's vote count remains accurate.
      *
      * @dev If the voter has no active votes or the current proposal is not active, no adjustments are made.
-     *      If the number of fractions being transferred exceeds the voter's vote count, only the available votes are removed.
+     *      If the voter's remaining balance after the transfer is greater than or equal to their vote count,
+     *      no votes are removed. Otherwise, votes are reduced proportionally.
      *
      * @param voter The address of the voter whose votes are being adjusted.
      * @param amount The number of fractions being transferred.
@@ -1090,19 +1091,26 @@ abstract contract FermionFractions is
         FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
-            return;
+            return; // Proposal is not active
         }
 
         FermionTypes.PriceUpdateVoter storage voterData = proposal.voters[voter];
         uint256 voteCount = voterData.voteCount;
 
-        if (voterData.voteCount == 0 || voterData.proposalId != proposal.proposalId) {
-            return;
+        if (voteCount == 0 || voterData.proposalId != proposal.proposalId) {
+            return; // Voter has no active votes
         }
-        uint256 votesToRemove = (amount > voteCount) ? voteCount : amount;
+
+        uint256 remainingBalance = FermionFractionsERC20Base.balanceOf(voter) - amount;
+
+        if (remainingBalance >= voteCount) {
+            return; // Remaining balance is sufficient to support existing votes
+        }
+
+        uint256 votesToRemove = voteCount - remainingBalance;
+        voterData.voteCount = remainingBalance;
 
         unchecked {
-            voterData.voteCount = voteCount - votesToRemove;
             if (voterData.votedYes) {
                 proposal.yesVotes -= votesToRemove;
             } else {

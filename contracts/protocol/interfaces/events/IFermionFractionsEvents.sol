@@ -33,6 +33,11 @@ interface IFermionFractionsEvents {
     );
     event PriceUpdateProposalFinalized(uint256 indexed proposalId, bool success);
     event PriceUpdateVoted(uint256 indexed proposalId, address indexed voter, uint256 voteCount, bool votedYes);
-    event PriceUpdateVoteRemoved(address indexed voter, uint256 votesRemoved);
+    event PriceUpdateVoteRemoved(
+        uint256 indexed proposalId,
+        address indexed voter,
+        uint256 votesRemoved,
+        bool votedYes
+    );
     event ExitPriceUpdated(uint256 newPrice, bool isOracleUpdate);
 }
