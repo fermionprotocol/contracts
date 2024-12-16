@@ -11,10 +11,11 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 /**
  * @title SeaportWrapper
- * @notice Methods for wrapping and unwrapping the Boson rNFTs and use them with openSea
+ * @notice Methods for wrapping and unwrapping the Boson rNFTs and use them with OpenSea
  *
- * Wrapped vouchers can be used in auctions.
- * Fixed price sales are not supported yet.
+ * This contract supports two use cases:
+ * - Wrapped vouchers owned by the seller can be used in OpenSea auctions (the auction must be created directly on OpenSea).
+ * - This contract can be used to create a fixed price sales, where owner is this contract.
  *
  */
 contract SeaportWrapper is FermionFNFTBase {
@@ -160,6 +161,9 @@ contract SeaportWrapper is FermionFNFTBase {
     /**
      * @notice List fixed price orders on OpenSea. This contract is the owner and creates the openSea order using the validate function on Seaport.
      *
+     * N.B. if an order is cancelled, it cannot be listed again with the same price and end time since all other parameters (including the salt) are the same.
+     * Changing the price or end time will allow the order to be listed again.
+     *
      * @param _firstTokenId The first token id.
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
@@ -175,7 +179,7 @@ contract SeaportWrapper is FermionFNFTBase {
 
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
 
-        for (uint256 i = 0; i < _prices.length; i++) {
+        for (uint256 i; i < _prices.length; ++i) {
             uint256 tokenId = _firstTokenId + i;
             uint256 tokenPrice = _prices[i];
             if (tokenPrice == 0) revert WrapperErrors.ZeroPriceNotAllowed(); // although it is possible to validate zero price offer, it's impossible to fulfill it
@@ -243,7 +247,7 @@ contract SeaportWrapper is FermionFNFTBase {
      */
     function cancelFixedPriceOrders(SeaportTypes.OrderComponents[] calldata _orders) external {
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
-        for (uint256 i = 0; i < _orders.length; i++) {
+        for (uint256 i; i < _orders.length; ++i) {
             uint256 tokenId = _orders[i].offer[0].identifierOrCriteria;
 
             if (ownerOf(tokenId) != address(this))

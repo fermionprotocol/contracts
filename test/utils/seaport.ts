@@ -7,7 +7,7 @@ import { BigNumberish, Contract } from "ethers";
 import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 import { OrderComponents } from "@opensea/seaport-js/lib/types";
 
-const { getContractFactory, parseEther, ZeroAddress } = ethers;
+const { getContractFactory, getContractAt, parseEther, ZeroAddress } = ethers;
 
 // Deploys WETH, Boson Protocol Diamond, Boson Price Discovery, Boson Voucher Implementation, Boson Voucher Beacon Client
 export async function initSeaportFixture() {
@@ -79,7 +79,7 @@ export function createBuyerAdvancedOrderClosure(
     );
 
     const buyerOrder = await executeAllActions();
-    const buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+    const buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
 
     const encumberedAmount = fullPrice - openSeaFee;
 
@@ -87,46 +87,12 @@ export function createBuyerAdvancedOrderClosure(
   };
 }
 
-export function encodeBuyerAdvancedOrder(
+export async function encodeBuyerAdvancedOrder(
   buyerOrder: OrderWithCounter,
   numerator: bigint = 1n,
   denominator: bigint = 1n,
   extraData: string = "0x",
 ) {
-  const abiCoder = new ethers.AbiCoder();
-  const advancedOrderTupleType = `tuple(
-            tuple(
-                address offerer,
-                address zone,
-                tuple(
-                    uint8 itemType,
-                    address token,
-                    uint256 identifierOrCriteria,
-                    uint256 startAmount,
-                    uint256 endAmount
-                )[] offer,
-                tuple(
-                    uint8 itemType,
-                    address token,
-                    uint256 identifierOrCriteria,
-                    uint256 startAmount,
-                    uint256 endAmount,
-                    address recipient
-                )[] consideration,
-                uint8 orderType,
-                uint256 startTime,
-                uint256 endTime,
-                bytes32 zoneHash,
-                uint256 salt,
-                bytes32 conduitKey,
-                uint256 totalOriginalConsiderationItems
-            ) parameters,
-            uint120 numerator,
-            uint120 denominator,
-            bytes signature,
-            bytes extraData
-        )`;
-
   const buyerAdvancedOrder = {
     ...buyerOrder,
     numerator,
@@ -134,7 +100,11 @@ export function encodeBuyerAdvancedOrder(
     extraData,
   };
 
-  return abiCoder.encode([advancedOrderTupleType], [buyerAdvancedOrder]);
+  const SeaportWrapperInterface = await getContractAt("ABIEncoder", ZeroAddress);
+  const data = SeaportWrapperInterface.interface.encodeFunctionData("encodeSeaportAdvancedOrder", [buyerAdvancedOrder]);
+
+  // remove the function signature
+  return "0x" + data.slice(10);
 }
 
 export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, wrapperAddress: string) {
@@ -168,9 +138,9 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
             ? await seaport.contract.getAddress()
             : seaportConfig.openSeaConduit,
         zoneHash: seaportConfig.openSeaZoneHash,
-        startTime: "0",
+        startTime: "0", // matching the value in seaportWrapper.listFixedPriceOrders
         endTime,
-        salt: "0",
+        salt: "0", // matching the value in seaportWrapper.listFixedPriceOrders
       },
       wrapperAddress,
     );

@@ -273,7 +273,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         bytes memory _data,
         uint256 _verificationTimeout
     ) internal notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        uint256 tokenId = _tokenId;
+        uint256 tokenId = _tokenId; // stack too deep workaround
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
 
         IBosonProtocol.PriceDiscovery memory _priceDiscovery;

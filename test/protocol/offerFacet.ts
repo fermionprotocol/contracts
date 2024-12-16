@@ -1072,7 +1072,7 @@ describe("Offer", function () {
 
           buyerOrder = await executeAllActions();
 
-          buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+          buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
 
           bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
           openSeaBalance = await mockToken.balanceOf(openSeaAddress);
@@ -1302,7 +1302,7 @@ describe("Offer", function () {
 
               const buyerOrder = await executeAllActions();
 
-              const buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              const buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
 
               const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
               const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
@@ -1406,7 +1406,7 @@ describe("Offer", function () {
 
               const buyerOrder = await executeAllActions();
 
-              const buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              const buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
 
               const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
               const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
@@ -1653,7 +1653,7 @@ describe("Offer", function () {
               );
               buyerOrder.parameters.offer[0].startAmount = minimalPriceNew.toString();
               buyerOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
               await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
                 .withArgs(minimalPriceNew - 1n, minimalPriceNew);
@@ -1695,7 +1695,7 @@ describe("Offer", function () {
               );
               buyerOrder.parameters.offer[0].startAmount = minimalPrice.toString();
               buyerOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
               await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
                 .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
                 .withArgs(minimalPrice - 1n, minimalPrice);
@@ -1704,14 +1704,14 @@ describe("Offer", function () {
             it("Buyer order does not have 1 offer", async function () {
               // two offers
               buyerOrder.parameters.offer.push(buyerOrder.parameters.offer[0]);
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
               ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
 
               // 0 offers
               buyerOrder.parameters.offer = [];
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
               ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
@@ -1719,7 +1719,7 @@ describe("Offer", function () {
 
             it("Buyer order have more than 2 considerations", async function () {
               buyerOrder.parameters.consideration.push(buyerOrder.parameters.consideration[1]);
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
               ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
@@ -1728,7 +1728,7 @@ describe("Offer", function () {
             it("OS fee is greater than the price", async function () {
               buyerOrder.parameters.offer[0].startAmount = "0";
               buyerOrder.parameters.consideration[1].startAmount = "1";
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
               ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
@@ -1736,7 +1736,7 @@ describe("Offer", function () {
 
             it("OS fee is more than expected", async function () {
               buyerOrder.parameters.consideration[1].startAmount += 1n;
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
               ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
@@ -1840,13 +1840,13 @@ describe("Offer", function () {
           context("Seaport tests", function () {
             // Not testing the protocol, just the interaction with Seaport
             it("Seaport should not allow invalid signature", async function () {
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder({ ...buyerOrder, signature: "0x" });
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder({ ...buyerOrder, signature: "0x" });
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
               ).to.be.revertedWithCustomError(seaportContract, "InvalidSignature");
 
               const invalidSignature = buyerOrder.signature.replace("1", "2");
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder({ ...buyerOrder, signature: invalidSignature });
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder({ ...buyerOrder, signature: invalidSignature });
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
               ).to.be.revertedWithCustomError(seaportContract, "InvalidSigner");
@@ -1854,7 +1854,7 @@ describe("Offer", function () {
 
             it("Works with pre-validated orders", async function () {
               const buyer = wallets[4];
-              buyerAdvancedOrder = encodeBuyerAdvancedOrder({ ...buyerOrder, signature: "0x" });
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder({ ...buyerOrder, signature: "0x" });
               await seaportContract.connect(buyer).validate([
                 {
                   ...buyerOrder,
@@ -3104,7 +3104,7 @@ describe("Offer", function () {
 
           const buyerOrder = await executeAllActions();
 
-          buyerAdvancedOrder = encodeBuyerAdvancedOrder(buyerOrder);
+          buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
 
           bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
           openSeaBalance = await mockToken.balanceOf(openSeaAddress);

@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionGeneralErrors } from "../domain/Errors.sol";
+import { FermionGeneralErrors, WrapperErrors } from "../domain/Errors.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
@@ -89,7 +89,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      */
     function wrap(uint256 _firstTokenId, uint256 _length, address _to) external {
         address msgSender = _msgSender();
-        for (uint256 i = 0; i < _length; i++) {
+        for (uint256 i; i < _length; ++i) {
             uint256 tokenId = _firstTokenId + i;
 
             // Not using safeTransferFrom since this contract is the recipient and we are sure it can handle the vouchers
@@ -174,12 +174,11 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * @param _exchangeToken The token to be used for the exchange.
      */
     function unwrapFixedPriced(uint256 _tokenId, address _exchangeToken) external {
+        if (ownerOf(_tokenId) == address(this)) revert WrapperErrors.InvalidOwner(_tokenId, address(0), address(this)); // Zero address means the expected value is anything but the actual value
+
         unwrap(_tokenId);
 
-        uint256 price = Common._getFermionCommonStorage().fixedPrice[_tokenId];
-        if (price > 0) {
-            IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, price);
-        }
+        IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, Common._getFermionCommonStorage().fixedPrice[_tokenId]);
 
         Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
     }
@@ -267,8 +266,9 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     }
 
     /**
-     * @notice Wrapped vouchers cannot be transferred. To transfer them, invoke a function that unwraps them first.
-     *
+     * @notice If the seller owns the wrapped vouchers, they can be transferred to the first only during unwrapping.
+     * If this contract owns the wrapped vouchers, they can be transferred only once to the first buyer.
+     * The first buyer can transfer them only after they are verified.
      *
      * @param _to The address to transfer the wrapped tokens to.
      * @param _tokenId The token id.
