@@ -53,14 +53,29 @@ library FermionFNFTLib {
     }
 
     /**
+     * @notice Transfers the ERC721 FNFT token or ERC20 FNFT fractions
+     *
+     * If _tokenIdOrValue is less than 2^128 the fractions are transferred, otherwise the token is transferred.
+     *
+     * @param _from The address to transfer from.
+     * @param _to The address to transfer to.
+     * @param _tokenIdOrValue The token id or value to transfer.
+     */
+    function transferFrom(address _fnft, address _from, address _to, uint256 _tokenIdOrValue) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IERC721.transferFrom, (_from, _to, _tokenIdOrValue)));
+    }
+
+    /**
      * @notice Transfers the ERC721 FNFT token
      *
      * @param _from The address to transfer from.
      * @param _to The address to transfer to.
      * @param _tokenId The token id.
      */
-    function transferFrom(address _fnft, address _from, address _to, uint256 _tokenId) internal {
-        _fnft.functionCallWithAddress(abi.encodeCall(IERC721.transferFrom, (_from, _to, _tokenId)));
+    function safeTransferFrom(address _fnft, address _from, address _to, uint256 _tokenId) internal {
+        _fnft.functionCallWithAddress(
+            abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", _from, _to, _tokenId)
+        );
     }
 
     /**

@@ -5,7 +5,7 @@ import { ADMIN, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { FeeTableLib } from "../libs/FeeTableLib.sol";
+import { FeeLib } from "../libs/FeeLib.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
@@ -161,7 +161,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      * @return the protocol fee percentage for given price and exchange token
      */
     function getProtocolFeePercentage(address _exchangeToken, uint256 _price) external view returns (uint16) {
-        return FeeTableLib.getProtocolFeePercentage(_exchangeToken, _price);
+        return FeeLib.getProtocolFeePercentage(_exchangeToken, _price);
     }
 
     /**

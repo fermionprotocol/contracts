@@ -56,6 +56,15 @@ contract MockFermion {
         amountToRelease = _amount;
     }
 
+    mapping(uint256 => string) public revisedMetadata;
+    function getRevisedMetadata(uint256 _tokenId) external view returns (string memory) {
+        return revisedMetadata[_tokenId];
+    }
+
+    function setRevisedMetadata(uint256 _tokenId, string memory _metadata) external {
+        revisedMetadata[_tokenId] = _metadata;
+    }
+
     function addPriceOracle(address oracleAddress, bytes32 identifier) external {
         require(oracleAddress != address(0), "Invalid oracle address");
         approvedOracles[oracleAddress] = identifier;

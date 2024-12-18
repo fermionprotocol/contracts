@@ -10,6 +10,7 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { Common } from "./Common.sol";
+import { FundsLib } from "../libs/FundsLib.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
@@ -36,8 +37,12 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address _wrappedNative,
         address _fermionFNFTPriceManager
     )
+       
         FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative)
+       
         ERC2771Context(address(0))
+        FundsLib(bytes32(0))
+   
         FermionFractions(_fermionFNFTPriceManager)
     {}
 
@@ -222,5 +227,13 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
 
     function transferOwnership(address _newOwner) public override(FermionWrapper, IFermionWrapper) {
         super.transferOwnership(_newOwner);
+    }
+
+    /**
+     * @dev This function is used in funds management. Since this contract is never a trusted forwarder
+     * of another fermion FNFT contract, the check can be skipped.
+     */
+    function checkFNFTContract(address) internal pure override returns (bool) {
+        return false;
     }
 }

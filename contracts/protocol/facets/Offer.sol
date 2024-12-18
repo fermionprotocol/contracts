@@ -9,7 +9,7 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
-import { FeeTableLib } from "../libs/FeeTableLib.sol";
+import { FeeLib } from "../libs/FeeLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
@@ -27,14 +27,14 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  *
  * @notice Handles offer listing.
  */
-contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
+contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
 
-    constructor(address _bosonProtocol) {
+    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
@@ -273,7 +273,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                     pl.offerLookups[offerId].fermionFNFTAddress // wrapper address
                 );
 
-                (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = calculateAndValidateFees(
+                (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) = FeeLib.calculateAndValidateFees(
                     _priceDiscovery.price,
                     bosonProtocolFee,
                     offer
@@ -357,8 +357,8 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
         if (_selfSale) {
             bosonProtocolFee = getBosonProtocolFee(exchangeToken, _exchangeAmount);
             if (_exchangeAmount > 0) {
-                FundsLib.validateIncomingPayment(exchangeToken, _exchangeAmount);
-                FundsLib.transferFundsFromProtocol(exchangeToken, payable(wrapperAddress), _exchangeAmount);
+                validateIncomingPayment(exchangeToken, _exchangeAmount);
+                transferERC20FromProtocol(exchangeToken, payable(wrapperAddress), _exchangeAmount);
             }
 
             _priceDiscovery.price = _exchangeAmount;
@@ -392,45 +392,6 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
     }
 
     /**
-     * @notice Calculates the Fermion and facilitator fees for the specified price and validates that the total
-     *         fees are below the price.
-     *
-     * @dev This function applies percentage-based fees for Fermion and the facilitator. It checks if the total
-     *      fees (including verifier and Boson protocol fees) are less than the total price.
-     *
-     * Reverts if:
-     * - The sum of all fees exceeds the price.
-     *
-     * @param price The price of the NFT being unwrapped.
-     * @param bosonProtocolFee The fee amount to be paid to the Boson Protocol.
-     * @param offer The Fermion offer containing details of the sale.
-     *
-     * @return fermionFeeAmount The calculated fee amount to be paid to the Fermion Protocol.
-     * @return facilitatorFeeAmount The calculated fee amount to be paid to the facilitator.
-     */
-    function calculateAndValidateFees(
-        uint256 price,
-        uint256 bosonProtocolFee,
-        FermionTypes.Offer storage offer
-    ) internal view returns (uint256 fermionFeeAmount, uint256 facilitatorFeeAmount) {
-        // Calculate facilitator and fermion fees
-        facilitatorFeeAmount = FundsLib.applyPercentage(price, offer.facilitatorFeePercent);
-        fermionFeeAmount = FundsLib.applyPercentage(
-            price,
-            FeeTableLib.getProtocolFeePercentage(offer.exchangeToken, price)
-        );
-        // Calculate the sum of all fees
-        uint256 feesSum = facilitatorFeeAmount + fermionFeeAmount + offer.verifierFee + bosonProtocolFee;
-
-        // Check if the sum of all fees is lower than the price
-        if (price < feesSum) {
-            revert FundsErrors.PriceTooLow(price, feesSum);
-        }
-
-        return (fermionFeeAmount, facilitatorFeeAmount);
-    }
-
-    /**
      * Handle Boson seller deposit
      *
      * If the seller deposit is non zero, the amount must be deposited into Boson so unwrapping can succed.
@@ -457,13 +418,13 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
             ];
 
             if (availableFunds >= _sellerDeposit) {
-                FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
+                decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
             } else {
                 // For offers in native token, the seller deposit cannot be sent at the time of unwrapping.
                 // It must be deposited in advance, using `depositFunds` method.
                 if (_exchangeToken == address(0)) revert FundsErrors.NativeNotAllowed();
 
-                FundsLib.decreaseAvailableFunds(_sellerId, _exchangeToken, availableFunds); // Use all available funds
+                decreaseAvailableFunds(_sellerId, _exchangeToken, availableFunds); // Use all available funds
 
                 uint256 remainder;
                 unchecked {
@@ -471,7 +432,7 @@ contract OfferFacet is Context, OfferErrors, Access, IOfferEvents {
                 }
 
                 // Transfer the remainder from the seller
-                FundsLib.validateIncomingPayment(_exchangeToken, remainder);
+                validateIncomingPayment(_exchangeToken, remainder);
             }
 
             // Deposit to the boson protocol

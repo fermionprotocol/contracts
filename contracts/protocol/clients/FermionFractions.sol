@@ -23,6 +23,7 @@ abstract contract FermionFractions is
     FermionFractionsERC20Base,
     FermionFNFTBase,
     FermionErrors,
+    FundsLib,
     IFermionFractionsEvents,
     IFermionFractions
 {
@@ -142,8 +143,7 @@ abstract contract FermionFractions is
                 _custodianVaultParameters,
                 _depositAmount
             );
-            if (returnedAmount > 0)
-                FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
+            if (returnedAmount > 0) transferERC20FromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
         }
     }
 
@@ -185,8 +185,7 @@ abstract contract FermionFractions is
                 _length,
                 _depositAmount
             );
-            if (returnedAmount > 0)
-                FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
+            if (returnedAmount > 0) transferERC20FromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
         }
     }
 
@@ -433,7 +432,7 @@ abstract contract FermionFractions is
         auctionDetails.maxBid = _price;
 
         if (_fractions > 0) _transferFractions(msgSender, address(this), _fractions);
-        if (bidAmount > 0) FundsLib.validateIncomingPayment(exchangeToken, bidAmount);
+        if (bidAmount > 0) validateIncomingPayment(exchangeToken, bidAmount);
 
         auctionDetails.lockedBidAmount = bidAmount;
         emit Bid(_tokenId, msgSender, _price, totalLockedFractions, bidAmount);
@@ -557,7 +556,7 @@ abstract contract FermionFractions is
             claimAmount += additionalClaimAmount;
         }
 
-        FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
         emit Claimed(msgSender, lockedIndividualVotes + _additionalFractions, claimAmount);
     }
 
@@ -583,7 +582,7 @@ abstract contract FermionFractions is
         address msgSender = _msgSender();
         (uint256 claimAmount, uint256 burnedFractions) = burnUnrestrictedFractions(msgSender, _fractions, $);
 
-        FundsLib.transferFundsFromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
         emit Claimed(msgSender, burnedFractions, claimAmount);
     }
 
@@ -976,7 +975,7 @@ abstract contract FermionFractions is
                 // the debt in the protocol is higher than the auction proceeds
                 debtFromVault = auctionProceeds;
             }
-            FundsLib.transferFundsFromProtocol($.exchangeToken, payable(fermionProtocol), debtFromVault);
+            transferERC20FromProtocol($.exchangeToken, payable(fermionProtocol), debtFromVault);
             IFermionCustodyVault(fermionProtocol).repayDebt(_tokenId, debtFromVault);
             auctionProceeds -= debtFromVault;
         } else {
@@ -985,7 +984,7 @@ abstract contract FermionFractions is
             uint256 releasedFromVault = uint256(lockedProceeds);
             uint256 claimAmount = (releasedFromVault * winnersLockedFractions) / fractionsPerToken;
 
-            FundsLib.transferFundsFromProtocol($.exchangeToken, payable(auctionDetails.maxBidder), claimAmount);
+            transferERC20FromProtocol($.exchangeToken, payable(auctionDetails.maxBidder), claimAmount);
             auctionProceeds += (releasedFromVault - claimAmount);
         }
 
@@ -1055,7 +1054,7 @@ abstract contract FermionFractions is
 
         // transfer to previus bidder if they used some of the fractions. Do not transfer the locked votes.
         if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
-        FundsLib.transferFundsFromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
+        transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
     }
 
     /**
@@ -1070,8 +1069,8 @@ abstract contract FermionFractions is
     ) internal {
         if (_depositAmount > 0) {
             address exchangeToken = $.exchangeToken;
-            FundsLib.validateIncomingPayment(exchangeToken, _depositAmount);
-            FundsLib.transferFundsFromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
+            validateIncomingPayment(exchangeToken, _depositAmount);
+            transferERC20FromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
         }
     }
 

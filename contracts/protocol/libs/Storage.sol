@@ -131,6 +131,17 @@ library FermionStorage {
         uint256 fermionFeeAmount;
         uint256 verifierFee;
         uint256 facilitatorFeeAmount;
+        // revised metadata
+        string revisedMetadata;
+        // buyer payout when the item is revised
+        uint16 sellerSplitProposal;
+        uint16 buyerSplitProposal;
+        // initial buyer
+        address initialBuyer;
+        // pyhgitals
+        FermionTypes.Phygital[] phygitals;
+        // phygitals recipient
+        uint256 phygitalsRecipient;
     }
 
     struct SellerLookups {

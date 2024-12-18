@@ -162,10 +162,33 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let facets = {};
 
   if (allModules || modules.includes("facets")) {
+    const nonce = 1n;
+    const nonceHex = ethers.toBeArray(nonce);
+    const input_arr = [diamondAddress, nonceHex];
+    const rlp_encoded = ethers.encodeRlp(input_arr);
+    const contract_address_long = ethers.keccak256(rlp_encoded);
+    const fermionFNFTBeaconAdress = "0x" + contract_address_long.substring(26); //Trim the first 24 characters.
+    const { chainId } = await ethers.provider.getNetwork();
+    const { bytecode: beaconProxyBytecode } = await ethers.getContractFactory("BeaconProxy");
+    const abiCoder = new ethers.AbiCoder();
+    const expectedfermionFNFTBeaconProxy = ethers.getCreate2Address(
+      diamondAddress,
+      ethers.solidityPackedKeccak256(["uint256"], [chainId]),
+      ethers.solidityPackedKeccak256(
+        ["bytes", "bytes"],
+        [beaconProxyBytecode, abiCoder.encode(["address", "bytes"], [fermionFNFTBeaconAdress, "0x"])],
+      ),
+    );
+    const cloneCode = `0x363d3d373d3d3d363d73${expectedfermionFNFTBeaconProxy.slice(2)}5af43d82803e903d91602b57fd5bf3`; // https://eips.ethereum.org/EIPS/eip-1167
+    const fnftCodeHash = ethers.keccak256(cloneCode);
+
     const constructorArgs = {
       MetaTransactionFacet: [diamondAddress],
-      OfferFacet: [bosonProtocolAddress],
-      VerificationFacet: [bosonProtocolAddress],
+      OfferFacet: [bosonProtocolAddress, fnftCodeHash],
+      VerificationFacet: [bosonProtocolAddress, fnftCodeHash, diamondAddress],
+      CustodyFacet: [fnftCodeHash],
+      CustodyVaultFacet: [fnftCodeHash],
+      FundsFacet: [fnftCodeHash],
     };
     facets = await deployFacets(facetNames, constructorArgs, true);
     await writeContracts(deploymentData, env, version);
