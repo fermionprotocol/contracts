@@ -40,18 +40,18 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
      * - `OngoingProposalExists` if there is an active proposal.
      * - `OracleInternalError` if the oracle's `getPrice` reverts with an error different from `InvalidPrice`.
      *
-     * @param newPrice The proposed new exit price.
-     * @param quorumPercent The required quorum percentage for the governance proposal (in basis points).
-     * @param voteDuration The duration of the governance proposal in seconds.
+     * @param _newPrice The proposed new exit price.
+     * @param _quorumPercent The required quorum percentage for the governance proposal (in basis points).
+     * @param _voteDuration The duration of the governance proposal in seconds.
      * @param _fermionProtocol Fermion diamond address containing the Oracle Registry Facet.
-     * @param fractionsBalance The fractions balance of the caller.
+     * @param _fractionsBalance The fractions balance of the caller.
      */
     function updateExitPrice(
-        uint256 newPrice,
-        uint256 quorumPercent,
-        uint256 voteDuration,
+        uint256 _newPrice,
+        uint256 _quorumPercent,
+        uint256 _voteDuration,
         address _fermionProtocol,
-        uint256 fractionsBalance
+        uint256 _fractionsBalance
     ) external {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.PriceUpdateProposal storage currentProposal = $.currentProposal;
@@ -75,33 +75,33 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
             }
         }
 
-        if (fractionsBalance == 0) {
+        if (_fractionsBalance == 0) {
             revert FractionalisationErrors.OnlyFractionOwner();
         }
 
-        if (quorumPercent < MIN_QUORUM_PERCENT || quorumPercent > HUNDRED_PERCENT) {
-            revert FermionGeneralErrors.InvalidPercentage(quorumPercent);
+        if (_quorumPercent < MIN_QUORUM_PERCENT || _quorumPercent > HUNDRED_PERCENT) {
+            revert FermionGeneralErrors.InvalidPercentage(_quorumPercent);
         }
 
-        if (voteDuration == 0) {
-            voteDuration = DEFAULT_GOV_VOTE_DURATION;
-        } else if (voteDuration < MIN_GOV_VOTE_DURATION || voteDuration > MAX_GOV_VOTE_DURATION) {
-            revert FractionalisationErrors.InvalidVoteDuration(voteDuration);
+        if (_voteDuration == 0) {
+            _voteDuration = DEFAULT_GOV_VOTE_DURATION;
+        } else if (_voteDuration < MIN_GOV_VOTE_DURATION || _voteDuration > MAX_GOV_VOTE_DURATION) {
+            revert FractionalisationErrors.InvalidVoteDuration(_voteDuration);
         }
 
         currentProposal.proposalId += 1;
-        currentProposal.newExitPrice = newPrice;
-        currentProposal.votingDeadline = block.timestamp + voteDuration;
-        currentProposal.quorumPercent = quorumPercent;
+        currentProposal.newExitPrice = _newPrice;
+        currentProposal.votingDeadline = block.timestamp + _voteDuration;
+        currentProposal.quorumPercent = _quorumPercent;
         currentProposal.yesVotes = 0;
         currentProposal.noVotes = 0;
         currentProposal.state = FermionTypes.PriceUpdateProposalState.Active;
 
         emit IFermionFractionsEvents.PriceUpdateProposalCreated(
             currentProposal.proposalId,
-            newPrice,
+            _newPrice,
             currentProposal.votingDeadline,
-            quorumPercent
+            _quorumPercent
         );
     }
 
@@ -117,14 +117,14 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
      *
-     * @param voteYes True to vote YES, false to vote NO.
-     * @param fractionsBalance The fractions balance of the voter.
-     * @param totalSupply Total supply of fractions for quorum calculation.
+     * @param _voteYes True to vote YES, false to vote NO.
+     * @param _fractionsBalance The fractions balance of the voter.
+     * @param _totalSupply Total supply of fractions for quorum calculation.
      */
-    function voteOnProposal(bool voteYes, uint256 fractionsBalance, uint256 totalSupply) external {
+    function voteOnProposal(bool _voteYes, uint256 _fractionsBalance, uint256 _totalSupply) external {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
-        uint256 liquidSupply = totalSupply -
+        uint256 _liquidSupply = _totalSupply -
             $.unrestricedRedeemableSupply -
             $.lockedRedeemableSupply -
             $.pendingRedeemableSupply;
@@ -134,29 +134,29 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
             revert FractionalisationErrors.ProposalNotActive(proposal.proposalId);
         }
 
-        if (!_finalizeProposal(proposal, liquidSupply)) {
-            if (fractionsBalance == 0) revert FractionalisationErrors.NoVotingPower(msgSender);
+        if (!_finalizeProposal(proposal, _liquidSupply)) {
+            if (_fractionsBalance == 0) revert FractionalisationErrors.NoVotingPower(msgSender);
 
             FermionTypes.PriceUpdateVoter storage voter = proposal.voters[msgSender];
             uint256 additionalVotes;
 
             if (voter.proposalId == proposal.proposalId) {
-                if (voter.votedYes != voteYes) revert FractionalisationErrors.ConflictingVote();
+                if (voter.votedYes != _voteYes) revert FractionalisationErrors.ConflictingVote();
                 unchecked {
-                    additionalVotes = fractionsBalance > voter.voteCount ? fractionsBalance - voter.voteCount : 0;
+                    additionalVotes = _fractionsBalance > voter.voteCount ? _fractionsBalance - voter.voteCount : 0;
                 }
                 if (additionalVotes == 0) revert FractionalisationErrors.AlreadyVoted();
             } else {
                 voter.proposalId = proposal.proposalId;
-                voter.votedYes = voteYes;
-                additionalVotes = fractionsBalance;
+                voter.votedYes = _voteYes;
+                additionalVotes = _fractionsBalance;
             }
-            voter.voteCount = fractionsBalance;
+            voter.voteCount = _fractionsBalance;
 
-            if (voteYes) proposal.yesVotes += additionalVotes;
+            if (_voteYes) proposal.yesVotes += additionalVotes;
             else proposal.noVotes += additionalVotes;
 
-            emit IFermionFractionsEvents.PriceUpdateVoted(proposal.proposalId, msgSender, fractionsBalance, voteYes);
+            emit IFermionFractionsEvents.PriceUpdateVoted(proposal.proposalId, msgSender, _fractionsBalance, _voteYes);
         }
     }
 
@@ -183,20 +183,20 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
 
         if (voter.proposalId != proposal.proposalId) revert FractionalisationErrors.NoVotingPower(msgSender);
 
-        uint256 votesToRemove = voter.voteCount;
+        uint256 _votesToRemove = voter.voteCount;
+        bool _votedYes = voter.votedYes;
 
-        bool votedYes = voter.votedYes;
         unchecked {
-            if (votedYes) {
-                proposal.yesVotes -= votesToRemove;
+            if (_votedYes) {
+                proposal.yesVotes -= _votesToRemove;
             } else {
-                proposal.noVotes -= votesToRemove;
+                proposal.noVotes -= _votesToRemove;
             }
         }
 
         delete proposal.voters[msgSender];
 
-        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(proposal.proposalId, msgSender, votesToRemove, votedYes);
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(proposal.proposalId, msgSender, _votesToRemove, _votedYes);
     }
 
     /**
@@ -206,36 +206,36 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
      * - PriceUpdateProposalFinalized (when the proposal is finalized)
      * - ExitPriceUpdated (if the proposal is executed successfully)
      *
-     * @param proposal The active price update proposal to finalize.
-     * @param liquidSupply The liquid supply of fractions, used to calculate the required quorum.
+     * @param _proposal The active price update proposal to finalize.
+     * @param _liquidSupply The liquid supply of fractions, used to calculate the required quorum.
      * @return finalized True if the proposal was successfully finalized, otherwise false.
      */
     function _finalizeProposal(
-        FermionTypes.PriceUpdateProposal storage proposal,
-        uint256 liquidSupply
+        FermionTypes.PriceUpdateProposal storage _proposal,
+        uint256 _liquidSupply
     ) internal returns (bool finalized) {
-        if (block.timestamp <= proposal.votingDeadline) {
+        if (block.timestamp <= _proposal.votingDeadline) {
             return false;
         }
 
-        uint256 totalVotes = proposal.yesVotes + proposal.noVotes;
-        uint256 quorumRequired = (liquidSupply * proposal.quorumPercent) / HUNDRED_PERCENT;
+        uint256 totalVotes = _proposal.yesVotes + _proposal.noVotes;
+        uint256 quorumRequired = (_liquidSupply * _proposal.quorumPercent) / HUNDRED_PERCENT;
 
         if (totalVotes >= quorumRequired) {
-            if (proposal.yesVotes > proposal.noVotes) {
-                proposal.state = FermionTypes.PriceUpdateProposalState.Executed;
-                Common._getBuyoutAuctionStorage().auctionParameters.exitPrice = proposal.newExitPrice;
-                emit IFermionFractionsEvents.ExitPriceUpdated(proposal.newExitPrice, false);
+            if (_proposal.yesVotes > _proposal.noVotes) {
+                _proposal.state = FermionTypes.PriceUpdateProposalState.Executed;
+                Common._getBuyoutAuctionStorage().auctionParameters.exitPrice = _proposal.newExitPrice;
+                emit IFermionFractionsEvents.ExitPriceUpdated(_proposal.newExitPrice, false);
             } else {
-                proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
+                _proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
             }
         } else {
-            proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
+            _proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
         }
 
         emit IFermionFractionsEvents.PriceUpdateProposalFinalized(
-            proposal.proposalId,
-            proposal.state == FermionTypes.PriceUpdateProposalState.Executed
+            _proposal.proposalId,
+            _proposal.state == FermionTypes.PriceUpdateProposalState.Executed
         );
 
         return true;

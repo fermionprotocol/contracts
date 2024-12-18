@@ -654,13 +654,13 @@ abstract contract FermionFractions is
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
      *
-     * @param voteYes True to vote YES, false to vote NO.
+     * @param _voteYes True to vote YES, false to vote NO.
      */
-    function voteOnProposal(bool voteYes) external {
+    function voteOnProposal(bool _voteYes) external {
         FNFT_PRICE_MANAGER.functionDelegateCall(
             abi.encodeCall(
                 IFermionFNFTPriceManager.voteOnProposal,
-                (voteYes, FermionFractionsERC20Base.balanceOf(_msgSender()), totalSupply())
+                (_voteYes, FermionFractionsERC20Base.balanceOf(_msgSender()), totalSupply())
             )
         );
     }
@@ -825,11 +825,11 @@ abstract contract FermionFractions is
     /**
      * @notice Returns the vote details for a specific voter in the current proposal.
      *
-     * @param voter The address of the voter.
+     * @param _voter The address of the voter.
      * @return voterDetails The details of the voter's vote.
      */
-    function getVoterDetails(address voter) external view returns (FermionTypes.PriceUpdateVoter memory voterDetails) {
-        voterDetails = Common._getBuyoutAuctionStorage().currentProposal.voters[voter];
+    function getVoterDetails(address _voter) external view returns (FermionTypes.PriceUpdateVoter memory voterDetails) {
+        voterDetails = Common._getBuyoutAuctionStorage().currentProposal.voters[_voter];
     }
 
     /**
