@@ -183,11 +183,11 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
 
         if (voter.proposalId != proposal.proposalId) revert FractionalisationErrors.NoVotingPower(msgSender);
 
-        uint256 _votesToRemove = voter.voteCount;
-        bool _votedYes = voter.votedYes;
+        uint256 votesToRemove = voter.voteCount;
+        bool votedYes = voter.votedYes;
 
         unchecked {
-            if (_votedYes) {
+            if (votedYes) {
                 proposal.yesVotes -= _votesToRemove;
             } else {
                 proposal.noVotes -= _votesToRemove;
@@ -196,7 +196,7 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
 
         delete proposal.voters[msgSender];
 
-        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(proposal.proposalId, msgSender, _votesToRemove, _votedYes);
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(proposal.proposalId, msgSender, votesToRemove, votedYes);
     }
 
     /**
