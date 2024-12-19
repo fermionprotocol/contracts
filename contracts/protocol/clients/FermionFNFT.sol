@@ -37,12 +37,9 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address _wrappedNative,
         address _fermionFNFTPriceManager
     )
-       
         FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative)
-       
         ERC2771Context(address(0))
         FundsLib(bytes32(0))
-   
         FermionFractions(_fermionFNFTPriceManager)
     {}
 
