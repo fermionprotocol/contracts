@@ -188,9 +188,9 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
 
         unchecked {
             if (votedYes) {
-                proposal.yesVotes -= _votesToRemove;
+                proposal.yesVotes -= votesToRemove;
             } else {
-                proposal.noVotes -= _votesToRemove;
+                proposal.noVotes -= votesToRemove;
             }
         }
 
