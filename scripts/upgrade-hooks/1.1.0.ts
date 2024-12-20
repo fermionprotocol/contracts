@@ -12,6 +12,7 @@ const client = new ApolloClient({
 interface Token {
   id: string;
   status: number;
+  priceLog: { amount: string | null };
 }
 
 interface Offer {
@@ -36,6 +37,9 @@ const OFFER_QUERY = gql`
       fNFTs {
         id
         status
+        priceLog {
+          amount
+        }
       }
     }
   }
@@ -64,11 +68,13 @@ async function fetchGraphQLData(): Promise<Offer[]> {
 /**
  * Calculate fees for backfilling based on offer details.
  */
-function calculateFees(verifierFee: bigint, facilitatorFeePercent: bigint, tokenId: string): FeeData {
-  const price = 0n; // Replace with actual price if available
-  const bosonProtocolFee = (price * 5n) / 1000n; // 0.5% of total price
+function calculateFees(verifierFee: bigint, facilitatorFeePercentBps: bigint, tokenId: string, price: bigint): FeeData {
+  const HUNDRED_PERCENT_BPS = 100_00n;
+  const BOSON_PROTOCOL_FEE_BPS = 50n; // 0.5%
+  const bosonProtocolFee = (price * BOSON_PROTOCOL_FEE_BPS) / HUNDRED_PERCENT_BPS;
   const fermionFeeAmount = 0n;
-  const facilitatorFeeAmount = ((price - bosonProtocolFee - verifierFee) * facilitatorFeePercent) / 100n;
+  const remainder = price - bosonProtocolFee - fermionFeeAmount - verifierFee;
+  const facilitatorFeeAmount = remainder > 0n ? (remainder * facilitatorFeePercentBps) / HUNDRED_PERCENT_BPS : 0n;
 
   return {
     tokenId,
@@ -88,20 +94,21 @@ export async function prepareBackfillData(): Promise<FeeData[]> {
 
   offers.forEach((offer) => {
     const verifierFee = BigInt(offer.verifierFee);
-    const facilitatorFeePercent = BigInt(offer.facilitatorFeePercent);
+    const facilitatorFeePercentBps = BigInt(offer.facilitatorFeePercent); // Already in BPS
 
     offer.fNFTs.forEach((token) => {
-      const feeData = calculateFees(verifierFee, facilitatorFeePercent, token.id);
+      // Handle null priceLog gracefully, default to 0 if price is missing
+      const price = token.priceLog?.amount ? BigInt(token.priceLog.amount) : 0n;
+
+      const feeData = calculateFees(verifierFee, facilitatorFeePercentBps, token.id, price);
       feeDataList.push(feeData);
     });
   });
 
-  // Serialize BigInt values for logging
   console.log(
     "Prepared Backfill Data:",
     JSON.stringify(feeDataList, (key, value) => (typeof value === "bigint" ? value.toString() : value), 2),
   );
-
   return feeDataList;
 }
 
@@ -112,13 +119,13 @@ export async function preUpgrade(protocolAddress: string) {
   console.log("Fetching and preparing backfill data...");
   const feeDataList = await prepareBackfillData();
 
-  const provider = new ethers.JsonRpcProvider(); // Updated for ethers v6
-  const signer = await provider.getSigner(); // Await the signer here
+  const provider = new ethers.JsonRpcProvider();
+  const signer = await provider.getSigner();
 
   const backfillingFacet = new ethers.Contract(
     protocolAddress,
     ["function backFillV1_1_0(FeeData[] calldata feeDataList) external"],
-    signer, // Pass the resolved signer
+    signer,
   );
 
   const chunkSize = 100;
