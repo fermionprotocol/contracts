@@ -1,9 +1,13 @@
-import { ethers } from "ethers";
 import { ApolloClient, InMemoryCache, gql } from "@apollo/client/core";
+import hre from "hardhat";
+import { AbiCoder } from "ethers";
 
+const { ethers } = hre; // Access ethers from hre
 const GRAPHQL_URL = "https://api.studio.thegraph.com/query/19713/fermion-testing-amoy/version/latest";
 const TOKEN_STATUSES = [3, 4, 5, 6, 7];
+const VERSION = "1.1.0";
 
+const abiCoder = new AbiCoder(); // Create a new AbiCoder instance
 const client = new ApolloClient({
   uri: GRAPHQL_URL,
   cache: new InMemoryCache(),
@@ -49,20 +53,15 @@ const OFFER_QUERY = gql`
  * Fetch GraphQL data for offers and tokens in specific states.
  */
 async function fetchGraphQLData(): Promise<Offer[]> {
-  try {
-    const response = await client.query({
-      query: OFFER_QUERY,
-      variables: { statuses: TOKEN_STATUSES },
-    });
+  const response = await client.query({
+    query: OFFER_QUERY,
+    variables: { statuses: TOKEN_STATUSES },
+  });
 
-    if (!response?.data?.offers) {
-      throw new Error("No data found in GraphQL response");
-    }
-    return response.data.offers;
-  } catch (error) {
-    console.error("Error fetching GraphQL data:", error);
-    throw error;
+  if (!response?.data?.offers) {
+    throw new Error("No data found in GraphQL response");
   }
+  return response.data.offers;
 }
 
 /**
@@ -92,51 +91,62 @@ export async function prepareBackfillData(): Promise<FeeData[]> {
   const offers = await fetchGraphQLData();
   const feeDataList: FeeData[] = [];
 
-  offers.forEach((offer) => {
+  for (const offer of offers) {
     const verifierFee = BigInt(offer.verifierFee);
     const facilitatorFeePercentBps = BigInt(offer.facilitatorFeePercent); // Already in BPS
 
-    offer.fNFTs.forEach((token) => {
-      // Handle null priceLog gracefully, default to 0 if price is missing
+    for (const token of offer.fNFTs) {
       const price = token.priceLog?.amount ? BigInt(token.priceLog.amount) : 0n;
 
       const feeData = calculateFees(verifierFee, facilitatorFeePercentBps, token.id, price);
       feeDataList.push(feeData);
-    });
-  });
+    }
+  }
 
   console.log(
     "Prepared Backfill Data:",
-    JSON.stringify(feeDataList, (key, value) => (typeof value === "bigint" ? value.toString() : value), 2),
+    JSON.stringify(feeDataList, (_key, value) => (typeof value === "bigint" ? value.toString() : value), 2),
   );
+
   return feeDataList;
 }
 
 /**
- * Perform pre-upgrade tasks, such as backfilling data.
+ * Perform pre-upgrade tasks, including deploying the BackfillingFacet contract,
+ * preparing initialization data, and making the diamond cut.
  */
+// TODO: test the preUpgrade hook in the migration PR.
 export async function preUpgrade(protocolAddress: string) {
+  // TODO: pause the protocol (this can be done in migration PR)
   console.log("Fetching and preparing backfill data...");
   const feeDataList = await prepareBackfillData();
 
-  const provider = new ethers.JsonRpcProvider();
-  const signer = await provider.getSigner();
+  console.log("Deploying BackfillingFacet...");
+  const BackfillingFacetFactory = await ethers.getContractFactory("BackfillingFacet");
+  const backfillingFacet = await BackfillingFacetFactory.deploy();
+  await backfillingFacet.deployed();
+  console.log(`BackfillingFacet deployed at: ${backfillingFacet.address}`);
 
-  const backfillingFacet = new ethers.Contract(
-    protocolAddress,
-    ["function backFillV1_1_0(FeeData[] calldata feeDataList) external"],
-    signer,
+  console.log("Preparing initialization calldata...");
+  const backFillCalldata = backfillingFacet.interface.encodeFunctionData("backFillV1_1_0", [feeDataList]);
+
+  const version = ethers.toUtf8Bytes(VERSION);
+  const addresses = [backfillingFacet.address];
+  const calldata = [backFillCalldata];
+  const interfacesToAdd: string[] = [];
+  const interfacesToRemove: string[] = [];
+
+  const backfillingCalldata = abiCoder.encode(
+    ["bytes32", "address[]", "bytes[]", "bytes4[]", "bytes4[]"],
+    [version, addresses, calldata, interfacesToAdd, interfacesToRemove],
   );
 
-  const chunkSize = 100;
-  for (let i = 0; i < feeDataList.length; i += chunkSize) {
-    const chunk = feeDataList.slice(i, i + chunkSize);
+  console.log("Calling DiamondCutFacet.diamondCut...");
+  const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", protocolAddress);
+  const tx = await diamondCutFacet.diamondCut([], backfillingFacet.address, backfillingCalldata);
 
-    const tx = await backfillingFacet.backFillV1_1_0(chunk);
-    await tx.wait();
+  console.log("Transaction sent. Waiting for confirmation...");
+  await tx.wait();
 
-    console.log(`Processed chunk ${Math.ceil(i / chunkSize) + 1}/${Math.ceil(feeDataList.length / chunkSize)}`);
-  }
-
-  console.log("Backfilling completed successfully.");
+  console.log("Diamond cut and backfilling initialization completed successfully.");
 }
