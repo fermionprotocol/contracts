@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { ADMIN } from "../domain/Constants.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { Access } from "../libs/Access.sol";
 
 /**
  * @title BackfillingFacet
  * @notice Handles backfilling of data during the v1.1.0 upgrade.
  *         This facet should only be active during the upgrade process.
  */
-contract BackfillingFacet is Access {
+contract BackfillingFacet {
     event FeesBackfilled(
         uint256 indexed tokenId,
         uint256 bosonProtocolFee,
@@ -35,7 +33,7 @@ contract BackfillingFacet is Access {
      *
      * @param feeDataList The list of fee data for each token.
      */
-    function backFillV1_1_0(FeeData[] calldata feeDataList) external onlyRole(ADMIN) {
+    function backFillV1_1_0(FeeData[] calldata feeDataList) external {
         FermionStorage.ProtocolLookups storage lookups = FermionStorage.protocolLookups();
 
         for (uint256 i; i < feeDataList.length; ++i) {
