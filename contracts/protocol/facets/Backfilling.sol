@@ -14,7 +14,8 @@ contract BackfillingFacet {
         uint256 bosonProtocolFee,
         uint256 fermionFeeAmount,
         uint256 verifierFee,
-        uint256 facilitatorFeeAmount
+        uint256 facilitatorFeeAmount,
+        uint256 itemFullPrice
     );
 
     struct FeeData {
@@ -35,27 +36,33 @@ contract BackfillingFacet {
      */
     function backFillV1_1_0(FeeData[] calldata feeDataList) external {
         FermionStorage.ProtocolLookups storage lookups = FermionStorage.protocolLookups();
+        uint256 length = feeDataList.length;
+        unchecked {
+            for (uint256 i; i < length; ++i) {
+                FeeData calldata feeData = feeDataList[i];
+                FermionStorage.TokenLookups storage tokenLookup = lookups.tokenLookups[feeData.tokenId];
 
-        for (uint256 i; i < feeDataList.length; ++i) {
-            FeeData calldata feeData = feeDataList[i];
-            FermionStorage.TokenLookups storage tokenLookup = lookups.tokenLookups[feeData.tokenId];
+                if (tokenLookup.bosonProtocolFee != 0) {
+                    continue;
+                }
 
-            if (tokenLookup.bosonProtocolFee != 0) {
-                continue;
+                uint256 itemFullPrice = tokenLookup.itemPrice;
+
+                tokenLookup.bosonProtocolFee = feeData.bosonProtocolFee;
+                tokenLookup.itemPrice = itemFullPrice + feeData.bosonProtocolFee;
+                tokenLookup.fermionFeeAmount = feeData.fermionFeeAmount;
+                tokenLookup.verifierFee = feeData.verifierFee;
+                tokenLookup.facilitatorFeeAmount = feeData.facilitatorFeeAmount;
+
+                emit FeesBackfilled(
+                    feeData.tokenId,
+                    feeData.bosonProtocolFee,
+                    feeData.fermionFeeAmount,
+                    feeData.verifierFee,
+                    feeData.facilitatorFeeAmount,
+                    itemFullPrice
+                );
             }
-
-            tokenLookup.bosonProtocolFee = feeData.bosonProtocolFee;
-            tokenLookup.fermionFeeAmount = feeData.fermionFeeAmount;
-            tokenLookup.verifierFee = feeData.verifierFee;
-            tokenLookup.facilitatorFeeAmount = feeData.facilitatorFeeAmount;
-
-            emit FeesBackfilled(
-                feeData.tokenId,
-                feeData.bosonProtocolFee,
-                feeData.fermionFeeAmount,
-                feeData.verifierFee,
-                feeData.facilitatorFeeAmount
-            );
         }
     }
 }
