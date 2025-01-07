@@ -190,5 +190,5 @@ interface FermionErrors is
     FractionalisationErrors,
     SignatureErrors,
     PriceOracleRegistryErrors,
-    WrapperErrors    
+    WrapperErrors
 {}
