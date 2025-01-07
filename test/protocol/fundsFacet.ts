@@ -238,6 +238,7 @@ describe("Funds", function () {
         auctionParameters,
         custodianVaultParameters,
         additionalDeposit,
+        ZeroAddress,
       );
 
       // Deposits funds
@@ -601,6 +602,7 @@ describe("Funds", function () {
         auctionParameters,
         custodianVaultParameters,
         additionalDeposit,
+        ZeroAddress,
       );
 
       // Deposits funds

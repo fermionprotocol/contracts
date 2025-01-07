@@ -64,6 +64,12 @@ contract FermionTypes {
         CheckedOut,
         Burned
     }
+    enum PriceUpdateProposalState {
+        NotInit, // Explicitly represents an uninitialized state
+        Active,
+        Executed,
+        Failed
+    }
 
     struct EntityData {
         address admin;
@@ -144,6 +150,8 @@ contract FermionTypes {
         uint256 unrestricedRedeemableAmount;
         uint256 lockedRedeemableSupply;
         mapping(uint256 => TokenAuctionInfo) tokenInfo;
+        address priceOracle;
+        PriceUpdateProposal currentProposal; // Stores the single active proposal
     }
 
     struct TokenAuctionInfo {
@@ -157,6 +165,23 @@ contract FermionTypes {
         uint256 duration; // in seconds; if zero, the default value is used
         uint256 unlockThreshold; // in percents; if zero, the default value is used
         uint256 topBidLockTime; // in seconds; if zero, the default value is used
+    }
+
+    struct PriceUpdateProposal {
+        uint256 proposalId; // Tracks the ID of the current proposal
+        uint256 newExitPrice;
+        uint256 votingDeadline;
+        uint256 quorumPercent; // in bps (e.g. 2000 is 20%)
+        uint256 yesVotes;
+        uint256 noVotes;
+        PriceUpdateProposalState state;
+        mapping(address => PriceUpdateVoter) voters;
+    }
+
+    struct PriceUpdateVoter {
+        uint256 proposalId; // Tracks the ID of the proposal the voter last voted on
+        bool votedYes;
+        uint256 voteCount;
     }
 
     struct Auction {

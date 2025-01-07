@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { HUNDRED_PERCENT, MINIMAL_BID_INCREMENT, MIN_FRACTIONS, MAX_FRACTIONS, TOP_BID_LOCK_TIME, AUCTION_DURATION, UNLOCK_THRESHOLD } from "../domain/Constants.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { FermionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
@@ -12,6 +12,9 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
+import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
+import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
@@ -24,23 +27,26 @@ abstract contract FermionFractions is
     IFermionFractionsEvents,
     IFermionFractions
 {
-    // keccak256(abi.encode(uint256(keccak256("fermion.buyout.auction.storage")) - 1)) & ~bytes32(uint256(0xff));
-    bytes32 private constant BuyoutAuctionStorageLocation =
-        0x224d6815573209d133aab26f2f52964556d2c06abbb82d0961460cd2e673cd00;
+    using Address for address;
 
-    function _getBuyoutAuctionStorage() private pure returns (FermionTypes.BuyoutAuctionStorage storage $) {
-        assembly {
-            $.slot := BuyoutAuctionStorageLocation
-        }
+    address private immutable FNFT_PRICE_MANAGER;
+
+    /**
+     * @notice Constructor
+     *
+     * @param _fnftPriceManager The address of FNFT price manager holding buyout auction exit price update
+     */
+    constructor(address _fnftPriceManager) {
+        if (_fnftPriceManager == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        FNFT_PRICE_MANAGER = _fnftPriceManager;
     }
-
     /**
      * @notice Initializes the contract
      *
      * @param _exchangeToken The address of the exchange token
      */
     function intializeFractions(address _exchangeToken) internal virtual {
-        _getBuyoutAuctionStorage().exchangeToken = _exchangeToken;
+        Common._getBuyoutAuctionStorage().exchangeToken = _exchangeToken;
     }
 
     /**
@@ -58,13 +64,15 @@ abstract contract FermionFractions is
      * - Token state is not Verified
      * - Token has been fractionalised already
      * - Caller is neither approved to transfer the NFTs nor is the fermion protocol
+     * - The oracle is not whitelisted in the oracle registry.
      *
      * @param _firstTokenId The starting token ID
      * @param _length The number of tokens to fractionalise
      * @param _fractionsAmount The number of fractions to mint for each NFT
      * @param _buyoutAuctionParameters The buyout auction parameters
      * @param _custodianVaultParameters The custodian vault parameters
-     * @param _depositAmount - the amount to deposit
+     * @param _depositAmount The amount to deposit
+     * @param _priceOracle The address of the price oracle.
      */
     function mintFractions(
         uint256 _firstTokenId,
@@ -72,15 +80,15 @@ abstract contract FermionFractions is
         uint256 _fractionsAmount,
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
         FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
-        uint256 _depositAmount
+        uint256 _depositAmount,
+        address _priceOracle
     ) external {
         if (_length == 0) {
             revert InvalidLength();
         }
 
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         if ($.nftCount > 0) {
-            // if other tokens are fractionalised already, use `mintFractions(uint256 _firstTokenId, uint256 _length)` instead
             revert InitialFractionalisationOnly();
         }
 
@@ -111,6 +119,11 @@ abstract contract FermionFractions is
             revert InvalidPartialAuctionThreshold();
 
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
+
+        if (_priceOracle != address(0)) {
+            if (!_isOracleApproved(_priceOracle)) revert PriceOracleNotWhitelisted(_priceOracle);
+            $.priceOracle = _priceOracle;
+        }
 
         // set the default values if not provided
         if (_buyoutAuctionParameters.duration == 0) _buyoutAuctionParameters.duration = AUCTION_DURATION;
@@ -154,7 +167,7 @@ abstract contract FermionFractions is
             revert InvalidLength();
         }
 
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         uint256 nftCount = $.nftCount;
         if (nftCount == 0) {
             revert MissingFractionalisation();
@@ -223,7 +236,7 @@ abstract contract FermionFractions is
     function voteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
         if (_fractionAmount == 0) revert InvalidAmount();
 
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
@@ -257,7 +270,7 @@ abstract contract FermionFractions is
                 // user removes the bid. To avoid this, at least one bid must exist.
                 if (auctionDetails.maxBid == 0) revert NoBids(_tokenId);
 
-                startAuction(_tokenId);
+                startAuctionInternal(_tokenId);
             }
         }
 
@@ -279,7 +292,7 @@ abstract contract FermionFractions is
     function removeVoteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
         if (_fractionAmount == 0) revert InvalidAmount();
 
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
@@ -303,6 +316,40 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Starts the auction for a specific fractionalized token. Can be called by anyone.
+     *
+     * Emits:
+     * - `AuctionStarted` event indicating the start of the auction.
+     *
+     * Reverts:
+     * - `TokenNotFractionalised` if the specified token has not been fractionalized.
+     * - `AuctionOngoing` if the auction is already ongoing or has transitioned to a state other than `NotStarted`.
+     * - `BidBelowExitPrice` if the highest bid is below the required exit price set for the auction.
+     *
+     * @param _tokenId The ID of the fractionalized token for which the auction is being started.
+     */
+    function startAuction(uint256 _tokenId) external {
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.AuctionDetails storage auctionDetails = getLastAuction(_tokenId, $).details;
+
+        if (!$.tokenInfo[_tokenId].isFractionalised) {
+            revert TokenNotFractionalised(_tokenId);
+        }
+
+        if (auctionDetails.state != FermionTypes.AuctionState.NotStarted) {
+            revert AuctionOngoing(_tokenId, auctionDetails.timer);
+        }
+
+        uint256 exitPrice = $.auctionParameters.exitPrice;
+        uint256 maxBid = auctionDetails.maxBid;
+        if (maxBid <= exitPrice) {
+            revert BidBelowExitPrice(_tokenId, maxBid, exitPrice);
+        }
+
+        startAuctionInternal(_tokenId);
+    }
+
+    /**
      * @notice Participate in the auction for a specific token.
      *
      * Emits a Bid event if successful.
@@ -317,7 +364,7 @@ abstract contract FermionFractions is
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
     function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         if (!$.tokenInfo[_tokenId].isFractionalised) revert TokenNotFractionalised(_tokenId);
 
         FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
@@ -348,7 +395,7 @@ abstract contract FermionFractions is
                 fractionsPerToken = liquidSupply() / $.nftCount;
                 if (_price > auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
                     // If price is above the exit price, the cutoff date is set
-                    startAuction(_tokenId);
+                    startAuctionInternal(_tokenId);
                 } else {
                     // reset ticker for Unbidding
                     auctionDetails.timer = block.timestamp + auctionParameters.topBidLockTime;
@@ -370,7 +417,7 @@ abstract contract FermionFractions is
             // If the locked fractions belong to other users, the bidder must still pay the corresponding price.
             _fractions = availableFractions;
 
-            if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuction(_tokenId);
+            if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuctionInternal(_tokenId);
             auctionDetails.state = FermionTypes.AuctionState.Reserved;
         }
 
@@ -404,7 +451,7 @@ abstract contract FermionFractions is
      * @param _tokenId The token Id
      */
     function removeBid(uint256 _tokenId) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
@@ -468,7 +515,7 @@ abstract contract FermionFractions is
      * @param _additionalFractions Number of fractions to exchange for auction proceeds (in addition to the locked fractions)
      */
     function claimWithLockedFractions(uint256 _tokenId, uint256 _auctionIndex, uint256 _additionalFractions) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.TokenAuctionInfo storage tokenInfo = $.tokenInfo[_tokenId];
         FermionTypes.Auction[] storage auctionList = tokenInfo.auctions;
         uint256 numberOfAuctions = auctionList.length; // it can be greater than one if the item was fractionalized multiple times
@@ -527,7 +574,7 @@ abstract contract FermionFractions is
      * @param _fractions Number of fractions to exchange for auction proceeds
      */
     function claim(uint256 _fractions) public {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         if (_fractions == 0) {
             revert InvalidAmount();
         }
@@ -554,6 +601,84 @@ abstract contract FermionFractions is
     function finalizeAndClaim(uint256 _tokenId, uint256 _fractions) external {
         finalizeAuction(_tokenId);
         claim(_fractions);
+    }
+
+    /**
+     * @notice Updates the exit price using either an oracle or a governance proposal.
+     *         If the oracle provides a valid price, it is updated directly; otherwise,
+     *         a governance proposal is created.
+     *
+     * @dev If an oracle is set, the price is fetched and used if valid. Anyone can update
+     *      the price if oracle has bee configured.
+     *
+     * Emits:
+     * - `ExitPriceUpdated` if the exit price is updated via the oracle.
+     * - `PriceUpdateProposalCreated` if a governance proposal is created.
+     *
+     * Reverts:
+     * - `OnlyFractionOwner` if the caller is not a fraction owner.
+     * - `InvalidQuorumPercent` if the `quorumPercent` is outside the allowed range.
+     * - `InvalidVoteDuration` if the `voteDuration` is outside the allowed range.
+     * - `OngoingProposalExists` if there is an active proposal.
+     * - `OracleInternalError` if the oracle's `getPrice` reverts with an error different from `InvalidPrice`.
+     * - `PriceOracleNotWhitelisted` if the oracle is not whitelisted in the registry.
+     *
+     * @param _newPrice The proposed new exit price.
+     * @param _quorumPercent The required quorum percentage for the governance proposal (in basis points).
+     * @param _voteDuration The duration of the governance proposal in seconds.
+     */
+    function updateExitPrice(uint256 _newPrice, uint256 _quorumPercent, uint256 _voteDuration) external {
+        FNFT_PRICE_MANAGER.functionDelegateCall(
+            abi.encodeCall(
+                IFermionFNFTPriceManager.updateExitPrice,
+                (_newPrice, _quorumPercent, _voteDuration, fermionProtocol, balanceOf(_msgSender()))
+            )
+        );
+    }
+    /**
+     * @notice Allows a fraction owner to vote on the current active proposal.
+     *         If the caller has acquired additional fractions, the vote will be updated
+     *         to include the newly acquired fractions.
+     *
+     * @dev The caller must vote with all fractions they own at the time of calling.
+     *      If the caller has already voted, the vote must match the previous choice
+     *      (YES or NO). Additional votes are automatically added to the previous choice.
+     *
+     * Emits:
+     * - `PriceUpdateVoted` when a fraction owner casts or updates their vote.
+     *
+     * Reverts:
+     * - `ProposalNotActive` if the proposal is not active.
+     * - `NoVotingPower` if the caller has no fractions to vote with.
+     * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
+     * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
+     *
+     * @param _voteYes True to vote YES, false to vote NO.
+     */
+    function voteOnProposal(bool _voteYes) external {
+        FNFT_PRICE_MANAGER.functionDelegateCall(
+            abi.encodeCall(
+                IFermionFNFTPriceManager.voteOnProposal,
+                (_voteYes, FermionFractionsERC20Base.balanceOf(_msgSender()), totalSupply())
+            )
+        );
+    }
+
+    /**
+     * @notice Allows a voter to explicitly remove their vote on an active proposal.
+     *
+     * @dev removes the complete vote count for the msg.sender
+     *
+     * Emits:
+     * - `PriceUpdateVoteRemoved` when a vote is successfully removed.
+     *
+     * Reverts:
+     * - `ProposalNotActive` if the proposal is not active.
+     * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
+     *
+     */
+    function removeVoteOnProposal() external {
+        FNFT_PRICE_MANAGER.functionDelegateCall(abi.encodeCall(IFermionFNFTPriceManager.removeVoteOnProposal, ()));
     }
 
     /**
@@ -586,7 +711,7 @@ abstract contract FermionFractions is
      * @notice Returns the liquid number of fractions. Represents fractions of F-NFTs that are fractionalised
      */
     function liquidSupply() public view virtual returns (uint256) {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         return totalSupply() - $.unrestricedRedeemableSupply - $.lockedRedeemableSupply - $.pendingRedeemableSupply;
     }
 
@@ -594,7 +719,7 @@ abstract contract FermionFractions is
      * @notice Returns the buyout auction parameters
      */
     function getBuyoutAuctionParameters() external view returns (FermionTypes.BuyoutAuctionParameters memory) {
-        return _getBuyoutAuctionStorage().auctionParameters;
+        return Common._getBuyoutAuctionStorage().auctionParameters;
     }
 
     /**
@@ -604,7 +729,7 @@ abstract contract FermionFractions is
      * @return auction The auction details
      */
     function getAuctionDetails(uint256 _tokenId) external view returns (FermionTypes.AuctionDetails memory) {
-        return getLastAuction(_tokenId, _getBuyoutAuctionStorage()).details;
+        return getLastAuction(_tokenId, Common._getBuyoutAuctionStorage()).details;
     }
 
     /**
@@ -618,7 +743,7 @@ abstract contract FermionFractions is
         uint256 _tokenId,
         uint256 _auctionIndex
     ) external view returns (FermionTypes.AuctionDetails memory) {
-        FermionTypes.Auction[] storage auctionList = _getBuyoutAuctionStorage().tokenInfo[_tokenId].auctions;
+        FermionTypes.Auction[] storage auctionList = Common._getBuyoutAuctionStorage().tokenInfo[_tokenId].auctions;
         uint256 numberOfAuctions = auctionList.length; // it can be greater than one if the item was fractionalized multiple times
         if (_auctionIndex >= numberOfAuctions) {
             revert InvalidAuctionIndex(_auctionIndex, numberOfAuctions);
@@ -638,7 +763,7 @@ abstract contract FermionFractions is
     function getVotes(
         uint256 _tokenId
     ) external view returns (uint256 totalVotes, uint256 threshold, uint256 availableFractions) {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
 
         uint256 fractionsPerToken = auction.details.totalFractions;
@@ -657,7 +782,53 @@ abstract contract FermionFractions is
      * @return lockedVotes The locked votes
      */
     function getIndividualLockedVotes(uint256 _tokenId, address _voter) external view returns (uint256 lockedVotes) {
-        return getLastAuction(_tokenId, _getBuyoutAuctionStorage()).votes.individual[_voter];
+        return getLastAuction(_tokenId, Common._getBuyoutAuctionStorage()).votes.individual[_voter];
+    }
+
+    /**
+     * @notice Returns the non-mapping details of the current active proposal.
+     *
+     * @return proposalId The unique ID of the proposal.
+     * @return newExitPrice The proposed exit price.
+     * @return votingDeadline The deadline for voting.
+     * @return quorumPercent The required quorum percentage.
+     * @return yesVotes The number of votes in favor.
+     * @return noVotes The number of votes against.
+     * @return state The state of the proposal (Active, Executed, or Failed).
+     */
+    function getCurrentProposalDetails()
+        external
+        view
+        returns (
+            uint256 proposalId,
+            uint256 newExitPrice,
+            uint256 votingDeadline,
+            uint256 quorumPercent,
+            uint256 yesVotes,
+            uint256 noVotes,
+            FermionTypes.PriceUpdateProposalState state
+        )
+    {
+        FermionTypes.PriceUpdateProposal storage proposal = Common._getBuyoutAuctionStorage().currentProposal;
+        return (
+            proposal.proposalId,
+            proposal.newExitPrice,
+            proposal.votingDeadline,
+            proposal.quorumPercent,
+            proposal.yesVotes,
+            proposal.noVotes,
+            proposal.state
+        );
+    }
+
+    /**
+     * @notice Returns the vote details for a specific voter in the current proposal.
+     *
+     * @param _voter The address of the voter.
+     * @return voterDetails The details of the voter's vote.
+     */
+    function getVoterDetails(address _voter) external view returns (FermionTypes.PriceUpdateVoter memory voterDetails) {
+        voterDetails = Common._getBuyoutAuctionStorage().currentProposal.voters[_voter];
     }
 
     /**
@@ -712,8 +883,8 @@ abstract contract FermionFractions is
      *
      * @param _tokenId The token ID
      */
-    function startAuction(uint256 _tokenId) internal virtual {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+    function startAuctionInternal(uint256 _tokenId) internal virtual {
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.AuctionDetails storage auctionDetails = getLastAuction(_tokenId, $).details;
 
         auctionDetails.state = FermionTypes.AuctionState.Ongoing;
@@ -764,7 +935,7 @@ abstract contract FermionFractions is
      * @return auctionDetails The auction details
      */
     function finalizeAuction(uint256 _tokenId) internal returns (FermionTypes.AuctionDetails storage auctionDetails) {
-        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
         auctionDetails = auction.details;
 
@@ -901,5 +1072,65 @@ abstract contract FermionFractions is
             validateIncomingPayment(exchangeToken, _depositAmount);
             transferERC20FromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
         }
+    }
+
+    /**
+     * @notice Adjusts the voter's records on transfer by removing votes if the remaining balance cannot support them.
+     *         This ensures the proposal's vote count remains accurate.
+     *
+     * @dev If the voter has no active votes or the current proposal is not active, no adjustments are made.
+     *      If the voter's remaining balance after the transfer is greater than or equal to their vote count,
+     *      no votes are removed. Otherwise, votes are reduced proportionally.
+     *
+     * @param voter The address of the voter whose votes are being adjusted.
+     * @param amount The number of fractions being transferred.
+     */
+    function _adjustVotesOnTransfer(address voter, uint256 amount) internal {
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
+
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
+            return; // Proposal is not active
+        }
+
+        FermionTypes.PriceUpdateVoter storage voterData = proposal.voters[voter];
+        uint256 voteCount = voterData.voteCount;
+
+        if (voteCount == 0 || voterData.proposalId != proposal.proposalId) {
+            return; // Voter has no active votes
+        }
+
+        uint256 remainingBalance = FermionFractionsERC20Base.balanceOf(voter) - amount;
+
+        if (remainingBalance >= voteCount) {
+            return; // Remaining balance is sufficient to support existing votes
+        }
+
+        uint256 votesToRemove = voteCount - remainingBalance;
+        voterData.voteCount = remainingBalance;
+
+        unchecked {
+            if (voterData.votedYes) {
+                proposal.yesVotes -= votesToRemove;
+            } else {
+                proposal.noVotes -= votesToRemove;
+            }
+        }
+    }
+
+    /**
+     * @notice Checks if the given oracle is approved in the oracle registry.
+     *
+     * @param _oracle The address of the price oracle to check.
+     * @return isApproved True if the oracle is approved, otherwise false.
+     */
+    function _isOracleApproved(address _oracle) internal view returns (bool) {
+        return IPriceOracleRegistry(fermionProtocol).isPriceOracleApproved(_oracle);
+    }
+
+    ///////// overrides ///////////
+    function _update(address from, address to, uint256 value) internal virtual override {
+        _adjustVotesOnTransfer(from, value);
+        return super._update(from, to, value);
     }
 }

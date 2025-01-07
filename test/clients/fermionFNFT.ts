@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { getInterfaceID, deployMockTokens } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, MaxUint256, ZeroHash } from "ethers";
+import { Contract, MaxUint256, ZeroHash, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { TokenState } from "../utils/enums";
 
@@ -37,11 +37,15 @@ describe("FermionFNFT", function () {
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
 
+    const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
+    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionFNFT = await FermionFNFT.deploy(
       mockBosonPriceDiscovery.address,
       await fermionSeaportWrapper.getAddress(),
       wallets[10].address,
+      await fermionFNFTPriceManager.getAddress(),
     ); // dummy address
 
     const Proxy = await ethers.getContractFactory("MockProxy");
@@ -165,6 +169,7 @@ describe("FermionFNFT", function () {
             auctionParameters,
             custodianVaultParameters,
             additionalDeposit,
+            ZeroAddress,
           );
 
         approvedAccount = wallets[4];
@@ -244,6 +249,7 @@ describe("FermionFNFT", function () {
           auctionParameters,
           custodianVaultParameters,
           additionalDeposit,
+          ZeroAddress,
         );
 
       // Approve to 0 address

@@ -4,7 +4,7 @@ import { glob } from "glob";
 import { ethers } from "hardhat";
 import { deploySuite } from "../../scripts/deploy";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { BigNumberish, Contract, Interface, toBeHex } from "ethers";
+import { BigNumberish, Contract, Interface, toBeHex, TransactionResponse } from "ethers";
 import { subtask } from "hardhat/config";
 import { EntityRole, AccountRole } from "./enums";
 import { expect } from "chai";
@@ -226,4 +226,10 @@ export function calculateMinimalPrice(
   }
 
   return minimalPrice;
+}
+
+export async function getBlockTimestampFromTransaction(tx: TransactionResponse): Promise<number> {
+  const receipt = await tx.wait(); // Wait for the transaction to be mined
+  const block = await ethers.provider.getBlock(receipt.blockNumber); // Fetch the block details
+  return block.timestamp; // Return the block timestamp
 }

@@ -58,6 +58,13 @@ export enum AuctionState {
   Redeemed,
 }
 
+export const enum PriceUpdateProposalState {
+  NotInit = 0, // Explicitly represents an uninitialized state
+  Active = 1,
+  Executed = 2,
+  Failed = 3,
+}
+
 export function enumIterator(enumObject: any) {
   return Object.keys(enumObject).filter((key) => !isNaN(Number(key)));
 }
