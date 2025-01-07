@@ -693,7 +693,9 @@ describe("FermionFNFT - wrapper tests", function () {
       await mockERC20.mint(wrapperAddress, prices[1]);
 
       buyerAddress = wallets[4].address;
-      await fermionWrapperProxy.connect(seaportSigner).transferFrom(wrapperAddress, buyerAddress, startTokenId);
+      await fermionWrapperProxy
+        .connect(seaportSigner)
+        .transferFrom(wrapperAddress, buyerAddress, startTokenId, { gasPrice: 0 });
     });
 
     it("Fermion protocol can unwrap - non zero price", async function () {
