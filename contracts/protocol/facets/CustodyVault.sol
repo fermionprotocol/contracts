@@ -470,7 +470,8 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, CustodyLib,
                     DEFAULT_FRACTION_AMOUNT,
                     _buyoutAuctionParameters,
                     _custodianVaultParameters,
-                    0
+                    0,
+                    address(0)
                 );
 
                 setupCustodianOfferVault(_tokenId, 1, _custodianVaultParameters, 0, false);

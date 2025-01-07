@@ -31,12 +31,12 @@ describe("DiamondTest", async function () {
     initializationFacet = await ethers.getContractAt("InitializationFacet", diamondAddress);
   });
 
-  it("should have 7 facets -- call to facetAddresses function", async () => {
+  it("should have 8 facets -- call to facetAddresses function", async () => {
     for (const address of await diamondLoupeFacet.facetAddresses()) {
       addresses.push(address);
     }
     console.log({ addresses });
-    assert.equal(addresses.length, 13); // default facets: [diamondCut, diamondLoupe, accessControl, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause, config, custodyVault]
+    assert.equal(addresses.length, 14); // default facets: [diamondCut, diamondLoupe, accessControl, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause, config, custodyVault, priceOracleRegistry]
   });
 
   it("static calls work", async () => {
