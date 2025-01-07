@@ -25,6 +25,9 @@ library FermionStorage {
     // keccak256(abi.encode(uint256(keccak256("fermion.meta.transaction")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant META_TRANSACTION_POSITION =
         0x1b00ae0f5ca50b57738405440d11dc84d7b23d830f08bc0a651be8df02efae00;
+    // keccak256(abi.encode(uint256(keccak256("fermion.price.oracle.registry")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant PRICE_ORACLE_REGISTRY_STORAGE_POSITION =
+        0xf3e4b6e521454dd4d56ea49cf25ff76edb944d588972b9362ced848f4db54500;
 
     // Protocol status storage
     /// @custom:storage-location erc7201:fermion.protocol.status
@@ -167,6 +170,13 @@ library FermionStorage {
         mapping(bytes32 => bool) isAllowlisted;
     }
 
+    // Storage related to Price Oracle Registry
+    /// @custom:storage-location erc7201:fermion.price.oracle.registry
+    struct PriceOracleRegistryStorage {
+        // oracle address => identifier (e.g GOLD, REAL_ESTATE, ROLEX_REF214325)
+        mapping(address => bytes32) priceOracles;
+    }
+
     /**
      * @notice Gets the protocol status slot
      *
@@ -234,5 +244,16 @@ library FermionStorage {
     ) internal view returns (uint256 offerId, FermionTypes.Offer storage offer) {
         offerId = _tokenId >> 128;
         offer = protocolEntities().offer[offerId];
+    }
+
+    /**
+     * @notice Gets the price oracle registry storage slot.
+     *
+     * @return storageRef - the price oracle registry storage
+     */
+    function priceOracleRegistryStorage() internal pure returns (PriceOracleRegistryStorage storage storageRef) {
+        assembly {
+            storageRef.slot := PRICE_ORACLE_REGISTRY_STORAGE_POSITION
+        }
     }
 }

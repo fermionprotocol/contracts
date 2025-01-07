@@ -1144,6 +1144,9 @@ describe("MetaTransactions", function () {
           const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
           fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
 
+          const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
+          const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+
           const MetaTxTestFactory = await getContractFactory("MetaTxTest");
           const dummyAddress = await fermionFNFT.getAddress();
 
@@ -1151,6 +1154,7 @@ describe("MetaTransactions", function () {
             dummyAddress,
             await fermionSeaportWrapper.getAddress(),
             dummyAddress,
+            await fermionFNFTPriceManager.getAddress(),
           );
 
           const Proxy = await ethers.getContractFactory("MockProxy");

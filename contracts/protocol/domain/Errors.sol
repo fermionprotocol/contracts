@@ -85,6 +85,7 @@ interface AuctionErrors {
     error AuctionFinalized(uint256 tokenId);
     error NoFractionsAvailable(uint256 tokenId);
     error NoBids(uint256 tokenId);
+    error BidBelowExitPrice(uint256 tokenId, uint256 bid, uint256 exitPrice);
 }
 
 interface CustodianVaultErrors is AuctionErrors {
@@ -135,6 +136,7 @@ interface FractionalisationErrors is AuctionErrors {
     error InvalidFractionsAmount(uint256 amount, uint256 min, uint256 max);
     error InvalidExitPrice(uint256 amount);
     error AlreadyFractionalized(uint256 tokenId);
+    error PriceOracleNotWhitelisted(address oracleAddress);
 
     error NotMaxBidder(uint256 tokenId, address caller, address winner);
     error AlreadyRedeemed(uint256 tokenId);
@@ -149,6 +151,23 @@ interface FractionalisationErrors is AuctionErrors {
     error TokenNotFractionalised(uint256 tokenId);
     error InvalidAuctionIndex(uint256 auctionIndex, uint256 numberOfAuctions); // auctionIndex should be less than numberOfAuctions
     error AuctionReserved(uint256 tokenId);
+    error ProposalNotActive(uint256 proposalId);
+    error AlreadyVoted();
+    error NoVotingPower(address voter);
+    error OnlyFractionOwner();
+    error InvalidVoteDuration(uint256 voteDuration);
+    error OngoingProposalExists();
+    error ConflictingVote();
+    error OracleInternalError();
+}
+
+interface PriceOracleRegistryErrors {
+    error InvalidOracleAddress();
+    error InvalidIdentifier();
+    error OracleAlreadyApproved();
+    error OracleNotApproved();
+    error OracleValidationFailed();
+    error OracleReturnedInvalidPrice();
 }
 
 interface WrapperErrors {
@@ -170,5 +189,6 @@ interface FermionErrors is
     MetaTransactionErrors,
     FractionalisationErrors,
     SignatureErrors,
-    WrapperErrors
+    PriceOracleRegistryErrors,
+    WrapperErrors    
 {}

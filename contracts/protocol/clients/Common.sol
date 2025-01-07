@@ -36,6 +36,16 @@ library Common {
         }
     }
 
+    // keccak256(abi.encode(uint256(keccak256("fermion.buyout.auction.storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant BuyoutAuctionStorageLocation =
+        0x224d6815573209d133aab26f2f52964556d2c06abbb82d0961460cd2e673cd00;
+
+    function _getBuyoutAuctionStorage() internal pure returns (FermionTypes.BuyoutAuctionStorage storage $) {
+        assembly {
+            $.slot := BuyoutAuctionStorageLocation
+        }
+    }
+
     /**
      * @notice Checks if the token is in the expected state and the caller is the expected address
      *
