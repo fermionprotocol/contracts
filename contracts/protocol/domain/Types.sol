@@ -111,6 +111,22 @@ contract FermionTypes {
         uint256 taxAmount;
     }
 
+    enum CustodianUpdateStatus {
+        None,
+        Requested,
+        Accepted,
+        Rejected
+    }
+
+    struct CustodianUpdateRequest {
+        CustodianUpdateStatus status;
+        uint256 newCustodianId;
+        CustodianFee newCustodianFee;
+        uint256 requestTimestamp;
+        bool keepExistingParameters;
+        bool isEmergencyUpdate;
+    }
+
     struct CustodianVaultParameters {
         uint256 partialAuctionThreshold;
         uint256 partialAuctionDuration;

@@ -74,6 +74,15 @@ interface CustodyErrors {
         FermionTypes.CheckoutRequestStatus expectedStatus,
         FermionTypes.CheckoutRequestStatus actualStatus
     );
+    error InvalidCustodianUpdateStatus(
+        uint256 tokenId,
+        FermionTypes.CustodianUpdateStatus expected,
+        FermionTypes.CustodianUpdateStatus actual
+    );
+    error TokenCheckedOut(uint256 tokenId);
+    error InsufficientVaultBalance(uint256 tokenId, uint256 required, uint256 available);
+    error UpdateRequestExpired(uint256 tokenId);
+    error UpdateRequestTooRecent(uint256 tokenId, uint256 waitTime);
 }
 
 interface AuctionErrors {

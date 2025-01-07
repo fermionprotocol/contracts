@@ -142,6 +142,8 @@ library FermionStorage {
         FermionTypes.Phygital[] phygitals;
         // phygitals recipient
         uint256 phygitalsRecipient;
+        // custodian update request
+        FermionTypes.CustodianUpdateRequest custodianUpdateRequest;
     }
 
     struct SellerLookups {
