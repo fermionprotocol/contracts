@@ -1,5 +1,5 @@
 import { loadFixture, setCode } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployMockTokens } from "../utils/common";
+import { applyPercentage, deployMockTokens } from "../utils/common";
 import { expect } from "chai";
 import hre, { ethers } from "hardhat";
 import { Contract, MaxUint256 } from "ethers";
@@ -870,16 +870,7 @@ describe("FermionFNFT - wrapper tests", function () {
     });
 
     it("Some tokens have revised URI", async function () {
-      const seller = wallets[3];
       const revisedMetadataURI = "https://revised.com";
-      await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
-      await fermionProtocolSigner.sendTransaction({
-        to: await fermionWrapperProxy.getAddress(),
-        data:
-          fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
-          fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
-      });
-
       for (let i = 0n; i < quantity; i = i + 2n) {
         const tokenId = startTokenId + i;
         await mockFermion.setRevisedMetadata(tokenId, `${revisedMetadataURI}${i}`);
@@ -913,6 +904,68 @@ describe("FermionFNFT - wrapper tests", function () {
 
         tokenId = startTokenId + quantity;
         await expect(fermionWrapperProxy.tokenURI(tokenId)).to.be.revertedWithCustomError(
+          fermionWrapper,
+          "ERC721NonexistentToken",
+        );
+      });
+    });
+  });
+
+  context("royaltyInfo", function () {
+    const startTokenId = 2n ** 128n + 1n;
+    const quantity = 10n;
+    const offerId = 1n;
+    const royaltyPercentage = 2500; // 25%
+    let royaltyRecipient: string;
+
+    before(async function () {
+      royaltyRecipient = wallets[4].address;
+    });
+
+    beforeEach(async function () {
+      await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
+
+      await fermionWrapperProxy.initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerId,
+        metadataURI,
+      );
+
+      const seller = wallets[3];
+      await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
+      await fermionProtocolSigner.sendTransaction({
+        to: await fermionWrapperProxy.getAddress(),
+        data:
+          fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
+          fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+      });
+
+      await mockFermion.setRoyaltyInfo(royaltyPercentage, royaltyRecipient);
+    });
+
+    it("Royalty info returns correct recipient and royalty amount", async function () {
+      let salePrice = parseEther("1");
+
+      const [receiver, royaltyAmount] = await fermionWrapperProxy.royaltyInfo(startTokenId, salePrice);
+      expect(receiver).to.equal(royaltyRecipient);
+      expect(royaltyAmount).to.equal(applyPercentage(salePrice, royaltyPercentage));
+
+      salePrice = parseEther("1.2345");
+      const [, newRoyaltyAmount] = await fermionWrapperProxy.royaltyInfo(startTokenId, salePrice);
+      expect(newRoyaltyAmount).to.equal(applyPercentage(salePrice, royaltyPercentage));
+    });
+
+    context("Revert reasons", function () {
+      it("Non existent", async function () {
+        let tokenId = 0n;
+        await expect(fermionWrapperProxy.royaltyInfo(tokenId, "1"))
+          .to.be.revertedWithCustomError(fermionWrapper, "ERC721NonexistentToken")
+          .withArgs(tokenId);
+
+        tokenId = startTokenId + quantity;
+        await expect(fermionWrapperProxy.royaltyInfo(tokenId, "1")).to.be.revertedWithCustomError(
           fermionWrapper,
           "ERC721NonexistentToken",
         );

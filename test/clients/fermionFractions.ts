@@ -2245,18 +2245,25 @@ describe("FermionFNFT - fractionalisation tests", function () {
       biddersFractions: bigint,
       sellerShareAdjusted = sellerShare,
       bidAmount = price,
-      vaultPayout = 0n,
+      vaultOrProtocolPayout = 0n,
     ) {
       await fermionFNFTProxy.connect(bidders[0]).redeem(startTokenId);
       expect(await fermionFNFTProxy.liquidSupply()).to.equal(0n);
-      await verifyEventsAndBalances("claim", [], biddersFractions, sellerShareAdjusted, bidAmount, vaultPayout);
+      await verifyEventsAndBalances(
+        "claim",
+        [],
+        biddersFractions,
+        sellerShareAdjusted,
+        bidAmount,
+        vaultOrProtocolPayout,
+      );
     }
 
     async function finalizeAndClaim(
       biddersFractions: bigint,
       sellerShareAdjusted = sellerShare,
       bidAmount = price,
-      vaultPayout = 0n,
+      vaultOrProtocolPayout = 0n,
     ) {
       expect(await fermionFNFTProxy.liquidSupply()).to.equal(0n);
       await verifyEventsAndBalances(
@@ -2265,7 +2272,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         biddersFractions,
         sellerShareAdjusted,
         bidAmount,
-        vaultPayout,
+        vaultOrProtocolPayout,
         false,
       );
     }
@@ -2274,7 +2281,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       biddersFractions: bigint,
       sellerShareAdjusted = sellerShare,
       bidAmount = price,
-      vaultPayout = 0n,
+      vaultOrProtocolPayout = 0n,
     ) {
       expect(await fermionFNFTProxy.liquidSupply()).to.equal(0n);
       await verifyEventsAndBalances(
@@ -2283,7 +2290,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         biddersFractions,
         sellerShareAdjusted,
         bidAmount,
-        vaultPayout,
+        vaultOrProtocolPayout,
         false,
       );
     }
@@ -2294,13 +2301,13 @@ describe("FermionFNFT - fractionalisation tests", function () {
       biddersFractions: bigint,
       sellerShareAdjusted = sellerShare,
       bidAmount = price,
-      vaultPayout = 0n,
+      vaultOrProtocolPayout = 0n,
       redeemed = true,
     ) {
       expect(await fermionFNFTProxy.totalSupply()).to.equal(fractionsPerToken - (redeemed ? biddersFractions : 0n));
 
       const availableVaultPayout =
-        vaultPayout - applyPercentage(vaultPayout, (biddersFractions * 10000n) / fractionsPerToken);
+        vaultOrProtocolPayout - applyPercentage(vaultOrProtocolPayout, (biddersFractions * 10000n) / fractionsPerToken);
 
       const availableForClaim = fractionsPerToken - biddersFractions;
 
@@ -2437,6 +2444,37 @@ describe("FermionFNFT - fractionalisation tests", function () {
           await setNextBlockTimestamp(String(auctionEnd + 1n));
 
           await finalizations[scenario](fractions, sellerShare, bidAmount, amountToRelease);
+        });
+
+        it("Custody vault declares some debt", async function () {
+          const amountToRepay = parseEther("0.03");
+          await mockExchangeToken.mint(await fermionMock.getAddress(), amountToRepay);
+          await fermionMock.setAmountToRelease(-amountToRepay);
+
+          const fractions = 0n;
+          const bidAmount = price;
+          await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+          const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
+          const blockTimeStamp = (await tx.getBlock()).timestamp;
+          const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+          await setNextBlockTimestamp(String(auctionEnd + 1n));
+
+          await finalizations[scenario](fractions, sellerShare, bidAmount, -amountToRepay);
+        });
+
+        it("Protocol takes some royalties", async function () {
+          const royaltyAmount = parseEther("0.01");
+          await fermionMock.setRoyalties(royaltyAmount);
+
+          const fractions = 0n;
+          const bidAmount = price;
+          await mockExchangeToken.connect(bidders[0]).approve(await fermionFNFTProxy.getAddress(), bidAmount);
+          const tx = await fermionFNFTProxy.connect(bidders[0]).bid(startTokenId, bidAmount, fractions);
+          const blockTimeStamp = (await tx.getBlock()).timestamp;
+          const auctionEnd = BigInt(blockTimeStamp) + auctionParameters.duration;
+          await setNextBlockTimestamp(String(auctionEnd + 1n));
+
+          await finalizations[scenario](fractions, sellerShare, bidAmount, -royaltyAmount);
         });
       });
     });

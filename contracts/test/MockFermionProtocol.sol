@@ -16,6 +16,8 @@ contract MockFermion {
     address private destinationOverride;
     int256 private amountToRelease;
     uint256 private royalties;
+    uint256 private royaltyPercentage;
+    address private royaltyRecipient;
 
     mapping(address => bytes32) private approvedOracles;
 
@@ -84,13 +86,22 @@ contract MockFermion {
         return approvedOracles[oracleAddress];
     }
 
+    function setRoyalties(uint256 _royalties) external {
+        royalties = _royalties;
+    }
+
     function collectRoyalties(uint256, uint256 _proceeds) external returns (uint256) {
         IERC20(EXCHANGE_TOKEN).transfer(msg.sender, _proceeds - royalties);
         return royalties;
     }
 
-    function setRoyalties(uint256 _royalties) external {
-        royalties = _royalties;
+    function setRoyaltyInfo(uint256 _royaltyPercentage, address _royaltyRecipient) external {
+        royaltyPercentage = _royaltyPercentage;
+        royaltyRecipient = _royaltyRecipient;
+    }
+
+    function getEIP2981Royalties(uint256) external view returns (address, uint256) {
+        return (royaltyRecipient, royaltyPercentage);
     }
 
     fallback() external payable {
