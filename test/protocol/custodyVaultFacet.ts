@@ -1,16 +1,10 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import {
-  applyPercentage,
-  deployFermionProtocolFixture,
-  deployMockTokens,
-  setNextBlockTimestamp,
-} from "../utils/common";
+import { deployFermionProtocolFixture, deployMockTokens, setNextBlockTimestamp } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract, ZeroHash } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, VerificationStatus } from "../utils/enums";
-import { getBosonProtocolFees } from "../utils/boson-protocol";
+import { EntityRole, PausableRegion, VerificationStatus, WrapType } from "../utils/enums";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import {
   AUCTION_END_BUFFER,
@@ -23,7 +17,7 @@ import {
   TOP_BID_LOCK_TIME,
 } from "../utils/constants";
 
-const { parseEther } = ethers;
+const { parseEther, ZeroAddress } = ethers;
 
 describe("CustodyVault", function () {
   let offerFacet: Contract,
@@ -94,6 +88,7 @@ describe("CustodyVault", function () {
       facilitatorId: sellerId,
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
+      withPhygital: false,
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
       royaltyInfo: [{ recipients: [], bps: [] }],
@@ -117,18 +112,16 @@ describe("CustodyVault", function () {
         buyer,
         offerId,
         exchangeId,
-        exchange.tokenId,
       );
-      await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+      await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
       // Submit verdicts
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
 
       if (i == 0n) {
-        const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
         exchange.tokenId = tokenId;
         exchange.custodianId = custodianId;
-        exchange.price = encumberedAmount - applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
+        exchange.price = encumberedAmount;
       }
     }
 
@@ -645,6 +638,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
           });
@@ -924,6 +918,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             const offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
@@ -995,6 +990,7 @@ describe("CustodyVault", function () {
               auctionParameters,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress,
             );
           offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
@@ -1058,6 +1054,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
             await expect(tx)
@@ -1110,6 +1107,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
@@ -1189,6 +1187,7 @@ describe("CustodyVault", function () {
               auctionParameters,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress,
             );
           offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
@@ -1279,6 +1278,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
             await expect(tx)
@@ -1347,6 +1347,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
             const custodianPayoff =
@@ -1427,6 +1428,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
@@ -1437,7 +1439,15 @@ describe("CustodyVault", function () {
           await expect(
             wrapper
               .connect(buyer)
-              .mintFractions(exchange.tokenId, 1, fractionsPerToken, auctionParameters, custodianVaultParameters, 0n),
+              .mintFractions(
+                exchange.tokenId,
+                1,
+                fractionsPerToken,
+                auctionParameters,
+                custodianVaultParameters,
+                0n,
+                ZeroAddress,
+              ),
           ).to.be.revertedWithCustomError(fermionErrors, "InsufficientBalanceToFractionalise");
         });
 
@@ -1457,6 +1467,7 @@ describe("CustodyVault", function () {
                 liquidationThreshold: custodianFee.amount - 2n,
               },
               additionalDeposit,
+              ZeroAddress,
             ),
           ).to.be.revertedWithCustomError(fermionErrors, "InvalidPartialAuctionThreshold");
         });
@@ -1484,7 +1495,15 @@ describe("CustodyVault", function () {
         await mockToken.connect(buyer).approve(await wrapper.getAddress(), additionalDeposit);
         const tx = await wrapper
           .connect(buyer)
-          .mintFractions(tokenId, 1, fractionsPerToken, auctionParameters, custodianVaultParameters, additionalDeposit);
+          .mintFractions(
+            tokenId,
+            1,
+            fractionsPerToken,
+            auctionParameters,
+            custodianVaultParameters,
+            additionalDeposit,
+            ZeroAddress,
+          );
         offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
         await mockToken.approve(fermionProtocolAddress, offerVaultInitialAmount - custodianFee.amount); // custodianFee.amount already in the vault from fracionalisation
@@ -1911,6 +1930,7 @@ describe("CustodyVault", function () {
             auctionParameters,
             custodianVaultParameters,
             additionalDeposit,
+            ZeroAddress,
           );
         offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
       });

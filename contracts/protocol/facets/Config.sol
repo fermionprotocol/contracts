@@ -5,6 +5,7 @@ import { ADMIN, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
+import { FeeLib } from "../libs/FeeLib.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
@@ -19,14 +20,22 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      * @notice Initializes facet.
      * This function is callable only once.
      *
-     * @param _config - the protocol configuration parameters
+     * @param _treasury The address of the protocol treasury where protocol fees will be sent.
+     * @param _protocolFeePercentage The default fee percentage that the protocol will charge (in basis points).
+     * @param _maxVerificationTimeout The maximum allowed verification timeout in seconds.
+     * @param _defaultVerificationTimeout The default timeout in seconds for verification if none is specified.
      */
-    function init(FermionStorage.ProtocolConfig calldata _config) external {
+    function init(
+        address payable _treasury,
+        uint16 _protocolFeePercentage,
+        uint256 _maxVerificationTimeout,
+        uint256 _defaultVerificationTimeout
+    ) external {
         // Initialize protocol config params
-        setTreasuryAddressInternal(_config.treasury);
-        setProtocolFeePercentageInternal(_config.protocolFeePercentage);
-        setMaxVerificationTimeoutInternal(_config.maxVerificationTimeout);
-        setDefaultVerificationTimeoutInternal(_config.defaultVerificationTimeout);
+        setTreasuryAddressInternal(_treasury);
+        setProtocolFeePercentageInternal(_protocolFeePercentage);
+        setMaxVerificationTimeoutInternal(_maxVerificationTimeout);
+        setDefaultVerificationTimeoutInternal(_defaultVerificationTimeout);
     }
 
     /**
@@ -77,12 +86,82 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
-     * @notice Gets the protocol fee percentage.
+     * @notice Sets the feeTable for a specific token given price ranges and fee tiers for
+     * the corresponding price ranges.
+     *
+     * Reverts if the number of fee percentages does not match the number of price ranges.
+     * Reverts if the price ranges are not in ascending order.
+     * Reverts if any of the fee percentages value is above 100%.
+     *
+     * @dev Caller must have ADMIN role.
+     *
+     * @param _tokenAddress - the address of the token
+     * @param _priceRanges - array of token price ranges
+     * @param _feePercentages - array of fee percentages corresponding to each price range
+     */
+    function setProtocolFeeTable(
+        address _tokenAddress,
+        uint256[] calldata _priceRanges,
+        uint16[] calldata _feePercentages
+    ) external onlyRole(ADMIN) nonReentrant {
+        if (_priceRanges.length != _feePercentages.length)
+            revert ArrayLengthMismatch(_priceRanges.length, _feePercentages.length);
+        // Clear existing price ranges and percentage tiers
+        FermionStorage.ProtocolConfig storage protocolConfig = FermionStorage.protocolConfig();
+        delete protocolConfig.tokenPriceRanges[_tokenAddress];
+        delete protocolConfig.tokenFeePercentages[_tokenAddress];
+
+        // Store fee percentage
+        if (_priceRanges.length != 0) {
+            setTokenPriceRangesInternal(_tokenAddress, _priceRanges);
+            setTokenFeePercentagesInternal(_tokenAddress, _feePercentages);
+        }
+        emit FeeTableUpdated(_tokenAddress, _priceRanges, _feePercentages);
+    }
+
+    /**
+     * @notice Gets the current fee table for a given token.
+     *
+     * @dev This funciton is used to check price ranges config. If you need to apply percentage based on
+     *      _exchangeToken and offerPrice, use getProtocolFeePercentage(address,uint256)
+     *
+     * @param _tokenAddress - the address of the token
+     * @return priceRanges - array of token price ranges
+     * @return feePercentages - array of fee percentages corresponding to each price range
+     */
+    function getProtocolFeeTable(
+        address _tokenAddress
+    ) external view returns (uint256[] memory priceRanges, uint16[] memory feePercentages) {
+        FermionStorage.ProtocolConfig storage protocolConfig = FermionStorage.protocolConfig();
+        priceRanges = protocolConfig.tokenPriceRanges[_tokenAddress];
+        feePercentages = protocolConfig.tokenFeePercentages[_tokenAddress];
+    }
+
+    /**
+     * @notice Gets the protocol default fee percentage.
      *
      * @return the protocol fee percentage
      */
     function getProtocolFeePercentage() external view returns (uint256) {
         return FermionStorage.protocolConfig().protocolFeePercentage;
+    }
+
+    /**
+     * @notice Gets the protocol fee percentage based on protocol fee table
+     *
+     * @dev This function calculates the protocol fee percentage for specific token and price.
+     * If the token has a custom fee table configured, it returns the corresponding fee percentage
+     * for the price range. If the token does not have a custom fee table, it falls back
+     * to the default protocol fee percentage.
+     *
+     *
+     * @param _exchangeToken - The address of the token being used for the exchange.
+     * @param _price - The price of the item or service in the exchange.
+     *
+     * @return the protocol fee percentage for given price and exchange token
+     */
+    function getProtocolFeePercentage(address _exchangeToken, uint256 _price) external view returns (uint16) {
+        return FeeLib.getProtocolFeePercentage(_exchangeToken, _price);
     }
 
     /**
@@ -227,6 +306,35 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
 
         // Notify watchers of state change
         emit ProtocolFeePercentageChanged(_protocolFeePercentage);
+    }
+
+    /**
+     * @notice Sets the price ranges for a specific token.
+     *
+     * Reverts if priceRanges are not in ascending order.
+     *
+     * @param _tokenAddress - the address of the token
+     * @param _priceRanges - array of price ranges for the token
+     */
+    function setTokenPriceRangesInternal(address _tokenAddress, uint256[] calldata _priceRanges) internal {
+        for (uint256 i = 1; i < _priceRanges.length; ++i) {
+            if (_priceRanges[i] <= _priceRanges[i - 1]) revert NonAscendingOrder();
+        }
+        FermionStorage.protocolConfig().tokenPriceRanges[_tokenAddress] = _priceRanges;
+    }
+
+    /**
+     * @notice Sets the fee percentages for a specific token and price ranges.
+     *
+     * @param _tokenAddress - the address of the token
+     * @param _feePercentages - array of fee percentages corresponding to each price range
+     */
+    function setTokenFeePercentagesInternal(address _tokenAddress, uint16[] calldata _feePercentages) internal {
+        // Set the fee percentages for the token
+        for (uint256 i; i < _feePercentages.length; ++i) {
+            checkMaxPercententage(_feePercentages[i]);
+        }
+        FermionStorage.protocolConfig().tokenFeePercentages[_tokenAddress] = _feePercentages;
     }
 
     /**

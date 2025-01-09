@@ -96,11 +96,14 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+    const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
+    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
       await fermionSeaportWrapper.getAddress(),
       wrappedNativeAddress,
+      await fermionFNFTPriceManager.getAddress(),
     ];
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(...fermionFNFTConstructorArgs);
@@ -154,14 +157,38 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     "FundsFacet",
     "PauseFacet",
     "CustodyVaultFacet",
+    "PriceOracleRegistryFacet",
   ];
   let facets = {};
 
   if (allModules || modules.includes("facets")) {
+    const nonce = 1n;
+    const nonceHex = ethers.toBeArray(nonce);
+    const input_arr = [diamondAddress, nonceHex];
+    const rlp_encoded = ethers.encodeRlp(input_arr);
+    const contract_address_long = ethers.keccak256(rlp_encoded);
+    const fermionFNFTBeaconAdress = "0x" + contract_address_long.substring(26); //Trim the first 24 characters.
+    const { chainId } = await ethers.provider.getNetwork();
+    const { bytecode: beaconProxyBytecode } = await ethers.getContractFactory("BeaconProxy");
+    const abiCoder = new ethers.AbiCoder();
+    const expectedfermionFNFTBeaconProxy = ethers.getCreate2Address(
+      diamondAddress,
+      ethers.solidityPackedKeccak256(["uint256"], [chainId]),
+      ethers.solidityPackedKeccak256(
+        ["bytes", "bytes"],
+        [beaconProxyBytecode, abiCoder.encode(["address", "bytes"], [fermionFNFTBeaconAdress, "0x"])],
+      ),
+    );
+    const cloneCode = `0x363d3d373d3d3d363d73${expectedfermionFNFTBeaconProxy.slice(2)}5af43d82803e903d91602b57fd5bf3`; // https://eips.ethereum.org/EIPS/eip-1167
+    const fnftCodeHash = ethers.keccak256(cloneCode);
+
     const constructorArgs = {
       MetaTransactionFacet: [diamondAddress],
-      OfferFacet: [bosonProtocolAddress],
-      VerificationFacet: [bosonProtocolAddress],
+      OfferFacet: [bosonProtocolAddress, fnftCodeHash],
+      VerificationFacet: [bosonProtocolAddress, fnftCodeHash, diamondAddress],
+      CustodyFacet: [fnftCodeHash],
+      CustodyVaultFacet: [fnftCodeHash],
+      FundsFacet: [fnftCodeHash],
     };
     facets = await deployFacets(facetNames, constructorArgs, true);
     await writeContracts(deploymentData, env, version);
@@ -189,7 +216,13 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // Prepare init call
     const init = {
       MetaTransactionFacet: [await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT"])],
-      ConfigFacet: [fermionConfig.protocolParameters],
+      ConfigFacet: [
+        fermionConfig.protocolParameters.treasury,
+        fermionConfig.protocolParameters.protocolFeePercentage,
+        fermionConfig.protocolParameters.maxVerificationTimeout,
+        fermionConfig.protocolParameters.defaultVerificationTimeout,
+      ],
+      OfferFacet: [],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
     const initCalldatas = Object.keys(init).map((facetName) =>

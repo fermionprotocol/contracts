@@ -6,6 +6,8 @@ pragma solidity 0.8.24;
 import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { IERC20Errors } from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { Common } from "../clients/Common.sol";
+import { FermionTypes } from "../domain/Types.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
@@ -61,6 +63,14 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      */
     function totalSupply() public view virtual returns (uint256) {
         return _getERC20Storage()._totalSupply;
+    }
+
+    /**
+     * @notice Returns the liquid number of fractions. Represents fractions of F-NFTs that are fractionalised
+     */
+    function liquidSupply() public view virtual returns (uint256) {
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        return totalSupply() - $.unrestricedRedeemableSupply - $.lockedRedeemableSupply - $.pendingRedeemableSupply;
     }
 
     /**

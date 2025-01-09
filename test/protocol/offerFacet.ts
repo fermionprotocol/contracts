@@ -1,6 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import {
   applyPercentage,
+  calculateMinimalPrice,
   deployFermionProtocolFixture,
   deployMockTokens,
   deriveTokenId,
@@ -12,22 +13,22 @@ import PriceDiscovery from "@bosonprotocol/boson-protocol-contracts/scripts/doma
 import Side from "@bosonprotocol/boson-protocol-contracts/scripts/domain/Side.js";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroHash } from "ethers";
+import { Contract, toBeHex, ZeroHash, id, MaxUint256, ZeroAddress, parseEther } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, TokenState, AccountRole } from "../utils/enums";
+import { EntityRole, PausableRegion, TokenState, AccountRole, WrapType } from "../utils/enums";
 import { FermionTypes } from "../../typechain-types/contracts/protocol/facets/Offer.sol/OfferFacet";
 import { Seaport } from "@opensea/seaport-js";
 import { ItemType } from "@opensea/seaport-js/lib/constants";
-import { AdvancedOrder } from "@opensea/seaport-js/lib/types";
+import { OrderComponents } from "@opensea/seaport-js/lib/types";
 import { anyValue } from "@nomicfoundation/hardhat-chai-matchers/withArgs";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
+import { encodeBuyerAdvancedOrder, getOrderParametersClosure, getOrderStatusClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
+import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 
-const { id, MaxUint256, ZeroAddress, parseEther } = ethers;
-const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
 describe("Offer", function () {
-  // this.timeout(10000000);
   const sellerId = "1";
   const verifierId = "2";
   const custodianId = "3";
@@ -43,7 +44,8 @@ describe("Offer", function () {
     entityFacet: Contract,
     fundsFacet: Contract,
     pauseFacet: Contract,
-    verificationFacet: Contract;
+    verificationFacet: Contract,
+    configFacet: Contract;
   let mockToken: Contract, mockBosonToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -93,6 +95,7 @@ describe("Offer", function () {
         FundsFacet: fundsFacet,
         PauseFacet: pauseFacet,
         VerificationFacet: verificationFacet,
+        ConfigFacet: configFacet,
       },
       fermionErrors,
       wallets,
@@ -123,6 +126,7 @@ describe("Offer", function () {
     let exchangeToken: string;
     let fermionOffer: FermionTypes.OfferStruct;
     const bosonOfferId = "1";
+    const withPhygital = false;
 
     before(async function () {
       exchangeToken = await mockToken.getAddress();
@@ -137,6 +141,7 @@ describe("Offer", function () {
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken,
+        withPhygital,
         metadataURI,
         metadataHash: id(metadataURI),
         royaltyInfo,
@@ -395,6 +400,7 @@ describe("Offer", function () {
       const sellerDeposit = 100;
       const verifierFee = 10;
       const metadataURI = "https://example.com/offer-metadata.json";
+      const withPhygital = false;
 
       const fermionOffer = {
         sellerId,
@@ -406,6 +412,7 @@ describe("Offer", function () {
         facilitatorId: sellerId,
         facilitatorFeePercent: "0",
         exchangeToken,
+        withPhygital,
         metadataURI,
         metadataHash: id(metadataURI),
         royaltyInfo,
@@ -441,6 +448,7 @@ describe("Offer", function () {
     const bosonOfferId = 1n;
     const sellerDeposit = 100n;
     const quantity = 15n;
+    const withPhygital = false;
     beforeEach(async function () {
       const fermionOffer = {
         sellerId: "1",
@@ -452,6 +460,7 @@ describe("Offer", function () {
         facilitatorId,
         facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
+        withPhygital,
         metadataURI: "https://example.com/offer-metadata.json",
         metadataHash: ZeroHash,
         royaltyInfo,
@@ -485,7 +494,7 @@ describe("Offer", function () {
       await expect(tx).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId, startingTokenId, quantity);
       await expect(tx)
         .to.emit(offerFacet, "NFTsWrapped")
-        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity);
+        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity, WrapType.OS_AUCTION);
 
       // boson
       await expect(tx)
@@ -527,7 +536,7 @@ describe("Offer", function () {
       await expect(tx2).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId2, startingTokenId2, quantity);
       await expect(tx2)
         .to.emit(offerFacet, "NFTsWrapped")
-        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity);
+        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity, WrapType.OS_AUCTION);
 
       // boson
       await expect(tx2)
@@ -570,9 +579,6 @@ describe("Offer", function () {
         [[], [EntityRole.Seller]],
         [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
       );
-
-      const totalSellerDeposit = sellerDeposit * quantity;
-      await mockToken.mint(entityAssistant.address, totalSellerDeposit);
 
       // test event
       await expect(offerFacet.connect(entityAssistant).mintAndWrapNFTs(bosonOfferId, quantity)).to.emit(
@@ -632,6 +638,377 @@ describe("Offer", function () {
     });
   });
 
+  context("mintWrapAndListNFTs", function () {
+    const bosonOfferId = 1n;
+    const sellerDeposit = 100n;
+    const quantity = 15n;
+    const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther((n + 1).toString()));
+    const endTimes = Array(Number(quantity)).fill(MaxUint256);
+    const withPhygital = false;
+
+    beforeEach(async function () {
+      const fermionOffer = {
+        sellerId: "1",
+        sellerDeposit,
+        verifierId: "2",
+        verifierFee: 10,
+        custodianId: "3",
+        custodianFee,
+        facilitatorId,
+        facilitatorFeePercent: "0",
+        exchangeToken: await mockToken.getAddress(),
+        withPhygital,
+        metadataURI: "https://example.com/offer-metadata.json",
+        metadataHash: ZeroHash,
+        royaltyInfo,
+      };
+
+      // erc20 offer
+      await offerFacet.createOffer(fermionOffer);
+
+      // native offer
+      fermionOffer.exchangeToken = ZeroAddress;
+      await offerFacet.createOffer(fermionOffer);
+    });
+
+    it("Minting and wrapping", async function () {
+      const bosonSellerId = "1";
+      const bosonOfferHandler = await getBosonHandler("IBosonOfferHandler");
+      const bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
+      const bosonAccountHandler = await getBosonHandler("IBosonAccountHandler");
+      const [defaultCollectionAddress] = await bosonAccountHandler.getSellersCollections(bosonSellerId);
+      const bosonVoucher = await getBosonVoucher(defaultCollectionAddress);
+
+      const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
+      const startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
+      const predictedWrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
+
+      // ERC20 offer
+      const tx = await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+
+      // test events
+      // fermion
+      await expect(tx).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId, startingTokenId, quantity);
+      await expect(tx)
+        .to.emit(offerFacet, "NFTsWrapped")
+        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity, WrapType.OS_FIXED_PRICE);
+
+      // boson
+      await expect(tx)
+        .to.emit(bosonOfferHandler, "RangeReserved")
+        .withArgs(
+          bosonOfferId,
+          bosonSellerId,
+          nextBosonExchangeId,
+          nextBosonExchangeId + quantity - 1n,
+          fermionProtocolAddress,
+          fermionProtocolAddress,
+        );
+
+      // boson voucher
+      await expect(tx)
+        .to.emit(bosonVoucher, "RangeReserved")
+        .withArgs(bosonOfferId, [startingTokenId, quantity, 0n, 0n, fermionProtocolAddress]);
+
+      // fermion wrapper
+      const fermionWrapper = await ethers.getContractAt("FermionFNFT", predictedWrapperAddress);
+      for (let i = 0; i < quantity; i++) {
+        const tokenId = startingTokenId + BigInt(i);
+
+        await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(0n, predictedWrapperAddress, tokenId);
+
+        const tokenState = await fermionWrapper.tokenState(tokenId);
+        expect(tokenState).to.equal(TokenState.Wrapped);
+      }
+
+      // Native currency offer
+      const bosonOfferId2 = bosonOfferId + 1n;
+      const nextBosonExchangeId2 = nextBosonExchangeId + quantity;
+      const startingTokenId2 = deriveTokenId(bosonOfferId2, nextBosonExchangeId2);
+      const tx2 = await offerFacet.mintWrapAndListNFTs(bosonOfferId2, prices, endTimes);
+      const predictedWrapperAddress2 = await offerFacet.predictFermionFNFTAddress(bosonOfferId2);
+
+      // test events
+      // fermion
+      await expect(tx2).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId2, startingTokenId2, quantity);
+      await expect(tx2)
+        .to.emit(offerFacet, "NFTsWrapped")
+        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity, WrapType.OS_FIXED_PRICE);
+
+      // boson
+      await expect(tx2)
+        .to.emit(bosonOfferHandler, "RangeReserved")
+        .withArgs(
+          bosonOfferId2,
+          bosonSellerId,
+          nextBosonExchangeId2,
+          nextBosonExchangeId2 + quantity - 1n,
+          fermionProtocolAddress,
+          fermionProtocolAddress,
+        );
+
+      // boson voucher
+      await expect(tx2)
+        .to.emit(bosonVoucher, "RangeReserved")
+        .withArgs(bosonOfferId2, [startingTokenId2, quantity, 0n, 0n, fermionProtocolAddress]);
+
+      const fermionWrapper2 = await ethers.getContractAt("FermionFNFT", predictedWrapperAddress2);
+      for (let i = 0; i < quantity; i++) {
+        const tokenId = startingTokenId2 + BigInt(i);
+
+        await expect(tx2).to.emit(fermionWrapper2, "Transfer").withArgs(0n, predictedWrapperAddress2, tokenId);
+
+        const tokenState = await fermionWrapper2.tokenState(tokenId);
+        expect(tokenState).to.equal(TokenState.Wrapped);
+      }
+
+      // not checking the state of boson contracts (protocol, voucher contract)
+      // since the change is guaranteed by the events and the state itself is checked in the boson-protocol tests
+    });
+
+    it("Assistant wallets can mint NFTs", async function () {
+      const entityAssistant = wallets[4]; // entity-wide Assistant
+      const sellerAssistant = wallets[5]; // Seller-specific Assistant
+
+      await entityFacet.addEntityAccounts(
+        sellerId,
+        [entityAssistant, sellerAssistant],
+        [[], [EntityRole.Seller]],
+        [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
+      );
+
+      // test event
+      await expect(offerFacet.connect(entityAssistant).mintWrapAndListNFTs(bosonOfferId, prices, endTimes)).to.emit(
+        offerFacet,
+        "NFTsMinted",
+      );
+
+      await expect(
+        offerFacet.connect(sellerAssistant).mintWrapAndListNFTs(bosonOfferId + 1n, prices, endTimes),
+      ).to.emit(offerFacet, "NFTsMinted");
+    });
+
+    it("Facilitator wallets can mint NFTs", async function () {
+      const facilitatorAssistant = wallets[5]; // Facilitator-specific Assistant
+
+      await entityFacet
+        .connect(facilitator)
+        .addEntityAccounts(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
+
+      // test event
+      await expect(offerFacet.connect(facilitator).mintWrapAndListNFTs(bosonOfferId, prices, endTimes)).to.emit(
+        offerFacet,
+        "NFTsMinted",
+      );
+
+      await expect(
+        offerFacet.connect(facilitatorAssistant).mintWrapAndListNFTs(bosonOfferId + 1n, prices, endTimes),
+      ).to.emit(offerFacet, "NFTsMinted");
+    });
+
+    context("Revert reasons", function () {
+      it("Offer region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Offer]);
+
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Offer);
+      });
+
+      it("Caller is not the seller's assistant", async function () {
+        await verifySellerAssistantRole("mintWrapAndListNFTs", [bosonOfferId, prices, endTimes]);
+      });
+
+      it("Caller is not the facilitator defined in the offer", async function () {
+        await expect(offerFacet.connect(facilitator2).mintWrapAndListNFTs(bosonOfferId, prices, endTimes))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
+      });
+
+      it("Quantity is zero", async function () {
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, [], []))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidQuantity")
+          .withArgs(0);
+      });
+
+      it("Some price is zero", async function () {
+        prices[1] = 0n;
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes)).to.be.revertedWithCustomError(
+          fermionErrors,
+          "ZeroPriceNotAllowed",
+        );
+      });
+
+      it("Array length mismatch", async function () {
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, [...endTimes, MaxUint256]))
+          .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+          .withArgs(prices.length, prices.length + 1);
+
+        await expect(offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes.slice(1)))
+          .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
+          .withArgs(prices.length, prices.length - 1);
+      });
+    });
+  });
+
+  context("cancelFixedPriceOrders", function () {
+    const bosonOfferId = 1n;
+    const sellerDeposit = 100n;
+    const quantity = 15n;
+    const prices = [...Array(Number(quantity)).keys()].map((n) => parseEther((n + 1).toString()));
+    const endTimes = Array(Number(quantity)).fill(MaxUint256);
+    const withPhygital = false;
+    let startingTokenId: bigint;
+    let orders: OrderComponents[];
+    let seaport: Seaport;
+
+    let getOrderParameters: (
+      tokenId: string,
+      exchangeToken: string,
+      fullPrice: bigint,
+      endTime: string,
+    ) => Promise<OrderComponents>;
+    let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
+
+    before(async function () {
+      const randomWallet = wallets[4];
+      const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
+      seaport = new Seaport(randomWallet, {
+        overrides: { seaportVersion: "1.6", contractAddress: seaportAddress },
+      });
+      const wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
+      getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
+      getOrderStatus = getOrderStatusClosure(seaport);
+    });
+
+    beforeEach(async function () {
+      const fermionOffer = {
+        sellerId: "1",
+        sellerDeposit,
+        verifierId: "2",
+        verifierFee: 10,
+        custodianId: "3",
+        custodianFee,
+        facilitatorId,
+        facilitatorFeePercent: "0",
+        exchangeToken: await mockToken.getAddress(),
+        withPhygital,
+        metadataURI: "https://example.com/offer-metadata.json",
+        metadataHash: ZeroHash,
+        royaltyInfo,
+      };
+
+      await offerFacet.createOffer(fermionOffer);
+
+      const bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
+      const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
+      startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
+
+      await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+
+      const exchangeToken = await mockToken.getAddress();
+      orders = await Promise.all(
+        prices.map((price, i) => {
+          return getOrderParameters(
+            (startingTokenId + BigInt(i)).toString(),
+            exchangeToken,
+            price,
+            endTimes[i].toString(),
+          );
+        }),
+      );
+    });
+
+    it("Cancel single order", async function () {
+      await offerFacet.cancelFixedPriceOrders(bosonOfferId, orders.slice(0, 1));
+
+      const orderStatus = await getOrderStatus(orders[0]);
+      expect(orderStatus.isCancelled).to.equal(true);
+    });
+
+    it("Cancel multiple orders", async function () {
+      await offerFacet.cancelFixedPriceOrders(bosonOfferId, orders);
+
+      for (let i = 0; i < quantity; i++) {
+        const orderStatus = await getOrderStatus(orders[i]);
+        expect(orderStatus.isCancelled).to.equal(true);
+      }
+    });
+
+    it("Assistant wallets can cancel orders", async function () {
+      const entityAssistant = wallets[4]; // entity-wide Assistant
+      const sellerAssistant = wallets[5]; // Seller-specific Assistant
+
+      await entityFacet.addEntityAccounts(
+        sellerId,
+        [entityAssistant, sellerAssistant],
+        [[], [EntityRole.Seller]],
+        [[[AccountRole.Assistant]], [[AccountRole.Assistant]]],
+      );
+
+      await offerFacet.connect(entityAssistant).cancelFixedPriceOrders(bosonOfferId, orders.slice(0, 1));
+
+      const orderStatus = await getOrderStatus(orders[0]);
+      expect(orderStatus.isCancelled).to.equal(true);
+
+      await offerFacet.connect(sellerAssistant).cancelFixedPriceOrders(bosonOfferId, orders.slice(1, 2));
+
+      const orderStatus2 = await getOrderStatus(orders[1]);
+      expect(orderStatus2.isCancelled).to.equal(true);
+    });
+
+    it("Facilitator wallets can cancel orders", async function () {
+      const facilitatorAssistant = wallets[5]; // Facilitator-specific Assistant
+
+      await entityFacet
+        .connect(facilitator)
+        .addEntityAccounts(facilitatorId, [facilitatorAssistant], [[EntityRole.Seller]], [[[AccountRole.Assistant]]]);
+
+      await offerFacet.connect(facilitator).cancelFixedPriceOrders(bosonOfferId, orders.slice(0, 1));
+
+      const orderStatus = await getOrderStatus(orders[0]);
+      expect(orderStatus.isCancelled).to.equal(true);
+
+      await offerFacet.connect(facilitatorAssistant).cancelFixedPriceOrders(bosonOfferId, orders.slice(1, 2));
+
+      const orderStatus2 = await getOrderStatus(orders[1]);
+      expect(orderStatus2.isCancelled).to.equal(true);
+    });
+
+    context("Revert reasons", function () {
+      it("Offer region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Offer]);
+
+        await expect(offerFacet.cancelFixedPriceOrders(bosonOfferId, orders))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Offer);
+      });
+
+      it("Caller is not the seller's assistant", async function () {
+        await verifySellerAssistantRole("cancelFixedPriceOrders", [bosonOfferId, orders]);
+      });
+
+      it("Caller is not the facilitator defined in the offer", async function () {
+        await expect(offerFacet.connect(facilitator2).cancelFixedPriceOrders(bosonOfferId, orders))
+          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+          .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
+      });
+
+      it("Cannot fullfil cancelled order", async function () {
+        await mockToken.mint(wallets[4].address, prices[0]);
+        const { executeAllActions } = await seaport.fulfillOrder({
+          order: { parameters: orders[0], signature: "0x" },
+        });
+        await offerFacet.cancelFixedPriceOrders(bosonOfferId, orders.slice(0, 1));
+
+        const orderHash = seaport.getOrderHash(orders[0]);
+        await expect(executeAllActions())
+          .to.be.revertedWithCustomError(seaport.contract, "OrderIsCancelled")
+          .withArgs(orderHash);
+      });
+    });
+  });
+
   context("unwrapping", function () {
     const bosonOfferId = 1n;
     const quantity = 15n;
@@ -641,12 +1018,12 @@ describe("Offer", function () {
     const exchangeId = 1n;
     const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
     const fullPrice = parseEther("10");
-    const openSeaFee = (fullPrice * 2n) / 100n;
+    const openSeaFee = (fullPrice * 2_50n) / 100_00n;
+    const withPhygital = false;
     const priceSubOSFee = fullPrice - openSeaFee;
-    const priceSubOSAndBosonFee = priceSubOSFee - applyPercentage(priceSubOSFee, bosonProtocolFeePercentage);
     let openSeaAddress: string, buyerAddress: string;
     let bosonProtocolBalance: bigint, openSeaBalance: bigint;
-    let buyerAdvancedOrder: AdvancedOrder;
+    let buyerAdvancedOrder: string;
     let seaport: Seaport;
 
     let exchangeToken: string;
@@ -669,298 +1046,79 @@ describe("Offer", function () {
 
     context("Non-zero seller deposit", function () {
       const sellerDeposit = parseEther("1");
+      let buyerOrder: OrderWithCounter;
 
-      beforeEach(async function () {
-        const fermionOffer = {
-          sellerId: "1",
-          sellerDeposit,
-          verifierId,
-          verifierFee,
-          custodianId: "3",
-          custodianFee,
-          facilitatorId,
-          facilitatorFeePercent: "0",
-          exchangeToken,
-          metadataURI: "https://example.com/offer-metadata.json",
-          metadataHash: ZeroHash,
-          royaltyInfo,
-        };
-
-        await offerFacet.createOffer(fermionOffer);
-        await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
-
-        const buyer = wallets[4];
-        const openSea = wallets[5]; // a mock OS address
-        openSeaAddress = openSea.address;
-        buyerAddress = buyer.address;
-        seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
-
-        await mockToken.mint(buyerAddress, fullPrice);
-
-        const { executeAllActions } = await seaport.createOrder(
-          {
-            offer: [
-              {
-                itemType: ItemType.ERC20,
-                token: exchangeToken,
-                amount: fullPrice.toString(),
-              },
-            ],
-            consideration: [
-              {
-                itemType: ItemType.ERC721,
-                token: wrapperAddress,
-                identifier: tokenId,
-              },
-              {
-                itemType: ItemType.ERC20,
-                token: exchangeToken,
-                amount: openSeaFee.toString(),
-                recipient: openSeaAddress,
-              },
-            ],
-          },
-          buyerAddress,
-        );
-
-        const buyerOrder = await executeAllActions();
-
-        buyerAdvancedOrder = {
-          ...buyerOrder,
-          numerator: 1n,
-          denominator: 1n,
-          extraData: "0x",
-        };
-
-        bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-        openSeaBalance = await mockToken.balanceOf(openSeaAddress);
-      });
-
-      context("unwrap (with OS auction)", function () {
+      context("Auction type", async function () {
         beforeEach(async function () {
-          // approve token transfer so unwrapping can succeed
-          await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+          const fermionOffer = {
+            sellerId: "1",
+            sellerDeposit,
+            verifierId,
+            verifierFee,
+            custodianId: "3",
+            custodianFee,
+            facilitatorId,
+            facilitatorFeePercent: "0",
+            exchangeToken,
+            withPhygital,
+            metadataURI: "https://example.com/offer-metadata.json",
+            metadataHash: ZeroHash,
+            royaltyInfo,
+          };
+
+          await offerFacet.createOffer(fermionOffer);
+          await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+
+          const buyer = wallets[4];
+          const openSea = wallets[5]; // a mock OS address
+          openSeaAddress = openSea.address;
+          buyerAddress = buyer.address;
+          seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+
+          await mockToken.mint(buyerAddress, fullPrice);
+
+          const { executeAllActions } = await seaport.createOrder(
+            {
+              offer: [
+                {
+                  itemType: ItemType.ERC20,
+                  token: exchangeToken,
+                  amount: fullPrice.toString(),
+                },
+              ],
+              consideration: [
+                {
+                  itemType: ItemType.ERC721,
+                  token: wrapperAddress,
+                  identifier: tokenId,
+                },
+                {
+                  itemType: ItemType.ERC20,
+                  token: exchangeToken,
+                  amount: openSeaFee.toString(),
+                  recipient: openSeaAddress,
+                },
+              ],
+            },
+            buyerAddress,
+          );
+
+          buyerOrder = await executeAllActions();
+
+          buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+
+          bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+          openSeaBalance = await mockToken.balanceOf(openSeaAddress);
         });
 
-        it("Unwrapping", async function () {
-          const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
-
-          // events:
-          // fermion
-          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-          const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
-
-          // Boson:
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "BuyerCommitted")
-            .withArgs(bosonOfferId, bosonBuyerId, exchangeId, anyValue, anyValue, defaultCollectionAddress); // exchange and voucher details are not relevant
-
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
-
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonBuyerId, exchangeToken, fullPrice - openSeaFee, fermionProtocolAddress);
-
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "VoucherRedeemed")
-            .withArgs(bosonOfferId, exchangeId, fermionProtocolAddress);
-
-          // BosonVoucher
-          // - transferred to the protocol
-          await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(wrapperAddress, fermionProtocolAddress, tokenId);
-
-          // - burned
-          await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
-
-          // FermionFNFT
-          // - Transfer to buyer (2step seller->wrapper->buyer)
-          await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(defaultSigner.address, wrapperAddress, tokenId);
-          await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(wrapperAddress, buyerAddress, tokenId);
-
-          // State:
-          // Boson
-          const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-          expect(exists).to.be.equal(true);
-          expect(exchange.state).to.equal(3); // Redeemed
-          expect(voucher.committedDate).to.not.equal(0);
-          expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
-
-          const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-          expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
-
-          // FermionFNFT:
-          expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
-          expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
-
-          // OpenSea balance should be updated
-          const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
-          expect(newOpenSeaBalance).to.equal(openSeaBalance + openSeaFee);
-        });
-
-        it("Facilitator can unwrap", async function () {
-          await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit);
-
-          const tx = await offerFacet.connect(facilitator).unwrapNFT(tokenId, buyerAdvancedOrder);
-
-          // events:
-          // fermion
-          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-          const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
-        });
-
-        context("Boson seller deposit covered from the available funds", function () {
-          it("Fully covered", async function () {
-            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
-
-            const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, exchangeToken);
-
-            const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
-
-            // events:
-            // fermion
-            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-            const itemVerificationTimeout =
-              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-            await expect(tx)
-              .to.emit(offerFacet, "VerificationInitiated")
-              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
-
-            // Boson:
-            await expect(tx)
-              .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
-
-            // State:
-            // Fermion
-            expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(
-              sellerAvailableFunds - sellerDeposit,
-            );
-
-            // Boson
-            const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
-          });
-
-          it("Partially covered", async function () {
-            const remainder = sellerDeposit / 10n;
-            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
-
-            await mockToken.approve(fermionProtocolAddress, remainder);
-            const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
-
-            // events:
-            // fermion
-            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-            const itemVerificationTimeout =
-              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-            await expect(tx)
-              .to.emit(offerFacet, "VerificationInitiated")
-              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
-
-            // Boson:
-            await expect(tx)
-              .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
-
-            // State:
-            // Fermion
-            expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
-
-            // Boson
-            const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
-          });
-        });
-
-        context("Zero verifier fee", function () {
-          const bosonOfferId = "2";
-          const exchangeId = quantity + 1n;
-          const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
-          let wrapperAddress: string;
-          let fermionWrapper: Contract;
-
+        context("unwrap (with OS auction)", function () {
           beforeEach(async function () {
-            const fermionOffer = {
-              sellerId: "1",
-              sellerDeposit: "0",
-              verifierId,
-              verifierFee: "0",
-              custodianId: "3",
-              custodianFee,
-              facilitatorId: sellerId,
-              facilitatorFeePercent: "0",
-              exchangeToken: await mockToken.getAddress(),
-              metadataURI: "https://example.com/offer-metadata.json",
-              metadataHash: ZeroHash,
-              royaltyInfo,
-            };
-
-            // erc20 offer
-            await offerFacet.createOffer(fermionOffer);
-
-            // mint and wrap
-            await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
-
-            wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
-            fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+            // approve token transfer so unwrapping can succeed
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
           });
 
-          it("Non-zero item price", async function () {
-            const { executeAllActions } = await seaport.createOrder(
-              {
-                offer: [
-                  {
-                    itemType: ItemType.ERC20,
-                    token: exchangeToken,
-                    amount: fullPrice,
-                  },
-                ],
-                consideration: [
-                  {
-                    itemType: ItemType.ERC721,
-                    token: wrapperAddress,
-                    identifier: tokenId,
-                  },
-                  {
-                    itemType: ItemType.ERC20,
-                    token: exchangeToken,
-                    amount: openSeaFee,
-                    recipient: openSeaAddress,
-                  },
-                ],
-              },
-              buyerAddress,
-            );
-
-            const buyerOrder = await executeAllActions();
-
-            const buyerAdvancedOrder = {
-              ...buyerOrder,
-              numerator: 1n,
-              denominator: 1n,
-              extraData: "0x",
-            };
-
-            const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-            const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
-
-            const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+          it("Unwrapping", async function () {
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
             // events:
             // fermion
@@ -971,7 +1129,8 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+            await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
 
             // Boson:
             await expect(tx)
@@ -980,7 +1139,7 @@ describe("Offer", function () {
 
             await expect(tx)
               .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, exchangeToken, "0", defaultCollectionAddress);
+              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
 
             await expect(tx)
               .to.emit(bosonExchangeHandler, "FundsEncumbered")
@@ -1015,7 +1174,7 @@ describe("Offer", function () {
             expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
 
             const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
+            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
 
             // FermionFNFT:
             expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
@@ -1026,49 +1185,12 @@ describe("Offer", function () {
             expect(newOpenSeaBalance).to.equal(openSeaBalance + openSeaFee);
           });
 
-          it("Zero verifier fee allows zero prices", async function () {
-            const fullPrice = "0";
-            const openSeaFee = "0";
+          it("Facilitator can unwrap", async function () {
+            await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit);
 
-            const { executeAllActions } = await seaport.createOrder(
-              {
-                offer: [
-                  {
-                    itemType: ItemType.ERC20,
-                    token: exchangeToken,
-                    amount: fullPrice,
-                  },
-                ],
-                consideration: [
-                  {
-                    itemType: ItemType.ERC721,
-                    token: wrapperAddress,
-                    identifier: tokenId,
-                  },
-                  {
-                    itemType: ItemType.ERC20,
-                    token: exchangeToken,
-                    amount: openSeaFee,
-                    recipient: openSeaAddress,
-                  },
-                ],
-              },
-              buyerAddress,
-            );
-
-            const buyerOrder = await executeAllActions();
-
-            const buyerAdvancedOrder = {
-              ...buyerOrder,
-              numerator: 1n,
-              denominator: 1n,
-              extraData: "0x",
-            };
-
-            const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-            const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
-
-            const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+            const tx = await offerFacet
+              .connect(facilitator)
+              .unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
             // events:
             // fermion
@@ -1079,7 +1201,736 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, 0n);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+          });
+
+          context("Boson seller deposit covered from the available funds", function () {
+            it("Fully covered", async function () {
+              await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+              const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, exchangeToken);
+
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
+
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+              // Boson:
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+              // State:
+              // Fermion
+              expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(
+                sellerAvailableFunds - sellerDeposit,
+              );
+
+              // Boson
+              const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
+            });
+
+            it("Partially covered", async function () {
+              const remainder = sellerDeposit / 10n;
+              await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
+
+              await mockToken.approve(fermionProtocolAddress, remainder);
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
+
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+              // Boson:
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+              // State:
+              // Fermion
+              expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
+
+              // Boson
+              const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
+            });
+          });
+
+          context("Zero verifier fee", function () {
+            const bosonOfferId = "2";
+            const exchangeId = quantity + 1n;
+            const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+            let wrapperAddress: string;
+            let fermionWrapper: Contract;
+
+            beforeEach(async function () {
+              const fermionOffer = {
+                sellerId: "1",
+                sellerDeposit: "0",
+                verifierId,
+                verifierFee: "0",
+                custodianId: "3",
+                custodianFee,
+                facilitatorId: sellerId,
+                facilitatorFeePercent: "0",
+                exchangeToken: await mockToken.getAddress(),
+                withPhygital,
+                metadataURI: "https://example.com/offer-metadata.json",
+                metadataHash: ZeroHash,
+                royaltyInfo,
+              };
+
+              // erc20 offer
+              await offerFacet.createOffer(fermionOffer);
+
+              // mint and wrap
+              await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
+
+              wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
+              fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+            });
+
+            it("Non-zero item price", async function () {
+              const { executeAllActions } = await seaport.createOrder(
+                {
+                  offer: [
+                    {
+                      itemType: ItemType.ERC20,
+                      token: exchangeToken,
+                      amount: fullPrice,
+                    },
+                  ],
+                  consideration: [
+                    {
+                      itemType: ItemType.ERC721,
+                      token: wrapperAddress,
+                      identifier: tokenId,
+                    },
+                    {
+                      itemType: ItemType.ERC20,
+                      token: exchangeToken,
+                      amount: openSeaFee,
+                      recipient: openSeaAddress,
+                    },
+                  ],
+                },
+                buyerAddress,
+              );
+
+              const buyerOrder = await executeAllActions();
+
+              const buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+
+              const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
+
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
+
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+              // Boson:
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "BuyerCommitted")
+                .withArgs(bosonOfferId, bosonBuyerId, exchangeId, anyValue, anyValue, defaultCollectionAddress); // exchange and voucher details are not relevant
+
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonSellerId, exchangeToken, "0", defaultCollectionAddress);
+
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonBuyerId, exchangeToken, fullPrice - openSeaFee, fermionProtocolAddress);
+
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "VoucherRedeemed")
+                .withArgs(bosonOfferId, exchangeId, fermionProtocolAddress);
+
+              // BosonVoucher
+              // - transferred to the protocol
+              await expect(tx)
+                .to.emit(bosonVoucher, "Transfer")
+                .withArgs(wrapperAddress, fermionProtocolAddress, tokenId);
+
+              // - burned
+              await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
+
+              // FermionFNFT
+              // - Transfer to buyer (2step seller->wrapper->buyer)
+              await expect(tx)
+                .to.emit(fermionWrapper, "Transfer")
+                .withArgs(defaultSigner.address, wrapperAddress, tokenId);
+              await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(wrapperAddress, buyerAddress, tokenId);
+
+              // State:
+              // Boson
+              const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
+              expect(exists).to.be.equal(true);
+              expect(exchange.state).to.equal(3); // Redeemed
+              expect(voucher.committedDate).to.not.equal(0);
+              expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
+
+              const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
+
+              // FermionFNFT:
+              expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
+              expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
+
+              // OpenSea balance should be updated
+              const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
+              expect(newOpenSeaBalance).to.equal(openSeaBalance + openSeaFee);
+            });
+
+            it("Zero verifier fee allows zero prices", async function () {
+              const fullPrice = "0";
+              const openSeaFee = "0";
+
+              const { executeAllActions } = await seaport.createOrder(
+                {
+                  offer: [
+                    {
+                      itemType: ItemType.ERC20,
+                      token: exchangeToken,
+                      amount: fullPrice,
+                    },
+                  ],
+                  consideration: [
+                    {
+                      itemType: ItemType.ERC721,
+                      token: wrapperAddress,
+                      identifier: tokenId,
+                    },
+                    {
+                      itemType: ItemType.ERC20,
+                      token: exchangeToken,
+                      amount: openSeaFee,
+                      recipient: openSeaAddress,
+                    },
+                  ],
+                },
+                buyerAddress,
+              );
+
+              const buyerOrder = await executeAllActions();
+
+              const buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+
+              const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
+
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
+
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, 0n);
+
+              // Boson:
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "BuyerCommitted")
+                .withArgs(bosonOfferId, bosonBuyerId, exchangeId, anyValue, anyValue, defaultCollectionAddress); // exchange and voucher details are not relevant
+
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonSellerId, exchangeToken, "0", defaultCollectionAddress);
+
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "VoucherRedeemed")
+                .withArgs(bosonOfferId, exchangeId, fermionProtocolAddress);
+
+              // BosonVoucher
+              // - transferred to the protocol
+              await expect(tx)
+                .to.emit(bosonVoucher, "Transfer")
+                .withArgs(wrapperAddress, fermionProtocolAddress, tokenId);
+
+              // - burned
+              await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
+
+              // FermionFNFT
+              // - Transfer to buyer (1step seller->buyer)
+              await expect(tx)
+                .to.emit(fermionWrapper, "Transfer")
+                .withArgs(defaultSigner.address, buyerAddress, tokenId);
+
+              // State:
+              // Boson
+              const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
+              expect(exists).to.be.equal(true);
+              expect(exchange.state).to.equal(3); // Redeemed
+              expect(voucher.committedDate).to.not.equal(0);
+              expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
+
+              const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance); // no change expected
+
+              // FermionFNFT:
+              expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
+              expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
+
+              // OpenSea balance should remain the same
+              const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
+              expect(newOpenSeaBalance).to.equal(openSeaBalance);
+            });
+          });
+
+          it("Set custom verification timeout", async function () {
+            const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
+            const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
+            const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
+              tokenId,
+              WrapType.OS_AUCTION,
+              buyerAdvancedOrder,
+              customItemVerificationTimeout,
+            );
+
+            // events:
+            const itemMaxVerificationTimeout =
+              BigInt((await tx.getBlock()).timestamp) + fermionConfig.protocolParameters.maxVerificationTimeout;
+
+            // fermion
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+            // State:
+            expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
+          });
+
+          context("Revert reasons", function () {
+            it("Offer region is paused", async function () {
+              await pauseFacet.pause([PausableRegion.Offer]);
+
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+                .withArgs(PausableRegion.Offer);
+            });
+
+            it("Caller is not the seller's assistant", async function () {
+              await verifySellerAssistantRole("unwrapNFT", [tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder]);
+            });
+
+            it("Caller is not the facilitator defined in the offer", async function () {
+              await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+                .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
+            });
+
+            context("Boson deposit not covered", async function () {
+              it("Zero available funds", async function () {
+                // ERC20 offer - insufficient allowance
+                await mockToken.approve(fermionProtocolAddress, sellerDeposit - 1n);
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                  .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+                  .withArgs(fermionProtocolAddress, sellerDeposit - 1n, sellerDeposit);
+
+                // ERC20 offer - contract sends insufficient funds
+                await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+                await mockToken.setBurnAmount(1);
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
+                  .withArgs(sellerDeposit, sellerDeposit - 1n);
+                await mockToken.setBurnAmount(0);
+
+                // ERC20 offer - insufficient balance
+                const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
+                await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                  .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+                  .withArgs(defaultSigner.address, 0n, sellerDeposit);
+
+                // Send native currency to ERC20 offer
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: sellerDeposit }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+              });
+
+              it("Partially covered by available funds", async function () {
+                const remainder = sellerDeposit / 10n;
+                await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit - remainder);
+
+                // ERC20 offer - insufficient allowance
+                await mockToken.approve(fermionProtocolAddress, remainder - 1n);
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                  .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+                  .withArgs(fermionProtocolAddress, remainder - 1n, remainder);
+
+                // ERC20 offer - contract sends insufficient funds
+                await mockToken.approve(fermionProtocolAddress, remainder);
+                await mockToken.setBurnAmount(1);
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
+                  .withArgs(remainder, remainder - 1n);
+                await mockToken.setBurnAmount(0);
+
+                // ERC20 offer - insufficient balance
+                const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
+                await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                  .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+                  .withArgs(defaultSigner.address, 0n, remainder);
+
+                // Send native currency to ERC20 offer
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: remainder }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+              });
+
+              context("offer with native currency", function () {
+                // Although support for offers in native currency is not complete, this is a test for the future
+                // Note that "buyerAdvancedOrder" is in fact wrong, since it cannot be created for native currency
+                // However, for the testing purposes, it's good enough, since the transaction reverts before it's used
+                const bosonOfferId = "2";
+                const exchangeId = quantity + 1n;
+                const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+
+                beforeEach(async function () {
+                  const fermionOffer = {
+                    sellerId: "1",
+                    sellerDeposit,
+                    verifierId,
+                    verifierFee,
+                    custodianId: "3",
+                    custodianFee,
+                    facilitatorId: sellerId,
+                    facilitatorFeePercent: "0",
+                    exchangeToken: ZeroAddress,
+                    withPhygital,
+                    metadataURI: "https://example.com/offer-metadata.json",
+                    metadataHash: ZeroHash,
+                    royaltyInfo,
+                  };
+
+                  await offerFacet.createOffer(fermionOffer);
+                  await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+                });
+
+                it("Zero available funds", async function () {
+                  // Native currency offer - insufficient funds
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, {
+                      value: sellerDeposit - 1n,
+                    }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+
+                  // Native currency offer - too much sent
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, {
+                      value: sellerDeposit + 1n,
+                    }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                });
+
+                it("Partially covered by available funds", async function () {
+                  const remainder = sellerDeposit / 10n;
+                  await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
+                    value: sellerDeposit - remainder,
+                  });
+
+                  // Native currency offer - insufficient funds
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: remainder - 1n }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+
+                  // Native currency offer - too much sent
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: remainder + 1n }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                });
+              });
+            });
+
+            it("Price does not cover the verifier fee", async function () {
+              const minimalPriceNew = calculateMinimalPrice(
+                verifierFee,
+                0,
+                bosonProtocolFeePercentage,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
+              buyerOrder.parameters.offer[0].startAmount = minimalPriceNew.toString();
+              buyerOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
+                .withArgs(minimalPriceNew - 1n, minimalPriceNew);
+            });
+
+            it("Price does not cover the verifier fee [BOSON]", async function () {
+              const bosonOfferId = "2";
+              const bosonExchangeId = quantity + 1n;
+              const tokenId = deriveTokenId(bosonOfferId, bosonExchangeId).toString();
+
+              await offerFacet.addSupportedToken(bosonTokenAddress);
+              const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler");
+              const bosonProtocolFlatFee = parseEther("0"); // ToDo: after boson v2.4.2, this could be higher than 0
+              await bosonConfigHandler.setProtocolFeeFlatBoson(bosonProtocolFlatFee);
+
+              const fermionOffer = {
+                sellerId: "1",
+                sellerDeposit: "0",
+                verifierId,
+                verifierFee,
+                custodianId: "3",
+                custodianFee,
+                facilitatorId: sellerId,
+                facilitatorFeePercent: "0",
+                exchangeToken: bosonTokenAddress,
+                withPhygital,
+                metadataURI: "https://example.com/offer-metadata.json",
+                metadataHash: ZeroHash,
+                royaltyInfo,
+              };
+
+              await offerFacet.createOffer(fermionOffer);
+              await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
+
+              const minimalPrice = calculateMinimalPrice(
+                verifierFee,
+                fermionOffer.facilitatorFeePercent,
+                bosonProtocolFlatFee,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
+              buyerOrder.parameters.offer[0].startAmount = minimalPrice.toString();
+              buyerOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder))
+                .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
+                .withArgs(minimalPrice - 1n, minimalPrice);
+            });
+
+            it("Buyer order does not have 1 offer", async function () {
+              // two offers
+              buyerOrder.parameters.offer.push(buyerOrder.parameters.offer[0]);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+              ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
+
+              // 0 offers
+              buyerOrder.parameters.offer = [];
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+              ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
+            });
+
+            it("Buyer order have more than 2 considerations", async function () {
+              buyerOrder.parameters.consideration.push(buyerOrder.parameters.consideration[1]);
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+              ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
+            });
+
+            it("OS fee is greater than the price", async function () {
+              buyerOrder.parameters.offer[0].startAmount = "0";
+              buyerOrder.parameters.consideration[1].startAmount = "1";
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+              ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
+            });
+
+            it("OS fee is more than expected", async function () {
+              buyerOrder.parameters.consideration[1].startAmount += 1n;
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+              ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
+            });
+
+            it("Custom verification timeout too long", async function () {
+              const nextBlockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp) + 10n;
+              const customItemVerificationTimeout =
+                nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout + 10n;
+
+              await setNextBlockTimestamp(String(nextBlockTimestamp));
+
+              await expect(
+                offerFacet.unwrapNFTAndSetVerificationTimeout(
+                  tokenId,
+                  WrapType.OS_AUCTION,
+                  buyerAdvancedOrder,
+                  customItemVerificationTimeout,
+                ),
+              )
+                .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
+                .withArgs(
+                  customItemVerificationTimeout,
+                  nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout,
+                );
+            });
+
+            it("Unwrapping directly through the Boson contract", async function () {
+              const attackerWallet = wallets[6];
+
+              const openSea = wallets[5]; // a mock OS address
+              openSeaAddress = openSea.address;
+              const attackerAddress = attackerWallet.address;
+              const seaport = new Seaport(attackerWallet, {
+                overrides: { seaportVersion: "1.6", contractAddress: seaportAddress },
+              });
+
+              const { executeAllActions } = await seaport.createOrder(
+                {
+                  offer: [
+                    {
+                      itemType: ItemType.ERC20,
+                      token: exchangeToken,
+                      amount: "0",
+                    },
+                  ],
+                  consideration: [
+                    {
+                      itemType: ItemType.ERC721,
+                      token: wrapperAddress,
+                      identifier: tokenId,
+                    },
+                    {
+                      itemType: ItemType.ERC20,
+                      token: exchangeToken,
+                      amount: "0",
+                      recipient: openSeaAddress,
+                    },
+                  ],
+                },
+                attackerAddress,
+              );
+
+              const buyerOrder = await executeAllActions();
+
+              const buyerAdvancedOrder = {
+                ...buyerOrder,
+                numerator: 1n,
+                denominator: 1n,
+                extraData: "0x",
+              };
+
+              const priceDiscoveryContractAddress = await fermionWrapper.getAddress(); // wrapper address
+              const priceDiscoveryData = fermionWrapper.interface.encodeFunctionData("unwrap", [
+                tokenId,
+                buyerAdvancedOrder,
+              ]);
+              const price = "0";
+              const priceDiscovery = new PriceDiscovery(
+                price,
+                Side.Wrapper,
+                priceDiscoveryContractAddress,
+                priceDiscoveryContractAddress,
+                priceDiscoveryData,
+              );
+
+              const configHandler = await getBosonHandler("IBosonConfigHandler");
+              const bosonPriceDiscoveryClientAddress = await configHandler.getPriceDiscoveryAddress();
+              const priceDiscoveryHandler = await getBosonHandler("IBosonPriceDiscoveryHandler");
+
+              await expect(
+                priceDiscoveryHandler
+                  .connect(attackerWallet)
+                  .commitToPriceDiscoveryOffer(attackerWallet.address, tokenId, priceDiscovery),
+              )
+                .to.be.revertedWithCustomError(fermionWrapper, "InvalidStateOrCaller")
+                .withArgs(tokenId, bosonPriceDiscoveryClientAddress, TokenState.Wrapped);
+            });
+          });
+
+          context("Seaport tests", function () {
+            // Not testing the protocol, just the interaction with Seaport
+            it("Seaport should not allow invalid signature", async function () {
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder({ ...buyerOrder, signature: "0x" });
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+              ).to.be.revertedWithCustomError(seaportContract, "InvalidSignature");
+
+              const invalidSignature = buyerOrder.signature.replace("1", "2");
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder({ ...buyerOrder, signature: invalidSignature });
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+              ).to.be.revertedWithCustomError(seaportContract, "InvalidSigner");
+            });
+
+            it("Works with pre-validated orders", async function () {
+              const buyer = wallets[4];
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder({ ...buyerOrder, signature: "0x" });
+              await seaportContract.connect(buyer).validate([
+                {
+                  ...buyerOrder,
+                  numerator: 1n,
+                  denominator: 1n,
+                  extraData: "0x",
+                },
+              ]);
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder)).to.not.be.reverted;
+            });
+          });
+        });
+
+        context("unwrapToSelf", function () {
+          const minimalPrice = calculateMinimalPrice(
+            verifierFee,
+            0, // facilitatorFee 0
+            bosonProtocolFeePercentage,
+            fermionConfig.protocolParameters.protocolFeePercentage,
+          );
+
+          it("Unwrapping", async function () {
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+            await mockToken.approve(fermionProtocolAddress, minimalPrice);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+
+            // events:
+            // fermion
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
+            await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
 
             // Boson:
             await expect(tx)
@@ -1088,7 +1939,11 @@ describe("Offer", function () {
 
             await expect(tx)
               .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, exchangeToken, "0", defaultCollectionAddress);
+              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+            await expect(tx)
+              .to.emit(bosonExchangeHandler, "FundsEncumbered")
+              .withArgs(bosonBuyerId, exchangeToken, minimalPrice, fermionProtocolAddress);
 
             await expect(tx)
               .to.emit(bosonExchangeHandler, "VoucherRedeemed")
@@ -1104,8 +1959,8 @@ describe("Offer", function () {
             await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
 
             // FermionFNFT
-            // - Transfer to buyer (1step seller->buyer)
-            await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(defaultSigner.address, buyerAddress, tokenId);
+            // - No transfer should happen, since the seller is the buyer
+            await expect(tx).to.not.emit(fermionWrapper, "Transfer");
 
             // State:
             // Boson
@@ -1116,295 +1971,1183 @@ describe("Offer", function () {
             expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
 
             const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance); // no change expected
+            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + minimalPrice);
 
             // FermionFNFT:
             expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
-            expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
+            expect(await fermionWrapper.ownerOf(tokenId)).to.equal(defaultSigner.address);
 
             // OpenSea balance should remain the same
             const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
             expect(newOpenSeaBalance).to.equal(openSeaBalance);
           });
-        });
 
-        it("Set custom verification timeout", async function () {
-          const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
-          const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
-          const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
-            tokenId,
-            buyerAdvancedOrder,
-            customItemVerificationTimeout,
-          );
+          it("Facilitator can unwrap", async function () {
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
 
-          // events:
-          const itemMaxVerificationTimeout =
-            BigInt((await tx.getBlock()).timestamp) + fermionConfig.protocolParameters.maxVerificationTimeout;
+            await mockToken.mint(facilitator.address, minimalPrice);
+            await mockToken.connect(facilitator).approve(fermionProtocolAddress, minimalPrice);
+            const tx = await offerFacet
+              .connect(facilitator)
+              .unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
-          // fermion
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
-
-          // State:
-          expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
-        });
-
-        context("Revert reasons", function () {
-          it("Offer region is paused", async function () {
-            await pauseFacet.pause([PausableRegion.Offer]);
-
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
-              .withArgs(PausableRegion.Offer);
+            // events:
+            // fermion
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
           });
 
-          it("Caller is not the seller's assistant", async function () {
-            await verifySellerAssistantRole("unwrapNFT", [tokenId, buyerAdvancedOrder]);
-          });
-
-          it("Caller is not the facilitator defined in the offer", async function () {
-            await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, buyerAdvancedOrder))
-              .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
-              .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
-          });
-
-          context("Boson deposit not covered", async function () {
-            it("Zero available funds", async function () {
-              // ERC20 offer - insufficient allowance
-              await mockToken.approve(fermionProtocolAddress, sellerDeposit - 1n);
-
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
-                .withArgs(fermionProtocolAddress, sellerDeposit - 1n, sellerDeposit);
-
-              // ERC20 offer - contract sends insufficient funds
+          context("Boson seller deposit covered from the available funds", function () {
+            it("Fully covered", async function () {
               await mockToken.approve(fermionProtocolAddress, sellerDeposit);
-              await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-                .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                .withArgs(sellerDeposit, sellerDeposit - 1n);
-              await mockToken.setBurnAmount(0);
+              await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
 
-              // ERC20 offer - insufficient balance
-              const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
-              await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+              const sellerAvailableFunds = await fundsFacet.getAvailableFunds(bosonSellerId, exchangeToken);
 
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
-                .withArgs(defaultSigner.address, 0n, sellerDeposit);
+              await mockToken.approve(fermionProtocolAddress, minimalPrice);
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
-              // Send native currency to ERC20 offer
-              await expect(
-                offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit }),
-              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
+
+              // Boson:
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+              // State:
+              // Fermion
+              expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(
+                sellerAvailableFunds - sellerDeposit,
+              );
+
+              // Boson
+              const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + minimalPrice);
             });
 
-            it("Partially covered by available funds", async function () {
+            it("Partially covered", async function () {
               const remainder = sellerDeposit / 10n;
-              await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit - remainder);
+              await mockToken.approve(fermionProtocolAddress, sellerDeposit - remainder);
+              await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
 
-              // ERC20 offer - insufficient allowance
-              await mockToken.approve(fermionProtocolAddress, remainder - 1n);
+              await mockToken.approve(fermionProtocolAddress, remainder + minimalPrice);
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
-                .withArgs(fermionProtocolAddress, remainder - 1n, remainder);
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
-              // ERC20 offer - contract sends insufficient funds
-              await mockToken.approve(fermionProtocolAddress, remainder);
-              await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-                .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                .withArgs(remainder, remainder - 1n);
-              await mockToken.setBurnAmount(0);
+              // Boson:
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
 
-              // ERC20 offer - insufficient balance
-              const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
-              await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+              // State:
+              // Fermion
+              expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
 
-              await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
-                .withArgs(defaultSigner.address, 0n, remainder);
+              // Boson
+              const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + minimalPrice);
+            });
+          });
 
-              // Send native currency to ERC20 offer
-              await expect(
-                offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder }),
-              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+          context("offer with native currency", function () {
+            // Although support for offers in native currency is not complete, this is a test for the future
+            const bosonOfferId = "2";
+            const exchangeId = quantity + 1n;
+            const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+            const verifierFee = 0n;
+
+            beforeEach(async function () {
+              const fermionOffer = {
+                sellerId: "1",
+                sellerDeposit,
+                verifierId,
+                verifierFee,
+                custodianId: "3",
+                custodianFee,
+                facilitatorId: sellerId,
+                facilitatorFeePercent: "0",
+                exchangeToken: ZeroAddress,
+                withPhygital,
+                metadataURI: "https://example.com/offer-metadata.json",
+                metadataHash: ZeroHash,
+                royaltyInfo,
+              };
+
+              await offerFacet.createOffer(fermionOffer);
+              await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+
+              bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
             });
 
-            context("offer with native currency", function () {
-              // Although support for offers in native currency is not complete, this is a test for the future
-              // Note that "buyerAdvancedOrder" is in fact wrong, since it cannot be created for native currency
-              // However, for the testing purposes, it's good enough, since the transaction reverts before it's used
+            it("Fully covered by available funds", async function () {
+              await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit, {
+                value: sellerDeposit,
+              });
+
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash, { value: 0n });
+
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, 0);
+
+              // Boson:
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonSellerId, ZeroAddress, sellerDeposit, defaultCollectionAddress);
+
+              // State:
+              const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
+              expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit);
+              expect(await fundsFacet.getAvailableFunds(sellerId, ZeroAddress)).to.equal(0);
+            });
+          });
+
+          it("Set custom verification timeout", async function () {
+            const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
+            const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+            await mockToken.approve(fermionProtocolAddress, minimalPrice);
+            const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
+              tokenId,
+              WrapType.SELF_SALE,
+              toBeHex(minimalPrice, 32),
+              customItemVerificationTimeout,
+            );
+            const itemMaxVerificationTimeout =
+              BigInt((await tx.getBlock()).timestamp) + fermionConfig.protocolParameters.maxVerificationTimeout;
+
+            // events:
+            // fermion
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
+
+            // State:
+            expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
+          });
+
+          it("Uses the FeeTable percentage when configured", async function () {
+            const feeRanges = [parseEther("1").toString(), parseEther("5").toString(), parseEther("10").toString()];
+            const feePercentages = [500, 1000, 1500]; // 5%, 10%, 15%
+
+            // Set the protocol FeeTable for the exchange token
+            await configFacet.setProtocolFeeTable(exchangeToken, feeRanges, feePercentages);
+
+            const exchangeAmount = parseEther("3"); // Within the second range
+            const expectedFeePercentage = feePercentages[1]; // 10%
+
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+            await mockToken.approve(fermionProtocolAddress, exchangeAmount);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(exchangeAmount, 32));
+
+            const fermionFee = applyPercentage(exchangeAmount, expectedFeePercentage);
+
+            const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+            const bosonProtocolFee = applyPercentage(exchangeAmount, bosonProtocolFeePercentage);
+
+            // Events and validations
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, exchangeAmount);
+
+            const [bosonProtocolFeeAmount, fermionFeeAmount, verifierFeeAmount, facilitatorFeeAmount] =
+              await offerFacet.getItemFees(tokenId);
+
+            expect(bosonProtocolFeeAmount).to.equal(bosonProtocolFee);
+            expect(fermionFeeAmount).to.equal(fermionFee);
+            expect(verifierFeeAmount).to.equal(verifierFee);
+            expect(facilitatorFeeAmount).to.equal(0);
+          });
+
+          context("Revert reasons", function () {
+            it("Offer region is paused", async function () {
+              await pauseFacet.pause([PausableRegion.Offer]);
+
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+                .withArgs(PausableRegion.Offer);
+            });
+
+            it("Caller is not the seller's assistant", async function () {
+              await verifySellerAssistantRole("unwrapNFT", [tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)]);
+            });
+
+            it("Caller is not the facilitator defined in the offer", async function () {
+              await expect(
+                offerFacet.connect(facilitator2).unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              )
+                .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+                .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
+            });
+
+            context("Boson deposit not covered", async function () {
+              it("Zero available funds", async function () {
+                // ERC20 offer - insufficient allowance
+                await mockToken.approve(fermionProtocolAddress, sellerDeposit - 1n);
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                  .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+                  .withArgs(fermionProtocolAddress, sellerDeposit - 1n, sellerDeposit);
+
+                // ERC20 offer - contract sends insufficient funds
+                await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+                await mockToken.setBurnAmount(1);
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
+                  .withArgs(sellerDeposit, sellerDeposit - 1n);
+                await mockToken.setBurnAmount(0);
+
+                // ERC20 offer - insufficient balance
+                const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
+                await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                  .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+                  .withArgs(defaultSigner.address, 0n, sellerDeposit);
+
+                // Send native currency to ERC20 offer
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(sellerDeposit, 32), {
+                    value: sellerDeposit,
+                  }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+              });
+
+              it("Partially covered by available funds", async function () {
+                const remainder = sellerDeposit / 10n;
+                await mockToken.approve(fermionProtocolAddress, sellerDeposit - remainder);
+                await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit - remainder);
+
+                // ERC20 offer - insufficient allowance
+                await mockToken.approve(fermionProtocolAddress, remainder - 1n);
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                  .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+                  .withArgs(fermionProtocolAddress, remainder - 1n, remainder);
+
+                // ERC20 offer - contract sends insufficient funds
+                await mockToken.approve(fermionProtocolAddress, remainder);
+                await mockToken.setBurnAmount(1);
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                  .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
+                  .withArgs(remainder, remainder - 1n);
+                await mockToken.setBurnAmount(0);
+
+                // ERC20 offer - insufficient balance
+                const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
+                await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                  .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+                  .withArgs(defaultSigner.address, 0n, remainder);
+
+                // Send native currency to ERC20 offer
+                await expect(
+                  offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32), { value: remainder }),
+                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+              });
+
+              context("offer with native currency", function () {
+                // Although support for offers in native currency is not complete, this is a test for the future
+                const bosonOfferId = "2";
+                const exchangeId = quantity + 1n;
+                const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+
+                beforeEach(async function () {
+                  const fermionOffer = {
+                    sellerId: "1",
+                    sellerDeposit,
+                    verifierId,
+                    verifierFee,
+                    custodianId: "3",
+                    custodianFee,
+                    facilitatorId: sellerId,
+                    facilitatorFeePercent: "0",
+                    exchangeToken: ZeroAddress,
+                    withPhygital,
+                    metadataURI: "https://example.com/offer-metadata.json",
+                    metadataHash: ZeroHash,
+                    royaltyInfo,
+                  };
+
+                  await offerFacet.createOffer(fermionOffer);
+                  await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+                });
+
+                it("Cannot deposit native - zero available funds", async function () {
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(sellerDeposit, 32), {
+                      value: sellerDeposit,
+                    }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                });
+
+                it("Cannot deposit native -  partially covered by available funds", async function () {
+                  const remainder = sellerDeposit / 10n;
+                  await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
+                    value: sellerDeposit - remainder,
+                  });
+
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(remainder, 32), { value: remainder }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                });
+
+                it.skip("Zero available funds", async function () {
+                  // If we allow back the native currency offers, this test should be enabled
+
+                  // Native currency offer - insufficient funds
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(sellerDeposit, 32), {
+                      value: sellerDeposit - 1n,
+                    }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
+
+                  // Native currency offer - too much sent
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(sellerDeposit, 32), {
+                      value: sellerDeposit + 1n,
+                    }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
+                });
+
+                it.skip("Partially covered by available funds", async function () {
+                  // If we allow back the native currency offers, this test should be enabled
+
+                  const remainder = sellerDeposit / 10n;
+                  await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
+                    value: sellerDeposit - remainder,
+                  });
+
+                  // Native currency offer - insufficient funds
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(remainder - 1n, 32), {
+                      value: remainder - 1n,
+                    }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
+
+                  // Native currency offer - too much sent
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(remainder + 1n, 32), {
+                      value: remainder + 1n,
+                    }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
+                });
+              });
+            });
+
+            it("Price does not cover the verifier fee", async function () {
+              await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+              await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+              // insufficient allowance
+              await mockToken.approve(fermionProtocolAddress, minimalPrice - 1n);
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+                .withArgs(fermionProtocolAddress, minimalPrice - 1n, minimalPrice);
+
+              // Contract sends insufficient funds. In this case, the depositing to boson fails before fermion fails
+              const bosonFundsHandler = await getBosonHandler("IBosonFundsHandler");
+              await mockToken.approve(fermionProtocolAddress, minimalPrice);
+              await mockToken.setBurnAmount(1);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              ).to.be.revertedWithCustomError(bosonFundsHandler, "InsufficientValueReceived");
+              await mockToken.setBurnAmount(0);
+
+              // Insufficient balance
+              const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
+              await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
+                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+                .withArgs(defaultSigner.address, 0n, minimalPrice);
+            });
+
+            it("Price does not cover the verifier fee [BOSON]", async function () {
               const bosonOfferId = "2";
-              const exchangeId = quantity + 1n;
+              const bosonExchangeId = quantity + 1n;
+              const tokenId = deriveTokenId(bosonOfferId, bosonExchangeId).toString();
+
+              await offerFacet.addSupportedToken(bosonTokenAddress);
+              const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler");
+              const bosonProtocolFlatFee = parseEther("0"); // ToDo: after boson v2.4.2, this could be higher than 0
+              await bosonConfigHandler.setProtocolFeeFlatBoson(bosonProtocolFlatFee);
+
+              const fermionOffer = {
+                sellerId: "1",
+                sellerDeposit: "0",
+                verifierId,
+                verifierFee,
+                custodianId: "3",
+                custodianFee,
+                facilitatorId: sellerId,
+                facilitatorFeePercent: "0",
+                exchangeToken: bosonTokenAddress,
+                withPhygital,
+                metadataURI: "https://example.com/offer-metadata.json",
+                metadataHash: ZeroHash,
+                royaltyInfo,
+              };
+
+              await offerFacet.createOffer(fermionOffer);
+              await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
+
+              const minimalPrice = calculateMinimalPrice(
+                verifierFee,
+                fermionOffer.facilitatorFeePercent,
+                0,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
+              // insufficient allowance
+              await mockBosonToken.approve(fermionProtocolAddress, minimalPrice - 1n);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              ).to.be.revertedWith("ERC20: insufficient allowance"); // old error style
+
+              // Insufficient balance
+              await mockBosonToken.approve(fermionProtocolAddress, minimalPrice);
+              const sellerBalance = await mockBosonToken.balanceOf(defaultSigner.address);
+              await mockBosonToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              ).to.be.revertedWith("ERC20: transfer amount exceeds balance"); // old error style
+            });
+
+            it("Custom verification timeout too long", async function () {
+              const nextBlockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp) + 10n;
+              const customItemVerificationTimeout =
+                nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout + 10n;
+
+              await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+              await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+              await mockToken.approve(fermionProtocolAddress, minimalPrice);
+
+              await setNextBlockTimestamp(String(nextBlockTimestamp));
+
+              await expect(
+                offerFacet.unwrapNFTAndSetVerificationTimeout(
+                  tokenId,
+                  WrapType.SELF_SALE,
+                  toBeHex(minimalPrice, 32),
+                  customItemVerificationTimeout,
+                ),
+              )
+                .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
+                .withArgs(
+                  customItemVerificationTimeout,
+                  nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout,
+                );
+            });
+          });
+        });
+      });
+
+      context("Fixed price offer", async function () {
+        const prices = [fullPrice];
+        const endTimes = [MaxUint256];
+        const abiCoder = new ethers.AbiCoder();
+        const encodedPrice = abiCoder.encode(["uint256"], [fullPrice - openSeaFee]);
+
+        beforeEach(async function () {
+          const fermionOffer = {
+            sellerId: "1",
+            sellerDeposit,
+            verifierId,
+            verifierFee,
+            custodianId: "3",
+            custodianFee,
+            facilitatorId,
+            facilitatorFeePercent: "0",
+            exchangeToken,
+            withPhygital,
+            metadataURI: "https://example.com/offer-metadata.json",
+            metadataHash: ZeroHash,
+            royaltyInfo,
+          };
+
+          await offerFacet.createOffer(fermionOffer);
+          await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+        });
+
+        context("unwrap with sale on OS", async function () {
+          let buyTx: ethers.ContractTransaction;
+          beforeEach(async function () {
+            const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
+
+            const buyer = wallets[4];
+            buyerAddress = buyer.address;
+            await mockToken.mint(buyerAddress, fullPrice);
+
+            seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+
+            const getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
+            const parameters = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTimes[0].toString());
+
+            const { executeAllActions } = await seaport.fulfillOrder({
+              order: { parameters, signature: "0x" },
+            });
+
+            buyTx = await executeAllActions();
+
+            bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+            openSeaAddress = seaportConfig.openSeaRecipient;
+            openSeaBalance = await mockToken.balanceOf(seaportConfig.openSeaRecipient);
+          });
+
+          it("Buy transaction emits FixedPriceSale event", async function () {
+            await expect(buyTx).to.emit(fermionWrapper, "FixedPriceSale").withArgs(tokenId);
+          });
+
+          context("unwrap fix-priced OS offer", function () {
+            beforeEach(async function () {
+              // approve token transfer so unwrapping can succeed
+              await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            });
+
+            it("Unwrapping", async function () {
+              const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice);
+
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+              await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
+
+              // Boson:
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "BuyerCommitted")
+                .withArgs(bosonOfferId, bosonBuyerId, exchangeId, anyValue, anyValue, defaultCollectionAddress); // exchange and voucher details are not relevant
+
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                .withArgs(bosonBuyerId, exchangeToken, fullPrice - openSeaFee, fermionProtocolAddress);
+
+              await expect(tx)
+                .to.emit(bosonExchangeHandler, "VoucherRedeemed")
+                .withArgs(bosonOfferId, exchangeId, fermionProtocolAddress);
+
+              // BosonVoucher
+              // - transferred to the protocol
+              await expect(tx)
+                .to.emit(bosonVoucher, "Transfer")
+                .withArgs(wrapperAddress, fermionProtocolAddress, tokenId);
+
+              // - burned
+              await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
+
+              // FermionFNFT
+              // - Should not be transferred, since it's already owned by the buyer
+              await expect(tx).to.not.emit(fermionWrapper, "Transfer");
+
+              // State:
+              // Boson
+              const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
+              expect(exists).to.be.equal(true);
+              expect(exchange.state).to.equal(3); // Redeemed
+              expect(voucher.committedDate).to.not.equal(0);
+              expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
+
+              const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+              expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
+
+              // FermionFNFT:
+              expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
+              expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
+
+              // OpenSea balance should remain the same during the unwrap
+              const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
+              expect(newOpenSeaBalance).to.equal(openSeaBalance);
+            });
+
+            it("Facilitator can unwrap", async function () {
+              await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit);
+
+              const tx = await offerFacet
+                .connect(facilitator)
+                .unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice);
+
+              // events:
+              // fermion
+              const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+              const itemVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+              const itemMaxVerificationTimeout =
+                blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+            });
+
+            context("Boson seller deposit covered from the available funds", function () {
+              it("Fully covered", async function () {
+                await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+                const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, exchangeToken);
+
+                const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice);
+
+                // events:
+                // fermion
+                const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+                const itemVerificationTimeout =
+                  blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+                const itemMaxVerificationTimeout =
+                  blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+                await expect(tx)
+                  .to.emit(offerFacet, "VerificationInitiated")
+                  .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+                await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+                // Boson:
+                await expect(tx)
+                  .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                  .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+                // State:
+                // Fermion
+                expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(
+                  sellerAvailableFunds - sellerDeposit,
+                );
+
+                // Boson
+                const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+                expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
+              });
+
+              it("Partially covered", async function () {
+                const remainder = sellerDeposit / 10n;
+                await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
+
+                await mockToken.approve(fermionProtocolAddress, remainder);
+                const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice);
+
+                // events:
+                // fermion
+                const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+                const itemVerificationTimeout =
+                  blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+                const itemMaxVerificationTimeout =
+                  blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+                await expect(tx)
+                  .to.emit(offerFacet, "VerificationInitiated")
+                  .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+                await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+                // Boson:
+                await expect(tx)
+                  .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                  .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+                // State:
+                // Fermion
+                expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
+
+                // Boson
+                const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+                expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee);
+              });
+            });
+
+            context("Zero verifier fee", function () {
+              const bosonOfferId = "2";
+              const exchangeId = prices.length + 1;
               const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+              let wrapperAddress: string;
+              let fermionWrapper: Contract;
 
               beforeEach(async function () {
                 const fermionOffer = {
                   sellerId: "1",
-                  sellerDeposit,
+                  sellerDeposit: "0",
+                  verifierId,
+                  verifierFee: "0",
+                  custodianId: "3",
+                  custodianFee,
+                  facilitatorId: sellerId,
+                  facilitatorFeePercent: "0",
+                  exchangeToken: await mockToken.getAddress(),
+                  withPhygital,
+                  metadataURI: "https://example.com/offer-metadata.json",
+                  metadataHash: ZeroHash,
+                  royaltyInfo,
+                };
+
+                // erc20 offer
+                await offerFacet.createOffer(fermionOffer);
+
+                // mint and wrap
+                await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+
+                wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
+                fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+              });
+
+              it("Non-zero item price", async function () {
+                const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
+                const { executeAllActions } = await seaport.createOrder(
+                  {
+                    offer: [
+                      {
+                        itemType: ItemType.ERC721,
+                        token: wrapperAddress,
+                        identifier: tokenId,
+                      },
+                    ],
+                    consideration: [
+                      {
+                        itemType: ItemType.ERC20,
+                        token: exchangeToken,
+                        amount: fullPrice - openSeaFee,
+                      },
+                      {
+                        itemType: ItemType.ERC20,
+                        token: exchangeToken,
+                        amount: openSeaFee,
+                        recipient: openSeaAddress,
+                      },
+                    ],
+                    conduitKey: seaportConfig.openSeaConduitKey,
+                    zone: seaportConfig.openSeaConduit == ZeroAddress ? seaportAddress : seaportConfig.openSeaConduit,
+                    zoneHash: seaportConfig.openSeaZoneHash,
+                    startTime: "0",
+                    endTime: endTimes[0].toString(),
+                    salt: "0",
+                  },
+                  wrapperAddress,
+                );
+
+                // just to get the order
+                const fixedPriceOrder = await executeAllActions();
+
+                await mockToken.mint(buyerAddress, fullPrice);
+                const { executeAllActions: executeAllActionsBuyer } = await seaport.fulfillOrder({
+                  order: { ...fixedPriceOrder, signature: "0x" },
+                });
+                await executeAllActionsBuyer();
+                const encodedPrice = abiCoder.encode(["uint256"], [fullPrice - openSeaFee]);
+
+                const bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+                const openSeaBalance = await mockToken.balanceOf(openSeaAddress);
+
+                const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice);
+
+                // events:
+                // fermion
+                const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+                const itemVerificationTimeout =
+                  blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+                const itemMaxVerificationTimeout =
+                  blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+                await expect(tx)
+                  .to.emit(offerFacet, "VerificationInitiated")
+                  .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+                await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+                // Boson:
+                await expect(tx)
+                  .to.emit(bosonExchangeHandler, "BuyerCommitted")
+                  .withArgs(bosonOfferId, bosonBuyerId, exchangeId, anyValue, anyValue, defaultCollectionAddress); // exchange and voucher details are not relevant
+
+                await expect(tx)
+                  .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                  .withArgs(bosonSellerId, exchangeToken, "0", defaultCollectionAddress);
+
+                await expect(tx)
+                  .to.emit(bosonExchangeHandler, "FundsEncumbered")
+                  .withArgs(bosonBuyerId, exchangeToken, fullPrice - openSeaFee, fermionProtocolAddress);
+
+                await expect(tx)
+                  .to.emit(bosonExchangeHandler, "VoucherRedeemed")
+                  .withArgs(bosonOfferId, exchangeId, fermionProtocolAddress);
+
+                // BosonVoucher
+                // - transferred to the protocol
+                await expect(tx)
+                  .to.emit(bosonVoucher, "Transfer")
+                  .withArgs(wrapperAddress, fermionProtocolAddress, tokenId);
+
+                // - burned
+                await expect(tx)
+                  .to.emit(bosonVoucher, "Transfer")
+                  .withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
+
+                // FermionFNFT
+                // - Should not be transferred, since it's already owned by the buyer
+                await expect(tx).to.not.emit(fermionWrapper, "Transfer");
+
+                // State:
+                // Boson
+                const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
+                expect(exists).to.be.equal(true);
+                expect(exchange.state).to.equal(3); // Redeemed
+                expect(voucher.committedDate).to.not.equal(0);
+                expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
+
+                const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+                expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
+
+                // FermionFNFT:
+                expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
+                expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
+
+                // OpenSea balance should remain the same during the unwrap
+                const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
+                expect(newOpenSeaBalance).to.equal(openSeaBalance);
+              });
+            });
+
+            it("Set custom verification timeout", async function () {
+              const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
+              const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
+              const tx = await offerFacet.unwrapNFTAndSetVerificationTimeout(
+                tokenId,
+                WrapType.OS_FIXED_PRICE,
+                encodedPrice,
+                customItemVerificationTimeout,
+              );
+
+              // events:
+              const itemMaxVerificationTimeout =
+                BigInt((await tx.getBlock()).timestamp) + fermionConfig.protocolParameters.maxVerificationTimeout;
+
+              // fermion
+              await expect(tx)
+                .to.emit(offerFacet, "VerificationInitiated")
+                .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
+              await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+              // State:
+              expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(
+                customItemVerificationTimeout,
+              );
+            });
+
+            context("Revert reasons", function () {
+              it("Offer region is paused", async function () {
+                await pauseFacet.pause([PausableRegion.Offer]);
+
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                  .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+                  .withArgs(PausableRegion.Offer);
+              });
+
+              it("Caller is not the seller's assistant", async function () {
+                await verifySellerAssistantRole("unwrapNFT", [tokenId, WrapType.OS_FIXED_PRICE, encodedPrice]);
+              });
+
+              it("Caller is not the facilitator defined in the offer", async function () {
+                await expect(offerFacet.connect(facilitator2).unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                  .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+                  .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
+              });
+
+              context("Boson deposit not covered", async function () {
+                it("Zero available funds", async function () {
+                  // ERC20 offer - insufficient allowance
+                  await mockToken.approve(fermionProtocolAddress, sellerDeposit - 1n);
+
+                  await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                    .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+                    .withArgs(fermionProtocolAddress, sellerDeposit - 1n, sellerDeposit);
+
+                  // ERC20 offer - contract sends insufficient funds
+                  await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+                  await mockToken.setBurnAmount(1);
+                  await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                    .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
+                    .withArgs(sellerDeposit, sellerDeposit - 1n);
+                  await mockToken.setBurnAmount(0);
+
+                  // ERC20 offer - insufficient balance
+                  const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
+                  await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+
+                  await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                    .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+                    .withArgs(defaultSigner.address, 0n, sellerDeposit);
+
+                  // Send native currency to ERC20 offer
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice, { value: sellerDeposit }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                });
+
+                it("Partially covered by available funds", async function () {
+                  const remainder = sellerDeposit / 10n;
+                  await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit - remainder);
+
+                  // ERC20 offer - insufficient allowance
+                  await mockToken.approve(fermionProtocolAddress, remainder - 1n);
+
+                  await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                    .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
+                    .withArgs(fermionProtocolAddress, remainder - 1n, remainder);
+
+                  // ERC20 offer - contract sends insufficient funds
+                  await mockToken.approve(fermionProtocolAddress, remainder);
+                  await mockToken.setBurnAmount(1);
+                  await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                    .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
+                    .withArgs(remainder, remainder - 1n);
+                  await mockToken.setBurnAmount(0);
+
+                  // ERC20 offer - insufficient balance
+                  const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
+                  await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
+
+                  await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                    .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
+                    .withArgs(defaultSigner.address, 0n, remainder);
+
+                  // Send native currency to ERC20 offer
+                  await expect(
+                    offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice, { value: remainder }),
+                  ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                });
+
+                context("offer with native currency", function () {
+                  // Although support for offers in native currency is not complete, this is a test for the future
+                  // Note that "buyerAdvancedOrder" is in fact wrong, since it cannot be created for native currency
+                  // However, for the testing purposes, it's good enough, since the transaction reverts before it's used
+                  const bosonOfferId = "2";
+                  const exchangeId = quantity + 1n;
+                  const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
+
+                  beforeEach(async function () {
+                    const fermionOffer = {
+                      sellerId: "1",
+                      sellerDeposit,
+                      verifierId,
+                      verifierFee,
+                      custodianId: "3",
+                      custodianFee,
+                      facilitatorId: sellerId,
+                      facilitatorFeePercent: "0",
+                      exchangeToken: ZeroAddress,
+                      withPhygital,
+                      metadataURI: "https://example.com/offer-metadata.json",
+                      metadataHash: ZeroHash,
+                      royaltyInfo,
+                    };
+
+                    await offerFacet.createOffer(fermionOffer);
+                    await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+                  });
+
+                  it("Zero available funds", async function () {
+                    // Native currency offer - insufficient funds
+                    await expect(
+                      offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice, {
+                        value: sellerDeposit - 1n,
+                      }),
+                    ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+
+                    // Native currency offer - too much sent
+                    await expect(
+                      offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice, {
+                        value: sellerDeposit + 1n,
+                      }),
+                    ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                  });
+
+                  it("Partially covered by available funds", async function () {
+                    const remainder = sellerDeposit / 10n;
+                    await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
+                      value: sellerDeposit - remainder,
+                    });
+
+                    // Native currency offer - insufficient funds
+                    await expect(
+                      offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice, { value: remainder - 1n }),
+                    ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+
+                    // Native currency offer - too much sent
+                    await expect(
+                      offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice, { value: remainder + 1n }),
+                    ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                  });
+                });
+              });
+
+              it("Price does not cover the verifier fee", async function () {
+                const minimalPrice = calculateMinimalPrice(
+                  verifierFee,
+                  0,
+                  bosonProtocolFeePercentage,
+                  fermionConfig.protocolParameters.protocolFeePercentage,
+                );
+                const encodedPrice = abiCoder.encode(["uint256"], [minimalPrice - 1n]);
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                  .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
+                  .withArgs(minimalPrice - 1n, minimalPrice);
+              });
+
+              it("Price does not cover the verifier fee [BOSON]", async function () {
+                const bosonOfferId = "2";
+                const bosonExchangeId = prices.length + 1;
+                const tokenId = deriveTokenId(bosonOfferId, bosonExchangeId).toString();
+
+                await offerFacet.addSupportedToken(bosonTokenAddress);
+                const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler");
+                const bosonProtocolFlatFee = parseEther("0"); // ToDo: after boson v2.4.2, this could be higher than 0
+                await bosonConfigHandler.setProtocolFeeFlatBoson(bosonProtocolFlatFee);
+
+                const fermionOffer = {
+                  sellerId: "1",
+                  sellerDeposit: "0",
                   verifierId,
                   verifierFee,
                   custodianId: "3",
                   custodianFee,
                   facilitatorId: sellerId,
                   facilitatorFeePercent: "0",
-                  exchangeToken: ZeroAddress,
+                  exchangeToken: bosonTokenAddress,
+                  withPhygital,
                   metadataURI: "https://example.com/offer-metadata.json",
                   metadataHash: ZeroHash,
                   royaltyInfo,
                 };
 
                 await offerFacet.createOffer(fermionOffer);
-                await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+                await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+
+                // const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
+                const minimalPrice = calculateMinimalPrice(
+                  verifierFee,
+                  0,
+                  bosonProtocolFlatFee,
+                  fermionConfig.protocolParameters.protocolFeePercentage,
+                  true,
+                );
+                const encodedPrice = abiCoder.encode(["uint256"], [minimalPrice - 1n]);
+                await expect(offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice))
+                  .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
+                  .withArgs(minimalPrice - 1n, minimalPrice);
               });
 
-              it("Zero available funds", async function () {
-                // Native currency offer - insufficient funds
-                await expect(
-                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit - 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+              it("Custom verification timeout too long", async function () {
+                const nextBlockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp) + 10n;
+                const customItemVerificationTimeout =
+                  nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout + 10n;
 
-                // Native currency offer - too much sent
-                await expect(
-                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: sellerDeposit + 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
-              });
+                await setNextBlockTimestamp(String(nextBlockTimestamp));
 
-              it("Partially covered by available funds", async function () {
-                const remainder = sellerDeposit / 10n;
-                await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
-                  value: sellerDeposit - remainder,
-                });
-
-                // Native currency offer - insufficient funds
                 await expect(
-                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder - 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
-
-                // Native currency offer - too much sent
-                await expect(
-                  offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder, { value: remainder + 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+                  offerFacet.unwrapNFTAndSetVerificationTimeout(
+                    tokenId,
+                    WrapType.OS_FIXED_PRICE,
+                    encodedPrice,
+                    customItemVerificationTimeout,
+                  ),
+                )
+                  .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
+                  .withArgs(
+                    customItemVerificationTimeout,
+                    nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout,
+                  );
               });
             });
           });
+        });
 
-          it("Price does not cover the verifier fee", async function () {
-            const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
-            buyerAdvancedOrder.parameters.offer[0].startAmount = minimalPrice.toString();
-            buyerAdvancedOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-              .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
-              .withArgs(minimalPrice - 1n, minimalPrice);
-          });
-
-          it("Price does not cover the verifier fee [BOSON]", async function () {
-            const bosonOfferId = "2";
-            const bosonExchangeId = quantity + 1n;
-            const tokenId = deriveTokenId(bosonOfferId, bosonExchangeId).toString();
-
-            await offerFacet.addSupportedToken(bosonTokenAddress);
-            const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler");
-            const bosonProtocolFlatFee = parseEther("0"); // ToDo: after boson v2.4.2, this could be higher than 0
-            await bosonConfigHandler.setProtocolFeeFlatBoson(bosonProtocolFlatFee);
-
-            const fermionOffer = {
-              sellerId: "1",
-              sellerDeposit: "0",
-              verifierId,
+        context("Unwrap without sale on OS", async function () {
+          it("Unwrap to self", async function () {
+            const minimalPrice = calculateMinimalPrice(
               verifierFee,
-              custodianId: "3",
-              custodianFee,
-              facilitatorId: sellerId,
-              facilitatorFeePercent: "0",
-              exchangeToken: bosonTokenAddress,
-              metadataURI: "https://example.com/offer-metadata.json",
-              metadataHash: ZeroHash,
-              royaltyInfo,
-            };
-
-            await offerFacet.createOffer(fermionOffer);
-            await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
-
-            const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
-            buyerAdvancedOrder.parameters.offer[0].startAmount = minimalPrice.toString();
-            buyerAdvancedOrder.parameters.consideration[1].startAmount = "1"; // openSea fee. In total, the protocol gets minimalPrice-1
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder))
-              .to.be.revertedWithCustomError(fermionErrors, "PriceTooLow")
-              .withArgs(minimalPrice - 1n, minimalPrice);
-          });
-
-          it("Buyer order does not have 1 offer", async function () {
-            // two offers
-            buyerAdvancedOrder.parameters.offer.push(buyerAdvancedOrder.parameters.offer[0]);
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
+              0, // facilitatorFee 0
+              bosonProtocolFeePercentage,
+              fermionConfig.protocolParameters.protocolFeePercentage,
             );
 
-            // 0 offers
-            buyerAdvancedOrder.parameters.offer = [];
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+            await mockToken.approve(fermionProtocolAddress, minimalPrice);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
+            await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
           });
 
-          it("Buyer order have more than 2 considerations", async function () {
-            buyerAdvancedOrder.parameters.consideration.push(buyerAdvancedOrder.parameters.consideration[1]);
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
-          });
+          it("Unwrap via OS auction", async function () {
+            // Buyer makes an offer with a price lower than the listed price
+            const offerPrice = (fullPrice * 9n) / 10n;
+            const openSeaFee = (offerPrice * 2_50n) / 100_00n;
+            const priceSubOSFee = offerPrice - openSeaFee;
 
-          it("OS fee is greater than the price", async function () {
-            buyerAdvancedOrder.parameters.offer[0].startAmount = "0";
-            buyerAdvancedOrder.parameters.consideration[1].startAmount = "1";
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
-          });
-
-          it("OS fee is more than expected", async function () {
-            buyerAdvancedOrder.parameters.consideration[1].startAmount += 1n;
-            await expect(offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder)).to.be.revertedWithCustomError(
-              fermionErrors,
-              "InvalidOpenSeaOrder",
-            );
-          });
-
-          it("Custom verification timeout too long", async function () {
-            const nextBlockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp) + 10n;
-            const customItemVerificationTimeout =
-              nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout + 10n;
-
-            await setNextBlockTimestamp(String(nextBlockTimestamp));
-
-            await expect(
-              offerFacet.unwrapNFTAndSetVerificationTimeout(tokenId, buyerAdvancedOrder, customItemVerificationTimeout),
-            )
-              .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
-              .withArgs(
-                customItemVerificationTimeout,
-                nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout,
-              );
-          });
-
-          it("Unwrapping directly through the Boson contract", async function () {
-            const attackerWallet = wallets[6];
-
+            const buyer = wallets[4];
             const openSea = wallets[5]; // a mock OS address
             openSeaAddress = openSea.address;
-            const attackerAddress = attackerWallet.address;
-            const seaport = new Seaport(attackerWallet, {
-              overrides: { seaportVersion: "1.6", contractAddress: seaportAddress },
-            });
+            buyerAddress = buyer.address;
+            seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+
+            await mockToken.mint(buyerAddress, offerPrice);
 
             const { executeAllActions } = await seaport.createOrder(
               {
@@ -1412,7 +3155,7 @@ describe("Offer", function () {
                   {
                     itemType: ItemType.ERC20,
                     token: exchangeToken,
-                    amount: "0",
+                    amount: offerPrice.toString(),
                   },
                 ],
                 consideration: [
@@ -1424,168 +3167,136 @@ describe("Offer", function () {
                   {
                     itemType: ItemType.ERC20,
                     token: exchangeToken,
-                    amount: "0",
+                    amount: openSeaFee.toString(),
                     recipient: openSeaAddress,
                   },
                 ],
               },
-              attackerAddress,
+              buyerAddress,
             );
 
             const buyerOrder = await executeAllActions();
+            const buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
 
-            buyerAdvancedOrder = {
-              ...buyerOrder,
-              numerator: 1n,
-              denominator: 1n,
-              extraData: "0x",
-            };
+            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
-            const priceDiscoveryContractAddress = await fermionWrapper.getAddress(); // wrapper address
-            const priceDiscoveryData = fermionWrapper.interface.encodeFunctionData("unwrap", [
-              tokenId,
-              buyerAdvancedOrder,
-            ]);
-            const price = "0";
-            const priceDiscovery = new PriceDiscovery(
-              price,
-              Side.Wrapper,
-              priceDiscoveryContractAddress,
-              priceDiscoveryContractAddress,
-              priceDiscoveryData,
-            );
-
-            const configHandler = await getBosonHandler("IBosonConfigHandler");
-            const bosonPriceDiscoveryClientAddress = await configHandler.getPriceDiscoveryAddress();
-            const priceDiscoveryHandler = await getBosonHandler("IBosonPriceDiscoveryHandler");
-
-            await expect(
-              priceDiscoveryHandler
-                .connect(attackerWallet)
-                .commitToPriceDiscoveryOffer(attackerWallet.address, tokenId, priceDiscovery),
-            )
-              .to.be.revertedWithCustomError(fermionWrapper, "InvalidStateOrCaller")
-              .withArgs(tokenId, bosonPriceDiscoveryClientAddress, TokenState.Wrapped);
-          });
-        });
-
-        context("Seaport tests", function () {
-          // Not testing the protocol, just the interaction with Seaport
-          it("Seaport should not allow invalid signature", async function () {
-            await expect(
-              offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: "0x" }),
-            ).to.be.revertedWithCustomError(seaportContract, "InvalidSignature");
-
-            const invalidSignature = buyerAdvancedOrder.signature.replace("1", "2");
-            await expect(
-              offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: invalidSignature }),
-            ).to.be.revertedWithCustomError(seaportContract, "InvalidSigner");
-          });
-
-          it("Works with pre-validated orders", async function () {
-            const buyer = wallets[4];
-            await seaportContract.connect(buyer).validate([buyerAdvancedOrder]);
-            await expect(offerFacet.unwrapNFT(tokenId, { ...buyerAdvancedOrder, signature: "0x" })).to.not.be.reverted;
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+            await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
           });
         });
       });
+    });
 
-      context("unwrapToSelf", function () {
-        const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
+    context("Zero seller deposit", function () {
+      const sellerDeposit = 0n;
+      context("Auction type", async function () {
+        beforeEach(async function () {
+          const fermionOffer = {
+            sellerId: "1",
+            sellerDeposit,
+            verifierId,
+            verifierFee,
+            custodianId: "3",
+            custodianFee,
+            facilitatorId: sellerId,
+            facilitatorFeePercent: "0",
+            exchangeToken,
+            withPhygital,
+            metadataURI: "https://example.com/offer-metadata.json",
+            metadataHash: ZeroHash,
+            royaltyInfo,
+          };
 
-        it("Unwrapping", async function () {
-          await mockToken.approve(fermionProtocolAddress, sellerDeposit);
-          await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+          await offerFacet.createOffer(fermionOffer);
+          await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
 
-          await mockToken.approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.unwrapNFTToSelf(tokenId);
+          const buyer = wallets[4];
+          const openSea = wallets[5]; // a mock OS address
+          openSeaAddress = openSea.address;
+          buyerAddress = buyer.address;
+          seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
 
-          // events:
-          // fermion
-          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-          const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+          await mockToken.mint(buyerAddress, fullPrice);
 
-          // Boson:
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "BuyerCommitted")
-            .withArgs(bosonOfferId, bosonBuyerId, exchangeId, anyValue, anyValue, defaultCollectionAddress); // exchange and voucher details are not relevant
+          const { executeAllActions } = await seaport.createOrder(
+            {
+              offer: [
+                {
+                  itemType: ItemType.ERC20,
+                  token: exchangeToken,
+                  amount: fullPrice.toString(),
+                },
+              ],
+              consideration: [
+                {
+                  itemType: ItemType.ERC721,
+                  token: wrapperAddress,
+                  identifier: tokenId,
+                },
+                {
+                  itemType: ItemType.ERC20,
+                  token: exchangeToken,
+                  amount: openSeaFee.toString(),
+                  recipient: openSeaAddress,
+                },
+              ],
+            },
+            buyerAddress,
+          );
 
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+          const buyerOrder = await executeAllActions();
 
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonBuyerId, exchangeToken, minimalPrice, fermionProtocolAddress);
+          buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
 
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "VoucherRedeemed")
-            .withArgs(bosonOfferId, exchangeId, fermionProtocolAddress);
-
-          // BosonVoucher
-          // - transferred to the protocol
-          await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(wrapperAddress, fermionProtocolAddress, tokenId);
-
-          // - burned
-          await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
-
-          // FermionFNFT
-          // - No transfer should happen, since the seller is the buyer
-          await expect(tx).to.not.emit(fermionWrapper, "Transfer");
-
-          // State:
-          // Boson
-          const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
-          expect(exists).to.be.equal(true);
-          expect(exchange.state).to.equal(3); // Redeemed
-          expect(voucher.committedDate).to.not.equal(0);
-          expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
-
-          const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-          expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + minimalPrice);
-
-          // FermionFNFT:
-          expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
-          expect(await fermionWrapper.ownerOf(tokenId)).to.equal(defaultSigner.address);
-
-          // OpenSea balance should remain the same
-          const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
-          expect(newOpenSeaBalance).to.equal(openSeaBalance);
+          bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+          openSeaBalance = await mockToken.balanceOf(openSeaAddress);
         });
 
-        it("Facilitator can unwrap", async function () {
-          await mockToken.approve(fermionProtocolAddress, sellerDeposit);
-          await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+        context("unwrap (with OS auction)", function () {
+          it("Unwrapping", async function () {
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
-          await mockToken.mint(facilitator.address, minimalPrice);
-          await mockToken.connect(facilitator).approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.connect(facilitator).unwrapNFTToSelf(tokenId);
+            // events:
+            // fermion
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
 
-          // events:
-          // fermion
-          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-          const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+            // Boson:
+            await expect(tx)
+              .to.emit(bosonExchangeHandler, "FundsEncumbered")
+              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+            // State:
+            const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
+          });
         });
 
-        context("Boson seller deposit covered from the available funds", function () {
-          it("Fully covered", async function () {
-            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
-            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+        context("unwrapToSelf", function () {
+          const minimalPrice = calculateMinimalPrice(
+            verifierFee,
+            0,
+            bosonProtocolFeePercentage,
+            fermionConfig.protocolParameters.protocolFeePercentage,
+          );
 
-            const sellerAvailableFunds = await fundsFacet.getAvailableFunds(bosonSellerId, exchangeToken);
-
+          it("Unwrapping", async function () {
             await mockToken.approve(fermionProtocolAddress, minimalPrice);
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
             // events:
             // fermion
@@ -1593,69 +3304,28 @@ describe("Offer", function () {
             const itemVerificationTimeout =
               blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
             const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
             // Boson:
             await expect(tx)
               .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+              .withArgs(bosonBuyerId, exchangeToken, minimalPrice, fermionProtocolAddress);
 
             // State:
-            // Fermion
-            expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(
-              sellerAvailableFunds - sellerDeposit,
-            );
-
             // Boson
             const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + minimalPrice);
+            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
           });
 
-          it("Partially covered", async function () {
-            const remainder = sellerDeposit / 10n;
-            await mockToken.approve(fermionProtocolAddress, sellerDeposit - remainder);
-            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
+          it("Unwrapping - native", async function () {
+            const bosonOfferId = "2";
+            const exchangeId = quantity + 1n;
+            const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
 
-            await mockToken.approve(fermionProtocolAddress, remainder + minimalPrice);
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId);
-
-            // events:
-            // fermion
-            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-            const itemVerificationTimeout =
-              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-            await expect(tx)
-              .to.emit(offerFacet, "VerificationInitiated")
-              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
-
-            // Boson:
-            await expect(tx)
-              .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
-
-            // State:
-            // Fermion
-            expect(await fundsFacet.getAvailableFunds(sellerId, exchangeToken)).to.equal(0);
-
-            // Boson
-            const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit + minimalPrice);
-          });
-        });
-
-        context("offer with native currency", function () {
-          // Although support for offers in native currency is not complete, this is a test for the future
-          const bosonOfferId = "2";
-          const exchangeId = quantity + 1n;
-          const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
-          const verifierFee = 0n;
-
-          beforeEach(async function () {
             const fermionOffer = {
               sellerId: "1",
               sellerDeposit,
@@ -1666,6 +3336,7 @@ describe("Offer", function () {
               facilitatorId: sellerId,
               facilitatorFeePercent: "0",
               exchangeToken: ZeroAddress,
+              withPhygital,
               metadataURI: "https://example.com/offer-metadata.json",
               metadataHash: ZeroHash,
               royaltyInfo,
@@ -1675,14 +3346,11 @@ describe("Offer", function () {
             await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
 
             bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
-          });
 
-          it("Fully covered by available funds", async function () {
-            await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit, {
-              value: sellerDeposit,
+            // await mockToken.approve(fermionProtocolAddress, minimalPrice);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32), {
+              value: minimalPrice,
             });
-
-            const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: 0n });
 
             // events:
             // fermion
@@ -1693,427 +3361,40 @@ describe("Offer", function () {
             await expect(tx)
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
 
             // Boson:
             await expect(tx)
               .to.emit(bosonExchangeHandler, "FundsEncumbered")
-              .withArgs(bosonSellerId, ZeroAddress, sellerDeposit, defaultCollectionAddress);
+              .withArgs(bosonBuyerId, ZeroAddress, minimalPrice, fermionProtocolAddress);
 
             // State:
+            // Boson
             const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
-            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + sellerDeposit);
-            expect(await fundsFacet.getAvailableFunds(sellerId, ZeroAddress)).to.equal(0);
-          });
-        });
-
-        it("Set custom verification timeout", async function () {
-          const blockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp);
-          const customItemVerificationTimeout = blockTimestamp + 24n * 60n * 60n * 15n; // 15 days
-          await mockToken.approve(fermionProtocolAddress, sellerDeposit);
-          await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
-
-          await mockToken.approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.unwrapNFTToSelfAndSetVerificationTimeout(tokenId, customItemVerificationTimeout);
-          const itemMaxVerificationTimeout =
-            BigInt((await tx.getBlock()).timestamp) + fermionConfig.protocolParameters.maxVerificationTimeout;
-
-          // events:
-          // fermion
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, customItemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
-
-          // State:
-          expect(await verificationFacet.getItemVerificationTimeout(tokenId)).to.equal(customItemVerificationTimeout);
-        });
-
-        context("Revert reasons", function () {
-          it("Offer region is paused", async function () {
-            await pauseFacet.pause([PausableRegion.Offer]);
-
-            await expect(offerFacet.unwrapNFTToSelf(tokenId))
-              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
-              .withArgs(PausableRegion.Offer);
+            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
           });
 
-          it("Caller is not the seller's assistant", async function () {
-            await verifySellerAssistantRole("unwrapNFTToSelf", [tokenId]);
-          });
-
-          it("Caller is not the facilitator defined in the offer", async function () {
-            await expect(offerFacet.connect(facilitator2).unwrapNFTToSelf(tokenId))
-              .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
-              .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
-          });
-
-          context("Boson deposit not covered", async function () {
-            it("Zero available funds", async function () {
-              // ERC20 offer - insufficient allowance
-              await mockToken.approve(fermionProtocolAddress, sellerDeposit - 1n);
-
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
-                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
-                .withArgs(fermionProtocolAddress, sellerDeposit - 1n, sellerDeposit);
-
-              // ERC20 offer - contract sends insufficient funds
-              await mockToken.approve(fermionProtocolAddress, sellerDeposit);
+          context("Revert reasons", function () {
+            it("Price does not cover the verifier fee", async function () {
+              // Contract sends insufficient funds. In this case, the depositing to boson fails before fermion fails
+              await mockToken.approve(fermionProtocolAddress, minimalPrice);
               await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
+              await expect(offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)))
                 .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                .withArgs(sellerDeposit, sellerDeposit - 1n);
+                .withArgs(minimalPrice, minimalPrice - 1n);
               await mockToken.setBurnAmount(0);
-
-              // ERC20 offer - insufficient balance
-              const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
-              await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
-
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
-                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
-                .withArgs(defaultSigner.address, 0n, sellerDeposit);
-
-              // Send native currency to ERC20 offer
-              await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit })).to.be.revertedWithCustomError(
-                fermionErrors,
-                "NativeNotAllowed",
-              );
             });
-
-            it("Partially covered by available funds", async function () {
-              const remainder = sellerDeposit / 10n;
-              await mockToken.approve(fermionProtocolAddress, sellerDeposit - remainder);
-              await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit - remainder);
-
-              // ERC20 offer - insufficient allowance
-              await mockToken.approve(fermionProtocolAddress, remainder - 1n);
-
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
-                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
-                .withArgs(fermionProtocolAddress, remainder - 1n, remainder);
-
-              // ERC20 offer - contract sends insufficient funds
-              await mockToken.approve(fermionProtocolAddress, remainder);
-              await mockToken.setBurnAmount(1);
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
-                .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-                .withArgs(remainder, remainder - 1n);
-              await mockToken.setBurnAmount(0);
-
-              // ERC20 offer - insufficient balance
-              const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
-              await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
-
-              await expect(offerFacet.unwrapNFTToSelf(tokenId))
-                .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
-                .withArgs(defaultSigner.address, 0n, remainder);
-
-              // Send native currency to ERC20 offer
-              await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder })).to.be.revertedWithCustomError(
-                fermionErrors,
-                "NativeNotAllowed",
-              );
-            });
-
-            context("offer with native currency", function () {
-              // Although support for offers in native currency is not complete, this is a test for the future
-              const bosonOfferId = "2";
-              const exchangeId = quantity + 1n;
-              const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
-
-              beforeEach(async function () {
-                const fermionOffer = {
-                  sellerId: "1",
-                  sellerDeposit,
-                  verifierId,
-                  verifierFee,
-                  custodianId: "3",
-                  custodianFee,
-                  facilitatorId: sellerId,
-                  facilitatorFeePercent: "0",
-                  exchangeToken: ZeroAddress,
-                  metadataURI: "https://example.com/offer-metadata.json",
-                  metadataHash: ZeroHash,
-                  royaltyInfo,
-                };
-
-                await offerFacet.createOffer(fermionOffer);
-                await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
-              });
-
-              it("Cannot deposit native - zero available funds", async function () {
-                await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit }),
-                ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
-              });
-
-              it("Cannot deposit native -  partially covered by available funds", async function () {
-                const remainder = sellerDeposit / 10n;
-                await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
-                  value: sellerDeposit - remainder,
-                });
-
-                await expect(offerFacet.unwrapNFTToSelf(tokenId, { value: remainder })).to.be.revertedWithCustomError(
-                  fermionErrors,
-                  "NativeNotAllowed",
-                );
-              });
-
-              it.skip("Zero available funds", async function () {
-                // If we allow back the native currency offers, this test should be enabled
-
-                // Native currency offer - insufficient funds
-                await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit - 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
-
-                // Native currency offer - too much sent
-                await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: sellerDeposit + 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
-              });
-
-              it.skip("Partially covered by available funds", async function () {
-                // If we allow back the native currency offers, this test should be enabled
-
-                const remainder = sellerDeposit / 10n;
-                await fundsFacet.depositFunds(sellerId, ZeroAddress, sellerDeposit - remainder, {
-                  value: sellerDeposit - remainder,
-                });
-
-                // Native currency offer - insufficient funds
-                await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: remainder - 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
-
-                // Native currency offer - too much sent
-                await expect(
-                  offerFacet.unwrapNFTToSelf(tokenId, { value: remainder + 1n }),
-                ).to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived");
-              });
-            });
-          });
-
-          it("Price does not cover the verifier fee", async function () {
-            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
-            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
-
-            // insufficient allowance
-            await mockToken.approve(fermionProtocolAddress, minimalPrice - 1n);
-            await expect(offerFacet.unwrapNFTToSelf(tokenId))
-              .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
-              .withArgs(fermionProtocolAddress, minimalPrice - 1n, minimalPrice);
-
-            // Contract sends insufficient funds. In this case, the depositing to boson fails before fermion fails
-            const bosonFundsHandler = await getBosonHandler("IBosonFundsHandler");
-            await mockToken.approve(fermionProtocolAddress, minimalPrice);
-            await mockToken.setBurnAmount(1);
-            await expect(offerFacet.unwrapNFTToSelf(tokenId)).to.be.revertedWithCustomError(
-              bosonFundsHandler,
-              "InsufficientValueReceived",
-            );
-            await mockToken.setBurnAmount(0);
-
-            // Insufficient balance
-            const sellerBalance = await mockToken.balanceOf(defaultSigner.address);
-            await mockToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
-            await expect(offerFacet.unwrapNFTToSelf(tokenId))
-              .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
-              .withArgs(defaultSigner.address, 0n, minimalPrice);
-          });
-
-          it("Price does not cover the verifier fee [BOSON]", async function () {
-            const bosonOfferId = "2";
-            const bosonExchangeId = quantity + 1n;
-            const tokenId = deriveTokenId(bosonOfferId, bosonExchangeId).toString();
-
-            await offerFacet.addSupportedToken(bosonTokenAddress);
-            const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler");
-            const bosonProtocolFlatFee = parseEther("0"); // ToDo: after boson v2.4.2, this could be higher than 0
-            await bosonConfigHandler.setProtocolFeeFlatBoson(bosonProtocolFlatFee);
-
-            const fermionOffer = {
-              sellerId: "1",
-              sellerDeposit: "0",
-              verifierId,
-              verifierFee,
-              custodianId: "3",
-              custodianFee,
-              facilitatorId: sellerId,
-              facilitatorFeePercent: "0",
-              exchangeToken: bosonTokenAddress,
-              metadataURI: "https://example.com/offer-metadata.json",
-              metadataHash: ZeroHash,
-              royaltyInfo,
-            };
-
-            await offerFacet.createOffer(fermionOffer);
-            await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
-
-            const minimalPrice = verifierFee + BigInt(bosonProtocolFlatFee);
-            // insufficient allowance
-            await mockBosonToken.approve(fermionProtocolAddress, minimalPrice - 1n);
-            await expect(offerFacet.unwrapNFTToSelf(tokenId)).to.be.revertedWith("ERC20: insufficient allowance"); // old error style
-
-            // Insufficient balance
-            await mockBosonToken.approve(fermionProtocolAddress, minimalPrice);
-            const sellerBalance = await mockBosonToken.balanceOf(defaultSigner.address);
-            await mockBosonToken.transfer(wallets[4].address, sellerBalance); // transfer all the tokens to another wallet
-            await expect(offerFacet.unwrapNFTToSelf(tokenId)).to.be.revertedWith(
-              "ERC20: transfer amount exceeds balance",
-            ); // old error style
-          });
-
-          it("Custom verification timeout too long", async function () {
-            const nextBlockTimestamp = BigInt((await ethers.provider.getBlock("latest")).timestamp) + 10n;
-            const customItemVerificationTimeout =
-              nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout + 10n;
-
-            await mockToken.approve(fermionProtocolAddress, sellerDeposit);
-            await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
-            await mockToken.approve(fermionProtocolAddress, minimalPrice);
-
-            await setNextBlockTimestamp(String(nextBlockTimestamp));
-
-            await expect(offerFacet.unwrapNFTToSelfAndSetVerificationTimeout(tokenId, customItemVerificationTimeout))
-              .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
-              .withArgs(
-                customItemVerificationTimeout,
-                nextBlockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout,
-              );
           });
         });
       });
-    });
 
-    context("Zero seller deposit", function () {
-      const sellerDeposit = 0n;
+      context("Fixed price offer", async function () {
+        const prices = [fullPrice];
+        const endTimes = [MaxUint256];
+        const abiCoder = new ethers.AbiCoder();
+        const encodedPrice = abiCoder.encode(["uint256"], [fullPrice - openSeaFee]);
 
-      beforeEach(async function () {
-        const fermionOffer = {
-          sellerId: "1",
-          sellerDeposit,
-          verifierId,
-          verifierFee,
-          custodianId: "3",
-          custodianFee,
-          facilitatorId: sellerId,
-          facilitatorFeePercent: "0",
-          exchangeToken,
-          metadataURI: "https://example.com/offer-metadata.json",
-          metadataHash: ZeroHash,
-          royaltyInfo,
-        };
-
-        await offerFacet.createOffer(fermionOffer);
-        await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
-
-        const buyer = wallets[4];
-        const openSea = wallets[5]; // a mock OS address
-        openSeaAddress = openSea.address;
-        buyerAddress = buyer.address;
-        seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
-
-        await mockToken.mint(buyerAddress, fullPrice);
-
-        const { executeAllActions } = await seaport.createOrder(
-          {
-            offer: [
-              {
-                itemType: ItemType.ERC20,
-                token: exchangeToken,
-                amount: fullPrice.toString(),
-              },
-            ],
-            consideration: [
-              {
-                itemType: ItemType.ERC721,
-                token: wrapperAddress,
-                identifier: tokenId,
-              },
-              {
-                itemType: ItemType.ERC20,
-                token: exchangeToken,
-                amount: openSeaFee.toString(),
-                recipient: openSeaAddress,
-              },
-            ],
-          },
-          buyerAddress,
-        );
-
-        const buyerOrder = await executeAllActions();
-
-        buyerAdvancedOrder = {
-          ...buyerOrder,
-          numerator: 1n,
-          denominator: 1n,
-          extraData: "0x",
-        };
-
-        bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-        openSeaBalance = await mockToken.balanceOf(openSeaAddress);
-      });
-
-      context("unwrap (with OS auction)", function () {
-        it("Unwrapping", async function () {
-          const tx = await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
-
-          // events:
-          // fermion
-          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-          const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSAndBosonFee);
-
-          // Boson:
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
-
-          // State:
-          const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-          expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
-        });
-      });
-
-      context("unwrapToSelf", function () {
-        const minimalPrice = (10000n * verifierFee) / (10000n - BigInt(bosonProtocolFeePercentage));
-
-        it("Unwrapping", async function () {
-          await mockToken.approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.unwrapNFTToSelf(tokenId);
-
-          // events:
-          // fermion
-          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-          const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
-
-          // Boson:
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonBuyerId, exchangeToken, minimalPrice, fermionProtocolAddress);
-
-          // State:
-          // Boson
-          const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
-          expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
-        });
-
-        it("Unwrapping - native", async function () {
-          const bosonOfferId = "2";
-          const exchangeId = quantity + 1n;
-          const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
-
+        beforeEach(async function () {
           const fermionOffer = {
             sellerId: "1",
             sellerDeposit,
@@ -2123,50 +3404,58 @@ describe("Offer", function () {
             custodianFee,
             facilitatorId: sellerId,
             facilitatorFeePercent: "0",
-            exchangeToken: ZeroAddress,
+            exchangeToken,
+            withPhygital,
             metadataURI: "https://example.com/offer-metadata.json",
             metadataHash: ZeroHash,
             royaltyInfo,
           };
 
           await offerFacet.createOffer(fermionOffer);
-          await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+          await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
 
-          bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
+          const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
 
-          // await mockToken.approve(fermionProtocolAddress, minimalPrice);
-          const tx = await offerFacet.unwrapNFTToSelf(tokenId, { value: minimalPrice });
+          const buyer = wallets[4];
+          openSeaAddress = seaportConfig.openSeaRecipient;
+          buyerAddress = buyer.address;
+          await mockToken.mint(buyerAddress, fullPrice);
 
-          // events:
-          // fermion
-          const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
-          const itemVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
-          const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
-          await expect(tx)
-            .to.emit(offerFacet, "VerificationInitiated")
-            .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
-          await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, verifierFee);
+          seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+          const getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
+          const parameters = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTimes[0].toString());
 
-          // Boson:
-          await expect(tx)
-            .to.emit(bosonExchangeHandler, "FundsEncumbered")
-            .withArgs(bosonBuyerId, ZeroAddress, minimalPrice, fermionProtocolAddress);
+          const { executeAllActions } = await seaport.fulfillOrder({
+            order: { parameters, signature: "0x" },
+          });
+          await executeAllActions();
 
-          // State:
-          // Boson
-          const newBosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
-          expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + minimalPrice);
+          bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
         });
 
-        context("Revert reasons", function () {
-          it("Price does not cover the verifier fee", async function () {
-            // Contract sends insufficient funds. In this case, the depositing to boson fails before fermion fails
-            await mockToken.approve(fermionProtocolAddress, minimalPrice);
-            await mockToken.setBurnAmount(1);
-            await expect(offerFacet.unwrapNFTToSelf(tokenId))
-              .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
-              .withArgs(minimalPrice, minimalPrice - 1n);
-            await mockToken.setBurnAmount(0);
+        context("unwrap fix-priced OS offer", function () {
+          it("Unwrapping", async function () {
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice);
+
+            // events:
+            // fermion
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+
+            // Boson:
+            await expect(tx)
+              .to.emit(bosonExchangeHandler, "FundsEncumbered")
+              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+            // State:
+            const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+            expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
           });
         });
       });

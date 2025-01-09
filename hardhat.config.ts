@@ -65,11 +65,12 @@ const config: HardhatUserConfig = {
           viaIR: false,
           optimizer: {
             enabled: true,
-            runs: 200,
+            runs: 100,
             details: {
               yul: true,
             },
           },
+          metadata: { bytecodeHash: "none", appendCBOR: false },
           evmVersion: "cancun",
           outputSelection: {
             "*": {

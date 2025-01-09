@@ -17,6 +17,8 @@ contract MockFermion {
     int256 private amountToRelease;
     uint256 private royalties;
 
+    mapping(address => bytes32) private approvedOracles;
+
     constructor(address _destination, address _exchangeToken) {
         DESTINATION = _destination;
         EXCHANGE_TOKEN = _exchangeToken;
@@ -55,6 +57,33 @@ contract MockFermion {
         amountToRelease = _amount;
     }
 
+    mapping(uint256 => string) public revisedMetadata;
+    function getRevisedMetadata(uint256 _tokenId) external view returns (string memory) {
+        return revisedMetadata[_tokenId];
+    }
+
+    function setRevisedMetadata(uint256 _tokenId, string memory _metadata) external {
+        revisedMetadata[_tokenId] = _metadata;
+    }
+
+    function addPriceOracle(address oracleAddress, bytes32 identifier) external {
+        require(oracleAddress != address(0), "Invalid oracle address");
+        approvedOracles[oracleAddress] = identifier;
+    }
+
+    function removePriceOracle(address oracleAddress) external {
+        require(approvedOracles[oracleAddress] != bytes32(0), "Oracle not approved");
+        delete approvedOracles[oracleAddress];
+    }
+
+    function isPriceOracleApproved(address oracleAddress) external view returns (bool) {
+        return approvedOracles[oracleAddress] != bytes32(0);
+    }
+
+    function getPriceOracleIdentifier(address oracleAddress) external view returns (bytes32) {
+        return approvedOracles[oracleAddress];
+    }
+
     function collectRoyalties(uint256, uint256 _proceeds) external returns (uint256) {
         IERC20(EXCHANGE_TOKEN).transfer(msg.sender, _proceeds - royalties);
         return royalties;
@@ -66,7 +95,7 @@ contract MockFermion {
 
     fallback() external payable {
         address to = destinationOverride == address(0) ? DESTINATION : destinationOverride;
-        // do nothing
+        // Delegate calls to the destination
         (bool success, bytes memory data) = to.call(abi.encodePacked(msg.data, address(this)));
 
         delete destinationOverride;

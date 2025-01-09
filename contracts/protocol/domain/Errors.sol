@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "./Types.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 interface FermionGeneralErrors {
     // General errors
@@ -11,6 +12,8 @@ interface FermionGeneralErrors {
     error InvalidPercentage(uint256 percentage);
     error ZeroNotAllowed();
     error UnexpectedDataReturned(bytes data);
+    // Array elements that are not in ascending order (i.e arr[i-1] > arr[i])
+    error NonAscendingOrder();
 }
 
 interface InitializationErrors {
@@ -47,6 +50,7 @@ interface OfferErrors {
     error InvalidQuantity(uint256 quantity);
     error NoSuchOffer(uint256 offerId);
     error InvalidOpenSeaOrder();
+    error NoPhygitalOffer(uint256 offerId);
     error InvalidRoyaltyInfo();
     error InvalidRoyaltyRecipient(address recipient);
     error InvalidRoyaltyPercentage(uint256 percentage);
@@ -58,6 +62,13 @@ interface VerificationErrors {
     // Verification errors
     error VerificationTimeoutNotPassed(uint256 verificationTimeout, uint256 currentTime);
     error VerificationTimeoutTooLong(uint256 verificationTimeout, uint256 maxVerificationTimeout);
+    error EmptyMetadata();
+    error DigestMismatch(bytes32 expected, bytes32 actual);
+    error AlreadyVerified(FermionTypes.VerificationStatus status);
+    error InvalidTokenState(uint256 tokenId, FermionTypes.TokenState tokenState);
+    error PhygitalsAlreadyVerified(uint256 tokenId);
+    error PhygitalsDigestMismatch(uint256 tokenId, bytes32 expectedDigest, bytes32 actualDigest);
+    error PhygitalsVerificationMissing(uint256 tokenId);
 }
 
 interface CustodyErrors {
@@ -79,6 +90,7 @@ interface AuctionErrors {
     error AuctionFinalized(uint256 tokenId);
     error NoFractionsAvailable(uint256 tokenId);
     error NoBids(uint256 tokenId);
+    error BidBelowExitPrice(uint256 tokenId, uint256 bid, uint256 exitPrice);
 }
 
 interface CustodianVaultErrors is AuctionErrors {
@@ -93,12 +105,14 @@ interface FundsErrors {
     // Funds errors
     error WrongValueReceived(uint256 expected, uint256 actual);
     error NativeNotAllowed();
-    error ERC721NotAllowed(address tokenAddress);
     error PriceTooLow(uint256 price, uint256 minimumPrice);
     error ZeroDepositNotAllowed();
     error NothingToWithdraw();
     error TokenTransferFailed(address to, uint256 amount, bytes errorMessage);
     error InsufficientAvailableFunds(uint256 availableFunds, uint256 requestedFunds);
+    error ERC721CheckFailed(address tokenAddress, bool erc721expected);
+    error ERC721TokenNotTransferred(address tokenAddress, uint256 tokenId);
+    error PhygitalsNotFound(uint256 tokenId, FermionTypes.Phygital phygital);
 }
 
 interface PauseErrors {
@@ -112,9 +126,13 @@ interface MetaTransactionErrors {
     error NonceUsedAlready();
     error FunctionNotAllowlisted();
     error InvalidFunctionName();
+    error FunctionCallFailed();
+}
+
+interface SignatureErrors {
     error InvalidSignature(); // Somethihing is wrong with the signature
     error SignatureValidationFailed(); // Signature might be correct, but the validation failed
-    error FunctionCallFailed();
+    error InvalidSigner(address expected, address actual);
 }
 
 interface FractionalisationErrors is AuctionErrors {
@@ -123,6 +141,7 @@ interface FractionalisationErrors is AuctionErrors {
     error InvalidFractionsAmount(uint256 amount, uint256 min, uint256 max);
     error InvalidExitPrice(uint256 amount);
     error AlreadyFractionalized(uint256 tokenId);
+    error PriceOracleNotWhitelisted(address oracleAddress);
 
     error NotMaxBidder(uint256 tokenId, address caller, address winner);
     error AlreadyRedeemed(uint256 tokenId);
@@ -137,6 +156,29 @@ interface FractionalisationErrors is AuctionErrors {
     error TokenNotFractionalised(uint256 tokenId);
     error InvalidAuctionIndex(uint256 auctionIndex, uint256 numberOfAuctions); // auctionIndex should be less than numberOfAuctions
     error AuctionReserved(uint256 tokenId);
+    error ProposalNotActive(uint256 proposalId);
+    error AlreadyVoted();
+    error NoVotingPower(address voter);
+    error OnlyFractionOwner();
+    error InvalidVoteDuration(uint256 voteDuration);
+    error OngoingProposalExists();
+    error ConflictingVote();
+    error OracleInternalError();
+}
+
+interface PriceOracleRegistryErrors {
+    error InvalidOracleAddress();
+    error InvalidIdentifier();
+    error OracleAlreadyApproved();
+    error OracleNotApproved();
+    error OracleValidationFailed();
+    error OracleReturnedInvalidPrice();
+}
+
+interface WrapperErrors {
+    error ZeroPriceNotAllowed();
+    error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
+    error InvalidOwner(uint256 tokenId, address expected, address actual);
 }
 
 interface FermionErrors is
@@ -150,5 +192,8 @@ interface FermionErrors is
     FundsErrors,
     PauseErrors,
     MetaTransactionErrors,
-    FractionalisationErrors
+    FractionalisationErrors,
+    SignatureErrors,
+    PriceOracleRegistryErrors,
+    WrapperErrors
 {}

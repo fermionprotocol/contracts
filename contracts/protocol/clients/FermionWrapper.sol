@@ -2,11 +2,13 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionGeneralErrors } from "../domain/Errors.sol";
+import { FermionGeneralErrors, WrapperErrors } from "../domain/Errors.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionWrapperEvents } from "../interfaces/events/IFermionWrapperEvents.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
+import { VerificationFacet } from "../facets/Verification.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -24,7 +26,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
+contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWrapperEvents {
     using SafeERC20 for IERC20;
     using Address for address;
     IWrappedNative private immutable WRAPPED_NATIVE;
@@ -86,8 +88,63 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      * @param _length The number of tokens to wrap.
      * @param _to The address to mint the wrapped tokens to.
      */
-    function wrapForAuction(uint256 _firstTokenId, uint256 _length, address _to) external {
-        wrap(_firstTokenId, _length, _to);
+    function wrap(uint256 _firstTokenId, uint256 _length, address _to) external {
+        address msgSender = _msgSender();
+        for (uint256 i; i < _length; ++i) {
+            uint256 tokenId = _firstTokenId + i;
+
+            // Not using safeTransferFrom since this contract is the recipient and we are sure it can handle the vouchers
+            IERC721(voucherAddress).transferFrom(msgSender, address(this), tokenId);
+
+            // Mint to the specified address
+            if (_to == address(this)) {
+                _mint(_to, tokenId);
+            } else {
+                _safeMint(_to, tokenId);
+            }
+        }
+    }
+
+    /**
+     * @notice List fixed order on Seaport
+     *
+     * Reverts if:
+     * - lengths of _tokenIds, _prices and _endTimes do not match
+     *
+     * @param _firstTokenId The first token id.
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function listFixedPriceOrders(
+        uint256 _firstTokenId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        address _exchangeToken
+    ) external {
+        Common.checkStateAndCaller(_firstTokenId, FermionTypes.TokenState.Wrapped, _msgSender(), fermionProtocol);
+
+        SEAPORT_WRAPPER.functionDelegateCall(
+            abi.encodeCall(SeaportWrapper.listFixedPriceOrders, (_firstTokenId, _prices, _endTimes, _exchangeToken))
+        );
+    }
+
+    /**
+     * @notice Cancel fixed price orders on OpenSea.
+     *
+     * Reverts if:
+     * - The token id does not exist.
+     * - The token id does not match the order.
+     * - The order's token does not match the contract.
+     *
+     * @param _orders The orders to cancel.
+     */
+    function cancelFixedPriceOrders(SeaportTypes.OrderComponents[] calldata _orders) external {
+        if (fermionProtocol != _msgSender()) {
+            revert FermionGeneralErrors.AccessDenied(_msgSender());
+        }
+
+        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.cancelFixedPriceOrders, (_orders)));
     }
 
     /**
@@ -112,9 +169,27 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     }
 
     /**
+     * @notice Unwraps the voucher, and transfers the sale proceeds to Boson Protocol
+     *
+     * @param _tokenId The token id.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function unwrapFixedPriced(uint256 _tokenId, address _exchangeToken) external {
+        if (ownerOf(_tokenId) == address(this)) revert WrapperErrors.InvalidOwner(_tokenId, address(0), address(this)); // Zero address means the expected value is anything but the actual value
+
+        unwrap(_tokenId);
+
+        IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, Common._getFermionCommonStorage().fixedPrice[_tokenId]);
+
+        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
+    }
+
+    /**
      * @notice Unwraps the voucher, but skip the OS auction and leave the F-NFT with the seller
      *
      * @param _tokenId The token id.
+     * @param _exchangeToken The token to be used for the exchange.
+     * @param _verifierFee The verifier fee
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external {
         unwrap(_tokenId);
@@ -134,8 +209,13 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     /**
      * @dev See {IERC721Metadata-tokenURI}.
      */
-    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-        _requireOwned(tokenId);
+    function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
+        _requireOwned(_tokenId);
+
+        string memory revisedMetadata = VerificationFacet(fermionProtocol).getRevisedMetadata(_tokenId);
+        if (bytes(revisedMetadata).length > 0) {
+            return revisedMetadata;
+        }
 
         return contractURI();
     }
@@ -187,8 +267,9 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     }
 
     /**
-     * @notice Wrapped vouchers cannot be transferred. To transfer them, invoke a function that unwraps them first.
-     *
+     * @notice If the seller owns the wrapped vouchers, they can be transferred to the first only during unwrapping.
+     * If this contract owns the wrapped vouchers, they can be transferred only once to the first buyer.
+     * The first buyer can transfer them only after they are verified.
      *
      * @param _to The address to transfer the wrapped tokens to.
      * @param _tokenId The token id.
@@ -196,8 +277,9 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
         FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
+
         if (
-            state == FermionTypes.TokenState.Wrapped ||
+            (state == FermionTypes.TokenState.Wrapped && !isFixedPriceSale(_tokenId)) ||
             (state == FermionTypes.TokenState.Unverified && _to != address(0))
         ) {
             revert InvalidStateOrCaller(_tokenId, _msgSender(), state);
@@ -206,23 +288,23 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
     }
 
     /**
-     * @notice Wraps the vouchers, transfer true vouchers to this contract and mint wrapped vouchers
+     * @notice Detects if the transferred token belongs to fixed price offer
      *
-     * @param _firstTokenId The first token id.
-     * @param _length The number of tokens to wrap.
-     * @param _to The address to mint the wrapped tokens to.
+     * Emits FixedPriceSale event if the token is part of a fixed price sale.
+     *
+     * @param _tokenId The token id.
+     * @return isFixedPrice True if the token is part of a fixed price sale
      */
-    function wrap(uint256 _firstTokenId, uint256 _length, address _to) internal {
-        for (uint256 i = 0; i < _length; i++) {
-            uint256 tokenId = _firstTokenId + i;
+    function isFixedPriceSale(uint256 _tokenId) internal returns (bool isFixedPrice) {
+        isFixedPrice =
+            (ownerOf(_tokenId) == address(this)) &&
+            (Common._getFermionCommonStorage().fixedPrice[_tokenId] > 0);
 
-            // Transfer vouchers to this contract
-            // Not using safeTransferFrom since this contract is the recipient and we are sure it can handle the vouchers
-            IERC721(voucherAddress).transferFrom(_msgSender(), address(this), tokenId);
-
-            // Mint to the specified address
-            _safeMint(_to, tokenId);
+        if (isFixedPrice) {
+            emit FixedPriceSale(_tokenId);
         }
+
+        return isFixedPrice;
     }
 
     receive() external payable {}
