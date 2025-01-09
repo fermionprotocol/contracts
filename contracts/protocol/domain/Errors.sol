@@ -70,12 +70,12 @@ interface CustodyErrors {
     error NotTokenBuyer(uint256 tokenId, address owner, address caller);
     error InvalidTaxAmount();
     error InvalidCheckoutRequestStatus(
-        uint256 tokenId,
+        uint256 offerId,
         FermionTypes.CheckoutRequestStatus expectedStatus,
         FermionTypes.CheckoutRequestStatus actualStatus
     );
     error InvalidCustodianUpdateStatus(
-        uint256 tokenId,
+        uint256 offerId,
         FermionTypes.CustodianUpdateStatus expected,
         FermionTypes.CustodianUpdateStatus actual
     );

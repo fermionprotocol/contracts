@@ -122,9 +122,8 @@ contract FermionTypes {
         CustodianUpdateStatus status;
         uint256 newCustodianId;
         CustodianFee newCustodianFee;
+        CustodianVaultParameters newCustodianVaultParameters;
         uint256 requestTimestamp;
-        bool keepExistingParameters;
-        bool isEmergencyUpdate;
     }
 
     struct CustodianVaultParameters {

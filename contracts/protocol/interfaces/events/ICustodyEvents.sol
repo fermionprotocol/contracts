@@ -25,19 +25,18 @@ interface ICustodyEvents {
     event AuctionFinished(uint256 indexed tokenId, address indexed winner, uint256 soldFractions, uint256 winningBid);
     event VaultBalanceUpdated(uint256 indexed tokenId, uint256 amount);
     event CustodianUpdateRequested(
-        uint256 indexed tokenId,
+        uint256 indexed offerId,
         uint256 indexed currentCustodianId,
         uint256 indexed newCustodianId,
-        FermionTypes.CustodianFee newCustodianFee
+        FermionTypes.CustodianFee newCustodianFee,
+        FermionTypes.CustodianVaultParameters newCustodianVaultParameters
     );
     event CustodianUpdateAccepted(
-        uint256 indexed tokenId,
+        uint256 indexed offerId,
         uint256 indexed oldCustodianId,
-        uint256 indexed newCustodianId
+        uint256 indexed newCustodianId,
+        FermionTypes.CustodianFee newCustodianFee,
+        FermionTypes.CustodianVaultParameters newCustodianVaultParameters
     );
-    event CustodianUpdateRejected(
-        uint256 indexed tokenId,
-        uint256 indexed currentCustodianId,
-        uint256 indexed newCustodianId
-    );
+    event CustodianUpdateRejected(uint256 indexed offerId, uint256 indexed newCustodianId);
 }

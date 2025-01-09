@@ -113,6 +113,10 @@ library FermionStorage {
         FermionTypes.CustodianVaultParameters custodianVaultParameters;
         // number of items in custodian vault
         uint256 custodianVaultItems;
+        uint256 itemQuantity;
+        uint256 firstTokenId;
+        // custodian update request
+        FermionTypes.CustodianUpdateRequest custodianUpdateRequest;
     }
 
     struct TokenLookups {
@@ -142,8 +146,6 @@ library FermionStorage {
         FermionTypes.Phygital[] phygitals;
         // phygitals recipient
         uint256 phygitalsRecipient;
-        // custodian update request
-        FermionTypes.CustodianUpdateRequest custodianUpdateRequest;
     }
 
     struct SellerLookups {
