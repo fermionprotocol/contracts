@@ -71,6 +71,12 @@ contract FermionTypes {
         Failed
     }
 
+    enum WrapType {
+        SELF_SALE,
+        OS_AUCTION,
+        OS_FIXED_PRICE
+    }
+
     struct EntityData {
         address admin;
         uint256 roles;

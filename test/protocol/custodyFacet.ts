@@ -8,7 +8,7 @@ import {
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroAddress, ZeroHash } from "ethers";
+import { Contract, toBeHex, ZeroAddress, ZeroHash, parseEther } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   EntityRole,
@@ -17,12 +17,11 @@ import {
   TokenState,
   VerificationStatus,
   AccountRole,
+  WrapType,
 } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "../../fermion.config";
-
-const { parseEther } = ethers;
 
 describe("Custody", function () {
   let offerFacet: Contract,
@@ -119,11 +118,11 @@ describe("Custody", function () {
     await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
     const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
-    await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+    await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
     const { buyerAdvancedOrder: buyerAdvancedOrderSelfCustody, tokenId: tokenIdSelfCustody } =
       await createBuyerAdvancedOrder(buyer, offerIdSelfCustody, exchangeIdSelfCustody);
-    await offerFacet.unwrapNFT(tokenIdSelfCustody, buyerAdvancedOrderSelfCustody);
+    await offerFacet.unwrapNFT(tokenIdSelfCustody, WrapType.OS_AUCTION, buyerAdvancedOrderSelfCustody);
 
     // unwrap to self
     const tokenIdSelf = deriveTokenId(offerIdSelfSale, exchangeIdSelf).toString();
@@ -137,7 +136,7 @@ describe("Custody", function () {
       fermionConfig.protocolParameters.protocolFeePercentage,
     );
     await mockToken.approve(fermionProtocolAddress, minimalPriceSelfSale);
-    await offerFacet.unwrapNFTToSelf(tokenIdSelf, minimalPriceSelfSale);
+    await offerFacet.unwrapNFT(tokenIdSelf, WrapType.SELF_SALE, toBeHex(minimalPriceSelfSale, 32));
 
     exchange.tokenId = tokenId;
     exchange.custodianId = custodianId;
@@ -317,7 +316,7 @@ describe("Custody", function () {
         });
 
         it("Cannot check-in if not verified or rejected", async function () {
-          await offerFacet.unwrapNFTToSelf(tokenId, 0); // verifierfee = 0
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
           // Unwrapped but not verified
           await expect(custodyFacet.checkIn(tokenId))
@@ -490,7 +489,7 @@ describe("Custody", function () {
         });
 
         it("Cannot request check-out if not verified or rejected", async function () {
-          await offerFacet.unwrapNFTToSelf(tokenId, 0);
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
           // Unwrapped but not verified
           await expect(custodyFacet.requestCheckOut(tokenId))
@@ -664,7 +663,7 @@ describe("Custody", function () {
         });
 
         it("Cannot submit tax amount if not verified or rejected", async function () {
-          await offerFacet.unwrapNFTToSelf(tokenId, 0);
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
           // Unwrapped but not verified
           await expect(custodyFacet.submitTaxAmount(tokenId, taxAmount))
@@ -894,7 +893,7 @@ describe("Custody", function () {
           });
 
           it("Cannot clear checkout request if not verified or rejected", async function () {
-            await offerFacet.unwrapNFTToSelf(tokenId, 0);
+            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
             // Unwrapped but not verified
             await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
@@ -1070,7 +1069,7 @@ describe("Custody", function () {
           });
 
           it("Cannot clear checkout request if not verified or rejected", async function () {
-            await offerFacet.unwrapNFTToSelf(tokenId, 0);
+            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
             // Unwrapped but not verified
             await expect(custodyFacet.clearCheckoutRequest(tokenId))
@@ -1253,7 +1252,7 @@ describe("Custody", function () {
         });
 
         it("Cannot check item out if not verified or rejected", async function () {
-          await offerFacet.unwrapNFTToSelf(tokenId, 0);
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
 
           // Unwrapped but not verified
           await expect(custodyFacet.checkOut(tokenId))

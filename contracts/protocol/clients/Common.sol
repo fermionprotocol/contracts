@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { FermionTypes } from "../domain/Types.sol";
+import { FractionalisationErrors } from "../domain/Errors.sol";
 
 error InvalidStateOrCaller(uint256 tokenId, address sender, FermionTypes.TokenState state);
 event TokenStateChange(uint256 indexed tokenId, FermionTypes.TokenState state);
@@ -14,6 +15,8 @@ library Common {
         mapping(uint256 => FermionTypes.TokenState) tokenState;
         // Metadata URI, used for all tokens and contract URI
         string metadataUri;
+        // token price for fixed-price sales
+        mapping(uint256 => uint256) fixedPrice;
     }
 
     // keccak256(abi.encode(uint256(keccak256("fermion.common.storage")) - 1)) & ~bytes32(uint256(0xff))
@@ -79,5 +82,23 @@ library Common {
     function changeTokenState(uint256 _tokenId, FermionTypes.TokenState _state) internal {
         _getFermionCommonStorage().tokenState[_tokenId] = _state;
         emit TokenStateChange(_tokenId, _state);
+    }
+
+    /**
+     * @notice Get the current auction details and votes for a specific token.
+     *
+     * @param _tokenId The token Id
+     * @param $ The storage
+     * @return auction The auction details and votes
+     */
+    function getLastAuction(
+        uint256 _tokenId,
+        FermionTypes.BuyoutAuctionStorage storage $
+    ) internal view returns (FermionTypes.Auction storage auction) {
+        FermionTypes.Auction[] storage auctions = $.tokenInfo[_tokenId].auctions;
+        if (auctions.length == 0) revert FractionalisationErrors.TokenNotFractionalised(_tokenId);
+        unchecked {
+            return auctions[auctions.length - 1];
+        }
     }
 }

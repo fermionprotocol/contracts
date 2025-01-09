@@ -43,7 +43,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     seller = wallets[3];
     bidders = wallets.slice(4, 8);
 
-    const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
+    const [mockConduit, mockBosonPriceDiscovery, openSeaRecipient] = wallets.slice(9, 12);
 
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
@@ -51,6 +51,8 @@ describe("FermionFNFT - fractionalisation tests", function () {
         seaport: wallets[10].address, // dummy address
         openSeaConduit: mockConduit.address,
         openSeaConduitKey: ZeroHash,
+        openSeaZoneHash: ZeroHash,
+        openSeaRecipient: openSeaRecipient,
       },
     ];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
@@ -94,7 +96,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
       );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
-    await fermionFNFTProxy.attach(fermionMock).wrapForAuction(startTokenId, quantity, seller.address);
+    await fermionFNFTProxy.attach(fermionMock).wrap(startTokenId, quantity, seller.address);
 
     for (let i = 0n; i < quantity; i++) {
       const tokenId = startTokenId + i;

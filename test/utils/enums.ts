@@ -65,6 +65,12 @@ export const enum PriceUpdateProposalState {
   Failed = 3,
 }
 
+export enum WrapType {
+  SELF_SALE,
+  OS_AUCTION,
+  OS_FIXED_PRICE,
+}
+
 export function enumIterator(enumObject: any) {
   return Object.keys(enumObject).filter((key) => !isNaN(Number(key)));
 }

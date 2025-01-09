@@ -222,6 +222,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
         fermionConfig.protocolParameters.maxVerificationTimeout,
         fermionConfig.protocolParameters.defaultVerificationTimeout,
       ],
+      OfferFacet: [],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
     const initCalldatas = Object.keys(init).map((facetName) =>
