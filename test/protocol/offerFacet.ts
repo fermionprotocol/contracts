@@ -464,7 +464,7 @@ describe("Offer", function () {
       await expect(tx).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId, startingTokenId, quantity);
       await expect(tx)
         .to.emit(offerFacet, "NFTsWrapped")
-        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity);
+        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity, WrapType.OS_AUCTION);
 
       // boson
       await expect(tx)
@@ -506,7 +506,7 @@ describe("Offer", function () {
       await expect(tx2).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId2, startingTokenId2, quantity);
       await expect(tx2)
         .to.emit(offerFacet, "NFTsWrapped")
-        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity);
+        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity, WrapType.OS_AUCTION);
 
       // boson
       await expect(tx2)
@@ -660,7 +660,7 @@ describe("Offer", function () {
       await expect(tx).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId, startingTokenId, quantity);
       await expect(tx)
         .to.emit(offerFacet, "NFTsWrapped")
-        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity);
+        .withArgs(bosonOfferId, predictedWrapperAddress, startingTokenId, quantity, WrapType.OS_FIXED_PRICE);
 
       // boson
       await expect(tx)
@@ -702,7 +702,7 @@ describe("Offer", function () {
       await expect(tx2).to.emit(offerFacet, "NFTsMinted").withArgs(bosonOfferId2, startingTokenId2, quantity);
       await expect(tx2)
         .to.emit(offerFacet, "NFTsWrapped")
-        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity);
+        .withArgs(bosonOfferId2, predictedWrapperAddress2, startingTokenId2, quantity, WrapType.OS_FIXED_PRICE);
 
       // boson
       await expect(tx2)
@@ -1097,6 +1097,7 @@ describe("Offer", function () {
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
             await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+            await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
 
             // Boson:
             await expect(tx)
@@ -1893,6 +1894,7 @@ describe("Offer", function () {
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
             await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, minimalPrice);
+            await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
 
             // Boson:
             await expect(tx)
@@ -2453,6 +2455,7 @@ describe("Offer", function () {
         const endTimes = [MaxUint256];
         const abiCoder = new ethers.AbiCoder();
         const encodedPrice = abiCoder.encode(["uint256"], [fullPrice - openSeaFee]);
+        let buyTx: ethers.ContractTransaction;
 
         beforeEach(async function () {
           const fermionOffer = {
@@ -2486,11 +2489,15 @@ describe("Offer", function () {
           const { executeAllActions } = await seaport.fulfillOrder({
             order: { parameters, signature: "0x" },
           });
-          await executeAllActions();
+          buyTx = await executeAllActions();
 
           bosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
           openSeaAddress = seaportConfig.openSeaRecipient;
           openSeaBalance = await mockToken.balanceOf(seaportConfig.openSeaRecipient);
+        });
+
+        it("Buy transaction emits FixedPriceSale event", async function () {
+          await expect(buyTx).to.emit(fermionWrapper, "FixedPriceSale").withArgs(tokenId);
         });
 
         context("unwrap fix-priced OS offer", function () {
@@ -2512,6 +2519,7 @@ describe("Offer", function () {
               .to.emit(offerFacet, "VerificationInitiated")
               .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
             await expect(tx).to.emit(offerFacet, "ItemPriceObserved").withArgs(tokenId, priceSubOSFee);
+            await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
 
             // Boson:
             await expect(tx)

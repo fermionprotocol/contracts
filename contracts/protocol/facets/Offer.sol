@@ -671,7 +671,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         );
         _bosonVoucher.setApprovalForAll(wrapperAddress, false);
 
-        emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity);
+        emit NFTsWrapped(_offerId, wrapperAddress, _startingNFTId, _quantity, _wrapType);
     }
 
     /**

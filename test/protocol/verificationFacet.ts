@@ -555,6 +555,7 @@ describe("Verification", function () {
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)
@@ -606,6 +607,7 @@ describe("Verification", function () {
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)
@@ -654,6 +656,7 @@ describe("Verification", function () {
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)
@@ -703,6 +706,7 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")
           .withArgs(exchangeSelfVerification.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)
@@ -751,6 +755,7 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")
           .withArgs(exchangeSelfSaleSelfVerification.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)
@@ -1210,6 +1215,7 @@ describe("Verification", function () {
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
@@ -1257,6 +1263,7 @@ describe("Verification", function () {
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
@@ -1312,6 +1319,7 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")
           .withArgs(exchangeSelfVerification.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
@@ -1358,6 +1366,7 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")
           .withArgs(exchangeSelfSaleSelfVerification.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
@@ -1425,6 +1434,7 @@ describe("Verification", function () {
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx).to.not.emit(bosonExchangeHandler, "ExchangeCompleted");
@@ -2565,6 +2575,7 @@ describe("Verification", function () {
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchange.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchange.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)
@@ -2611,6 +2622,7 @@ describe("Verification", function () {
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
         const wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
         await expect(tx).to.emit(wrapper, "TokenStateChange").withArgs(exchangeSelfSale.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)
@@ -2660,6 +2672,7 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")
           .withArgs(exchangeSelfVerification.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)
@@ -2707,6 +2720,7 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(wrapper, "TokenStateChange")
           .withArgs(exchangeSelfSaleSelfVerification.tokenId, TokenState.Burned);
+        await expect(tx).to.not.emit(wrapper, "FixedPriceSale");
 
         // Boson
         await expect(tx)

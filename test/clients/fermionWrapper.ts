@@ -224,6 +224,7 @@ describe("FermionFNFT - wrapper tests", function () {
       for (let i = 0n; i < quantity; i++) {
         const tokenId = startTokenId + i;
         await expect(tx).to.emit(fermionWrapperProxy, "Transfer").withArgs(ZeroAddress, seller.address, tokenId);
+        await expect(tx).to.not.emit(fermionWrapperProxy, "FixedPriceSale");
         expect(await fermionWrapperProxy.ownerOf(tokenId)).to.equal(seller.address);
       }
     });
@@ -497,6 +498,7 @@ describe("FermionFNFT - wrapper tests", function () {
         await expect(tx)
           .to.emit(mockBoson, "Transfer")
           .withArgs(await fermionWrapperProxy.getAddress(), fermionProtocolSigner.address, startTokenId);
+        await expect(tx).to.not.emit(fermionWrapperProxy, "FixedPriceSale");
 
         expect(await mockBoson.ownerOf(startTokenId)).to.equal(fermionProtocolSigner.address);
         expect(await fermionWrapperProxy.tokenState(startTokenId)).to.equal(TokenState.Unverified);
@@ -601,6 +603,7 @@ describe("FermionFNFT - wrapper tests", function () {
         await expect(tx)
           .to.emit(mockBoson, "Transfer")
           .withArgs(await fermionWrapperProxy.getAddress(), fermionProtocolSigner.address, startTokenId);
+        await expect(tx).to.not.emit(fermionWrapperProxy, "FixedPriceSale");
 
         expect(await mockBoson.ownerOf(startTokenId)).to.equal(fermionProtocolSigner.address);
         expect(await fermionWrapperProxy.tokenState(startTokenId)).to.equal(TokenState.Unverified);
@@ -635,6 +638,7 @@ describe("FermionFNFT - wrapper tests", function () {
         await expect(tx)
           .to.emit(mockBoson, "Transfer")
           .withArgs(await fermionWrapperProxy.getAddress(), fermionProtocolSigner.address, startTokenId);
+        await expect(tx).to.not.emit(fermionWrapperProxy, "FixedPriceSale");
 
         expect(await mockBoson.ownerOf(startTokenId)).to.equal(fermionProtocolSigner.address);
         expect(await fermionWrapperProxy.tokenState(startTokenId)).to.equal(TokenState.Unverified);
@@ -650,6 +654,7 @@ describe("FermionFNFT - wrapper tests", function () {
     const endTimes = Array(Number(quantity)).fill(MaxUint256);
     const offerId = 1n;
     let wrapperAddress: string, buyerAddress: string;
+    let buyTx: ethers.ContractTransaction;
 
     beforeEach(async function () {
       seller = wallets[3];
@@ -693,13 +698,16 @@ describe("FermionFNFT - wrapper tests", function () {
       await mockERC20.mint(wrapperAddress, prices[1]);
 
       buyerAddress = wallets[4].address;
-      await fermionWrapperProxy
+      buyTx = await fermionWrapperProxy
         .connect(seaportSigner)
         .transferFrom(wrapperAddress, buyerAddress, startTokenId, { gasPrice: 0 });
     });
 
+    it("Buy transaction emits FixedPriceSale event", async function () {
+      await expect(buyTx).to.emit(fermionWrapperProxy, "FixedPriceSale").withArgs(startTokenId);
+    });
+
     it("Fermion protocol can unwrap - non zero price", async function () {
-      // const tokenId = startTokenId + 1n;
       await fermionProtocolSigner.sendTransaction({
         to: await fermionWrapperProxy.getAddress(),
         data:

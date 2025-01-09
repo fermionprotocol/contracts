@@ -6,6 +6,7 @@ import { FermionGeneralErrors, WrapperErrors } from "../domain/Errors.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionWrapperEvents } from "../interfaces/events/IFermionWrapperEvents.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { VerificationFacet } from "../facets/Verification.sol";
 
@@ -25,7 +26,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
+contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWrapperEvents {
     using SafeERC20 for IERC20;
     using Address for address;
     IWrappedNative private immutable WRAPPED_NATIVE;
@@ -276,13 +277,34 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper {
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
         FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
+
         if (
-            (state == FermionTypes.TokenState.Wrapped && ownerOf(_tokenId) != address(this)) ||
+            (state == FermionTypes.TokenState.Wrapped && !isFixedPriceSale(_tokenId)) ||
             (state == FermionTypes.TokenState.Unverified && _to != address(0))
         ) {
             revert InvalidStateOrCaller(_tokenId, _msgSender(), state);
         }
         return super._update(_to, _tokenId, _auth);
+    }
+
+    /**
+     * @notice Detects if the transferred token belongs to fixed price offer
+     *
+     * Emits FixedPriceSale event if the token is part of a fixed price sale.
+     *
+     * @param _tokenId The token id.
+     * @return isFixedPrice True if the token is part of a fixed price sale
+     */
+    function isFixedPriceSale(uint256 _tokenId) internal returns (bool isFixedPrice) {
+        isFixedPrice =
+            (ownerOf(_tokenId) == address(this)) &&
+            (Common._getFermionCommonStorage().fixedPrice[_tokenId] > 0);
+
+        if (isFixedPrice) {
+            emit FixedPriceSale(_tokenId);
+        }
+
+        return isFixedPrice;
     }
 
     receive() external payable {}
