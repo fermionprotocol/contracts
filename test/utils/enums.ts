@@ -9,6 +9,11 @@ export enum EntityRole {
   Custodian,
 }
 
+export enum AssociatedRole {
+  Facilitator,
+  RoyaltyRecipient
+} 
+
 export enum TokenState {
   Inexistent,
   Wrapped,

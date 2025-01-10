@@ -23,6 +23,11 @@ contract FermionTypes {
         Treasury
     }
 
+    enum AssociatedRole {
+        Facilitator,
+        RoyaltyRecipient
+    }
+
     enum VerificationStatus {
         Verified,
         Rejected

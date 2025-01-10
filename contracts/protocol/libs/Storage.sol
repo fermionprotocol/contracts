@@ -159,10 +159,10 @@ library FermionStorage {
         mapping(uint256 => bool) isSellersFacilitator;
         // list of facilitators
         uint256[] sellerFacilitators;
-        // royalty recipients info
-        FermionTypes.RoyaltyRecipientInfo[] royaltyRecipients;
-        // seller id => royalty recipient => index of royalty recipient in royaltyRecipientsBySeller
-        mapping(address => uint256) royaltyRecipientIndex;
+        // facilitator id => status
+        mapping(uint256 => bool) isSellersRoyaltyRecipient;
+        // list of facilitators
+        uint256[] sellerRoyaltyRecipients;
     }
 
     // Storage related to Meta Transactions

@@ -870,7 +870,16 @@ describe("FermionFNFT - wrapper tests", function () {
     });
 
     it("Some tokens have revised URI", async function () {
+      const seller = wallets[3];
       const revisedMetadataURI = "https://revised.com";
+      await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
+      await fermionProtocolSigner.sendTransaction({
+        to: await fermionWrapperProxy.getAddress(),
+        data:
+          fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
+          fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+      });
+
       for (let i = 0n; i < quantity; i = i + 2n) {
         const tokenId = startTokenId + i;
         await mockFermion.setRevisedMetadata(tokenId, `${revisedMetadataURI}${i}`);

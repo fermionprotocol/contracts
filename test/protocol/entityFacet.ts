@@ -1,7 +1,7 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { EntityRole, PausableRegion, AccountRole, enumIterator } from "../utils/enums";
+import { EntityRole, PausableRegion, AccountRole, AssociatedRole, enumIterator } from "../utils/enums";
 import { deployFermionProtocolFixture } from "../utils/common";
 import { BigNumberish, Contract, ZeroAddress } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
@@ -834,7 +834,7 @@ describe("Entity", function () {
           const tx = await entityFacet.addFacilitators(sellerId, facilitators);
 
           for (const facilitatorId of facilitators) {
-            await expect(tx).to.emit(entityFacet, "FacilitatorAdded").withArgs(sellerId, facilitatorId);
+            await expect(tx).to.emit(entityFacet, "AssociatedEntityAdded").withArgs(AssociatedRole.Facilitator, sellerId, facilitatorId);
           }
 
           // verify state
@@ -848,8 +848,8 @@ describe("Entity", function () {
           await entityFacet.connect(facilitator3).createEntity([EntityRole.Seller], metadataURI); // facilitator3
 
           await expect(entityFacet.addFacilitators(sellerId, [facilitator3Id]))
-            .to.emit(entityFacet, "FacilitatorAdded")
-            .withArgs(sellerId, facilitator3Id);
+            .to.emit(entityFacet, "AssociatedEntityAdded")
+            .withArgs(AssociatedRole.Facilitator, sellerId, facilitator3Id);
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([...facilitators, facilitator3Id]);
@@ -857,7 +857,7 @@ describe("Entity", function () {
         });
 
         it("Adding empty list does nothing", async function () {
-          await expect(entityFacet.addFacilitators(sellerId, [])).to.not.emit(entityFacet, "FacilitatorAdded");
+          await expect(entityFacet.addFacilitators(sellerId, [])).to.not.emit(entityFacet, "AssociatedEntityAdded");
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([]);
@@ -956,8 +956,8 @@ describe("Entity", function () {
           const facilitators = [facilitator1Id];
 
           await expect(entityFacet.removeFacilitators(sellerId, facilitators))
-            .to.emit(entityFacet, "FacilitatorRemoved")
-            .withArgs(sellerId, facilitator1Id);
+            .to.emit(entityFacet, "AssociatedEntityRemoved")
+            .withArgs(AssociatedRole.Facilitator, sellerId, facilitator1Id);
 
           // verify state
           const expectedFacilitators = [facilitator4Id, facilitator2Id, facilitator3Id];
@@ -975,7 +975,7 @@ describe("Entity", function () {
           const tx = await entityFacet.removeFacilitators(sellerId, facilitators);
 
           for (const facilitatorId of facilitators) {
-            await expect(tx).to.emit(entityFacet, "FacilitatorRemoved").withArgs(sellerId, facilitatorId);
+            await expect(tx).to.emit(entityFacet, "AssociatedEntityRemoved").withArgs(AssociatedRole.Facilitator, sellerId, facilitatorId);
           }
 
           // verify state
@@ -989,7 +989,7 @@ describe("Entity", function () {
         });
 
         it("Removing a facilitator that was not added", async function () {
-          await expect(entityFacet.removeFacilitators(sellerId, [6])).to.not.emit(entityFacet, "FacilitatorRemoved");
+          await expect(entityFacet.removeFacilitators(sellerId, [6])).to.not.emit(entityFacet, "AssociatedEntityRemoved");
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([
@@ -1009,8 +1009,8 @@ describe("Entity", function () {
           const facilitators = [facilitator2Id, facilitator2Id];
 
           await expect(entityFacet.removeFacilitators(sellerId, facilitators))
-            .to.emit(entityFacet, "FacilitatorRemoved")
-            .withArgs(sellerId, facilitator2Id);
+            .to.emit(entityFacet, "AssociatedEntityRemoved")
+            .withArgs(AssociatedRole.Facilitator, sellerId, facilitator2Id);
 
           // verify state
           const expectedFacilitators = [facilitator1Id, facilitator4Id, facilitator3Id];

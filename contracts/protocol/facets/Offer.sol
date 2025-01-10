@@ -660,7 +660,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * Returns a list of royalty recipients and corresponding bps. Format is compatible with Manifold and Foundation royalties
      * and can be directly used by royalty registry.
      *
-     *
      * @param _tokenId - tokenId
      * @return recipients - list of royalty recipients
      * @return bps - list of corresponding bps
@@ -871,25 +870,24 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         FermionStorage.SellerLookups storage _sellerLookups,
         uint256 _sellerId,
         FermionTypes.RoyaltyInfo memory _royaltyInfo
-    ) internal view {
+    ) internal {
         if (_royaltyInfo.recipients.length != _royaltyInfo.bps.length)
             revert FermionGeneralErrors.ArrayLengthMismatch(_royaltyInfo.recipients.length, _royaltyInfo.bps.length);
 
-        FermionTypes.RoyaltyRecipientInfo[] storage royaltyRecipients = _sellerLookups.royaltyRecipients;
+        mapping(uint256 => bool) storage isSellersRoyaltyRecipient = _sellerLookups.isSellersRoyaltyRecipient;
 
         uint256 totalRoyalties;
         for (uint256 i = 0; i < _royaltyInfo.recipients.length; i++) {
-            uint256 royaltyRecipientId;
+            if (_royaltyInfo.recipients[i] != address(0)) {
+                uint256 royaltyRecipientId = EntityLib.getOrCreateEntityId(
+                    _royaltyInfo.recipients[i],
+                    FermionTypes.EntityRole.RoyaltyRecipient,
+                    FermionStorage.protocolLookups()
+                );
 
-            if (_royaltyInfo.recipients[i] == address(0)) {
-                royaltyRecipientId = 1;
-            } else {
-                royaltyRecipientId = _sellerLookups.royaltyRecipientIndex[_royaltyInfo.recipients[i]];
-                if (royaltyRecipientId == 0) revert InvalidRoyaltyRecipient(_royaltyInfo.recipients[i]);
+                if (!isSellersRoyaltyRecipient[royaltyRecipientId])
+                    revert InvalidRoyaltyRecipient(_royaltyInfo.recipients[i]);
             }
-
-            if (_royaltyInfo.bps[i] < royaltyRecipients[royaltyRecipientId - 1].minRoyaltyPercentage)
-                revert InvalidRoyaltyPercentage(_royaltyInfo.bps[i]);
 
             totalRoyalties += _royaltyInfo.bps[i];
         }
