@@ -121,8 +121,8 @@ contract FermionTypes {
     struct CustodianUpdateRequest {
         CustodianUpdateStatus status;
         uint256 newCustodianId;
-        CustodianFee newCustodianFee;
-        CustodianVaultParameters newCustodianVaultParameters;
+        CustodianFee custodianFee;
+        CustodianVaultParameters custodianVaultParameters;
         uint256 requestTimestamp;
     }
 

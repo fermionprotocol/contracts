@@ -272,154 +272,77 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
      * Reverts if:
      * - Custody region is paused
      * - Caller is not the new custodian's assistant
-     * - The token is checked out
+     * - Any token in the corresponding offer is checked out
      * - The previous request is too recent
-     * - For multi-item offers, any item is checked out
      *
-     * @param _tokenId - the token ID
-     * @param _newCustodianFee - the new custodian fee, ignored if keepExistingParameters is true
-     * @param _keepExistingParameters - if true, keep the current custodian fee
+     * @param _offerId The offer ID for which to request the custodian update
+     * @param _newCustodianFee The new custodian fee parameters including amount and period
+     * @param _newCustodianVaultParameters The new custodian vault parameters including minimum and maximum amounts
      */
     function requestCustodianUpdate(
-        uint256 _tokenId,
+        uint256 _offerId,
         FermionTypes.CustodianFee calldata _newCustodianFee,
-        bool _keepExistingParameters
+        FermionTypes.CustodianVaultParameters calldata _newCustodianVaultParameters
     ) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+        FermionStorage.OfferLookups storage offerLookups = FermionStorage.protocolLookups().offerLookups[_offerId];
 
         // Check if there was a recent request
-        if (tokenLookups.custodianUpdateRequest.requestTimestamp + 1 days > block.timestamp) {
-            revert UpdateRequestTooRecent(_tokenId, 1 days);
+        if (offerLookups.custodianUpdateRequest.requestTimestamp + 1 days > block.timestamp) {
+            revert UpdateRequestTooRecent(_offerId, 1 days);
         }
 
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
         uint256 currentCustodianId = offer.custodianId;
 
-        // For multi-item offers, check that no item is checked out
-        FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[offerId];
-        uint256 itemCount = offerLookups.custodianVaultItems;
-        if (itemCount > 1) {
-            uint256 firstTokenId = _tokenId & ~uint256(0xFFFFFFFFFFFFFFFF); // Clear lower 64 bits
-            for (uint256 i; i < itemCount; ) {
-                uint256 tokenId = firstTokenId + i;
-                if (pl.tokenLookups[tokenId].checkoutRequest.status == FermionTypes.CheckoutRequestStatus.CheckedOut) {
-                    revert TokenCheckedOut(tokenId);
-                }
-                unchecked {
-                    ++i;
-                }
-            }
-        } else {
-            // Single item - check just this token
-            if (tokenLookups.checkoutRequest.status == FermionTypes.CheckoutRequestStatus.CheckedOut) {
-                revert TokenCheckedOut(_tokenId);
-            }
-        }
-
         _createCustodianUpdateRequest(
-            _tokenId,
+            _offerId,
             _newCustodianFee,
-            _keepExistingParameters,
+            _newCustodianVaultParameters,
             currentCustodianId,
             offer,
-            tokenLookups,
-            pl
+            offerLookups,
+            FermionStorage.protocolLookups()
         );
-    }
-
-    function _createCustodianUpdateRequest(
-        uint256 _tokenId,
-        FermionTypes.CustodianFee calldata _newCustodianFee,
-        bool _keepExistingParameters,
-        uint256 _currentCustodianId,
-        FermionTypes.Offer storage _offer,
-        FermionStorage.TokenLookups storage _tokenLookups,
-        FermionStorage.ProtocolLookups storage _pl
-    ) internal {
-        // Check the caller is the new custodian's assistant
-        address msgSender = _msgSender();
-        uint256 newCustodianId = EntityLib.getOrCreateBuyerId(msgSender, _pl);
-        EntityLib.validateAccountRole(
-            newCustodianId,
-            msgSender,
-            FermionTypes.EntityRole.Custodian,
-            FermionTypes.AccountRole.Assistant
-        );
-
-        // Store the update request
-        _tokenLookups.custodianUpdateRequest = FermionTypes.CustodianUpdateRequest({
-            status: FermionTypes.CustodianUpdateStatus.Requested,
-            newCustodianId: newCustodianId,
-            newCustodianFee: _keepExistingParameters
-                ? FermionTypes.CustodianFee({ amount: _offer.custodianFee.amount, period: _offer.custodianFee.period })
-                : _newCustodianFee,
-            requestTimestamp: block.timestamp,
-            keepExistingParameters: _keepExistingParameters,
-            isEmergencyUpdate: false
-        });
-
-        emit CustodianUpdateRequested(_tokenId, _currentCustodianId, newCustodianId, _newCustodianFee);
     }
 
     /**
-     * @notice Request an emergency custodian update
+     * @notice Executes an emergency custodian update
+     * @dev Allows immediate custodian change in emergency situations
      *
      * The current custodian or seller can initiate an emergency update when the custodian stops operating.
-     * This bypasses the owner acceptance and keeps the existing fee parameters.
+     * This bypasses the owner acceptance and updates the custodian parameters within the same transaction.
+     * The existing custodian parameters are kept unchanged in emergency updates.
      *
-     * Emits a CustodianUpdateRequested event
+     * Emits a CustodianUpdateRequested event followed by a CustodianUpdateAccepted event
      *
      * Reverts if:
      * - Custody region is paused
      * - Caller is not the current custodian's assistant or seller's assistant
-     * - The token is checked out
+     * - Any token within the offer is checked out
      * - The previous request is too recent
-     * - For multi-item offers, any item is checked out
+     * - The new custodian ID is invalid or does not have the Custodian role
      *
-     * @param _tokenId - the token ID
-     * @param _newCustodianId - the ID of the new custodian
-     * @param _isCustodianAssistant - if true, validate caller as custodian assistant, otherwise as seller assistant
+     * @param _offerId The offer ID for which to execute the emergency update
+     * @param _newCustodianId The ID of the new custodian to take over
+     * @param _isCustodianAssistant If true, validates caller as custodian assistant, otherwise as seller assistant
      */
-    function requestEmergencyCustodianUpdate(
-        uint256 _tokenId,
+    function emergencyCustodianUpdate(
+        uint256 _offerId,
         uint256 _newCustodianId,
         bool _isCustodianAssistant
     ) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        FermionStorage.OfferLookups storage offerLookups = FermionStorage.protocolLookups().offerLookups[_offerId];
 
         // Check if there was a recent request
-        if (tokenLookups.custodianUpdateRequest.requestTimestamp + 1 days > block.timestamp) {
-            revert UpdateRequestTooRecent(_tokenId, 1 days);
+        if (offerLookups.custodianUpdateRequest.requestTimestamp + 1 days > block.timestamp) {
+            revert UpdateRequestTooRecent(_offerId, 1 days);
         }
 
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         uint256 currentCustodianId = offer.custodianId;
 
-        // For multi-item offers, check that no item is checked out
-        FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[offerId];
-        uint256 itemCount = offerLookups.custodianVaultItems;
-        if (itemCount > 1) {
-            uint256 firstTokenId = _tokenId & ~uint256(0xFFFFFFFFFFFFFFFF); // Clear lower 64 bits
-            for (uint256 i; i < itemCount; ) {
-                uint256 tokenId = firstTokenId + i;
-                if (pl.tokenLookups[tokenId].checkoutRequest.status == FermionTypes.CheckoutRequestStatus.CheckedOut) {
-                    revert TokenCheckedOut(tokenId);
-                }
-                unchecked {
-                    ++i;
-                }
-            }
-        } else {
-            // Single item - check just this token
-            if (tokenLookups.checkoutRequest.status == FermionTypes.CheckoutRequestStatus.CheckedOut) {
-                revert TokenCheckedOut(_tokenId);
-            }
-        }
-
-        // Check the caller is either the current custodian's assistant or seller's assistant
         address msgSender = _msgSender();
+
         if (_isCustodianAssistant) {
             EntityLib.validateAccountRole(
                 currentCustodianId,
@@ -431,7 +354,6 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
             EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
         }
 
-        // Validate that the new custodian exists and has the Custodian role
         EntityLib.validateEntityRole(
             _newCustodianId,
             FermionStorage.protocolEntities().entityData[_newCustodianId].roles,
@@ -439,49 +361,55 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
         );
 
         // Store the update request - keep existing parameters in emergency update
-        tokenLookups.custodianUpdateRequest = FermionTypes.CustodianUpdateRequest({
+        offerLookups.custodianUpdateRequest = FermionTypes.CustodianUpdateRequest({
             status: FermionTypes.CustodianUpdateStatus.Requested,
             newCustodianId: _newCustodianId,
-            newCustodianFee: offer.custodianFee,
-            requestTimestamp: block.timestamp,
-            keepExistingParameters: true,
-            isEmergencyUpdate: true
+            custodianFee: offer.custodianFee,
+            custodianVaultParameters: offerLookups.custodianVaultParameters,
+            requestTimestamp: block.timestamp
         });
 
-        emit CustodianUpdateRequested(_tokenId, currentCustodianId, _newCustodianId, offer.custodianFee);
+        emit CustodianUpdateRequested(
+            _offerId,
+            currentCustodianId,
+            _newCustodianId,
+            offer.custodianFee,
+            offerLookups.custodianVaultParameters
+        );
+        _processCustodianUpdate(_offerId, offer, offerLookups.custodianUpdateRequest, offerLookups);
     }
 
     /**
      * @notice Accept a custodian update request
+     * @dev Processes the acceptance of a custodian update request by the token owner
      *
-     * The FNFT owner accepts the update request.
      * The current custodian is paid for the used period.
      * The vault parameters are updated with the new custodian's parameters.
-     * For multi-item offers, all items are updated and the current custodian is paid for each item.
+     * All items in the offer are updated and the current custodian is paid for each item.
      *
      * Emits a CustodianUpdateAccepted event
      *
      * Reverts if:
      * - Custody region is paused
-     * - Caller is not the owner of the token (unless it's an emergency update)
-     * - The token is checked out
+     * - Caller is not the owner of all tokens in the offer
+     * - Any token in the offer is checked out
      * - The update request status is not Requested
      * - The update request has expired
      * - There are not enough funds in any vault to pay the current custodian
      *
-     * @param _tokenId - the token ID
+     * @param _offerId The offer ID for which to accept the custodian update
      */
     function acceptCustodianUpdate(
-        uint256 _tokenId
+        uint256 _offerId
     ) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+        FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[_offerId];
 
         // Validate update request status
-        FermionTypes.CustodianUpdateRequest storage updateRequest = tokenLookups.custodianUpdateRequest;
+        FermionTypes.CustodianUpdateRequest storage updateRequest = offerLookups.custodianUpdateRequest;
         if (updateRequest.status != FermionTypes.CustodianUpdateStatus.Requested) {
             revert InvalidCustodianUpdateStatus(
-                _tokenId,
+                _offerId,
                 FermionTypes.CustodianUpdateStatus.Requested,
                 updateRequest.status
             );
@@ -489,146 +417,204 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
 
         // Check request hasn't expired
         if (updateRequest.requestTimestamp + 1 days < block.timestamp) {
-            revert UpdateRequestExpired(_tokenId);
+            revert UpdateRequestExpired(_offerId);
         }
 
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
-        uint256 oldCustodianId = offer.custodianId;
+        address fermionFNFTAddress = offerLookups.fermionFNFTAddress;
+        address msgSender = _msgSender();
+        uint256 itemCount = offerLookups.itemQuantity;
+        uint256 firstTokenId = offerLookups.firstTokenId;
 
-        // For non-emergency updates, check the caller owns the token
-        if (!updateRequest.isEmergencyUpdate) {
-            address msgSender = _msgSender();
-            address owner = IERC721(pl.offerLookups[offerId].fermionFNFTAddress).ownerOf(_tokenId);
-            if (owner != msgSender) {
-                revert NotTokenBuyer(_tokenId, owner, msgSender);
+        for (uint256 i; i < itemCount; ++i) {
+            uint256 tokenId = firstTokenId + i;
+            address tokenOwner = IERC721(fermionFNFTAddress).ownerOf(tokenId);
+
+            if (tokenOwner != msgSender) {
+                revert NotTokenBuyer(_offerId, tokenOwner, msgSender);
             }
         }
-
-        // For multi-item offers, process all items
-        FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[offerId];
-        uint256 itemCount = offerLookups.custodianVaultItems;
-        if (itemCount > 1) {
-            uint256 firstTokenId = _tokenId & ~uint256(0xFFFFFFFFFFFFFFFF); // Clear lower 64 bits
-            for (uint256 i; i < itemCount; ) {
-                uint256 tokenId = firstTokenId + i;
-                _processCustodianUpdate(tokenId, oldCustodianId, offer, updateRequest);
-                unchecked {
-                    ++i;
-                }
-            }
-        } else {
-            _processCustodianUpdate(_tokenId, oldCustodianId, offer, updateRequest);
-        }
-
-        offer.custodianId = updateRequest.newCustodianId;
-        if (!updateRequest.keepExistingParameters) {
-            offer.custodianFee = updateRequest.newCustodianFee;
-        }
-
-        uint256 newCustodianId = updateRequest.newCustodianId;
-        delete tokenLookups.custodianUpdateRequest;
-
-        emit CustodianUpdateAccepted(_tokenId, oldCustodianId, newCustodianId);
-    }
-
-    /**
-     * @notice Process custodian update for a single token
-     *
-     * Internal helper function to process the custodian update for a single token.
-     * Calculates and pays the current custodian, updates the vault period.
-     *
-     * Reverts if:
-     * - The token is checked out
-     * - There are not enough funds in the vault to pay the current custodian
-     *
-     * @param _tokenId - the token ID
-     * @param _oldCustodianId - the ID of the current custodian
-     * @param _offer - the offer storage pointer
-     * @param _updateRequest - the update request storage pointer
-     */
-    function _processCustodianUpdate(
-        uint256 _tokenId,
-        uint256 _oldCustodianId,
-        FermionTypes.Offer storage _offer,
-        FermionTypes.CustodianUpdateRequest storage _updateRequest
-    ) internal {
-        FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
-
-        if (tokenLookups.checkoutRequest.status == FermionTypes.CheckoutRequestStatus.CheckedOut) {
-            revert TokenCheckedOut(_tokenId);
-        }
-
-        // Calculate and pay the current custodian
-        FermionTypes.CustodianFee storage vault = tokenLookups.vault;
-        uint256 lastReleased = vault.period;
-        uint256 custodianFee = _offer.custodianFee.amount;
-        uint256 custodianPeriod = _offer.custodianFee.period;
-        uint256 custodianPayoff = ((block.timestamp - lastReleased) * custodianFee) / custodianPeriod;
-
-        if (custodianPayoff > vault.amount) {
-            revert InsufficientVaultBalance(_tokenId, custodianPayoff, vault.amount);
-        }
-
-        // Pay the current custodian
-        increaseAvailableFunds(_oldCustodianId, _offer.exchangeToken, custodianPayoff);
-        vault.amount -= custodianPayoff;
-
-        // Reset the vault period
-        vault.period = block.timestamp;
+        _processCustodianUpdate(
+            _offerId,
+            FermionStorage.protocolEntities().offer[_offerId],
+            updateRequest,
+            offerLookups
+        );
     }
 
     /**
      * @notice Reject a custodian update request
+     * @dev Allows the token owner to reject a custodian update request
      *
      * The FNFT owner rejects the update request.
-     * For emergency updates, this function cannot be called.
+     * Emergency updates cannot be rejected.
      *
      * Emits a CustodianUpdateRejected event
      *
      * Reverts if:
      * - Custody region is paused
-     * - Caller is not the owner of the token
+     * - Caller is not the owner of every token within the offer
      * - The update request status is not Requested
      * - The update request has expired
      * - The update is an emergency update
      *
-     * @param _tokenId - the token ID
+     * @param _offerId The offer ID for which to reject the custodian update
      */
     function rejectCustodianUpdate(
-        uint256 _tokenId
+        uint256 _offerId
     ) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+        FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[_offerId];
 
         // Validate update request status
-        FermionTypes.CustodianUpdateRequest storage updateRequest = tokenLookups.custodianUpdateRequest;
+        FermionTypes.CustodianUpdateRequest storage updateRequest = offerLookups.custodianUpdateRequest;
         if (updateRequest.status != FermionTypes.CustodianUpdateStatus.Requested) {
             revert InvalidCustodianUpdateStatus(
-                _tokenId,
+                _offerId,
                 FermionTypes.CustodianUpdateStatus.Requested,
                 updateRequest.status
             );
         }
 
         if (updateRequest.requestTimestamp + 1 days < block.timestamp) {
-            revert UpdateRequestExpired(_tokenId);
+            revert UpdateRequestExpired(_offerId);
         }
 
+        address fermionFNFTAddress = offerLookups.fermionFNFTAddress;
         address msgSender = _msgSender();
+        uint256 itemCount = offerLookups.itemQuantity;
+        uint256 firstTokenId = offerLookups.firstTokenId;
+        for (uint256 i; i < itemCount; ++i) {
+            uint256 tokenId = firstTokenId + i;
+            address tokenOwner = IERC721(fermionFNFTAddress).ownerOf(tokenId);
 
-        if (updateRequest.isEmergencyUpdate) {
-            revert FermionGeneralErrors.AccessDenied(msgSender);
+            if (tokenOwner != msgSender) {
+                revert NotTokenBuyer(tokenId, tokenOwner, msgSender);
+            }
+        }
+        delete offerLookups.custodianUpdateRequest;
+
+        emit CustodianUpdateRejected(_offerId, updateRequest.newCustodianId);
+    }
+
+    /**
+     * @notice Creates a custodian update request
+     * @dev Internal helper function to create and store a custodian update request
+     *
+     * @param _offerId The offer ID for which to create the update request
+     * @param _custodianFee The new custodian fee parameters
+     * @param _custodianVaultParameters The new custodian vault parameters
+     * @param _currentCustodianId The ID of the current custodian
+     * @param _offer The offer storage pointer
+     * @param _offerLookups The offer lookups storage pointer
+     * @param _pl The protocol lookups storage pointer
+     */
+    function _createCustodianUpdateRequest(
+        uint256 _offerId,
+        FermionTypes.CustodianFee calldata _custodianFee,
+        FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
+        uint256 _currentCustodianId,
+        FermionTypes.Offer storage _offer,
+        FermionStorage.OfferLookups storage _offerLookups,
+        FermionStorage.ProtocolLookups storage _pl
+    ) internal {
+        address msgSender = _msgSender();
+        // TODO: replace getOrCreateBuyerId with the more generic getOrCreateEntityId 
+        //       once Fermion Royalties (https://github.com/fermionprotocol/contracts/pull/317)PR is merged
+        uint256 newCustodianId = EntityLib.getOrCreateBuyerId(msgSender, _pl);
+
+        EntityLib.validateAccountRole(
+            newCustodianId,
+            msgSender,
+            FermionTypes.EntityRole.Custodian,
+            FermionTypes.AccountRole.Assistant
+        );
+
+        _offerLookups.custodianUpdateRequest = FermionTypes.CustodianUpdateRequest({
+            status: FermionTypes.CustodianUpdateStatus.Requested,
+            newCustodianId: newCustodianId,
+            custodianFee: _custodianFee,
+            custodianVaultParameters: _custodianVaultParameters,
+            requestTimestamp: block.timestamp
+        });
+
+        emit CustodianUpdateRequested(
+            _offerId,
+            _currentCustodianId,
+            newCustodianId,
+            _custodianFee,
+            _custodianVaultParameters
+        );
+    }
+
+    /**
+     * @notice Process custodian update
+     * @dev Internal helper function to process the custodian update for the offer.
+     * Calculates and pays the current custodian, updates the vault period for each token.
+     * Also updates the vault parameters for the new custodian in the offer.
+     *
+     * Reverts if:
+     * - Any token within the offer is checked out
+     * - There are not enough funds in the vault to pay the current custodian
+     *
+     * @param _offerId The offer ID for which to process the update
+     * @param _offer The offer storage pointer
+     * @param _updateRequest The update request storage pointer
+     * @param _offerLookups The offer lookups storage pointer
+     */
+    function _processCustodianUpdate(
+        uint256 _offerId,
+        FermionTypes.Offer storage _offer,
+        FermionTypes.CustodianUpdateRequest storage _updateRequest,
+        FermionStorage.OfferLookups storage _offerLookups
+    ) internal {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+
+        uint256 currentCustodianId = _offer.custodianId;
+        uint256 currentCustodianFee = _offer.custodianFee.amount;
+        uint256 currentCustodianPeriod = _offer.custodianFee.period;
+
+        uint256 itemCount = _offerLookups.itemQuantity;
+        uint256 firstTokenId = _offerLookups.firstTokenId;
+
+        // payout the current custodian
+        for (uint256 i; i < itemCount; ++i) {
+            uint256 tokenId = firstTokenId + i;
+            FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[tokenId];
+
+            if (tokenLookups.checkoutRequest.status == FermionTypes.CheckoutRequestStatus.CheckedOut) {
+                revert TokenCheckedOut(tokenId);
+            }
+            // Calculate and pay the current custodian
+            FermionTypes.CustodianFee storage vault = tokenLookups.vault;
+            uint256 custodianPayoff = ((block.timestamp - vault.period) * currentCustodianFee) / currentCustodianPeriod;
+
+            if (custodianPayoff > vault.amount) {
+                revert InsufficientVaultBalance(tokenId, custodianPayoff, vault.amount);
+            }
+
+            increaseAvailableFunds(currentCustodianId, _offer.exchangeToken, custodianPayoff);
+            vault.amount -= custodianPayoff;
+
+            // Reset the vault period
+            vault.period = block.timestamp;
         }
 
-        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        FermionTypes.CustodianVaultParameters memory custodianVaultParameters = _updateRequest.custodianVaultParameters;
+        FermionTypes.CustodianFee memory custodianFee = _updateRequest.custodianFee;
+        uint256 newCustodianId = _updateRequest.newCustodianId;
 
-        address owner = IERC721(pl.offerLookups[offerId].fermionFNFTAddress).ownerOf(_tokenId);
-        if (owner != msgSender) {
-            revert NotTokenBuyer(_tokenId, owner, msgSender);
-        }
+        _offer.custodianId = newCustodianId;
+        _offer.custodianFee = custodianFee;
+        _offerLookups.custodianVaultParameters = custodianVaultParameters;
 
-        delete tokenLookups.custodianUpdateRequest;
+        delete _offerLookups.custodianUpdateRequest;
 
-        emit CustodianUpdateRejected(_tokenId, offer.custodianId, updateRequest.newCustodianId);
+        emit CustodianUpdateAccepted(
+            _offerId,
+            currentCustodianId,
+            newCustodianId,
+            custodianFee,
+            custodianVaultParameters
+        );
     }
 }
