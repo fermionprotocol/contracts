@@ -330,7 +330,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setProtocolFeePercentageInternal(uint16 _protocolFeePercentage) internal {
         // Make sure percentage is less than 10000
-        checkMaxPercententage(_protocolFeePercentage);
+        checkMaxPercentage(_protocolFeePercentage);
 
         // Store fee percentage
         FermionStorage.protocolConfig().protocolFeePercentage = _protocolFeePercentage;
@@ -353,7 +353,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function setMaxRoyaltyPercentageInternal(uint16 _maxRoyaltyPercentage) internal {
         // Make sure percentage is less than 10000
-        checkMaxPercententage(_maxRoyaltyPercentage);
+        checkMaxPercentage(_maxRoyaltyPercentage);
 
         // Store fee percentage
         FermionStorage.protocolConfig().maxRoyaltyPercentage = _maxRoyaltyPercentage;
@@ -386,7 +386,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     function setTokenFeePercentagesInternal(address _tokenAddress, uint16[] calldata _feePercentages) internal {
         // Set the fee percentages for the token
         for (uint256 i; i < _feePercentages.length; ++i) {
-            checkMaxPercententage(_feePercentages[i]);
+            checkMaxPercentage(_feePercentages[i]);
         }
         FermionStorage.protocolConfig().tokenFeePercentages[_tokenAddress] = _feePercentages;
     }
@@ -443,7 +443,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      *
      * Reverts if the value more than 10000
      */
-    function checkMaxPercententage(uint16 _percentage) internal pure {
+    function checkMaxPercentage(uint16 _percentage) internal pure {
         if (_percentage > HUNDRED_PERCENT) revert InvalidPercentage(_percentage);
     }
 }
