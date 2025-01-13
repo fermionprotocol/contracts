@@ -111,15 +111,7 @@ contract FermionTypes {
         uint256 taxAmount;
     }
 
-    enum CustodianUpdateStatus {
-        None,
-        Requested,
-        Accepted,
-        Rejected
-    }
-
     struct CustodianUpdateRequest {
-        CustodianUpdateStatus status;
         uint256 newCustodianId;
         CustodianFee custodianFee;
         CustodianVaultParameters custodianVaultParameters;

@@ -364,7 +364,6 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
 
         // Store the update request - keep existing parameters in emergency update
         offerLookups.custodianUpdateRequest = FermionTypes.CustodianUpdateRequest({
-            status: FermionTypes.CustodianUpdateStatus.Requested,
             newCustodianId: _newCustodianId,
             custodianFee: offer.custodianFee,
             custodianVaultParameters: offerLookups.custodianVaultParameters,
@@ -406,16 +405,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
     ) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[_offerId];
-
-        // Validate update request status
         FermionTypes.CustodianUpdateRequest storage updateRequest = offerLookups.custodianUpdateRequest;
-        if (updateRequest.status != FermionTypes.CustodianUpdateStatus.Requested) {
-            revert InvalidCustodianUpdateStatus(
-                _offerId,
-                FermionTypes.CustodianUpdateStatus.Requested,
-                updateRequest.status
-            );
-        }
 
         // Check request hasn't expired
         if (updateRequest.requestTimestamp + 1 days < block.timestamp) {
@@ -476,7 +466,6 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
         );
 
         _offerLookups.custodianUpdateRequest = FermionTypes.CustodianUpdateRequest({
-            status: FermionTypes.CustodianUpdateStatus.Requested,
             newCustodianId: _newCustodianId,
             custodianFee: _custodianFee,
             custodianVaultParameters: _custodianVaultParameters,
