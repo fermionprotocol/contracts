@@ -144,7 +144,7 @@ library EntityLib {
         }
     }
 
-        /**
+    /**
      * @notice Converts compact role to array of Roles.
      *
      * @param _compactRole - the compact representation of roles
@@ -380,7 +380,12 @@ library EntityLib {
             if (!checkEntityRole(compactEntityRoles, _role)) {
                 compactEntityRoles |= (1 << uint256(_role));
                 FermionStorage.protocolEntities().entityData[entityId].roles = compactEntityRoles;
-                emit IEntityEvents.EntityStored(entityId, _entityAddress, compactRoleToRoles(compactEntityRoles), entityData.metadataURI);
+                emit IEntityEvents.EntityStored(
+                    entityId,
+                    _entityAddress,
+                    compactRoleToRoles(compactEntityRoles),
+                    entityData.metadataURI
+                );
             }
         }
     }

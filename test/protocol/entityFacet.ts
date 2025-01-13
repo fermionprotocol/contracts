@@ -41,7 +41,7 @@ describe("Entity", function () {
 
     context("createEntity", function () {
       it("Create an entity", async function () {
-        const roles = ["Seller", "Buyer", "Verifier", "Custodian"];
+        const roles = ["Seller", "Buyer", "Verifier", "Custodian", "RoyaltyRecipient"];
         for (const [index, role] of Object.entries(roles)) {
           const signer = wallets[index];
           const entityId = Number(index) + 1;
@@ -834,7 +834,9 @@ describe("Entity", function () {
           const tx = await entityFacet.addFacilitators(sellerId, facilitators);
 
           for (const facilitatorId of facilitators) {
-            await expect(tx).to.emit(entityFacet, "AssociatedEntityAdded").withArgs(AssociatedRole.Facilitator, sellerId, facilitatorId);
+            await expect(tx)
+              .to.emit(entityFacet, "AssociatedEntityAdded")
+              .withArgs(AssociatedRole.Facilitator, sellerId, facilitatorId);
           }
 
           // verify state
@@ -922,14 +924,14 @@ describe("Entity", function () {
             await entityFacet.addFacilitators(sellerId, [facilitator1Id, facilitator2Id]);
 
             await expect(entityFacet.addFacilitators(sellerId, [facilitator1Id]))
-              .to.be.revertedWithCustomError(fermionErrors, "FacilitatorAlreadyExists")
-              .withArgs(sellerId, facilitator1Id);
+              .to.be.revertedWithCustomError(fermionErrors, "AssociatedEntityAlreadyExists")
+              .withArgs(AssociatedRole.Facilitator, sellerId, facilitator1Id);
           });
 
           it("Duplicate entry", async function () {
             await expect(entityFacet.addFacilitators(sellerId, [facilitator1Id, facilitator1Id]))
-              .to.be.revertedWithCustomError(fermionErrors, "FacilitatorAlreadyExists")
-              .withArgs(sellerId, facilitator1Id);
+              .to.be.revertedWithCustomError(fermionErrors, "AssociatedEntityAlreadyExists")
+              .withArgs(AssociatedRole.Facilitator, sellerId, facilitator1Id);
           });
         });
       });
@@ -975,7 +977,9 @@ describe("Entity", function () {
           const tx = await entityFacet.removeFacilitators(sellerId, facilitators);
 
           for (const facilitatorId of facilitators) {
-            await expect(tx).to.emit(entityFacet, "AssociatedEntityRemoved").withArgs(AssociatedRole.Facilitator, sellerId, facilitatorId);
+            await expect(tx)
+              .to.emit(entityFacet, "AssociatedEntityRemoved")
+              .withArgs(AssociatedRole.Facilitator, sellerId, facilitatorId);
           }
 
           // verify state
@@ -989,7 +993,10 @@ describe("Entity", function () {
         });
 
         it("Removing a facilitator that was not added", async function () {
-          await expect(entityFacet.removeFacilitators(sellerId, [6])).to.not.emit(entityFacet, "AssociatedEntityRemoved");
+          await expect(entityFacet.removeFacilitators(sellerId, [6])).to.not.emit(
+            entityFacet,
+            "AssociatedEntityRemoved",
+          );
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([
@@ -1045,6 +1052,268 @@ describe("Entity", function () {
             const newAdmin = wallets[2];
 
             await expect(entityFacet.connect(newAdmin).removeFacilitators(sellerId, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
+              .withArgs(sellerId, newAdmin.address);
+          });
+        });
+      });
+    });
+
+    context("royaltyRecipient", function () {
+      const sellerId = 1n;
+      const royaltyRecipient1Id = 2n;
+      const royaltyRecipient2Id = 3n;
+      let royaltyRecipient1: HardhatEthersSigner;
+      let royaltyRecipient2: HardhatEthersSigner;
+      const metadataURI = "https://example.com/metadata.json";
+
+      before(async function () {
+        royaltyRecipient1 = wallets[2];
+        royaltyRecipient2 = wallets[3];
+      });
+
+      beforeEach(async function () {
+        await entityFacet.createEntity([EntityRole.Seller], metadataURI); // seller
+        await entityFacet.connect(royaltyRecipient1).createEntity([EntityRole.RoyaltyRecipient], metadataURI); // royaltyRecipients1
+        await entityFacet.connect(royaltyRecipient2).createEntity([EntityRole.RoyaltyRecipient], metadataURI); // royaltyRecipients2
+      });
+
+      context("addRoyaltyRecipients", function () {
+        it("Seller can add royalty recipients", async function () {
+          const royaltyRecipients = [royaltyRecipient1Id, royaltyRecipient2Id];
+
+          const tx = await entityFacet.addRoyaltyRecipients(sellerId, royaltyRecipients);
+
+          for (const royaltyRecipientId of royaltyRecipients) {
+            await expect(tx)
+              .to.emit(entityFacet, "AssociatedEntityAdded")
+              .withArgs(AssociatedRole.RoyaltyRecipient, sellerId, royaltyRecipientId);
+          }
+
+          // verify state
+          expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql(royaltyRecipients);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient2Id)).to.be.equal(true);
+
+          // add another royaltyRecipient
+          const royaltyRecipient3Id = 4n;
+          const royaltyRecipient3 = wallets[4];
+          await entityFacet.connect(royaltyRecipient3).createEntity([EntityRole.RoyaltyRecipient], metadataURI); // royaltyRecipient3
+
+          await expect(entityFacet.addRoyaltyRecipients(sellerId, [royaltyRecipient3Id]))
+            .to.emit(entityFacet, "AssociatedEntityAdded")
+            .withArgs(AssociatedRole.RoyaltyRecipient, sellerId, royaltyRecipient3Id);
+
+          // verify state
+          expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql([
+            ...royaltyRecipients,
+            royaltyRecipient3Id,
+          ]);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient3Id)).to.be.equal(true);
+        });
+
+        it("Adding empty list does nothing", async function () {
+          await expect(entityFacet.addRoyaltyRecipients(sellerId, [])).to.not.emit(
+            entityFacet,
+            "AssociatedEntityAdded",
+          );
+
+          // verify state
+          expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql([]);
+
+          const royaltyRecipients = [royaltyRecipient1Id, royaltyRecipient2Id];
+          await entityFacet.addRoyaltyRecipients(sellerId, royaltyRecipients);
+          await entityFacet.addRoyaltyRecipients(sellerId, []);
+
+          expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql(royaltyRecipients);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient2Id)).to.be.equal(true);
+        });
+
+        context("Revert reasons", function () {
+          it("Entity region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.Entity]);
+
+            await expect(entityFacet.addRoyaltyRecipients(sellerId, [royaltyRecipient1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.Entity);
+          });
+
+          it("Entity does not exist", async function () {
+            await expect(entityFacet.addRoyaltyRecipients(0, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(0);
+
+            await expect(entityFacet.addRoyaltyRecipients(10, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(10);
+          });
+
+          it("Caller is not an admin", async function () {
+            const newAdmin = wallets[2];
+
+            await expect(entityFacet.connect(newAdmin).addRoyaltyRecipients(sellerId, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
+              .withArgs(sellerId, newAdmin.address);
+          });
+
+          it("RoyaltyRecipient does not exist", async function () {
+            await expect(entityFacet.addRoyaltyRecipients(sellerId, [0]))
+              .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+              .withArgs(0, EntityRole.RoyaltyRecipient);
+
+            await expect(entityFacet.addRoyaltyRecipients(sellerId, [10]))
+              .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+              .withArgs(10, EntityRole.RoyaltyRecipient);
+          });
+
+          it("RoyaltyRecipient does not have the seller role", async function () {
+            const entityId = 4n;
+            const entity = wallets[4];
+            await entityFacet.connect(entity).createEntity([EntityRole.Verifier], metadataURI); // royaltyRecipient3
+
+            await expect(entityFacet.addRoyaltyRecipients(sellerId, [entityId]))
+              .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+              .withArgs(entityId, EntityRole.RoyaltyRecipient);
+          });
+
+          it("RoyaltyRecipient is already a royaltyRecipient", async function () {
+            await entityFacet.addRoyaltyRecipients(sellerId, [royaltyRecipient1Id, royaltyRecipient2Id]);
+
+            await expect(entityFacet.addRoyaltyRecipients(sellerId, [royaltyRecipient1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "AssociatedEntityAlreadyExists")
+              .withArgs(AssociatedRole.RoyaltyRecipient, sellerId, royaltyRecipient1Id);
+          });
+
+          it("Duplicate entry", async function () {
+            await expect(entityFacet.addRoyaltyRecipients(sellerId, [royaltyRecipient1Id, royaltyRecipient1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "AssociatedEntityAlreadyExists")
+              .withArgs(AssociatedRole.RoyaltyRecipient, sellerId, royaltyRecipient1Id);
+          });
+        });
+      });
+
+      context("removeRoyaltyRecipients", function () {
+        const royaltyRecipient3Id = 4n;
+        const royaltyRecipient4Id = 5n;
+        let royaltyRecipient3: HardhatEthersSigner;
+        let royaltyRecipient4: HardhatEthersSigner;
+
+        before(async function () {
+          royaltyRecipient3 = wallets[4];
+          royaltyRecipient4 = wallets[5];
+        });
+
+        beforeEach(async function () {
+          await entityFacet.connect(royaltyRecipient3).createEntity([EntityRole.RoyaltyRecipient], metadataURI); // royaltyRecipient1
+          await entityFacet.connect(royaltyRecipient4).createEntity([EntityRole.RoyaltyRecipient], metadataURI); // royaltyRecipient2
+
+          await entityFacet.addRoyaltyRecipients(sellerId, [
+            royaltyRecipient1Id,
+            royaltyRecipient2Id,
+            royaltyRecipient3Id,
+            royaltyRecipient4Id,
+          ]);
+        });
+
+        it("Seller can remove a royaltyRecipient", async function () {
+          const royaltyRecipients = [royaltyRecipient1Id];
+
+          await expect(entityFacet.removeRoyaltyRecipients(sellerId, royaltyRecipients))
+            .to.emit(entityFacet, "AssociatedEntityRemoved")
+            .withArgs(AssociatedRole.RoyaltyRecipient, sellerId, royaltyRecipient1Id);
+
+          // verify state
+          const expectedRoyaltyRecipients = [royaltyRecipient4Id, royaltyRecipient2Id, royaltyRecipient3Id];
+          expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql(expectedRoyaltyRecipients);
+
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient1Id)).to.be.equal(false);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient2Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient3Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient4Id)).to.be.equal(true);
+        });
+
+        it("Removing multiple royaltyRecipients", async function () {
+          const royaltyRecipients = [royaltyRecipient4Id, royaltyRecipient2Id];
+
+          const tx = await entityFacet.removeRoyaltyRecipients(sellerId, royaltyRecipients);
+
+          for (const royaltyRecipientId of royaltyRecipients) {
+            await expect(tx)
+              .to.emit(entityFacet, "AssociatedEntityRemoved")
+              .withArgs(AssociatedRole.RoyaltyRecipient, sellerId, royaltyRecipientId);
+          }
+
+          // verify state
+          const expectedRoyaltyRecipients = [royaltyRecipient1Id, royaltyRecipient3Id];
+          expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql(expectedRoyaltyRecipients);
+
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient2Id)).to.be.equal(false);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient3Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient4Id)).to.be.equal(false);
+        });
+
+        it("Removing a royaltyRecipient that was not added", async function () {
+          await expect(entityFacet.removeRoyaltyRecipients(sellerId, [6])).to.not.emit(
+            entityFacet,
+            "AssociatedEntityRemoved",
+          );
+
+          // verify state
+          expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql([
+            royaltyRecipient1Id,
+            royaltyRecipient2Id,
+            royaltyRecipient3Id,
+            royaltyRecipient4Id,
+          ]);
+
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient2Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient3Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient4Id)).to.be.equal(true);
+        });
+
+        it("Remove the same royaltyRecipient twice", async function () {
+          const royaltyRecipients = [royaltyRecipient2Id, royaltyRecipient2Id];
+
+          await expect(entityFacet.removeRoyaltyRecipients(sellerId, royaltyRecipients))
+            .to.emit(entityFacet, "AssociatedEntityRemoved")
+            .withArgs(AssociatedRole.RoyaltyRecipient, sellerId, royaltyRecipient2Id);
+
+          // verify state
+          const expectedRoyaltyRecipients = [royaltyRecipient1Id, royaltyRecipient4Id, royaltyRecipient3Id];
+          expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql(expectedRoyaltyRecipients);
+
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient1Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient2Id)).to.be.equal(false);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient3Id)).to.be.equal(true);
+          expect(await entityFacet.isSellersRoyaltyRecipient(sellerId, royaltyRecipient4Id)).to.be.equal(true);
+        });
+
+        context("Revert reasons", function () {
+          it("Entity region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.Entity]);
+
+            await expect(entityFacet.removeRoyaltyRecipients(sellerId, [royaltyRecipient1Id]))
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.Entity);
+          });
+
+          it("Entity does not exist", async function () {
+            await expect(entityFacet.removeRoyaltyRecipients(0, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(0);
+
+            await expect(entityFacet.removeRoyaltyRecipients(10, []))
+              .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+              .withArgs(10);
+          });
+
+          it("Caller is not an admin", async function () {
+            const newAdmin = wallets[2];
+
+            await expect(entityFacet.connect(newAdmin).removeRoyaltyRecipients(sellerId, []))
               .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
               .withArgs(sellerId, newAdmin.address);
           });

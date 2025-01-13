@@ -196,7 +196,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         addOrRemoveAssociatedEntities(FermionTypes.AssociatedRole.Facilitator, _sellerId, _facilitatorIds, false);
     }
 
-     /** Add seller's allowed royalty recipients.
+    /** Add seller's allowed royalty recipients.
      *
      * When creating an offer, only the allowed royalty recipients can be set as the recipients.
      *
@@ -214,7 +214,12 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _royaltyRecipientIds - the facilitator's entity IDs
      */
     function addRoyaltyRecipients(uint256 _sellerId, uint256[] calldata _royaltyRecipientIds) external {
-        addOrRemoveAssociatedEntities(FermionTypes.AssociatedRole.RoyaltyRecipient, _sellerId, _royaltyRecipientIds, true);
+        addOrRemoveAssociatedEntities(
+            FermionTypes.AssociatedRole.RoyaltyRecipient,
+            _sellerId,
+            _royaltyRecipientIds,
+            true
+        );
     }
 
     /** Remove seller's allowed royalty recipients.
@@ -232,7 +237,12 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _royaltyRecipientIds - the facilitator's entity IDs
      */
     function removeRoyaltyRecipients(uint256 _sellerId, uint256[] calldata _royaltyRecipientIds) external {
-        addOrRemoveAssociatedEntities(FermionTypes.AssociatedRole.RoyaltyRecipient, _sellerId, _royaltyRecipientIds, false);
+        addOrRemoveAssociatedEntities(
+            FermionTypes.AssociatedRole.RoyaltyRecipient,
+            _sellerId,
+            _royaltyRecipientIds,
+            false
+        );
     }
 
     /** Add entity wide admin account.
@@ -415,13 +425,37 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorId - the facilitator's entity ID
-     * @return isSellersFcilitator - the facilitator's status
+     * @return isSellersFacilitator - the facilitator's status
      */
     function isSellersFacilitator(
         uint256 _sellerId,
         uint256 _facilitatorId
-    ) external view returns (bool isSellersFcilitator) {
+    ) external view returns (bool isSellersFacilitator) {
         return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersFacilitator[_facilitatorId];
+    }
+
+    /** Returns the list of seller's allowlisted royalty recipients.
+     *
+     * @param _sellerId - the seller's entity ID
+     * @return royaltyRecipientIds - the royalty recipient entity IDs
+     */
+    function getSellersRoyaltyRecipients(
+        uint256 _sellerId
+    ) external view returns (uint256[] memory royaltyRecipientIds) {
+        return FermionStorage.protocolLookups().sellerLookups[_sellerId].sellerRoyaltyRecipients;
+    }
+
+    /** Tells if the entity is seller's allowlisted royalty recipient.
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _royaltyRecipientId - the royalty recipient's entity ID
+     * @return isSellersRoyaltyRecipient - the royalty recipient's status
+     */
+    function isSellersRoyaltyRecipient(
+        uint256 _sellerId,
+        uint256 _royaltyRecipientId
+    ) external view returns (bool isSellersRoyaltyRecipient) {
+        return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersRoyaltyRecipient[_royaltyRecipientId];
     }
 
     /**
@@ -640,12 +674,14 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
             uint256 associatedEntityId = _associatedEntitiesIds[i];
             if (_add) {
                 if (isAssociatedRole[associatedEntityId])
-                    revert FacilitatorAlreadyExists(_sellerId, associatedEntityId);
+                    revert AssociatedEntityAlreadyExists(_associatedRole, _sellerId, associatedEntityId);
 
                 EntityLib.validateEntityRole(
                     associatedEntityId,
                     entityData[associatedEntityId].roles,
-                    FermionTypes.EntityRole.Seller
+                    _associatedRole == FermionTypes.AssociatedRole.Facilitator
+                        ? FermionTypes.EntityRole.Seller
+                        : FermionTypes.EntityRole.RoyaltyRecipient
                 );
 
                 associatedEntities.push(associatedEntityId);

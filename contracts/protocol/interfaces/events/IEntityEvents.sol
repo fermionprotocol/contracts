@@ -28,7 +28,15 @@ interface IEntityEvents {
         FermionTypes.AccountRole[][] accountRole
     );
     event AccountChanged(address indexed oldAccount, address indexed newAccount);
-    event AssociatedEntityAdded(FermionTypes.AssociatedRole associatedRole, uint256 indexed entityId, uint256 indexed associatedEntityIds);
-    event AssociatedEntityRemoved(FermionTypes.AssociatedRole associatedRole, uint256 indexed entityId, uint256 indexed associatedEntityIds);
+    event AssociatedEntityAdded(
+        FermionTypes.AssociatedRole associatedRole,
+        uint256 indexed entityId,
+        uint256 indexed associatedEntityIds
+    );
+    event AssociatedEntityRemoved(
+        FermionTypes.AssociatedRole associatedRole,
+        uint256 indexed entityId,
+        uint256 indexed associatedEntityIds
+    );
     event AdminPending(uint256 indexed entityId, address indexed account);
 }
