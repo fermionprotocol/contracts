@@ -22,18 +22,21 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      *
      * @param _treasury The address of the protocol treasury where protocol fees will be sent.
      * @param _protocolFeePercentage The default fee percentage that the protocol will charge (in basis points).
+     * @param _maxRoyaltyPercentage The maximal total royalty percentage per offer item.
      * @param _maxVerificationTimeout The maximum allowed verification timeout in seconds.
      * @param _defaultVerificationTimeout The default timeout in seconds for verification if none is specified.
      */
     function init(
         address payable _treasury,
         uint16 _protocolFeePercentage,
+        uint16 _maxRoyaltyPercentage,
         uint256 _maxVerificationTimeout,
         uint256 _defaultVerificationTimeout
     ) external {
         // Initialize protocol config params
         setTreasuryAddressInternal(_treasury);
         setProtocolFeePercentageInternal(_protocolFeePercentage);
+        setMaxRoyaltyPercentageInternal(_maxRoyaltyPercentage);
         setMaxVerificationTimeoutInternal(_maxVerificationTimeout);
         setDefaultVerificationTimeoutInternal(_defaultVerificationTimeout);
     }
@@ -221,7 +224,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
-     * @notice Sets the Fermion FNFT implmentation address.
+     * @notice Sets the Fermion FNFT implementation address.
      *
      * Emits a FermionFNFTImplementationChanged event if successful.
      *
@@ -242,12 +245,40 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
     }
 
     /**
-     * @notice Gets the current Fermion FNFT implementaion address.
+     * @notice Gets the current Fermion FNFT implementation address.
      *
      * @return the Fermion FNFT implementation address
      */
     function getFNFTImplementationAddress() external view returns (address) {
         return UpgradeableBeacon(FermionStorage.protocolStatus().fermionFNFTBeacon).implementation();
+    }
+
+    /**
+     * @notice Sets the max royalty recipient.
+     *
+     * Emits a MaxRoyaltyPercentageChanged event if successful.
+     *
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The _maxRoyaltyPercentage is over 100%
+     *
+     * @dev Caller must have ADMIN role.
+     *
+     * @param _maxRoyaltyPercentage - the period after anyone can reject the verification
+     */
+    function setMaxRoyaltyPercentage(
+        uint16 _maxRoyaltyPercentage
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
+        setMaxRoyaltyPercentageInternal(_maxRoyaltyPercentage);
+    }
+
+    /**
+     * @notice Gets the current maximal verification timeout.
+     *
+     * @return the maximal verification timeout
+     */
+    function getMaxRoyaltyPercentage() external view returns (uint16) {
+        return FermionStorage.protocolConfig().maxRoyaltyPercentage;
     }
 
     /**
@@ -306,6 +337,29 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
 
         // Notify watchers of state change
         emit ProtocolFeePercentageChanged(_protocolFeePercentage);
+    }
+
+    /**
+     * @notice Sets the max royalty percentage.
+     *
+     * Emits a MaxRoyaltyPercentageChanged event if successful.
+     *
+     * Reverts if the _maxRoyaltyPercentage is greater than 10000.
+     *
+     * @param _maxRoyaltyPercentage - the maximal total royalty percentage per offer item.
+     *
+     * N.B. Represent percentage value as an unsigned int by multiplying the percentage by 100:
+     * e.g, 1.75% = 175, 100% = 10000
+     */
+    function setMaxRoyaltyPercentageInternal(uint16 _maxRoyaltyPercentage) internal {
+        // Make sure percentage is less than 10000
+        checkMaxPercententage(_maxRoyaltyPercentage);
+
+        // Store fee percentage
+        FermionStorage.protocolConfig().maxRoyaltyPercentage = _maxRoyaltyPercentage;
+
+        // Notify watchers of state change
+        emit MaxRoyaltyPercentageChanged(_maxRoyaltyPercentage);
     }
 
     /**

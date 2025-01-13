@@ -219,6 +219,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       ConfigFacet: [
         fermionConfig.protocolParameters.treasury,
         fermionConfig.protocolParameters.protocolFeePercentage,
+        fermionConfig.protocolParameters.maxRoyaltyPercentage,
         fermionConfig.protocolParameters.maxVerificationTimeout,
         fermionConfig.protocolParameters.defaultVerificationTimeout,
       ],

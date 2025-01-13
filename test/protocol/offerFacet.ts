@@ -34,6 +34,8 @@ describe("Offer", function () {
   const custodianId = "3";
   const facilitatorId = "4";
   const facilitator2Id = "5";
+  const royaltyRecipientId = "6";
+  const royaltyRecipient2Id = "7";
   const custodianFee = {
     amount: parseEther("0.05"),
     period: 30n * 24n * 60n * 60n, // 30 days
@@ -52,6 +54,7 @@ describe("Offer", function () {
   let wallets: HardhatEthersSigner[];
   let defaultSigner: HardhatEthersSigner;
   let facilitator: HardhatEthersSigner, facilitator2: HardhatEthersSigner;
+  let royaltyRecipient: HardhatEthersSigner, royaltyRecipient2: HardhatEthersSigner;
   let seaportAddress: string;
   let bosonProtocolAddress: string;
   let seaportContract: Contract;
@@ -61,17 +64,23 @@ describe("Offer", function () {
   async function setupOfferTest() {
     facilitator = wallets[4];
     facilitator2 = wallets[5];
-    // Create three entities
+    royaltyRecipient = wallets[6];
+    royaltyRecipient2 = wallets[7];
+
+    // Create all entities
     // Seller, Verifier, Custodian combined
     // Verifier only
     // Custodian only
-    // Facilitator
+    // 2 Facilitators
+    // 2 Royalty Recipients
     const metadataURI = "https://example.com/seller-metadata.json";
     await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI); // "1"
     await entityFacet.connect(wallets[2]).createEntity([EntityRole.Verifier], metadataURI); // "2"
     await entityFacet.connect(wallets[3]).createEntity([EntityRole.Custodian], metadataURI); // "3"
     await entityFacet.connect(facilitator).createEntity([EntityRole.Seller], metadataURI); // "4"
-    await entityFacet.connect(facilitator2).createEntity([EntityRole.Seller], metadataURI); // "4"
+    await entityFacet.connect(facilitator2).createEntity([EntityRole.Seller], metadataURI); // "5"
+    await entityFacet.connect(royaltyRecipient).createEntity([EntityRole.RoyaltyRecipient], metadataURI); // "6"
+    await entityFacet.connect(royaltyRecipient2).createEntity([EntityRole.RoyaltyRecipient], metadataURI); // "7"
 
     await entityFacet.addFacilitators(sellerId, [facilitatorId, facilitator2Id]);
 
@@ -84,6 +93,9 @@ describe("Offer", function () {
 
     mockBosonToken = await ethers.getContractAt("MockERC20", bosonTokenAddress, defaultSigner);
     await mockBosonToken.mint(defaultSigner.address, parseEther("1000"));
+
+    // allowlist the royalty recipient
+    await entityFacet.addRoyaltyRecipients(sellerId, [royaltyRecipientId, royaltyRecipient2Id]);
   }
 
   before(async function () {
@@ -174,6 +186,38 @@ describe("Offer", function () {
       expect(offer.exchangeToken).to.equal(exchangeToken);
       expect(offer.metadataURI).to.equal(metadataURI);
       expect(offer.metadataHash).to.equal(id(metadataURI));
+      expect(offer.royaltyInfo).to.eql(royaltyInfoStruct);
+    });
+
+    it("Create fermion offer with royalties", async function () {
+      const royalties1 = 8_00n;
+      const royalties2 = 5_00n;
+      const sellerRoyalties = 1_00n;
+      const royaltyInfo = [
+        {
+          recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address],
+          bps: [royalties1, royalties2, sellerRoyalties],
+        },
+      ];
+      const royaltyInfoStruct = royaltyInfo.map((ri) => Object.values(ri));
+
+      // test event
+      await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
+        .to.emit(offerFacet, "OfferCreated")
+        .withArgs(
+          sellerId,
+          verifierId,
+          custodianId,
+          Object.values({
+            ...fermionOffer,
+            custodianFee: Object.values(fermionOffer.custodianFee),
+            royaltyInfo: royaltyInfoStruct,
+          }),
+          bosonOfferId,
+        );
+
+      // verify state
+      const offer = await offerFacet.getOffer(bosonOfferId);
       expect(offer.royaltyInfo).to.eql(royaltyInfoStruct);
     });
 
@@ -376,7 +420,7 @@ describe("Offer", function () {
 
       it("Facilitator don't set themselves as facilitator", async function () {
         const fermionOffer2 = { ...fermionOffer, facilitatorId: facilitator2Id };
-        // test event
+
         await expect(offerFacet.connect(facilitator).createOffer({ ...fermionOffer2 }))
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(sellerId, facilitator.address, EntityRole.Seller, AccountRole.Assistant);
@@ -385,10 +429,67 @@ describe("Offer", function () {
       it("Facilitator fee percentage is more than 100%", async function () {
         const facilitatorFeePercent = "10001";
         const fermionOffer2 = { ...fermionOffer, facilitatorFeePercent };
-        // test event
+
         await expect(offerFacet.connect(facilitator).createOffer({ ...fermionOffer2 }))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
           .withArgs(facilitatorFeePercent);
+      });
+
+      it("Royalty info is of incorrect length", async function () {
+        // empty royalty info
+        const emptyRoyaltyInfo = [];
+        await expect(
+          offerFacet.createOffer({ ...fermionOffer, royaltyInfo: emptyRoyaltyInfo }),
+        ).to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyInfo");
+
+        // royalty info with more than 1 element
+        const royaltyInfo = [
+          { recipients: [], bps: [] },
+          { recipients: [], bps: [] },
+        ];
+        await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo })).to.be.revertedWithCustomError(
+          fermionErrors,
+          "InvalidRoyaltyInfo",
+        );
+      });
+
+      it("Royalty percentage is over the limit", async function () {
+        // set max royalty percentage
+        await configFacet.setMaxRoyaltyPercentage(15_00); //15%
+
+        // single recipient over the limit
+        const royalties = 15_01;
+        let royaltyInfo = [{ recipients: [royaltyRecipient.address], bps: [royalties] }];
+        await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyPercentage")
+          .withArgs(royalties);
+
+        // multiple recipients over the limit
+        const royalties1 = 8_00;
+        const royalties2 = 7_01;
+        royaltyInfo = [
+          { recipients: [royaltyRecipient.address, royaltyRecipient2.address], bps: [royalties1, royalties2] },
+        ];
+        await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyPercentage")
+          .withArgs(royalties1 + royalties2);
+      });
+
+      it("Royalty recipient is not allowlisted", async function () {
+        const royalties = 10_00;
+
+        // existing entity, but not allowlisted
+        let royaltyInfo = [{ recipients: [facilitator.address], bps: [royalties] }];
+        await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyRecipient")
+          .withArgs(facilitator.address);
+
+        // non-existing entity, but not allowlisted
+        const rando = wallets[10];
+        royaltyInfo = [{ recipients: [rando.address], bps: [royalties] }];
+        await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyRecipient")
+          .withArgs(rando.address);
       });
     });
   });

@@ -885,7 +885,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
                     FermionStorage.protocolLookups()
                 );
 
-                if (!isSellersRoyaltyRecipient[royaltyRecipientId])
+                if (royaltyRecipientId != _sellerId && !isSellersRoyaltyRecipient[royaltyRecipientId])
                     revert InvalidRoyaltyRecipient(_royaltyInfo.recipients[i]);
             }
 
