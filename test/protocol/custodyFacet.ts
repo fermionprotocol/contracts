@@ -5,6 +5,7 @@ import {
   deployMockTokens,
   deriveTokenId,
   verifySellerAssistantRoleClosure,
+  setNextBlockTimestamp,
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
@@ -21,6 +22,12 @@ import {
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "../../fermion.config";
+import {
+  PARTIAL_AUCTION_DURATION_DIVISOR,
+  LIQUIDATION_THRESHOLD_MULTIPLIER,
+  PARTIAL_THRESHOLD_MULTIPLIER,
+  DEFAULT_FRACTION_AMOUNT,
+} from "../utils/constants";
 
 const { parseEther } = ethers;
 
@@ -30,7 +37,8 @@ describe("Custody", function () {
     verificationFacet: Contract,
     custodyFacet: Contract,
     fundsFacet: Contract,
-    pauseFacet: Contract;
+    pauseFacet: Contract,
+    custodyVaultFacet: Contract;
   let mockToken: Contract;
   let fermionErrors: Contract;
   let fermionProtocolAddress: string;
@@ -46,13 +54,14 @@ describe("Custody", function () {
   const custodianId = "3";
   const facilitatorId = "4";
   const facilitator2Id = "5";
+  const offerId = "1";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
   const custodianFee = {
     amount: parseEther("0.05"),
     period: 30n * 24n * 60n * 60n, // 30 days
   };
-  const exchange = { tokenId: "", custodianId: "" };
+  const exchange = { tokenId: "", custodianId: "", price: parseEther("1.0") };
   const exchangeSelfSale = { tokenId: "", custodianId: "" };
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
   let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
@@ -97,7 +106,6 @@ describe("Custody", function () {
     };
 
     // Make three offers one for normal sale, one of self sale and one for self custody
-    const offerId = "1"; // buyer != seller, custodian != seller
     const offerIdSelfSale = "2"; // buyer = seller, custodian != seller
     const offerIdSelfCustody = "3"; // buyer != seller, custodian = seller
     await offerFacet.connect(facilitator).createOffer({ ...fermionOffer, facilitatorId });
@@ -118,7 +126,11 @@ describe("Custody", function () {
 
     await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
-    const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
+    const { buyerAdvancedOrder, tokenId, encumberedAmount } = await createBuyerAdvancedOrder(
+      buyer,
+      offerId,
+      exchangeId,
+    );
     await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
 
     const { buyerAdvancedOrder: buyerAdvancedOrderSelfCustody, tokenId: tokenIdSelfCustody } =
@@ -141,6 +153,7 @@ describe("Custody", function () {
 
     exchange.tokenId = tokenId;
     exchange.custodianId = custodianId;
+    exchange.price = encumberedAmount;
 
     // Self sale
     exchangeSelfSale.tokenId = tokenIdSelf;
@@ -174,6 +187,7 @@ describe("Custody", function () {
         CustodyFacet: custodyFacet,
         FundsFacet: fundsFacet,
         PauseFacet: pauseFacet,
+        CustodyVaultFacet: custodyVaultFacet,
       },
       fermionErrors,
       wallets,
@@ -262,12 +276,9 @@ describe("Custody", function () {
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(custodianId, wallet.address, EntityRole.Custodian, AccountRole.Assistant);
 
-        // seller
-        await expect(custodyFacet.checkIn(exchange.tokenId))
-          .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
-          .withArgs(custodianId, defaultSigner.address, EntityRole.Custodian, AccountRole.Assistant);
+        const wallet2 = wallets[8];
 
-        // an entity-wide Treasury or Manager wallet (not Assistant)
+        // an account with wrong role
         await entityFacet
           .connect(custodian)
           .addEntityAccounts(custodianId, [wallet], [[]], [[[AccountRole.Treasury, AccountRole.Manager]]]);
@@ -275,8 +286,7 @@ describe("Custody", function () {
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(custodianId, wallet.address, EntityRole.Custodian, AccountRole.Assistant);
 
-        // a Custodian specific Treasury or Manager wallet
-        const wallet2 = wallets[10];
+        // an account with wrong role
         await entityFacet
           .connect(custodian)
           .addEntityAccounts(
@@ -1298,6 +1308,258 @@ describe("Custody", function () {
               CheckoutRequestStatus.CheckOutRequestCleared,
               CheckoutRequestStatus.CheckOutRequested,
             );
+        });
+      });
+    });
+  });
+
+  context("custodianUpdate", function () {
+    const newCustodianFee = {
+      amount: parseEther("0.07"),
+      period: 60n * 24n * 60n * 60n, // 60 days
+    };
+    const newCustodianVaultParameters = {
+      partialAuctionThreshold: parseEther("0.2"),
+      partialAuctionDuration: 7n * 24n * 60n * 60n, // 7 days
+      liquidationThreshold: parseEther("0.1"),
+      newFractionsPerAuction: 100n,
+    };
+    let newCustodian: HardhatEthersSigner;
+    let newCustodianId: string;
+
+    beforeEach(async function () {
+      newCustodian = wallets[7];
+      const metadataURI = "https://example.com/new-custodian-metadata.json";
+      await entityFacet.connect(newCustodian).createEntity([EntityRole.Custodian], metadataURI);
+      newCustodianId = "6"; // Since we already have 5 entities
+
+      // Setup a token with current custodian
+      await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+
+      // Fund the vault with sufficient balance
+      const vaultAmount = parseEther("1.0"); // Large enough to cover fees
+      await mockToken.approve(fermionProtocolAddress, vaultAmount);
+      await custodyVaultFacet.topUpCustodianVault(exchange.tokenId, vaultAmount);
+    });
+
+    context("requestCustodianUpdate", function () {
+      it("New custodian can request update", async function () {
+        const tx = await custodyFacet
+          .connect(newCustodian)
+          .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters);
+
+        await expect(tx)
+          .to.emit(custodyFacet, "CustodianUpdateRequested")
+          .withArgs(
+            offerId,
+            custodianId,
+            newCustodianId,
+            Object.values(newCustodianFee),
+            Object.values(newCustodianVaultParameters),
+          );
+      });
+
+      context("Revert reasons", function () {
+        it("Custody region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Custody]);
+
+          await expect(
+            custodyFacet
+              .connect(newCustodian)
+              .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Custody);
+        });
+
+        it("Caller is not the new custodian's assistant", async function () {
+          // Use a wallet that doesn't have any entity ID yet
+          const nonCustodianWallet = wallets[9];
+
+          await expect(
+            custodyFacet
+              .connect(nonCustodianWallet)
+              .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+            .withArgs(newCustodianId, nonCustodianWallet.address, EntityRole.Custodian, AccountRole.Assistant);
+        });
+
+        it("Cannot request update too soon after previous request", async function () {
+          await custodyFacet
+            .connect(newCustodian)
+            .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters);
+
+          await expect(
+            custodyFacet
+              .connect(newCustodian)
+              .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "UpdateRequestTooRecent")
+            .withArgs(offerId, 24 * 60 * 60); // 1 day
+        });
+      });
+    });
+
+    context("acceptCustodianUpdate", function () {
+      beforeEach(async function () {
+        await custodyFacet
+          .connect(newCustodian)
+          .requestCustodianUpdate(offerId, newCustodianId, newCustodianFee, newCustodianVaultParameters);
+      });
+
+      it("Token owner can accept update", async function () {
+        const tx = await custodyFacet.connect(buyer).acceptCustodianUpdate(offerId);
+
+        await expect(tx)
+          .to.emit(custodyFacet, "CustodianUpdateAccepted")
+          .withArgs(
+            offerId,
+            custodianId,
+            newCustodianId,
+            Object.values(newCustodianFee),
+            Object.values(newCustodianVaultParameters),
+          );
+      });
+
+      context("Revert reasons", function () {
+        it("Custody region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Custody]);
+
+          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerId))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Custody);
+        });
+
+        it("Caller is not the token owner of all in-custody tokens", async function () {
+          const randomWallet = wallets[8];
+          await expect(custodyFacet.connect(randomWallet).acceptCustodianUpdate(offerId))
+            .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
+            .withArgs(offerId, buyer.address, randomWallet.address);
+        });
+
+        it("Update request has expired", async function () {
+          const blockNumber = await ethers.provider.getBlockNumber();
+          const block = await ethers.provider.getBlock(blockNumber);
+          const newTime = Number(BigInt(block.timestamp) + BigInt(25 * 60 * 60)); // 25 hours
+          await setNextBlockTimestamp(newTime);
+
+          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerId))
+            .to.be.revertedWithCustomError(fermionErrors, "UpdateRequestExpired")
+            .withArgs(offerId);
+        });
+
+        it("Reverts when token owner is different from offer owner", async function () {
+          // Transfer the NFT to a different address
+          const differentOwner = wallets[9];
+          await wrapper.connect(buyer).safeTransferFrom(buyer.address, differentOwner.address, exchange.tokenId);
+
+          // Try to accept the update with the original buyer (who is no longer the token owner)
+          await expect(custodyFacet.connect(buyer).acceptCustodianUpdate(offerId))
+            .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
+            .withArgs(offerId, differentOwner.address, buyer.address);
+        });
+      });
+    });
+
+    context("emergencyCustodianUpdate", function () {
+      let currentVaultParameters: any;
+
+      beforeEach(async function () {
+        currentVaultParameters = {
+          partialAuctionThreshold: parseEther("0.6"), // 600000000000000000
+          partialAuctionDuration: custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR,
+          liquidationThreshold: custodianFee.amount * LIQUIDATION_THRESHOLD_MULTIPLIER,
+          newFractionsPerAuction:
+            (custodianFee.amount * PARTIAL_THRESHOLD_MULTIPLIER * DEFAULT_FRACTION_AMOUNT) / exchange.price,
+        };
+
+        await custodyFacet
+          .connect(custodian)
+          .requestCustodianUpdate(offerId, custodianId, custodianFee, currentVaultParameters);
+        await custodyFacet.connect(buyer).acceptCustodianUpdate(offerId);
+      });
+
+      it("Current custodian can execute emergency update", async function () {
+        const tx = await custodyFacet.connect(custodian).emergencyCustodianUpdate(offerId, newCustodianId, true);
+
+        await expect(tx)
+          .to.emit(custodyFacet, "CustodianUpdateRequested")
+          .withArgs(
+            offerId,
+            custodianId,
+            newCustodianId,
+            Object.values(custodianFee),
+            Object.values(currentVaultParameters),
+          );
+
+        await expect(tx)
+          .to.emit(custodyFacet, "CustodianUpdateAccepted")
+          .withArgs(
+            offerId,
+            custodianId,
+            newCustodianId,
+            Object.values(custodianFee),
+            Object.values(currentVaultParameters),
+          );
+      });
+
+      it("Seller can execute emergency update", async function () {
+        const tx = await custodyFacet.connect(defaultSigner).emergencyCustodianUpdate(offerId, newCustodianId, false);
+
+        await expect(tx)
+          .to.emit(custodyFacet, "CustodianUpdateRequested")
+          .withArgs(
+            offerId,
+            custodianId,
+            newCustodianId,
+            Object.values(custodianFee),
+            Object.values(currentVaultParameters),
+          );
+
+        await expect(tx)
+          .to.emit(custodyFacet, "CustodianUpdateAccepted")
+          .withArgs(
+            offerId,
+            custodianId,
+            newCustodianId,
+            Object.values(custodianFee),
+            Object.values(currentVaultParameters),
+          );
+      });
+
+      context("Revert reasons", function () {
+        it("Custody region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Custody]);
+
+          await expect(custodyFacet.connect(custodian).emergencyCustodianUpdate(offerId, newCustodianId, true))
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Custody);
+        });
+
+        it("Caller is not custodian or seller assistant", async function () {
+          const randomWallet = wallets[8];
+          await expect(custodyFacet.connect(randomWallet).emergencyCustodianUpdate(offerId, newCustodianId, true))
+            .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+            .withArgs(custodianId, randomWallet.address, EntityRole.Custodian, AccountRole.Assistant);
+        });
+
+        it("New custodian ID is invalid", async function () {
+          await expect(custodyFacet.connect(custodian).emergencyCustodianUpdate(offerId, "999", true))
+            .to.be.revertedWithCustomError(fermionErrors, "EntityHasNoRole")
+            .withArgs("999", EntityRole.Custodian);
+        });
+
+        it("Reverts when vault balance is insufficient to pay custodian", async function () {
+          const threeYears = 1095n * 24n * 60n * 60n;
+          const blockNumber = await ethers.provider.getBlockNumber();
+          const block = await ethers.provider.getBlock(blockNumber);
+          const newTime = Number(BigInt(block.timestamp) + threeYears);
+          await setNextBlockTimestamp(newTime);
+
+          await expect(
+            custodyFacet.connect(custodian).emergencyCustodianUpdate(offerId, newCustodianId, true),
+          ).to.be.revertedWithCustomError(fermionErrors, "InsufficientVaultBalance");
         });
       });
     });
