@@ -125,17 +125,8 @@ describe("Custody", function () {
 
     await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit);
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
-<<<<<<< HEAD
-    const { buyerAdvancedOrder, tokenId, encumberedAmount } = await createBuyerAdvancedOrder(
-      buyer,
-      offerId,
-      exchangeId,
-    );
-    await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
-=======
     const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
     await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
->>>>>>> develop-1.1.0
 
     const { buyerAdvancedOrder: buyerAdvancedOrderSelfCustody, tokenId: tokenIdSelfCustody } =
       await createBuyerAdvancedOrder(buyer, offerIdSelfCustody, exchangeIdSelfCustody);
