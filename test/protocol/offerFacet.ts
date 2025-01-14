@@ -781,6 +781,159 @@ describe("Offer", function () {
     });
   });
 
+  context("getRoyalties/getEIP2981Royalties", function () {
+    const sellerDeposit = 100;
+    const verifierFee = 10;
+    const custodianFee = {
+      amount: parseEther("0.05"),
+      period: 30n * 24n * 60n * 60n, // 30 days
+    };
+    const metadataURI = "https://example.com/offer-metadata.json";
+    const bosonOfferId = "1";
+    const withPhygital = false;
+    const quantity = 5n;
+    const royalties1 = 8_00n;
+    const royalties2 = 5_00n;
+    const sellerRoyalties = 1_00n;
+    const price = parseEther("0.1");
+
+    let exchangeToken: string;
+    let fermionOffer: FermionTypes.OfferStruct;
+    let royaltyInfo: FermionTypes.RoyaltyInfoStruct;
+    let fermionFNFT: Contract;
+    let startingTokenId: bigint;
+    let predictedWrapperAddress: string;
+
+    before(async function () {
+      royaltyInfo = {
+        recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address],
+        bps: [royalties1, royalties2, sellerRoyalties],
+      };
+
+      exchangeToken = await mockToken.getAddress();
+
+      fermionOffer = {
+        sellerId,
+        sellerDeposit,
+        verifierId,
+        verifierFee,
+        custodianId,
+        custodianFee,
+        facilitatorId,
+        facilitatorFeePercent: "0",
+        exchangeToken,
+        withPhygital,
+        metadataURI,
+        metadataHash: id(metadataURI),
+        royaltyInfo: [royaltyInfo],
+      };
+
+      const bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
+      const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
+      startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
+      predictedWrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
+      fermionFNFT = await ethers.getContractAt("FermionFNFT", predictedWrapperAddress);
+    });
+
+    beforeEach(async function () {
+      await offerFacet.createOffer(fermionOffer);
+      await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+    });
+
+    it("Get offer royalties", async function () {
+      const totalRoyalties = royalties1 + royalties2 + sellerRoyalties;
+      const expectedRoyalties = applyPercentage(price, totalRoyalties);
+      for (let i = 0n; i < quantity; i++) {
+        const EIP2981Royalties = await offerFacet.getEIP2981Royalties(startingTokenId + i);
+        const royalties = await offerFacet.getRoyalties(startingTokenId + i);
+
+        expect(EIP2981Royalties.receiver).to.equal(royaltyInfo.recipients[0]);
+        expect(EIP2981Royalties.royaltyPercentage).to.equal(totalRoyalties);
+        expect(royalties.recipients).to.eql(royaltyInfo.recipients);
+        expect(royalties.bps).to.eql(royaltyInfo.bps);
+
+        // fermion FNFT
+        const [receiver, royaltyAmount] = await fermionFNFT.royaltyInfo(startingTokenId + i, price);
+        expect(receiver).to.equal(royaltyInfo.recipients[0]);
+        expect(royaltyAmount).to.equal(expectedRoyalties);
+      }
+    });
+
+    it("If offer is updated, the last royalties are used", async function () {
+      const royalties1 = 1_00n;
+      const royalties2 = 9_00n;
+      const royaltyInfo = {
+        recipients: [royaltyRecipient.address, royaltyRecipient2.address],
+        bps: [royalties1, royalties2],
+      };
+      const totalRoyalties = royalties1 + royalties2;
+
+      await offerFacet.updateOfferRoyaltyRecipients([bosonOfferId], royaltyInfo);
+
+      const expectedRoyalties = applyPercentage(price, totalRoyalties);
+      for (let i = 0n; i < quantity; i++) {
+        const EIP2981Royalties = await offerFacet.getEIP2981Royalties(startingTokenId + i);
+        const royalties = await offerFacet.getRoyalties(startingTokenId + i);
+
+        expect(EIP2981Royalties.receiver).to.equal(royaltyInfo.recipients[0]);
+        expect(EIP2981Royalties.royaltyPercentage).to.equal(totalRoyalties);
+        expect(royalties.recipients).to.eql(royaltyInfo.recipients);
+        expect(royalties.bps).to.eql(royaltyInfo.bps);
+
+        // fermion FNFT
+        const [receiver, royaltyAmount] = await fermionFNFT.royaltyInfo(startingTokenId + i, price);
+        expect(receiver).to.equal(royaltyInfo.recipients[0]);
+        expect(royaltyAmount).to.equal(expectedRoyalties);
+      }
+    });
+
+    it("Offer with no royalties", async function () {
+      const royaltyInfo = {
+        recipients: [],
+        bps: [],
+      };
+      const totalRoyalties = 0n;
+
+      await offerFacet.updateOfferRoyaltyRecipients([bosonOfferId], royaltyInfo);
+
+      const expectedRoyalties = 0n;
+      for (let i = 0n; i < quantity; i++) {
+        const EIP2981Royalties = await offerFacet.getEIP2981Royalties(startingTokenId + i);
+        const royalties = await offerFacet.getRoyalties(startingTokenId + i);
+
+        expect(EIP2981Royalties.receiver).to.equal(ZeroAddress);
+        expect(EIP2981Royalties.royaltyPercentage).to.equal(totalRoyalties);
+        expect(royalties.recipients).to.eql(royaltyInfo.recipients);
+        expect(royalties.bps).to.eql(royaltyInfo.bps);
+
+        // fermion FNFT
+        const [receiver, royaltyAmount] = await fermionFNFT.royaltyInfo(startingTokenId + i, price);
+        expect(receiver).to.equal(ZeroAddress);
+        expect(royaltyAmount).to.equal(expectedRoyalties);
+      }
+    });
+
+    context("Revert reasons", function () {
+      it("Token id does not exist", async function () {
+        let invalidTokenId = startingTokenId + quantity + 1n;
+        await expect(offerFacet.getEIP2981Royalties(invalidTokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenId")
+          .withArgs(predictedWrapperAddress, invalidTokenId);
+        await expect(offerFacet.getRoyalties(invalidTokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenId")
+          .withArgs(predictedWrapperAddress, invalidTokenId);
+
+        invalidTokenId = 0n;
+        await expect(offerFacet.getEIP2981Royalties(invalidTokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenId")
+          .withArgs(ZeroAddress, invalidTokenId);
+        await expect(offerFacet.getRoyalties(invalidTokenId))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidTokenId")
+          .withArgs(ZeroAddress, invalidTokenId);
+      });
+    });
+  });
+
   context("mintAndWrapNFTs", function () {
     const bosonOfferId = 1n;
     const sellerDeposit = 100n;
