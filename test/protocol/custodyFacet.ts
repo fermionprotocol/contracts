@@ -148,7 +148,7 @@ describe("Custody", function () {
 
     exchange.tokenId = tokenId;
     exchange.custodianId = custodianId;
-    exchange.price = encumberedAmount;
+    exchange.price = minimalPriceSelfSale;
 
     // Self sale
     exchangeSelfSale.tokenId = tokenIdSelf;
