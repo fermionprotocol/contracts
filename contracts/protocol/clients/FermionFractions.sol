@@ -234,47 +234,13 @@ abstract contract FermionFractions is
      * @param _fractionAmount The number of tokens to use to vote
      */
     function voteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
-        if (_fractionAmount == 0) revert InvalidAmount();
+        bytes memory _startAuctionInternal = FNFT_PRICE_MANAGER.functionDelegateCall(
+            abi.encodeCall(IFermionFNFTPriceManager.voteToStartAuction, (_tokenId, _fractionAmount))
+        );
 
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
-        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
-
-        if (!$.tokenInfo[_tokenId].isFractionalised) revert TokenNotFractionalised(_tokenId);
-
-        FermionTypes.AuctionState auctionState = auctionDetails.state;
-
-        address msgSender = _msgSender();
-        if (auctionDetails.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
-
-        uint256 fractionsPerToken = auctionState >= FermionTypes.AuctionState.Ongoing
-            ? auctionDetails.totalFractions
-            : liquidSupply() / $.nftCount;
-
-        FermionTypes.Votes storage votes = auction.votes;
-        uint256 availableFractions = fractionsPerToken - votes.total - auctionDetails.lockedFractions;
-
-        if (availableFractions == 0) revert NoFractionsAvailable(_tokenId);
-
-        if (_fractionAmount > availableFractions) _fractionAmount = availableFractions;
-
-        _transferFractions(msgSender, address(this), _fractionAmount);
-
-        votes.individual[msgSender] += _fractionAmount;
-        votes.total += _fractionAmount;
-
-        if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) {
-            if (votes.total >= (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
-                // NB: although in theory it's acceptable to start the auction without any bids, there could be
-                // a racing situation where one user bids under the exit price, another user votes to start the auction and the first
-                // user removes the bid. To avoid this, at least one bid must exist.
-                if (auctionDetails.maxBid == 0) revert NoBids(_tokenId);
-
-                startAuctionInternal(_tokenId);
-            }
+        if (abi.decode(_startAuctionInternal, (bool))) {
+            startAuctionInternal(_tokenId);
         }
-
-        emit Voted(_tokenId, msgSender, _fractionAmount);
     }
 
     /**
@@ -290,29 +256,9 @@ abstract contract FermionFractions is
      * @param _fractionAmount The number of tokens to use to vote
      */
     function removeVoteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
-        if (_fractionAmount == 0) revert InvalidAmount();
-
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
-        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
-
-        address msgSender = _msgSender();
-        if (auctionDetails.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
-        if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing)
-            revert AuctionOngoing(_tokenId, auctionDetails.timer);
-
-        FermionTypes.Votes storage votes = auction.votes;
-        if (_fractionAmount > votes.individual[msgSender]) {
-            revert NotEnoughLockedVotes(_tokenId, _fractionAmount, votes.individual[msgSender]);
-        }
-        _transferFractions(address(this), msgSender, _fractionAmount);
-
-        unchecked {
-            votes.individual[msgSender] -= _fractionAmount;
-            votes.total -= _fractionAmount;
-        }
-
-        emit VoteRemoved(_tokenId, msgSender, _fractionAmount);
+        FNFT_PRICE_MANAGER.functionDelegateCall(
+            abi.encodeCall(IFermionFNFTPriceManager.removeVoteToStartAuction, (_tokenId, _fractionAmount))
+        );
     }
 
     /**
@@ -330,7 +276,7 @@ abstract contract FermionFractions is
      */
     function startAuction(uint256 _tokenId) external {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.AuctionDetails storage auctionDetails = getLastAuction(_tokenId, $).details;
+        FermionTypes.AuctionDetails storage auctionDetails = Common.getLastAuction(_tokenId, $).details;
 
         if (!$.tokenInfo[_tokenId].isFractionalised) {
             revert TokenNotFractionalised(_tokenId);
@@ -367,7 +313,7 @@ abstract contract FermionFractions is
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         if (!$.tokenInfo[_tokenId].isFractionalised) revert TokenNotFractionalised(_tokenId);
 
-        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
         if (auctionDetails.state == FermionTypes.AuctionState.Reserved) revert AuctionReserved(_tokenId);
 
@@ -452,7 +398,7 @@ abstract contract FermionFractions is
      */
     function removeBid(uint256 _tokenId) external {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
         if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing || auctionDetails.timer > block.timestamp) {
@@ -659,7 +605,7 @@ abstract contract FermionFractions is
         FNFT_PRICE_MANAGER.functionDelegateCall(
             abi.encodeCall(
                 IFermionFNFTPriceManager.voteOnProposal,
-                (_voteYes, FermionFractionsERC20Base.balanceOf(_msgSender()), totalSupply())
+                (_voteYes, FermionFractionsERC20Base.balanceOf(_msgSender()))
             )
         );
     }
@@ -708,14 +654,6 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice Returns the liquid number of fractions. Represents fractions of F-NFTs that are fractionalised
-     */
-    function liquidSupply() public view virtual returns (uint256) {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        return totalSupply() - $.unrestricedRedeemableSupply - $.lockedRedeemableSupply - $.pendingRedeemableSupply;
-    }
-
-    /**
      * @notice Returns the buyout auction parameters
      */
     function getBuyoutAuctionParameters() external view returns (FermionTypes.BuyoutAuctionParameters memory) {
@@ -729,7 +667,7 @@ abstract contract FermionFractions is
      * @return auction The auction details
      */
     function getAuctionDetails(uint256 _tokenId) external view returns (FermionTypes.AuctionDetails memory) {
-        return getLastAuction(_tokenId, Common._getBuyoutAuctionStorage()).details;
+        return Common.getLastAuction(_tokenId, Common._getBuyoutAuctionStorage()).details;
     }
 
     /**
@@ -764,7 +702,7 @@ abstract contract FermionFractions is
         uint256 _tokenId
     ) external view returns (uint256 totalVotes, uint256 threshold, uint256 availableFractions) {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
 
         uint256 fractionsPerToken = auction.details.totalFractions;
         if (fractionsPerToken == 0) fractionsPerToken = liquidSupply() / $.nftCount;
@@ -782,7 +720,7 @@ abstract contract FermionFractions is
      * @return lockedVotes The locked votes
      */
     function getIndividualLockedVotes(uint256 _tokenId, address _voter) external view returns (uint256 lockedVotes) {
-        return getLastAuction(_tokenId, Common._getBuyoutAuctionStorage()).votes.individual[_voter];
+        return Common.getLastAuction(_tokenId, Common._getBuyoutAuctionStorage()).votes.individual[_voter];
     }
 
     /**
@@ -885,7 +823,7 @@ abstract contract FermionFractions is
      */
     function startAuctionInternal(uint256 _tokenId) internal virtual {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.AuctionDetails storage auctionDetails = getLastAuction(_tokenId, $).details;
+        FermionTypes.AuctionDetails storage auctionDetails = Common.getLastAuction(_tokenId, $).details;
 
         auctionDetails.state = FermionTypes.AuctionState.Ongoing;
         uint256 auctionEnd = block.timestamp + $.auctionParameters.duration;
@@ -908,24 +846,6 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice Get the current auction details and votes for a specific token.
-     *
-     * @param _tokenId The token Id
-     * @param $ The storage
-     * @return auction The auction details and votes
-     */
-    function getLastAuction(
-        uint256 _tokenId,
-        FermionTypes.BuyoutAuctionStorage storage $
-    ) internal view returns (FermionTypes.Auction storage auction) {
-        FermionTypes.Auction[] storage auctions = $.tokenInfo[_tokenId].auctions;
-        if (auctions.length == 0) revert TokenNotFractionalised(_tokenId);
-        unchecked {
-            return auctions[auctions.length - 1];
-        }
-    }
-
-    /**
      * @notice Finalize the auction
      *
      * Reverts if:
@@ -936,7 +856,7 @@ abstract contract FermionFractions is
      */
     function finalizeAuction(uint256 _tokenId) internal returns (FermionTypes.AuctionDetails storage auctionDetails) {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.Auction storage auction = getLastAuction(_tokenId, $);
+        FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         auctionDetails = auction.details;
 
         FermionTypes.AuctionState state = auctionDetails.state;

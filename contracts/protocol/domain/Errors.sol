@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "./Types.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 interface FermionGeneralErrors {
     // General errors
@@ -172,6 +173,13 @@ interface PriceOracleRegistryErrors {
     error OracleValidationFailed();
     error OracleReturnedInvalidPrice();
 }
+
+interface WrapperErrors {
+    error ZeroPriceNotAllowed();
+    error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
+    error InvalidOwner(uint256 tokenId, address expected, address actual);
+}
+
 interface FermionErrors is
     FermionGeneralErrors,
     InitializationErrors,
@@ -185,5 +193,6 @@ interface FermionErrors is
     MetaTransactionErrors,
     FractionalisationErrors,
     SignatureErrors,
-    PriceOracleRegistryErrors
+    PriceOracleRegistryErrors,
+    WrapperErrors
 {}

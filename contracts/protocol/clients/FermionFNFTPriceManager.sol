@@ -2,19 +2,20 @@
 pragma solidity 0.8.24;
 
 import { Common } from "./Common.sol";
-import { FermionGeneralErrors, FractionalisationErrors } from "../domain/Errors.sol";
+import { FermionGeneralErrors, FractionalisationErrors, FermionErrors } from "../domain/Errors.sol";
 import { HUNDRED_PERCENT, MIN_QUORUM_PERCENT, DEFAULT_GOV_VOTE_DURATION, MIN_GOV_VOTE_DURATION, MAX_GOV_VOTE_DURATION } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
+import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
 import { IPriceOracle } from "../interfaces/IPriceOracle.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
-import { Context } from "../libs/Context.sol";
 
 /**
  * @title FermionFNFTPriceManager
  * @dev This contract is an extension of the FermionFractions logic, specifically handling
- *      state-modifying functions related to buyout exit price updates (oracle and governance updates).
+ *      state-modifying functions related to buyout exit price updates (oracle and governance updates),
+ *      and exit price overrides for individual tokens.
  *
  *      It works in conjunction with the FermionFractions contract, which hosts all
  *      getter functions for the associated data. The logic here manages the creation and
@@ -25,7 +26,113 @@ import { Context } from "../libs/Context.sol";
  *           Any direct call to its external methods will have no impact on the protocol state, as they
  *           rely on the context and storage of the calling contract.
  */
-contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
+contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IFermionFNFTPriceManager {
+    /**
+     * @notice Fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.
+     * They need to lock their fractions to vote. The fractions can be unlocked before the auction starts.
+     * The fractions can be used to bid in the auction.
+     * The locked votes guarantee to get the proceeds from the auction for the specific token.
+     * It's possible to vote even if the auction is ongoing and lock the auction proceeds this way.
+     * The auction is started when the total number of locked fractions reaches the unlock threshold.
+     *
+     * Emits a Voted event if successful.
+     * Emits an AuctionStarted event if the auction is started.
+     *
+     * Reverts if:
+     * - The caller is the current max bidder
+     * - The number of fractions to vote is zero
+     * - The caller does not have enough fractions to vote
+     * - The token is not fractionalised
+     * - All available fractions are already locked (either by vote or by the current winning bidder)
+     * - The cumulative total votes is enough to start the auction but there is no active bid
+     *
+     * @param _tokenId The token Id
+     * @param _fractionAmount The number of tokens to use to vote
+     */
+    function voteToStartAuction(
+        uint256 _tokenId,
+        uint256 _fractionAmount
+    ) external returns (bool startAuctionInternal) {
+        if (_fractionAmount == 0) revert InvalidAmount();
+
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
+        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
+
+        if (!$.tokenInfo[_tokenId].isFractionalised) revert TokenNotFractionalised(_tokenId);
+
+        FermionTypes.AuctionState auctionState = auctionDetails.state;
+
+        address msgSender = _msgSender();
+        if (auctionDetails.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
+
+        uint256 fractionsPerToken = auctionState >= FermionTypes.AuctionState.Ongoing
+            ? auctionDetails.totalFractions
+            : liquidSupply() / $.nftCount;
+
+        FermionTypes.Votes storage votes = auction.votes;
+        uint256 availableFractions = fractionsPerToken - votes.total - auctionDetails.lockedFractions;
+
+        if (availableFractions == 0) revert NoFractionsAvailable(_tokenId);
+
+        if (_fractionAmount > availableFractions) _fractionAmount = availableFractions;
+
+        _transferFractions(msgSender, address(this), _fractionAmount);
+
+        votes.individual[msgSender] += _fractionAmount;
+        votes.total += _fractionAmount;
+
+        if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) {
+            if (votes.total >= (fractionsPerToken * $.auctionParameters.unlockThreshold) / HUNDRED_PERCENT) {
+                // NB: although in theory it's acceptable to start the auction without any bids, there could be
+                // a racing situation where one user bids under the exit price, another user votes to start the auction and the first
+                // user removes the bid. To avoid this, at least one bid must exist.
+                if (auctionDetails.maxBid == 0) revert NoBids(_tokenId);
+
+                startAuctionInternal = true;
+            }
+        }
+
+        emit IFermionFractionsEvents.Voted(_tokenId, msgSender, _fractionAmount);
+    }
+
+    /**
+     * @notice Remove the vote to start the auction for a specific token. See `voteToStartAuction` for more details.
+     *
+     * Reverts if:
+     * - The number of fractions to vote is zero
+     * - The caller is the current max bidder
+     * - The auction is already ongoing
+     * - The caller tries to unlock more fractions than they have voted
+     *
+     * @param _tokenId The token Id
+     * @param _fractionAmount The number of tokens to use to vote
+     */
+    function removeVoteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
+        if (_fractionAmount == 0) revert InvalidAmount();
+
+        FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, Common._getBuyoutAuctionStorage());
+        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
+
+        address msgSender = _msgSender();
+        if (auctionDetails.maxBidder == msgSender) revert MaxBidderCannotVote(_tokenId);
+        if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing)
+            revert AuctionOngoing(_tokenId, auctionDetails.timer);
+
+        FermionTypes.Votes storage votes = auction.votes;
+        if (_fractionAmount > votes.individual[msgSender]) {
+            revert NotEnoughLockedVotes(_tokenId, _fractionAmount, votes.individual[msgSender]);
+        }
+        _transferFractions(address(this), msgSender, _fractionAmount);
+
+        unchecked {
+            votes.individual[msgSender] -= _fractionAmount;
+            votes.total -= _fractionAmount;
+        }
+
+        emit IFermionFractionsEvents.VoteRemoved(_tokenId, msgSender, _fractionAmount);
+    }
+
     /**
      * @notice Updates the exit price using either an oracle or a governance proposal.
      *
@@ -119,22 +226,16 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
      *
      * @param _voteYes True to vote YES, false to vote NO.
      * @param _fractionsBalance The fractions balance of the voter.
-     * @param _totalSupply Total supply of fractions for quorum calculation.
      */
-    function voteOnProposal(bool _voteYes, uint256 _fractionsBalance, uint256 _totalSupply) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
-        uint256 _liquidSupply = _totalSupply -
-            $.unrestricedRedeemableSupply -
-            $.lockedRedeemableSupply -
-            $.pendingRedeemableSupply;
+    function voteOnProposal(bool _voteYes, uint256 _fractionsBalance) external {
+        FermionTypes.PriceUpdateProposal storage proposal = Common._getBuyoutAuctionStorage().currentProposal;
         address msgSender = _msgSender();
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
             revert FractionalisationErrors.ProposalNotActive(proposal.proposalId);
         }
 
-        if (!_finalizeProposal(proposal, _liquidSupply)) {
+        if (!_finalizeProposal(proposal, liquidSupply())) {
             if (_fractionsBalance == 0) revert FractionalisationErrors.NoVotingPower(msgSender);
 
             FermionTypes.PriceUpdateVoter storage voter = proposal.voters[msgSender];
@@ -171,8 +272,7 @@ contract FermionFNFTPriceManager is Context, IFermionFNFTPriceManager {
      * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
      */
     function removeVoteOnProposal() external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
+        FermionTypes.PriceUpdateProposal storage proposal = Common._getBuyoutAuctionStorage().currentProposal;
         address msgSender = _msgSender();
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {

@@ -194,27 +194,30 @@ export function applyPercentage(amount: BigNumberish, percentage: BigNumberish |
 export function calculateMinimalPrice(
   verifierFee: BigNumberish,
   facilitatorFeePercent: BigNumberish,
-  bosonProtocolFeePercentage: BigNumberish,
+  bosonProtocolFee: BigNumberish,
   fermionFeePercentage: BigNumberish,
+  isBosonFlatFee: boolean = false,
 ): bigint {
   // Convert everything to BigInt for safety and precision
   const verifierFeeBigInt = BigInt(verifierFee);
   const facilitatorFeePercentBigInt = BigInt(facilitatorFeePercent);
-  const bosonProtocolFeePercentageBigInt = BigInt(bosonProtocolFeePercentage);
+  const bosonProtocolFeePercentageBigInt = isBosonFlatFee ? 0n : BigInt(bosonProtocolFee);
+  const bosonProtocolFeeFlatBigInt = isBosonFlatFee ? BigInt(bosonProtocolFee) : 0n;
   const fermionFeePercentageBigInt = BigInt(fermionFeePercentage);
 
   // Sum the percentage-based fees
   const totalPercentFee = facilitatorFeePercentBigInt + bosonProtocolFeePercentageBigInt + fermionFeePercentageBigInt;
 
   // Calculate the minimal price to cover both absolute verifierFee and percentage-based fees
-  let minimalPrice = (10000n * verifierFeeBigInt) / (10000n - totalPercentFee);
+  let minimalPrice = (100_00n * (verifierFeeBigInt + bosonProtocolFeeFlatBigInt)) / (100_00n - totalPercentFee);
 
   // Due to rounding, the true minimal price can lower than the calculated one. Calculate it iteratively
   let actualFees =
     applyPercentage(minimalPrice, facilitatorFeePercentBigInt) +
     applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) +
     applyPercentage(minimalPrice, fermionFeePercentageBigInt) +
-    verifierFeeBigInt;
+    verifierFeeBigInt +
+    bosonProtocolFeeFlatBigInt;
 
   while (actualFees < minimalPrice) {
     minimalPrice = actualFees;
@@ -222,7 +225,8 @@ export function calculateMinimalPrice(
       applyPercentage(minimalPrice, facilitatorFeePercentBigInt) +
       applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) +
       applyPercentage(minimalPrice, fermionFeePercentageBigInt) +
-      verifierFeeBigInt;
+      verifierFeeBigInt +
+      bosonProtocolFeeFlatBigInt;
   }
 
   return minimalPrice;
