@@ -33,7 +33,7 @@
     "chai": "^4.5.0",
     "eip55": "^2.1.1",
     "eslint": "^9.18.0",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-prettier": "^10.0.1",
     "ethers": "^6.13.5",
     "glob": "^11.0.1",
     "hardhat": "^2.22.18",
