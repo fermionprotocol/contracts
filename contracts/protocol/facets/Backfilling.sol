@@ -4,11 +4,11 @@ pragma solidity 0.8.24;
 import { FermionStorage } from "../libs/Storage.sol";
 
 /**
- * @title BackfillingFacet
+ * @title Backfilling
  * @notice Handles backfilling of data during the v1.1.0 upgrade.
  *         This facet should only be active during the upgrade process.
  */
-contract BackfillingFacet {
+contract Backfilling {
     event FeesBackfilled(
         uint256 indexed tokenId,
         uint256 bosonProtocolFee,
@@ -18,12 +18,20 @@ contract BackfillingFacet {
         uint256 itemFullPrice
     );
 
+    event OfferDataBackfilled(uint256 indexed offerId, uint256 itemQuantity, uint256 firstTokenId);
+
     struct FeeData {
         uint256 tokenId;
         uint256 bosonProtocolFee;
         uint256 fermionFeeAmount;
         uint256 verifierFee;
         uint256 facilitatorFeeAmount;
+    }
+
+    struct OfferData {
+        uint256 offerId;
+        uint256 itemQuantity;
+        uint256 firstTokenId;
     }
 
     /**
@@ -34,7 +42,7 @@ contract BackfillingFacet {
      *
      * @param feeDataList The list of fee data for each token.
      */
-    function backFillV1_1_0(FeeData[] calldata feeDataList) external {
+    function backFillTokenFees(FeeData[] calldata feeDataList) external {
         FermionStorage.ProtocolLookups storage lookups = FermionStorage.protocolLookups();
         uint256 length = feeDataList.length;
         unchecked {
@@ -62,6 +70,30 @@ contract BackfillingFacet {
                     feeData.facilitatorFeeAmount,
                     itemFullPrice
                 );
+            }
+        }
+    }
+
+    /**
+     * @notice Backfills offer data for Fermion v1.1.0.
+     *
+     * @dev This function must be called only during the upgrade process.
+     *      The data must be pre-computed off-chain and provided as input.
+     *
+     * @param offerDataList The list of offer data.
+     */
+    function backFillOfferData(OfferData[] calldata offerDataList) external {
+        FermionStorage.ProtocolLookups storage lookups = FermionStorage.protocolLookups();
+        uint256 length = offerDataList.length;
+        unchecked {
+            for (uint256 i; i < length; ++i) {
+                OfferData calldata offerData = offerDataList[i];
+                FermionStorage.OfferLookups storage offerLookup = lookups.offerLookups[offerData.offerId];
+
+                offerLookup.itemQuantity = offerData.itemQuantity;
+                offerLookup.firstTokenId = offerData.firstTokenId;
+
+                emit OfferDataBackfilled(offerData.offerId, offerData.itemQuantity, offerData.firstTokenId);
             }
         }
     }

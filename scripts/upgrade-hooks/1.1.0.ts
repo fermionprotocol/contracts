@@ -49,6 +49,62 @@ const OFFER_QUERY = gql`
   }
 `;
 
+const FNFT_RANGE_QUERY = gql`
+  query FetchFNFTRanges {
+    fnftranges {
+      bosonOfferId
+      startingId
+      quantity
+    }
+  }
+`;
+
+interface FNFTRange {
+  bosonOfferId: string;
+  startingId: string;
+  quantity: string;
+}
+
+export interface OfferData {
+  offerId: string;
+  itemQuantity: string;
+  firstTokenId: string;
+}
+
+/**
+ * Fetch GraphQL data for FNFT ranges.
+ */
+async function fetchFNFTRangeData(): Promise<FNFTRange[]> {
+  const response = await client.query({
+    query: FNFT_RANGE_QUERY,
+  });
+
+  if (!response?.data?.fnftranges) {
+    throw new Error("No FNFT range data found in GraphQL response");
+  }
+  return response.data.fnftranges;
+}
+
+/**
+ * Prepare backfill data for offers.
+ */
+export async function prepareOfferBackfillData(): Promise<OfferData[]> {
+  const fnftRanges = await fetchFNFTRangeData();
+  const offerDataList: OfferData[] = [];
+
+  for (const range of fnftRanges) {
+    offerDataList.push({
+      offerId: range.bosonOfferId,
+      itemQuantity: range.quantity,
+      firstTokenId: range.startingId,
+    });
+  }
+
+  console.log("Prepared Offer Backfill Data:", JSON.stringify(offerDataList, null, 2));
+
+  return offerDataList;
+}
+
 /**
  * Fetch GraphQL data for offers and tokens in specific states.
  */
@@ -87,7 +143,7 @@ function calculateFees(verifierFee: bigint, facilitatorFeePercentBps: bigint, to
 /**
  * Prepare backfill data from fetched offers.
  */
-export async function prepareBackfillData(): Promise<FeeData[]> {
+export async function prepareFeeBackfillData(): Promise<FeeData[]> {
   const offers = await fetchGraphQLData();
   const feeDataList: FeeData[] = [];
 
@@ -119,7 +175,8 @@ export async function prepareBackfillData(): Promise<FeeData[]> {
 export async function preUpgrade(protocolAddress: string) {
   // TODO: pause the protocol (this can be done in migration PR)
   console.log("Fetching and preparing backfill data...");
-  const feeDataList = await prepareBackfillData();
+  const feeDataList = await prepareFeeBackfillData();
+  const offerDataList = await prepareOfferBackfillData();
 
   console.log("Deploying BackfillingFacet...");
   const BackfillingFacetFactory = await ethers.getContractFactory("BackfillingFacet");
@@ -128,11 +185,12 @@ export async function preUpgrade(protocolAddress: string) {
   console.log(`BackfillingFacet deployed at: ${backfillingFacet.address}`);
 
   console.log("Preparing initialization calldata...");
-  const backFillCalldata = backfillingFacet.interface.encodeFunctionData("backFillV1_1_0", [feeDataList]);
+  const backFillFeesCalldata = backfillingFacet.interface.encodeFunctionData("backFillTokenFees", [feeDataList]);
+  const backFillOfferCalldata = backfillingFacet.interface.encodeFunctionData("backFillOfferData", [offerDataList]);
 
   const version = ethers.toUtf8Bytes(VERSION);
   const addresses = [backfillingFacet.address];
-  const calldata = [backFillCalldata];
+  const calldata = [backFillFeesCalldata, backFillOfferCalldata];
   const interfacesToAdd: string[] = [];
   const interfacesToRemove: string[] = [];
 
