@@ -97,8 +97,8 @@ export async function prepareBackfillData(): Promise<FeeData[]> {
 
     for (const token of offer.fNFTs) {
       const price = token.priceLog?.amount ? BigInt(token.priceLog.amount) : 0n;
-
-      const feeData = calculateFees(verifierFee, facilitatorFeePercentBps, token.id, price);
+      const tokenId = token.id.split("-")[1];
+      const feeData = calculateFees(verifierFee, facilitatorFeePercentBps, tokenId, price);
       feeDataList.push(feeData);
     }
   }
