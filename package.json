@@ -30,6 +30,7 @@
     "@types/chai": "^4.2.0",
     "@types/mocha": ">=10.0.10",
     "@types/node": ">=22.10.2",
+    "@types/node-fetch": "2",
     "chai": "^4.5.0",
     "eip55": "^2.1.1",
     "eslint": "^9.17.0",
@@ -53,9 +54,10 @@
     "typescript-eslint": "^8.18.0"
   },
   "dependencies": {
-    "@apollo/client": "^3.12.3",
     "@opensea/seaport-js": "4.0.4",
     "@openzeppelin/contracts": "^5.1.0",
-    "graphql": "^16.10.0"
+    "graphql": "^16.10.0",
+    "node-fetch": "2",
+    "urql": "^4.2.1"
   }
 }

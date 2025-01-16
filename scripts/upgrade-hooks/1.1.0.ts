@@ -1,16 +1,19 @@
-import { ApolloClient, InMemoryCache, gql } from "@apollo/client/core";
-import hre from "hardhat";
+import { createClient, fetchExchange } from "@urql/core";
 import { AbiCoder } from "ethers";
+import hre from "hardhat";
+import fetch from "node-fetch";
 
-const { ethers } = hre; // Access ethers from hre
+const { ethers } = hre;
 const GRAPHQL_URL = "https://api.studio.thegraph.com/query/19713/fermion-testing-amoy/version/latest";
-const TOKEN_STATUSES = [3, 4, 5, 6, 7];
 const VERSION = "1.1.0";
 
-const abiCoder = new AbiCoder(); // Create a new AbiCoder instance
-const client = new ApolloClient({
-  uri: GRAPHQL_URL,
-  cache: new InMemoryCache(),
+const abiCoder = new AbiCoder();
+
+// Create a urql client with just fetchExchange since we don't need caching
+const client = createClient({
+  url: GRAPHQL_URL,
+  exchanges: [fetchExchange],
+  fetch: fetch as any,
 });
 
 interface Token {
@@ -33,9 +36,9 @@ export interface FeeData {
   facilitatorFeeAmount: bigint;
 }
 
-const OFFER_QUERY = gql`
-  query FetchOffers($statuses: [Int!]) {
-    offers(where: { fNFTs_: { status_in: $statuses } }) {
+const OFFER_QUERY = `
+  query {
+    offers(where: { fNFTs_: { status_in: [3, 4, 5, 6, 7] } }) {
       verifierFee
       facilitatorFeePercent
       fNFTs {
@@ -49,8 +52,8 @@ const OFFER_QUERY = gql`
   }
 `;
 
-const FNFT_RANGE_QUERY = gql`
-  query FetchFNFTRanges {
+const FNFT_RANGE_QUERY = `
+  query {
     fnftranges {
       bosonOfferId
       startingId
@@ -75,14 +78,17 @@ export interface OfferData {
  * Fetch GraphQL data for FNFT ranges.
  */
 async function fetchFNFTRangeData(): Promise<FNFTRange[]> {
-  const response = await client.query({
-    query: FNFT_RANGE_QUERY,
-  });
+  const result = await client.query(FNFT_RANGE_QUERY, {}).toPromise();
 
-  if (!response?.data?.fnftranges) {
+  if (result.error) {
+    throw new Error(`GraphQL error: ${result.error.message}`);
+  }
+
+  if (!result.data?.fnftranges) {
     throw new Error("No FNFT range data found in GraphQL response");
   }
-  return response.data.fnftranges;
+
+  return result.data.fnftranges;
 }
 
 /**
@@ -109,15 +115,17 @@ export async function prepareOfferBackfillData(): Promise<OfferData[]> {
  * Fetch GraphQL data for offers and tokens in specific states.
  */
 async function fetchGraphQLData(): Promise<Offer[]> {
-  const response = await client.query({
-    query: OFFER_QUERY,
-    variables: { statuses: TOKEN_STATUSES },
-  });
+  const result = await client.query(OFFER_QUERY, {}).toPromise();
 
-  if (!response?.data?.offers) {
+  if (result.error) {
+    throw new Error(`GraphQL error: ${result.error.message}`);
+  }
+
+  if (!result.data?.offers) {
     throw new Error("No data found in GraphQL response");
   }
-  return response.data.offers;
+
+  return result.data.offers;
 }
 
 /**
@@ -149,7 +157,7 @@ export async function prepareFeeBackfillData(): Promise<FeeData[]> {
 
   for (const offer of offers) {
     const verifierFee = BigInt(offer.verifierFee);
-    const facilitatorFeePercentBps = BigInt(offer.facilitatorFeePercent); // Already in BPS
+    const facilitatorFeePercentBps = BigInt(offer.facilitatorFeePercent);
 
     for (const token of offer.fNFTs) {
       const price = token.priceLog?.amount ? BigInt(token.priceLog.amount) : 0n;
@@ -171,9 +179,7 @@ export async function prepareFeeBackfillData(): Promise<FeeData[]> {
  * Perform pre-upgrade tasks, including deploying the BackfillingFacet contract,
  * preparing initialization data, and making the diamond cut.
  */
-// TODO: test the preUpgrade hook in the migration PR.
 export async function preUpgrade(protocolAddress: string) {
-  // TODO: pause the protocol (this can be done in migration PR)
   console.log("Fetching and preparing backfill data...");
   const feeDataList = await prepareFeeBackfillData();
   const offerDataList = await prepareOfferBackfillData();
