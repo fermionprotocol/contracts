@@ -1537,18 +1537,13 @@ describe("Entity", function () {
           expect(response.roles.map(String)).to.have.members([EntityRole.Verifier, EntityRole.Custodian].map(String));
           expect(response.metadataURI).to.equal(metadataURI);
 
+          // Add all roles
           const newMetadataURI = "https://example.com/metadata2.json";
-          await entityFacet.updateEntity(
-            entityId,
-            [EntityRole.Verifier, EntityRole.Seller, EntityRole.Custodian, EntityRole.Buyer],
-            newMetadataURI,
-          );
+          await entityFacet.updateEntity(entityId, enumIterator(EntityRole), newMetadataURI);
 
           response = await entityFacet["getEntity(address)"](defaultSigner.address);
           expect(response.entityId).to.equal(entityId);
-          expect(response.roles.map(String)).to.have.members(
-            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
-          );
+          expect(response.roles.map(String)).to.have.members(enumIterator(EntityRole).map(String));
           expect(response.metadataURI).to.equal(newMetadataURI);
         });
 
@@ -1572,18 +1567,13 @@ describe("Entity", function () {
           expect(response.roles.map(String)).to.have.members([EntityRole.Verifier, EntityRole.Custodian].map(String));
           expect(response.metadataURI).to.equal(metadataURI);
 
+          // Add all roles
           const newMetadataURI = "https://example.com/metadata2.json";
-          await entityFacet.updateEntity(
-            entityId,
-            [EntityRole.Verifier, EntityRole.Seller, EntityRole.Custodian, EntityRole.Buyer],
-            newMetadataURI,
-          );
+          await entityFacet.updateEntity(entityId, enumIterator(EntityRole), newMetadataURI);
 
           response = await entityFacet["getEntity(uint256)"](entityId);
           expect(response.adminAccount).to.equal(defaultSigner.address);
-          expect(response.roles.map(String)).to.have.members(
-            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Custodian, EntityRole.Verifier].map(String),
-          );
+          expect(response.roles.map(String)).to.have.members(enumIterator(EntityRole).map(String));
           expect(response.metadataURI).to.equal(newMetadataURI);
         });
 

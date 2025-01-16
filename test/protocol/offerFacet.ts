@@ -195,8 +195,8 @@ describe("Offer", function () {
       const sellerRoyalties = 1_00n;
       const royaltyInfo = [
         {
-          recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address],
-          bps: [royalties1, royalties2, sellerRoyalties],
+          recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address, ZeroAddress],
+          bps: [royalties1, royalties2, sellerRoyalties, sellerRoyalties],
         },
       ];
       const royaltyInfoStruct = royaltyInfo.map((ri) => Object.values(ri));
@@ -795,6 +795,7 @@ describe("Offer", function () {
     const royalties1 = 8_00n;
     const royalties2 = 5_00n;
     const sellerRoyalties = 1_00n;
+    const sellerRoyalties2 = 2_00n;
     const price = parseEther("0.1");
 
     let exchangeToken: string;
@@ -806,8 +807,8 @@ describe("Offer", function () {
 
     before(async function () {
       royaltyInfo = {
-        recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address],
-        bps: [royalties1, royalties2, sellerRoyalties],
+        recipients: [royaltyRecipient.address, royaltyRecipient2.address, ZeroAddress, defaultSigner.address],
+        bps: [royalties1, royalties2, sellerRoyalties, sellerRoyalties2],
       };
 
       exchangeToken = await mockToken.getAddress();
@@ -841,7 +842,7 @@ describe("Offer", function () {
     });
 
     it("Get offer royalties", async function () {
-      const totalRoyalties = royalties1 + royalties2 + sellerRoyalties;
+      const totalRoyalties = royalties1 + royalties2 + sellerRoyalties + sellerRoyalties2;
       const expectedRoyalties = applyPercentage(price, totalRoyalties);
       for (let i = 0n; i < quantity; i++) {
         const EIP2981Royalties = await offerFacet.getEIP2981Royalties(startingTokenId + i);
@@ -849,7 +850,9 @@ describe("Offer", function () {
 
         expect(EIP2981Royalties.receiver).to.equal(royaltyInfo.recipients[0]);
         expect(EIP2981Royalties.royaltyPercentage).to.equal(totalRoyalties);
-        expect(royalties.recipients).to.eql(royaltyInfo.recipients);
+        expect(royalties.recipients).to.eql(
+          royaltyInfo.recipients.map((r) => (r == ZeroAddress ? defaultSigner.address : r)),
+        );
         expect(royalties.bps).to.eql(royaltyInfo.bps);
 
         // fermion FNFT

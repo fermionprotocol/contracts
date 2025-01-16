@@ -257,7 +257,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
 
         FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
         uint256 royaltyInfoLength = royaltyInfoAll.length;
-        if (royaltyInfoLength == 0) return 0;
+        if (royaltyInfoLength == 0) return 0; // offers from v1.0.0 do not have royalties
         FermionTypes.RoyaltyInfo memory royaltyInfo = royaltyInfoAll[royaltyInfoLength - 1];
 
         address tokenAddress = offer.exchangeToken;

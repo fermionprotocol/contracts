@@ -5,15 +5,18 @@ import {
   deployMockTokens,
   deriveTokenId,
   calculateMinimalPrice,
+  getBlockTimestampFromTransaction,
+  setNextBlockTimestamp,
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroAddress, ZeroHash, parseEther, id, MaxUint256, toBeHex } from "ethers";
+import { Contract, ZeroAddress, ZeroHash, parseEther, id, MaxUint256, toBeHex, keccak256 } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, PausableRegion, VerificationStatus, AccountRole, WrapType } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
+import { setStorageAt } from "@nomicfoundation/hardhat-network-helpers";
 
 const abiCoder = new ethers.AbiCoder();
 
@@ -36,13 +39,15 @@ describe("Funds", function () {
   let verifier: HardhatEthersSigner;
   let buyer: HardhatEthersSigner;
   let feeCollector: HardhatEthersSigner;
+  let royaltyRecipient: HardhatEthersSigner;
   let seaportAddress: string;
   const sellerId = "1";
   const verifierId = "2";
+  const royaltyRecipientId = "3";
   const verifierFee = parseEther("0.1");
   const sellerDeposit = parseEther("0.05");
   const custodianFee = {
-    amount: parseEther("0.05"),
+    amount: 0n,
     period: 30n * 24n * 60n * 60n, // 30 days
   };
   const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
@@ -59,8 +64,11 @@ describe("Funds", function () {
     // Verifier and custodian
     const metadataURI = "https://example.com/seller-metadata.json";
     verifier = wallets[2];
+    royaltyRecipient = wallets[3];
     await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI); // "1"
     await entityFacet.connect(verifier).createEntity([EntityRole.Verifier, EntityRole.Custodian], metadataURI); // "2"
+    await entityFacet.connect(royaltyRecipient).createEntity([EntityRole.RoyaltyRecipient], metadataURI); // "3"
+    await entityFacet.addRoyaltyRecipients(sellerId, [royaltyRecipientId]);
 
     [mockToken1, mockToken2, mockToken3, mockPhygital1, mockPhygital2, mockPhygital3] = (
       await deployMockTokens(["ERC20", "ERC20", "ERC20", "ERC721", "ERC721", "ERC721"])
@@ -1890,6 +1898,141 @@ describe("Funds", function () {
         await expect(fundsFacet.connect(feeCollector).withdrawProtocolFees([ZeroAddress], [amountNative]))
           .to.be.revertedWithCustomError(fermionErrors, "TokenTransferFailed")
           .withArgs(contractAccountWithReceiveAddress, amountNative, id("NotAcceptingMoney()").slice(0, 10));
+      });
+    });
+  });
+
+  context("collectRoyalties", function () {
+    const offerId = 1n;
+    const exchangeId = 1n;
+    const tokenId = deriveTokenId(offerId, exchangeId);
+
+    // const amountNative = parseEther("10");
+    // const amountMockToken = parseEther("12");
+    // const protocolId = 0n;
+    // const protocolTreasury = fermionConfig.protocolParameters.treasury;
+    const bidAmount = parseEther("1");
+    const royalties = 2_00n;
+    const sellerRoyalties = 4_00n;
+    const sellerRoyalties2 = 5_00n;
+    let wrapper: Contract;
+
+    beforeEach(async function () {
+      const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
+      wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
+
+      // update royalties
+      const royaltyInfo = {
+        recipients: [royaltyRecipient.address, defaultSigner.address, ZeroAddress],
+        bps: [royalties, sellerRoyalties, sellerRoyalties2],
+      };
+      await offerFacet.updateOfferRoyaltyRecipients([offerId], royaltyInfo);
+
+      // selfsale
+      await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
+      await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
+      await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
+      await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
+      await custodyFacet.connect(verifier).checkIn(tokenId);
+
+      // mint fractions
+      const additionalDeposit = custodianFee.amount * 2n;
+      await mockToken1.approve(wrapperAddress, additionalDeposit);
+      const fractionsPerToken = 5000n * 10n ** 18n;
+      const auctionParameters = {
+        exitPrice: parseEther("0.1"),
+        duration: 60n * 60n * 24n * 7n, // 1 week
+        unlockThreshold: 7500n, // 75%
+        topBidLockTime: 60n * 60n * 24n * 2n, // two days
+      };
+      const custodianVaultParameters = {
+        partialAuctionThreshold: custodianFee.amount * 15n,
+        partialAuctionDuration: custodianFee.period / 2n,
+        liquidationThreshold: custodianFee.amount * 2n,
+        newFractionsPerAuction: fractionsPerToken * 5n,
+      };
+      await wrapper
+        .connect(defaultSigner)
+        .mintFractions(
+          tokenId,
+          1,
+          fractionsPerToken,
+          auctionParameters,
+          custodianVaultParameters,
+          additionalDeposit,
+          ZeroAddress,
+        );
+
+      // bid
+      const bidder = wallets[5];
+
+      await mockToken1.mint(bidder.address, parseEther("10"));
+      await mockToken1.connect(bidder).approve(wrapperAddress, bidAmount);
+      const tx = await wrapper.connect(bidder).bid(tokenId, bidAmount, 0n);
+
+      const auctionEnd = (await getBlockTimestampFromTransaction(tx)) + Number(auctionParameters.duration);
+      await setNextBlockTimestamp(auctionEnd + 1);
+    });
+
+    it("During the auction finalization, the protocol collects the royalties", async function () {
+      const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, mockToken1Address);
+      const royaltyRecipientAvailableFunds = await fundsFacet.getAvailableFunds(royaltyRecipientId, mockToken1Address);
+      const tx = await wrapper.connect(defaultSigner).finalizeAndClaim(tokenId, 1n);
+
+      // Events
+      await expect(tx)
+        .to.emit(fundsFacet, "AvailableFundsIncreased")
+        .withArgs(sellerId, mockToken1Address, applyPercentage(bidAmount, sellerRoyalties)); // recipient = seller admin address
+      await expect(tx)
+        .to.emit(fundsFacet, "AvailableFundsIncreased")
+        .withArgs(sellerId, mockToken1Address, applyPercentage(bidAmount, sellerRoyalties2)); // recipient = zero address
+      await expect(tx)
+        .to.emit(fundsFacet, "AvailableFundsIncreased")
+        .withArgs(royaltyRecipientId, mockToken1Address, applyPercentage(bidAmount, royalties)); // recipient = zero address
+
+      // State
+      expect(await fundsFacet.getAvailableFunds(sellerId, mockToken1Address)).to.equal(
+        sellerAvailableFunds +
+          applyPercentage(bidAmount, sellerRoyalties) +
+          applyPercentage(bidAmount, sellerRoyalties2),
+      );
+      expect(await fundsFacet.getAvailableFunds(royaltyRecipientId, mockToken1Address)).to.equal(
+        royaltyRecipientAvailableFunds + applyPercentage(bidAmount, royalties),
+      );
+    });
+
+    it("Offers without royalties (pre v1.1.0)", async function () {
+      // "delete" offer.royaltyInfo
+      const protocolEntitiesSlotNumber = BigInt("0x88d4ceef162f03fe6cb4afc6ec9059995e2e55e4c807661ebd7d646b852a9700"); // // keccak256(abi.encode(uint256(keccak256("fermion.protocol.entities")) - 1)) & ~bytes32(uint256(0xff));
+      const offerSlot = BigInt(keccak256(toBeHex(offerId, 32) + (protocolEntitiesSlotNumber + 2n).toString(16)));
+      const offerRoyaltyInfoSlot = offerSlot + 12n;
+      await setStorageAt(fermionProtocolAddress, offerRoyaltyInfoSlot, ZeroHash); // set length to 0
+
+      const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, mockToken1Address);
+      const tx = await wrapper.connect(defaultSigner).finalizeAndClaim(tokenId, 1n);
+
+      // Events
+      await expect(tx).to.not.emit(fundsFacet, "AvailableFundsIncreased");
+
+      // State
+      expect(await fundsFacet.getAvailableFunds(sellerId, mockToken1Address)).to.equal(sellerAvailableFunds);
+    });
+
+    context("Revert reasons", function () {
+      it("Funds region is paused", async function () {
+        await pauseFacet.pause([PausableRegion.Funds]);
+
+        await expect(wrapper.connect(defaultSigner).finalizeAndClaim(tokenId, 1n))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Funds);
+      });
+
+      it("Caller is not the fermion wrapper", async function () {
+        // completely random wallet
+        await expect(fundsFacet.collectRoyalties(tokenId, bidAmount))
+          .to.be.revertedWithCustomError(fundsFacet, "AccessDenied")
+          .withArgs(defaultSigner.address);
       });
     });
   });
