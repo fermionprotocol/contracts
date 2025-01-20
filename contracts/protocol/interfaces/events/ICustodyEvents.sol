@@ -38,5 +38,4 @@ interface ICustodyEvents {
         FermionTypes.CustodianFee newCustodianFee,
         FermionTypes.CustodianVaultParameters newCustodianVaultParameters
     );
-    event CustodianUpdateRejected(uint256 indexed offerId, uint256 indexed newCustodianId);
 }

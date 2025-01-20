@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { CustodyErrors, FermionGeneralErrors } from "../domain/Errors.sol";
+import { CustodyErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -293,8 +293,15 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
             revert UpdateRequestTooRecent(_offerId, 1 days);
         }
 
-        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-        uint256 currentCustodianId = offer.custodianId;
+        uint256 currentCustodianId = FermionStorage.protocolEntities().offer[_offerId].custodianId;
+
+        // Validate caller is the new custodian's assistant
+        EntityLib.validateAccountRole(
+            _newCustodianId,
+            _msgSender(),
+            FermionTypes.EntityRole.Custodian,
+            FermionTypes.AccountRole.Assistant
+        );
 
         _createCustodianUpdateRequest(
             _offerId,
@@ -302,9 +309,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
             _newCustodianVaultParameters,
             currentCustodianId,
             _newCustodianId,
-            offer,
-            offerLookups,
-            FermionStorage.protocolLookups()
+            offerLookups
         );
     }
 
@@ -315,6 +320,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
      * This is an emergency function that bypasses:
      * - The time restriction between updates
      * - The owner acceptance requirement
+     * - The token status check (all checked-in tokens should be owned by the same owner)
      *
      * The current custodian is paid for the used period.
      * The vault parameters remain unchanged in emergency updates.
@@ -326,7 +332,6 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
      * - Caller is not the current custodian's assistant (if _isCustodianAssistant is true)
      * - Caller is not the seller's assistant (if _isCustodianAssistant is false)
      * - New custodian ID is invalid
-     * - Any token in the offer is checked out
      * - There are not enough funds in any vault to pay the current custodian
      *
      * @param _offerId The offer ID for which to update the custodian
@@ -338,17 +343,17 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
         uint256 _newCustodianId,
         bool _isCustodianAssistant
     ) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
-        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-        FermionStorage.OfferLookups storage offerLookups = FermionStorage.protocolLookups().offerLookups[_offerId];
+        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
+        FermionTypes.Offer storage offer = pe.offer[_offerId];
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        FermionStorage.OfferLookups storage offerLookups = pl.offerLookups[_offerId];
 
         uint256 currentCustodianId = offer.custodianId;
-
-        address msgSender = _msgSender();
 
         if (_isCustodianAssistant) {
             EntityLib.validateAccountRole(
                 currentCustodianId,
-                msgSender,
+                _msgSender(),
                 FermionTypes.EntityRole.Custodian,
                 FermionTypes.AccountRole.Assistant
             );
@@ -358,25 +363,19 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
 
         EntityLib.validateEntityRole(
             _newCustodianId,
-            FermionStorage.protocolEntities().entityData[_newCustodianId].roles,
+            pe.entityData[_newCustodianId].roles,
             FermionTypes.EntityRole.Custodian
         );
 
-        // Store the update request - keep existing parameters in emergency update
-        offerLookups.custodianUpdateRequest = FermionTypes.CustodianUpdateRequest({
-            newCustodianId: _newCustodianId,
-            custodianFee: offer.custodianFee,
-            custodianVaultParameters: offerLookups.custodianVaultParameters,
-            requestTimestamp: block.timestamp
-        });
-
-        emit CustodianUpdateRequested(
+        _createCustodianUpdateRequest(
             _offerId,
+            offer.custodianFee,
+            offerLookups.custodianVaultParameters,
             currentCustodianId,
             _newCustodianId,
-            offer.custodianFee,
-            offerLookups.custodianVaultParameters
+            offerLookups
         );
+
         _processCustodianUpdate(_offerId, offer, offerLookups.custodianUpdateRequest, offerLookups);
     }
 
@@ -416,17 +415,19 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
         address msgSender = _msgSender();
         uint256 itemCount = offerLookups.itemQuantity;
         uint256 firstTokenId = offerLookups.firstTokenId;
-
+        bool hasInCustodyToken;
         for (uint256 i; i < itemCount; ++i) {
             uint256 tokenId = firstTokenId + i;
-            FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[tokenId];
-
-            if (tokenLookups.checkoutRequest.status != FermionTypes.CheckoutRequestStatus.CheckedOut) {
+            if (pl.tokenLookups[tokenId].checkoutRequest.status != FermionTypes.CheckoutRequestStatus.CheckedOut) {
                 address tokenOwner = IERC721(fermionFNFTAddress).ownerOf(tokenId);
                 if (tokenOwner != msgSender) {
                     revert NotTokenBuyer(_offerId, tokenOwner, msgSender);
                 }
+                hasInCustodyToken = true;
             }
+        }
+        if (!hasInCustodyToken) {
+            revert NoTokensInCustody(_offerId);
         }
         _processCustodianUpdate(
             _offerId,
@@ -444,27 +445,17 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
      * @param _custodianFee The new custodian fee parameters
      * @param _custodianVaultParameters The new custodian vault parameters
      * @param _currentCustodianId The ID of the current custodian
-     * @param _offer The offer storage pointer
+     * @param _newCustodianId The ID of the new custodian
      * @param _offerLookups The offer lookups storage pointer
-     * @param _pl The protocol lookups storage pointer
      */
     function _createCustodianUpdateRequest(
         uint256 _offerId,
-        FermionTypes.CustodianFee calldata _custodianFee,
-        FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
+        FermionTypes.CustodianFee memory _custodianFee,
+        FermionTypes.CustodianVaultParameters memory _custodianVaultParameters,
         uint256 _currentCustodianId,
         uint256 _newCustodianId,
-        FermionTypes.Offer storage _offer,
-        FermionStorage.OfferLookups storage _offerLookups,
-        FermionStorage.ProtocolLookups storage _pl
+        FermionStorage.OfferLookups storage _offerLookups
     ) internal {
-        EntityLib.validateAccountRole(
-            _newCustodianId,
-            _msgSender(),
-            FermionTypes.EntityRole.Custodian,
-            FermionTypes.AccountRole.Assistant
-        );
-
         _offerLookups.custodianUpdateRequest = FermionTypes.CustodianUpdateRequest({
             newCustodianId: _newCustodianId,
             custodianFee: _custodianFee,
@@ -515,7 +506,9 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
         for (uint256 i; i < itemCount; ++i) {
             uint256 tokenId = firstTokenId + i;
             FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[tokenId];
-
+            if (tokenLookups.checkoutRequest.status == FermionTypes.CheckoutRequestStatus.CheckedOut) {
+                continue;
+            }
             // Calculate and pay the current custodian
             FermionTypes.CustodianFee storage vault = tokenLookups.vault;
             uint256 custodianPayoff = ((block.timestamp - vault.period) * currentCustodianFee) / currentCustodianPeriod;
