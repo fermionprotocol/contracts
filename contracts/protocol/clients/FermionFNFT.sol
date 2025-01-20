@@ -7,6 +7,7 @@ import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
+import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { Common } from "./Common.sol";
@@ -201,7 +202,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address _to,
         uint256 _tokenId,
         address _auth
-    ) internal override(ERC721, FermionWrapper) returns (address) {
+    ) internal override(FermionFNFTBase, FermionWrapper) returns (address) {
         address from = FermionWrapper._update(_to, _tokenId, _auth);
         if (from == address(0)) Common.changeTokenState(_tokenId, FermionTypes.TokenState.Wrapped);
 
