@@ -24,19 +24,19 @@
     "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.12",
-    "@openzeppelin/contracts-upgradeable": "^5.1.0",
+    "@openzeppelin/contracts-upgradeable": "^5.2.0",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
     "@types/mocha": ">=10.0.10",
-    "@types/node": ">=22.10.5",
+    "@types/node": ">=22.10.7",
     "chai": "^4.5.0",
     "eip55": "^2.1.1",
-    "eslint": "^9.17.0",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
     "ethers": "^6.13.5",
-    "glob": "^11.0.0",
-    "hardhat": "^2.22.17",
+    "glob": "^11.0.1",
+    "hardhat": "^2.22.18",
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.8",
     "hardhat-preprocessor": "^0.1.5",
@@ -45,15 +45,15 @@
     "seaport": "git+https://github.com/ProjectOpenSea/seaport#1.6",
     "seaport-core": "git+https://github.com/ProjectOpenSea/seaport-core#1.6.6",
     "shelljs": "^0.8.5",
-    "solhint": "^5.0.4",
+    "solhint": "^5.0.5",
     "solidity-coverage": "^0.8.14",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.0",
-    "typescript": ">=5.7.2",
-    "typescript-eslint": "^8.19.1"
+    "typescript": ">=5.7.3",
+    "typescript-eslint": "^8.20.0"
   },
   "dependencies": {
     "@opensea/seaport-js": "4.0.4",
-    "@openzeppelin/contracts": "^5.1.0"
+    "@openzeppelin/contracts": "^5.2.0"
   }
 }
