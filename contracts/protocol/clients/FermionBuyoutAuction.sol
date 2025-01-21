@@ -28,28 +28,6 @@ contract FermionBuyoutAuction is
     constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsLib(bytes32(0)) {}
 
     /**
-     * @notice Mints additional fractions to be sold in the partial auction to fill the custodian vault.
-     *
-     * Emits AdditionalFractionsMinted event if successful.
-     *
-     * Reverts if:
-     * - The caller is not the fermion protocol
-     *
-     * N.B. The protocol is trusted to mint the correct number of fractions
-     *
-     * @param _amount The number of fractions to mint
-     */
-    function mintAdditionalFractions(uint256 _amount) external {
-        if (_msgSender() != fermionProtocol) {
-            revert AccessDenied(_msgSender());
-        }
-
-        _mintFractions(fermionProtocol, _amount);
-
-        emit AdditionalFractionsMinted(_amount, liquidSupply());
-    }
-
-    /**
      * @notice Starts the auction for a specific fractionalized token. Can be called by anyone.
      *
      * Emits:
@@ -338,29 +316,6 @@ contract FermionBuyoutAuction is
     }
 
     /**
-     * @notice Returns the number of fractions. Represents the ERC20 balanceOf method
-     *
-     * @param _owner The address to check
-     */
-    function balanceOf(
-        address _owner
-    ) public view virtual override(ERC721, FermionFractionsERC20Base) returns (uint256) {
-        return FermionFractionsERC20Base.balanceOf(_owner);
-    }
-
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `value`.
-     */
-    function transfer(address to, uint256 value) public virtual override(FermionFractionsERC20Base) returns (bool) {
-        return FermionFractionsERC20Base.transfer(to, value);
-    }
-
-    /**
      * @notice Change auction state to Ongoing and store the auction end time.
      *
      * @param _tokenId The token ID
@@ -519,5 +474,29 @@ contract FermionBuyoutAuction is
         // transfer to previus bidder if they used some of the fractions. Do not transfer the locked votes.
         if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
         transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
+    }
+
+    // Overrides
+    /**
+     * @notice Returns the number of fractions. Represents the ERC20 balanceOf method
+     *
+     * @param _owner The address to check
+     */
+    function balanceOf(
+        address _owner
+    ) public view virtual override(ERC721, FermionFractionsERC20Base) returns (uint256) {
+        return FermionFractionsERC20Base.balanceOf(_owner);
+    }
+
+    /**
+     * @dev See {IERC20-transfer}.
+     *
+     * Requirements:
+     *
+     * - `to` cannot be the zero address.
+     * - the caller must have a balance of at least `value`.
+     */
+    function transfer(address to, uint256 value) public virtual override(FermionFractionsERC20Base) returns (bool) {
+        return FermionFractionsERC20Base.transfer(to, value);
     }
 }

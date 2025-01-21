@@ -264,6 +264,7 @@ contract FermionFractionsMint is
         return IPriceOracleRegistry(fermionProtocol).isPriceOracleApproved(_oracle);
     }
 
+    // Overrides
     /**
      * @notice Returns the number of fractions. Represents the ERC20 balanceOf method
      *
@@ -283,7 +284,7 @@ contract FermionFractionsMint is
      * - `to` cannot be the zero address.
      * - the caller must have a balance of at least `value`.
      */
-    function transfer(address to, uint256 value) public virtual override returns (bool) {
+    function transfer(address to, uint256 value) public virtual override(FermionFractionsERC20Base) returns (bool) {
         return FermionFractionsERC20Base.transfer(to, value);
     }
 }
