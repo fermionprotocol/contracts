@@ -16,6 +16,8 @@ import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
+import { FermionFractionsMint } from "./FermionFractionsMint.sol";
+
 /**
  * @dev Fractionalisation and buyout auction
  */
@@ -29,16 +31,21 @@ abstract contract FermionFractions is
 {
     using Address for address;
 
+    address private immutable FNFT_FRACTION_MINT;
     address private immutable FNFT_PRICE_MANAGER;
+    address private immutable FNFT_BUYOUT_AUCTION;
 
     /**
      * @notice Constructor
      *
      * @param _fnftPriceManager The address of FNFT price manager holding buyout auction exit price update
+     * @param _fnftBuyoutAuction The address of the buyout auction contract
      */
-    constructor(address _fnftPriceManager) {
+    constructor(address _fnftFractionMint, address _fnftPriceManager, address _fnftBuyoutAuction) {
         if (_fnftPriceManager == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        FNFT_FRACTION_MINT = _fnftFractionMint;
         FNFT_PRICE_MANAGER = _fnftPriceManager;
+        FNFT_BUYOUT_AUCTION = _fnftBuyoutAuction;
     }
     /**
      * @notice Initializes the contract
@@ -83,68 +90,21 @@ abstract contract FermionFractions is
         uint256 _depositAmount,
         address _priceOracle
     ) external {
-        if (_length == 0) {
-            revert InvalidLength();
-        }
-
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        if ($.nftCount > 0) {
-            revert InitialFractionalisationOnly();
-        }
-
-        if (_buyoutAuctionParameters.exitPrice == 0) {
-            revert InvalidExitPrice(_buyoutAuctionParameters.exitPrice);
-        }
-
-        if (_buyoutAuctionParameters.unlockThreshold > HUNDRED_PERCENT) {
-            revert InvalidPercentage(_buyoutAuctionParameters.unlockThreshold);
-        }
-
-        if (_fractionsAmount < MIN_FRACTIONS || _fractionsAmount > MAX_FRACTIONS) {
-            revert InvalidFractionsAmount(_fractionsAmount, MIN_FRACTIONS, MAX_FRACTIONS);
-        }
-
-        if (
-            _custodianVaultParameters.newFractionsPerAuction < MIN_FRACTIONS ||
-            _custodianVaultParameters.newFractionsPerAuction > MAX_FRACTIONS
-        ) {
-            revert InvalidFractionsAmount(
-                _custodianVaultParameters.newFractionsPerAuction,
-                MIN_FRACTIONS,
-                MAX_FRACTIONS
-            );
-        }
-
-        if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
-            revert InvalidPartialAuctionThreshold();
-
-        lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
-
-        if (_priceOracle != address(0)) {
-            if (!_isOracleApproved(_priceOracle)) revert PriceOracleNotWhitelisted(_priceOracle);
-            $.priceOracle = _priceOracle;
-        }
-
-        // set the default values if not provided
-        if (_buyoutAuctionParameters.duration == 0) _buyoutAuctionParameters.duration = AUCTION_DURATION;
-        if (_buyoutAuctionParameters.unlockThreshold == 0) _buyoutAuctionParameters.unlockThreshold = UNLOCK_THRESHOLD;
-        if (_buyoutAuctionParameters.topBidLockTime == 0) _buyoutAuctionParameters.topBidLockTime = TOP_BID_LOCK_TIME;
-
-        $.auctionParameters = _buyoutAuctionParameters;
-
-        emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters);
-
-        address msgSender = _msgSender();
-        if (msgSender != fermionProtocol) {
-            moveDepositToFermionProtocol(_depositAmount, $);
-            uint256 returnedAmount = IFermionCustodyVault(fermionProtocol).setupCustodianOfferVault(
-                _firstTokenId,
-                _length,
-                _custodianVaultParameters,
-                _depositAmount
-            );
-            if (returnedAmount > 0) transferERC20FromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
-        }
+        // todo just pass calldata
+        FNFT_FRACTION_MINT.functionDelegateCall(
+            abi.encodeCall(
+                FermionFractionsMint.mintFractionsAndSetupParameters,
+                (
+                    _firstTokenId,
+                    _length,
+                    _fractionsAmount,
+                    _buyoutAuctionParameters,
+                    _custodianVaultParameters,
+                    _depositAmount,
+                    _priceOracle
+                )
+            )
+        );
     }
 
     /**
@@ -163,30 +123,9 @@ abstract contract FermionFractions is
      * @param _depositAmount - the amount to deposit
      */
     function mintFractions(uint256 _firstTokenId, uint256 _length, uint256 _depositAmount) external {
-        if (_length == 0) {
-            revert InvalidLength();
-        }
-
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
-        uint256 nftCount = $.nftCount;
-        if (nftCount == 0) {
-            revert MissingFractionalisation();
-        }
-
-        uint256 fractionsAmount = liquidSupply() / nftCount;
-
-        lockNFTsAndMintFractions(_firstTokenId, _length, fractionsAmount, $);
-
-        address msgSender = _msgSender();
-        if (msgSender != fermionProtocol) {
-            moveDepositToFermionProtocol(_depositAmount, $);
-            uint256 returnedAmount = IFermionCustodyVault(fermionProtocol).addItemToCustodianOfferVault(
-                _firstTokenId,
-                _length,
-                _depositAmount
-            );
-            if (returnedAmount > 0) transferERC20FromProtocol($.exchangeToken, payable(msgSender), returnedAmount);
-        }
+        FNFT_FRACTION_MINT.functionDelegateCall(
+            abi.encodeCall(FermionFractionsMint.mintFractions, (_firstTokenId, _length, _depositAmount))
+        );
     }
 
     /**
@@ -202,13 +141,9 @@ abstract contract FermionFractions is
      * @param _amount The number of fractions to mint
      */
     function mintAdditionalFractions(uint256 _amount) external {
-        if (_msgSender() != fermionProtocol) {
-            revert AccessDenied(_msgSender());
-        }
-
-        _mintFractions(fermionProtocol, _amount);
-
-        emit AdditionalFractionsMinted(_amount, liquidSupply());
+        FNFT_FRACTION_MINT.functionDelegateCall(
+            abi.encodeCall(FermionFractionsMint.mintAdditionalFractions, (_amount))
+        );
     }
 
     /**
@@ -975,32 +910,5 @@ abstract contract FermionFractions is
         // transfer to previus bidder if they used some of the fractions. Do not transfer the locked votes.
         if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
         transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
-    }
-
-    /**
-     * @notice Transfers the deposit to the Fermion Protocol during fractionalisation
-     *
-     * @param _depositAmount The amount to deposit
-     * @param $ The storage
-     */
-    function moveDepositToFermionProtocol(
-        uint256 _depositAmount,
-        FermionTypes.BuyoutAuctionStorage storage $
-    ) internal {
-        if (_depositAmount > 0) {
-            address exchangeToken = $.exchangeToken;
-            validateIncomingPayment(exchangeToken, _depositAmount);
-            transferERC20FromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
-        }
-    }
-
-    /**
-     * @notice Checks if the given oracle is approved in the oracle registry.
-     *
-     * @param _oracle The address of the price oracle to check.
-     * @return isApproved True if the oracle is approved, otherwise false.
-     */
-    function _isOracleApproved(address _oracle) internal view returns (bool) {
-        return IPriceOracleRegistry(fermionProtocol).isPriceOracleApproved(_oracle);
     }
 }
