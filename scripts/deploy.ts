@@ -100,9 +100,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
     const fermionFractionsMint = await FermionFractionsMint.deploy(bosonPriceDiscoveryAddress);
-    // const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
-    // const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(      await fermionFNFTPriceManager.getAddress(),
-    // bosonPriceDiscoveryAddress); // todo: add constructor args
+    const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
+    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(bosonPriceDiscoveryAddress);
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
@@ -110,7 +109,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       wrappedNativeAddress,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
-      ZeroAddress,
+      await fermionBuyoutAuction.getAddress(),
     ];
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(...fermionFNFTConstructorArgs);

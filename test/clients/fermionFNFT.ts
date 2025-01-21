@@ -42,9 +42,8 @@ describe("FermionFNFT", function () {
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
     const fermionFractionsMint = await FermionFractionsMint.deploy(mockBosonPriceDiscovery.address);
-    // const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
-    // const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(      await fermionFNFTPriceManager.getAddress(),
-    // bosonPriceDiscoveryAddress); // todo: add constructor args
+    const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
+    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(mockBosonPriceDiscovery.address);
 
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionFNFT = await FermionFNFT.deploy(
@@ -53,7 +52,7 @@ describe("FermionFNFT", function () {
       wallets[10].address,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
-      ZeroAddress,
+      await fermionBuyoutAuction.getAddress(),
     ); // dummy address
 
     const Proxy = await ethers.getContractFactory("MockProxy");
