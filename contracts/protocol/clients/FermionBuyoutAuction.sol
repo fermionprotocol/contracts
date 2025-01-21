@@ -76,7 +76,7 @@ contract FermionBuyoutAuction is
 
         uint256 exitPrice = $.auctionParameters.exitPrice;
         uint256 maxBid = auctionDetails.maxBid;
-        if (maxBid <= exitPrice) {
+        if (maxBid < exitPrice) {
             revert BidBelowExitPrice(_tokenId, maxBid, exitPrice);
         }
 
@@ -127,7 +127,7 @@ contract FermionBuyoutAuction is
                 fractionsPerToken = auctionDetails.totalFractions;
             } else {
                 fractionsPerToken = liquidSupply() / $.nftCount;
-                if (_price > auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
+                if (_price >= auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
                     // If price is above the exit price, the cutoff date is set
                     startAuctionInternal(_tokenId);
                 } else {
