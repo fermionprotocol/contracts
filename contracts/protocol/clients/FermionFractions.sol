@@ -13,8 +13,6 @@ import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsE
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-
-import { FermionFractionsMint } from "./FermionFractionsMint.sol";
 import { FermionBuyoutAuction } from "./FermionBuyoutAuction.sol";
 
 /**
@@ -89,21 +87,7 @@ abstract contract FermionFractions is
         uint256 _depositAmount,
         address _priceOracle
     ) external {
-        // todo just pass calldata
-        FNFT_FRACTION_MINT.functionDelegateCall(
-            abi.encodeCall(
-                FermionFractionsMint.mintFractionsAndSetupParameters,
-                (
-                    _firstTokenId,
-                    _length,
-                    _fractionsAmount,
-                    _buyoutAuctionParameters,
-                    _custodianVaultParameters,
-                    _depositAmount,
-                    _priceOracle
-                )
-            )
-        );
+        forwardCall(FNFT_FRACTION_MINT);
     }
 
     /**
@@ -122,9 +106,7 @@ abstract contract FermionFractions is
      * @param _depositAmount - the amount to deposit
      */
     function mintFractions(uint256 _firstTokenId, uint256 _length, uint256 _depositAmount) external {
-        FNFT_FRACTION_MINT.functionDelegateCall(
-            abi.encodeCall(FermionFractionsMint.mintFractions, (_firstTokenId, _length, _depositAmount))
-        );
+        forwardCall(FNFT_FRACTION_MINT);
     }
 
     /**
@@ -140,9 +122,7 @@ abstract contract FermionFractions is
      * @param _amount The number of fractions to mint
      */
     function mintAdditionalFractions(uint256 _amount) external {
-        FNFT_FRACTION_MINT.functionDelegateCall(
-            abi.encodeCall(FermionFractionsMint.mintAdditionalFractions, (_amount))
-        );
+        forwardCall(FNFT_FRACTION_MINT);
     }
 
     /**
@@ -168,9 +148,7 @@ abstract contract FermionFractions is
      * @param _fractionAmount The number of tokens to use to vote
      */
     function voteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
-        bytes memory _startAuctionInternal = FNFT_PRICE_MANAGER.functionDelegateCall(
-            abi.encodeCall(IFermionFNFTPriceManager.voteToStartAuction, (_tokenId, _fractionAmount))
-        );
+        bytes memory _startAuctionInternal = forwardCall(FNFT_PRICE_MANAGER);
 
         if (abi.decode(_startAuctionInternal, (bool))) {
             FNFT_BUYOUT_AUCTION.functionDelegateCall(
@@ -192,9 +170,7 @@ abstract contract FermionFractions is
      * @param _fractionAmount The number of tokens to use to vote
      */
     function removeVoteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
-        FNFT_PRICE_MANAGER.functionDelegateCall(
-            abi.encodeCall(IFermionFNFTPriceManager.removeVoteToStartAuction, (_tokenId, _fractionAmount))
-        );
+        forwardCall(FNFT_PRICE_MANAGER);
     }
 
     /**
@@ -211,7 +187,7 @@ abstract contract FermionFractions is
      * @param _tokenId The ID of the fractionalized token for which the auction is being started.
      */
     function startAuction(uint256 _tokenId) external {
-        FNFT_BUYOUT_AUCTION.functionDelegateCall(abi.encodeCall(FermionBuyoutAuction.startAuction, (_tokenId)));
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -229,9 +205,7 @@ abstract contract FermionFractions is
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
     function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
-        FNFT_BUYOUT_AUCTION.functionDelegateCall(
-            abi.encodeCall(FermionBuyoutAuction.bid, (_tokenId, _price, _fractions))
-        );
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -247,7 +221,7 @@ abstract contract FermionFractions is
      * @param _tokenId The token Id
      */
     function removeBid(uint256 _tokenId) external {
-        FNFT_BUYOUT_AUCTION.functionDelegateCall(abi.encodeCall(FermionBuyoutAuction.removeBid, (_tokenId)));
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -262,7 +236,7 @@ abstract contract FermionFractions is
      * @param _tokenId The token Id
      */
     function redeem(uint256 _tokenId) external {
-        FNFT_BUYOUT_AUCTION.functionDelegateCall(abi.encodeCall(FermionBuyoutAuction.redeem, (_tokenId)));
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -280,12 +254,7 @@ abstract contract FermionFractions is
      * @param _additionalFractions Number of fractions to exchange for auction proceeds (in addition to the locked fractions)
      */
     function claimWithLockedFractions(uint256 _tokenId, uint256 _auctionIndex, uint256 _additionalFractions) external {
-        FNFT_BUYOUT_AUCTION.functionDelegateCall(
-            abi.encodeCall(
-                FermionBuyoutAuction.claimWithLockedFractions,
-                (_tokenId, _auctionIndex, _additionalFractions)
-            )
-        );
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -302,7 +271,7 @@ abstract contract FermionFractions is
      * @param _fractions Number of fractions to exchange for auction proceeds
      */
     function claim(uint256 _fractions) public {
-        FNFT_BUYOUT_AUCTION.functionDelegateCall(abi.encodeCall(FermionBuyoutAuction.claim, (_fractions)));
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -318,9 +287,7 @@ abstract contract FermionFractions is
      * @param _fractions Number of fractions to exchange for auction proceeds
      */
     function finalizeAndClaim(uint256 _tokenId, uint256 _fractions) external {
-        FNFT_BUYOUT_AUCTION.functionDelegateCall(
-            abi.encodeCall(FermionBuyoutAuction.finalizeAndClaim, (_tokenId, _fractions))
-        );
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -351,7 +318,7 @@ abstract contract FermionFractions is
         FNFT_PRICE_MANAGER.functionDelegateCall(
             abi.encodeCall(
                 IFermionFNFTPriceManager.updateExitPrice,
-                (_newPrice, _quorumPercent, _voteDuration, fermionProtocol, balanceOf(_msgSender()))
+                (_newPrice, _quorumPercent, _voteDuration, fermionProtocol)
             )
         );
     }
@@ -376,12 +343,7 @@ abstract contract FermionFractions is
      * @param _voteYes True to vote YES, false to vote NO.
      */
     function voteOnProposal(bool _voteYes) external {
-        FNFT_PRICE_MANAGER.functionDelegateCall(
-            abi.encodeCall(
-                IFermionFNFTPriceManager.voteOnProposal,
-                (_voteYes, FermionFractionsERC20Base.balanceOf(_msgSender()))
-            )
-        );
+        forwardCall(FNFT_PRICE_MANAGER);
     }
 
     /**
@@ -398,7 +360,7 @@ abstract contract FermionFractions is
      *
      */
     function removeVoteOnProposal() external {
-        FNFT_PRICE_MANAGER.functionDelegateCall(abi.encodeCall(IFermionFNFTPriceManager.removeVoteOnProposal, ()));
+        forwardCall(FNFT_PRICE_MANAGER);
     }
 
     /**
@@ -541,5 +503,14 @@ abstract contract FermionFractions is
      */
     function getVoterDetails(address _voter) external view returns (FermionTypes.PriceUpdateVoter memory voterDetails) {
         voterDetails = Common._getBuyoutAuctionStorage().currentProposal.voters[_voter];
+    }
+
+    /**
+     * @notice Forwards the delegate call to target, using full calldata.
+     *
+     * @param _target The implementation address of the voter.
+     */
+    function forwardCall(address _target) internal returns (bytes memory) {
+        return _target.functionDelegateCall(_msgData());
     }
 }

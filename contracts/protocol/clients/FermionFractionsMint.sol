@@ -53,7 +53,7 @@ contract FermionFractionsMint is
      * @param _depositAmount The amount to deposit
      * @param _priceOracle The address of the price oracle.
      */
-    function mintFractionsAndSetupParameters(
+    function mintFractions(
         uint256 _firstTokenId,
         uint256 _length,
         uint256 _fractionsAmount,

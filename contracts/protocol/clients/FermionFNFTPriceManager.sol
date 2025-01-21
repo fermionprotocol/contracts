@@ -151,14 +151,12 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
      * @param _quorumPercent The required quorum percentage for the governance proposal (in basis points).
      * @param _voteDuration The duration of the governance proposal in seconds.
      * @param _fermionProtocol Fermion diamond address containing the Oracle Registry Facet.
-     * @param _fractionsBalance The fractions balance of the caller.
      */
     function updateExitPrice(
         uint256 _newPrice,
         uint256 _quorumPercent,
         uint256 _voteDuration,
-        address _fermionProtocol,
-        uint256 _fractionsBalance
+        address _fermionProtocol
     ) external {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.PriceUpdateProposal storage currentProposal = $.currentProposal;
@@ -182,7 +180,7 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
             }
         }
 
-        if (_fractionsBalance == 0) {
+        if (FermionFractionsERC20Base.balanceOf(_msgSender()) == 0) {
             revert FractionalisationErrors.OnlyFractionOwner();
         }
 
@@ -225,18 +223,18 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
      *
      * @param _voteYes True to vote YES, false to vote NO.
-     * @param _fractionsBalance The fractions balance of the voter.
      */
-    function voteOnProposal(bool _voteYes, uint256 _fractionsBalance) external {
+    function voteOnProposal(bool _voteYes) external {
         FermionTypes.PriceUpdateProposal storage proposal = Common._getBuyoutAuctionStorage().currentProposal;
         address msgSender = _msgSender();
+        uint256 fractionsBalance = FermionFractionsERC20Base.balanceOf(msgSender);
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
             revert FractionalisationErrors.ProposalNotActive(proposal.proposalId);
         }
 
         if (!_finalizeProposal(proposal, liquidSupply())) {
-            if (_fractionsBalance == 0) revert FractionalisationErrors.NoVotingPower(msgSender);
+            if (fractionsBalance == 0) revert FractionalisationErrors.NoVotingPower(msgSender);
 
             FermionTypes.PriceUpdateVoter storage voter = proposal.voters[msgSender];
             uint256 additionalVotes;
@@ -244,20 +242,20 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
             if (voter.proposalId == proposal.proposalId) {
                 if (voter.votedYes != _voteYes) revert FractionalisationErrors.ConflictingVote();
                 unchecked {
-                    additionalVotes = _fractionsBalance > voter.voteCount ? _fractionsBalance - voter.voteCount : 0;
+                    additionalVotes = fractionsBalance > voter.voteCount ? fractionsBalance - voter.voteCount : 0;
                 }
                 if (additionalVotes == 0) revert FractionalisationErrors.AlreadyVoted();
             } else {
                 voter.proposalId = proposal.proposalId;
                 voter.votedYes = _voteYes;
-                additionalVotes = _fractionsBalance;
+                additionalVotes = fractionsBalance;
             }
-            voter.voteCount = _fractionsBalance;
+            voter.voteCount = fractionsBalance;
 
             if (_voteYes) proposal.yesVotes += additionalVotes;
             else proposal.noVotes += additionalVotes;
 
-            emit IFermionFractionsEvents.PriceUpdateVoted(proposal.proposalId, msgSender, _fractionsBalance, _voteYes);
+            emit IFermionFractionsEvents.PriceUpdateVoted(proposal.proposalId, msgSender, fractionsBalance, _voteYes);
         }
     }
 
