@@ -170,6 +170,8 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      * Emits a {Transfer} event.
      */
     function _update(address from, address to, uint256 value) internal virtual {
+        _adjustVotesOnTransfer(from, value);
+
         ERC20Storage storage $ = _getERC20Storage();
         if (from == address(0)) {
             // Overflow check required: The rest of the code assumes that totalSupply never overflows
@@ -299,6 +301,50 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
             }
             unchecked {
                 _approve(owner, spender, currentAllowance - value, false);
+            }
+        }
+    }
+
+    /**
+     * @notice Adjusts the voter's records on transfer by removing votes if the remaining balance cannot support them.
+     *         This ensures the proposal's vote count remains accurate.
+     *
+     * @dev If the voter has no active votes or the current proposal is not active, no adjustments are made.
+     *      If the voter's remaining balance after the transfer is greater than or equal to their vote count,
+     *      no votes are removed. Otherwise, votes are reduced proportionally.
+     *
+     * @param voter The address of the voter whose votes are being adjusted.
+     * @param amount The number of fractions being transferred.
+     */
+    function _adjustVotesOnTransfer(address voter, uint256 amount) internal {
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
+
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
+            return; // Proposal is not active
+        }
+
+        FermionTypes.PriceUpdateVoter storage voterData = proposal.voters[voter];
+        uint256 voteCount = voterData.voteCount;
+
+        if (voteCount == 0 || voterData.proposalId != proposal.proposalId) {
+            return; // Voter has no active votes
+        }
+
+        uint256 remainingBalance = FermionFractionsERC20Base.balanceOf(voter) - amount;
+
+        if (remainingBalance >= voteCount) {
+            return; // Remaining balance is sufficient to support existing votes
+        }
+
+        uint256 votesToRemove = voteCount - remainingBalance;
+        voterData.voteCount = remainingBalance;
+
+        unchecked {
+            if (voterData.votedYes) {
+                proposal.yesVotes -= votesToRemove;
+            } else {
+                proposal.noVotes -= votesToRemove;
             }
         }
     }
