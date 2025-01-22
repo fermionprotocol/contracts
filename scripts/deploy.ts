@@ -98,12 +98,18 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
+    const fermionFractionsMint = await FermionFractionsMint.deploy(bosonPriceDiscoveryAddress);
+    const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
+    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(bosonPriceDiscoveryAddress);
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
       await fermionSeaportWrapper.getAddress(),
       wrappedNativeAddress,
+      await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
+      await fermionBuyoutAuction.getAddress(),
     ];
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(...fermionFNFTConstructorArgs);

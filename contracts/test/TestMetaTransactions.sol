@@ -16,8 +16,19 @@ contract MetaTxTest is FermionFNFT {
         address _bosonPriceDiscovery,
         address _seaportWrapper,
         address _wrappedNative,
-        address _fermionFNFTPriceManager
-    ) FermionFNFT(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative, _fermionFNFTPriceManager) {}
+        address _fnftFractionMint,
+        address _fermionFNFTPriceManager,
+        address _fnftBuyoutAuction
+    )
+        FermionFNFT(
+            _bosonPriceDiscovery,
+            _seaportWrapper,
+            _wrappedNative,
+            _fnftFractionMint,
+            _fermionFNFTPriceManager,
+            _fnftBuyoutAuction
+        )
+    {}
 
     function testMsgData(bytes calldata) external {
         data = msg.data;
