@@ -20,14 +20,12 @@ interface IFermionFNFTPriceManager {
      * @param quorumPercent The required quorum percentage for the governance proposal (in basis points).
      * @param voteDuration The duration of the governance proposal in seconds.
      * @param fermionProtocol Fermion diamond address containing the Oracle Registry Facet.
-     * @param fractionsBalance The fractions balance of the caller.
      */
     function updateExitPrice(
         uint256 newPrice,
         uint256 quorumPercent,
         uint256 voteDuration,
-        address fermionProtocol,
-        uint256 fractionsBalance
+        address fermionProtocol
     ) external;
 
     /**
@@ -43,9 +41,8 @@ interface IFermionFNFTPriceManager {
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
      *
      * @param voteYes True to vote YES, false to vote NO.
-     * @param fractionsBalance The fractions balance of the voter.
      */
-    function voteOnProposal(bool voteYes, uint256 fractionsBalance) external;
+    function voteOnProposal(bool voteYes) external;
 
     /**
      * @notice Allows a voter to explicitly remove their vote on an active proposal.
