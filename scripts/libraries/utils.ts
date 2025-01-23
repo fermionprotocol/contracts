@@ -52,7 +52,7 @@ export async function readContracts(env: string | undefined) {
 
 export function checkDeployerAddress(networkName: string) {
   // Check if the deployer key is set
-  const NETWORK = networkName.toUpperCase();
+  const NETWORK = networkName.replace(/[A-Z][a-z]*/g, (str) => "_" + str.toLowerCase()).toUpperCase();
   if (!vars.has(`DEPLOYER_KEY_${NETWORK}`)) {
     throw Error(
       `DEPLOYER_KEY_${NETWORK} not found in configuration variables. Use 'npx hardhat vars set DEPLOYER_KEY_${NETWORK}' to set it or 'npx hardhat vars setup' to list all the configuration variables used by this project.`,
