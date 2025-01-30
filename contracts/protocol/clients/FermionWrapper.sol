@@ -9,7 +9,7 @@ import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionWrapperEvents } from "../interfaces/events/IFermionWrapperEvents.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { OfferFacet } from "../facets/Offer.sol";
+import { RoyaltiesFacet } from "../facets/Royalties.sol";
 import { VerificationFacet } from "../facets/Verification.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -248,7 +248,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWr
         _requireOwned(_tokenId);
 
         uint256 royaltyPercentage;
-        (receiver, royaltyPercentage) = OfferFacet(fermionProtocol).getEIP2981Royalties(_tokenId);
+        (receiver, royaltyPercentage) = RoyaltiesFacet(fermionProtocol).getEIP2981Royalties(_tokenId);
 
         royaltyAmount = (_salePrice * royaltyPercentage) / HUNDRED_PERCENT;
     }
