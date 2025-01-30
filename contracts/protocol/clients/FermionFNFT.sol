@@ -37,12 +37,14 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address _bosonPriceDiscovery,
         address _seaportWrapper,
         address _wrappedNative,
-        address _fermionFNFTPriceManager
+        address _fnftFractionMint,
+        address _fermionFNFTPriceManager,
+        address _fnftBuyoutAuction
     )
         FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative)
         ERC2771Context(address(0))
         FundsLib(bytes32(0))
-        FermionFractions(_fermionFNFTPriceManager)
+        FermionFractions(_fnftFractionMint, _fermionFNFTPriceManager, _fnftBuyoutAuction)
     {}
 
     /**
@@ -227,13 +229,5 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
 
     function transferOwnership(address _newOwner) public override(FermionWrapper, IFermionWrapper) {
         super.transferOwnership(_newOwner);
-    }
-
-    /**
-     * @dev This function is used in funds management. Since this contract is never a trusted forwarder
-     * of another fermion FNFT contract, the check can be skipped.
-     */
-    function checkFNFTContract(address) internal pure override returns (bool) {
-        return false;
     }
 }
