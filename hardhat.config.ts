@@ -60,6 +60,10 @@ const config: HardhatUserConfig = {
       url: vars.get("RPC_PROVIDER_BASE_SEPOLIA", "https://base-sepolia-rpc.publicnode.com"),
       accounts: [vars.get("DEPLOYER_KEY_BASE_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
     },
+    base: {
+      url: vars.get("RPC_PROVIDER_BASE", "https://base-sepolia-rpc.publicnode.com"),
+      accounts: [vars.get("DEPLOYER_KEY_BASE", DEFAULT_DEPLOYER_KEY)],
+    },
   },
   solidity: {
     compilers: [
