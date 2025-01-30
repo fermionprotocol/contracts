@@ -52,9 +52,17 @@ const config: HardhatUserConfig = {
       url: vars.get("RPC_PROVIDER_POLYGON", "https://polygon-rpc.com"),
       accounts: [vars.get("DEPLOYER_KEY_POLYGON", DEFAULT_DEPLOYER_KEY)],
     },
-    mainnet: {
+    ethereum: {
       url: vars.get("RPC_PROVIDER_ETHEREUM", "https://cloudflare-eth.com"),
       accounts: [vars.get("DEPLOYER_KEY_ETHEREUM", DEFAULT_DEPLOYER_KEY)],
+    },
+    baseSepolia: {
+      url: vars.get("RPC_PROVIDER_BASE_SEPOLIA", "https://base-sepolia-rpc.publicnode.com"),
+      accounts: [vars.get("DEPLOYER_KEY_BASE_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
+    },
+    base: {
+      url: vars.get("RPC_PROVIDER_BASE", "https://base-sepolia-rpc.publicnode.com"),
+      accounts: [vars.get("DEPLOYER_KEY_BASE", DEFAULT_DEPLOYER_KEY)],
     },
   },
   solidity: {

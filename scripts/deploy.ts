@@ -59,9 +59,10 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // Get boson protocol address
     const { chainId } = isForking ? isForking.originalChain : await ethers.provider.getNetwork();
 
+    const bosonNetworkName = networkName == "ethereum" ? "mainnet" : networkName.toLowerCase();
     const { contracts: bosonContracts } = JSON.parse(
       fs.readFileSync(
-        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${networkName.toLowerCase()}-${env.replace("-dry-run", "")}.json`,
+        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${bosonNetworkName}-${env.replace("-dry-run", "")}.json`,
         "utf8",
       ),
     );
