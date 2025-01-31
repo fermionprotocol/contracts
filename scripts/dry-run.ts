@@ -31,8 +31,10 @@ export async function setupDryRun(env: string, adminAddress: string = "") {
   hre.config.networks["hardhat"].accounts = [
     { privateKey: hre.config.networks[networkName].accounts[0], balance: deployerBalance.toString() },
   ];
-  hre.config.networks["hardhat"].gasPrice = "auto";
-  delete hre.config.networks["hardhat"].initialBaseFeePerGas;
+  hre.config.networks["hardhat"].gasPrice = Number((await ethers.provider.getFeeData()).gasPrice);
+  hre.config.networks["hardhat"].initialBaseFeePerGas = Number(
+    (await ethers.provider.getBlock("latest")).baseFeePerGas,
+  );
 
   await hre.changeNetwork("hardhat");
 
