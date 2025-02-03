@@ -8,6 +8,7 @@ import { BigNumberish, Contract, Interface, toBeHex } from "ethers";
 import { subtask } from "hardhat/config";
 import { EntityRole, AccountRole } from "./enums";
 import { expect } from "chai";
+import fermionConfig from "./../../fermion.config";
 
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
 
@@ -21,6 +22,8 @@ import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/ta
 // await loadFixture(deployFermionProtocolFixture.bind(fixtureArgs)))
 // ```
 export async function deployFermionProtocolFixture(defaultSigner: HardhatEthersSigner) {
+  fermionConfig.protocolParameters.protocolFeePercentage = 500; // tests use non-zero protocol fee
+
   const {
     diamondAddress,
     facets,

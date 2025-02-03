@@ -136,11 +136,11 @@ To deploy the Fermion protocol on a public blockchain:
   Set the values for the desired network. For example, to set the deployer key and RPC endpoint for polygon amoy, run
 
   ```shell
-  npx hardhat vars set DEPLOYER_KEY_HARDHAT
-  npx hardhat vars set TEST_API_KEY
+  npx hardhat vars set RPC_PROVIDER_AMOY
+  npx hardhat vars set DEPLOYER_KEY_AMOY
   ```
 
-  Note: `DEPLOYER_KEY_HARDHAT` and `TEST_API_KEY` are NOT the values. Run the commands exactly as they are written and Hardhat will prompt you to enter the value.
+  Note: `RPC_PROVIDER_AMOY` and `DEPLOYER_KEY_AMOY` are NOT the values. Run the commands exactly as they are written and Hardhat will prompt you to enter the value.
 
 - Deploy the suite by calling
 
