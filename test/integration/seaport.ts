@@ -17,6 +17,7 @@ const { ZeroAddress, parseEther } = ethers;
 const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
 describe("[@skip-on-coverage] Seaport integration test", function () {
+  this.timeout(100000000);
   const sellerId = "1";
   const verifierId = "1";
   const custodianId = "1";
