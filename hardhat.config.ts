@@ -135,7 +135,7 @@ const config: HardhatUserConfig = {
       polygon: vars.get("POLYGONSCAN_API_KEY", ""),
       mainnet: vars.get("ETHERSCAN_API_KEY", ""),
       base: vars.get("BASESCAN_API_KEY", ""),
-      "base-sepolia": vars.get("BASESCAN_API_KEY", ""),
+      baseSepolia: vars.get("BASESCAN_API_KEY", ""),
     },
   },
   mocha: {
