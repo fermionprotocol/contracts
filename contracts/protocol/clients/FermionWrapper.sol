@@ -317,9 +317,9 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
         }
 
         address from = super._update(_to, _tokenId, _auth);
-        if (from != address(0) && from != msgSender && _to != address(0) && msgSender != fermionProtocol) {
+        if (from != msgSender && msgSender != fermionProtocol) {
             // Call the transfer validator if one is set.
-            // If transfer is initiated by the protocol, no need to call the validator
+            // If transfer is initiated by the protocol, no need to call the validator (mint/burn/checkout)
             address transferValidator = Common._getFermionCommonStorage().transferValidator;
             if (transferValidator != address(0)) {
                 ITransferValidator721(transferValidator).validateTransfer(msgSender, from, _to, _tokenId);

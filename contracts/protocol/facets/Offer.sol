@@ -415,7 +415,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         IBosonProtocol.PriceDiscovery memory _priceDiscovery,
         address,
         bytes memory _data
-    ) internal view {
+    ) internal pure {
         SeaportTypes.AdvancedOrder memory _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
         if (
             _buyerOrder.parameters.offer.length != 1 ||
@@ -455,7 +455,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         IBosonProtocol.PriceDiscovery memory _priceDiscovery,
         address exchangeToken,
         bytes memory _data
-    ) internal view {
+    ) internal pure {
         _priceDiscovery.price = abi.decode(_data, (uint256)); // If this does not match the true price, Boson Protocol will revert
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(
