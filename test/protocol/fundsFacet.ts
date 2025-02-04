@@ -27,7 +27,8 @@ describe("Funds", function () {
     fundsFacet: Contract,
     pauseFacet: Contract,
     configFacet: Contract,
-    custodyFacet: Contract;
+    custodyFacet: Contract,
+    royaltiesFacet: Contract;
   let mockToken1: Contract, mockToken2: Contract, mockToken3: Contract;
   let mockToken1Address: string, mockToken2Address: string, mockToken3Address: string;
   let mockPhygital1: Contract, mockPhygital2: Contract, mockPhygital3: Contract;
@@ -129,6 +130,7 @@ describe("Funds", function () {
         PauseFacet: pauseFacet,
         ConfigFacet: configFacet,
         CustodyFacet: custodyFacet,
+        RoyaltiesFacet: royaltiesFacet,
       },
       fermionErrors,
       wallets,
@@ -1926,7 +1928,7 @@ describe("Funds", function () {
         recipients: [royaltyRecipient.address, defaultSigner.address, ZeroAddress],
         bps: [royalties, sellerRoyalties, sellerRoyalties2],
       };
-      await offerFacet.updateOfferRoyaltyRecipients([offerId], royaltyInfo);
+      await royaltiesFacet.updateOfferRoyaltyRecipients([offerId], royaltyInfo);
 
       // selfsale
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
