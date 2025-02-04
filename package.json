@@ -24,6 +24,7 @@
     "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.12",
+    "@opensea/seaport-js": "^4.0.4",
     "@openzeppelin/contracts-upgradeable": "^5.2.0",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
@@ -54,7 +55,6 @@
     "typescript-eslint": "^8.22.0"
   },
   "dependencies": {
-    "@opensea/seaport-js": "4.0.4",
     "@openzeppelin/contracts": "^5.2.0"
   }
 }

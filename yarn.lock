@@ -843,7 +843,7 @@
     "@nomicfoundation/solidity-analyzer-win32-ia32-msvc" "0.1.1"
     "@nomicfoundation/solidity-analyzer-win32-x64-msvc" "0.1.1"
 
-"@opensea/seaport-js@4.0.4", "@opensea/seaport-js@^4.0.0":
+"@opensea/seaport-js@^4.0.0", "@opensea/seaport-js@^4.0.4":
   version "4.0.4"
   resolved "https://registry.yarnpkg.com/@opensea/seaport-js/-/seaport-js-4.0.4.tgz#8ca43bfb43bd7fcd6d34fa6235204ea8721335e9"
   integrity sha512-pOBgU+y1H9Bh463ZdgFshFBxnBQvEaGfoOJFDHbkvZTNLSqIOyuDmICFTQJEiPjYsS6tMQTbw2oJBtcVLFUT2g==
