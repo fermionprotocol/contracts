@@ -9,6 +9,7 @@ import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionWrapperEvents } from "../interfaces/events/IFermionWrapperEvents.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
+import { CreatorToken, ITransferValidator721 } from "./CreatorToken.sol";
 import { OfferFacet } from "../facets/Offer.sol";
 import { VerificationFacet } from "../facets/Verification.sol";
 
@@ -28,11 +29,12 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWrapperEvents {
+contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapper, IFermionWrapperEvents {
     using SafeERC20 for IERC20;
     using Address for address;
     IWrappedNative private immutable WRAPPED_NATIVE;
     address private immutable SEAPORT_WRAPPER;
+    address private immutable STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY;
 
     /**
      * @notice Constructor
@@ -41,11 +43,13 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWr
     constructor(
         address _bosonPriceDiscovery,
         address _seaportWrapper,
+        address _strictAuthorizedTransferSecurityRegistry,
         address _wrappedNative
     ) FermionFNFTBase(_bosonPriceDiscovery) {
         if (_wrappedNative == address(0)) revert FermionGeneralErrors.InvalidAddress();
         WRAPPED_NATIVE = IWrappedNative(_wrappedNative);
         SEAPORT_WRAPPER = _seaportWrapper;
+        STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY = _strictAuthorizedTransferSecurityRegistry;
     }
 
     /**
@@ -61,6 +65,8 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWr
         Common._getFermionCommonStorage().metadataUri = _metadataUri;
         __Ownable_init(_owner);
         SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
+        if (STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY != address(0))
+            _setTransferValidator(STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY);
     }
 
     /**
@@ -301,14 +307,25 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWr
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
         FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
+        address msgSender = _msgSender();
 
         if (
             (state == FermionTypes.TokenState.Wrapped && !isFixedPriceSale(_tokenId)) ||
             (state == FermionTypes.TokenState.Unverified && _to != address(0))
         ) {
-            revert InvalidStateOrCaller(_tokenId, _msgSender(), state);
+            revert InvalidStateOrCaller(_tokenId, msgSender, state);
         }
-        return super._update(_to, _tokenId, _auth);
+
+        address from = super._update(_to, _tokenId, _auth);
+        if (from != address(0) && from != msgSender && _to != address(0) && msgSender != fermionProtocol) {
+            // Call the transfer validator if one is set.
+            // If transfer is initiated by the protocol, no need to call the validator
+            address transferValidator = Common._getFermionCommonStorage().transferValidator;
+            if (transferValidator != address(0)) {
+                ITransferValidator721(transferValidator).validateTransfer(msgSender, from, _to, _tokenId);
+            }
+        }
+        return from;
     }
 
     /**

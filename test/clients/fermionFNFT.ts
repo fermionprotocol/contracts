@@ -49,6 +49,7 @@ describe("FermionFNFT", function () {
     const fermionFNFT = await FermionFNFT.deploy(
       mockBosonPriceDiscovery.address,
       await fermionSeaportWrapper.getAddress(),
+      ZeroAddress,
       wallets[10].address,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),

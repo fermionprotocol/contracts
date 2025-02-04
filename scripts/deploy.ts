@@ -37,7 +37,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, bosonTokenAddress: string;
   let seaportAddress: string, seaportContract: Contract;
   let wrappedNativeAddress: string;
-  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[network.name];
+  const { seaportConfig, wrappedNative, strictAuthorizedTransferSecurityRegistry } =
+    fermionConfig.externalContracts[network.name];
   if (network.name === "hardhat" || network.name === "localhost") {
     const isForking = hre.config.networks["hardhat"].forking;
     const deployerBalance = isForking ? await ethers.provider.getBalance(deployerAddress) : 0n;
@@ -106,6 +107,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
       await fermionSeaportWrapper.getAddress(),
+      strictAuthorizedTransferSecurityRegistry,
       wrappedNativeAddress,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),

@@ -16,6 +16,7 @@ interface ProtocolParameters {
 interface ExternalContracts {
   [networkName: string]: {
     seaportConfig: SeaportConfig;
+    strictAuthorizedTransferSecurityRegistry: string;
     wrappedNative: string;
   };
 }
@@ -44,6 +45,7 @@ const fermionConfig: FermionConfig = {
         openSeaZoneHash: ZeroHash,
         openSeaRecipient: "0x8626f6940E2eb28930eFb4CeF49B2d1F2C9C1199", // dummy
       },
+      strictAuthorizedTransferSecurityRegistry: ZeroAddress,
       wrappedNative: ZeroAddress,
     },
     localhost: {
@@ -54,6 +56,7 @@ const fermionConfig: FermionConfig = {
         openSeaZoneHash: ZeroHash,
         openSeaRecipient: ZeroAddress,
       },
+      strictAuthorizedTransferSecurityRegistry: ZeroAddress,
       wrappedNative: ZeroAddress,
     },
     amoy: {
@@ -64,6 +67,7 @@ const fermionConfig: FermionConfig = {
         openSeaZoneHash: ZeroHash, // ToDo: add the correct value
         openSeaRecipient: ZeroAddress, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x52eF3d68BaB452a294342DC3e5f464d7f610f72E",
     },
     sepolia: {
@@ -74,6 +78,7 @@ const fermionConfig: FermionConfig = {
         openSeaZoneHash: ZeroHash, // ToDo: add the correct value
         openSeaRecipient: ZeroAddress, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9",
     },
     polygon: {
@@ -84,6 +89,7 @@ const fermionConfig: FermionConfig = {
         openSeaZoneHash: ZeroHash, // ToDo: add the correct value
         openSeaRecipient: ZeroAddress, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
     },
     ethereum: {
@@ -94,6 +100,7 @@ const fermionConfig: FermionConfig = {
         openSeaZoneHash: ZeroHash, // ToDo: add the correct value
         openSeaRecipient: ZeroAddress, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2",
     },
   },
