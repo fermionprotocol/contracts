@@ -1302,6 +1302,130 @@ describe("Offer", function () {
             expect(newOpenSeaBalance).to.equal(openSeaBalance + openSeaFee);
           });
 
+          it("Unwrapping - order with royalties", async function () {
+            const royalties1 = (fullPrice * 1_50n) / 100_00n;
+            const royalties2 = (fullPrice * 1_00n) / 100_00n;
+            const royalties = royalties1 + royalties2;
+            const royaltyRecipient1 = wallets[9].address;
+            const royaltyRecipient2 = wallets[10].address;
+            const royaltyRecipient1Balance = await mockToken.balanceOf(royaltyRecipient1);
+            const royaltyRecipient2Balance = await mockToken.balanceOf(royaltyRecipient2);
+            const { executeAllActions } = await seaport.createOrder(
+              {
+                offer: [
+                  {
+                    itemType: ItemType.ERC20,
+                    token: exchangeToken,
+                    amount: fullPrice.toString(),
+                  },
+                ],
+                consideration: [
+                  {
+                    itemType: ItemType.ERC721,
+                    token: wrapperAddress,
+                    identifier: tokenId,
+                  },
+                  {
+                    itemType: ItemType.ERC20,
+                    token: exchangeToken,
+                    amount: openSeaFee.toString(),
+                    recipient: openSeaAddress,
+                  },
+                  {
+                    itemType: ItemType.ERC20,
+                    token: exchangeToken,
+                    amount: royalties1.toString(),
+                    recipient: royaltyRecipient1,
+                  },
+                  {
+                    itemType: ItemType.ERC20,
+                    token: exchangeToken,
+                    amount: royalties2.toString(),
+                    recipient: royaltyRecipient2,
+                  },
+                ],
+              },
+              buyerAddress,
+            );
+
+            const buyerOrder = await executeAllActions();
+            const buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+            const tx = await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
+
+            // events:
+            // fermion
+            const blockTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const itemVerificationTimeout =
+              blockTimestamp + fermionConfig.protocolParameters.defaultVerificationTimeout;
+            const itemMaxVerificationTimeout = blockTimestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
+            await expect(tx)
+              .to.emit(offerFacet, "VerificationInitiated")
+              .withArgs(bosonOfferId, verifierId, tokenId, itemVerificationTimeout, itemMaxVerificationTimeout);
+            await expect(tx)
+              .to.emit(offerFacet, "ItemPriceObserved")
+              .withArgs(tokenId, priceSubOSFee - royalties);
+            await expect(tx).to.not.emit(fermionWrapper, "FixedPriceSale");
+
+            // Boson:
+            await expect(tx)
+              .to.emit(bosonExchangeHandler, "BuyerCommitted")
+              .withArgs(bosonOfferId, bosonBuyerId, exchangeId, anyValue, anyValue, defaultCollectionAddress); // exchange and voucher details are not relevant
+
+            await expect(tx)
+              .to.emit(bosonExchangeHandler, "FundsEncumbered")
+              .withArgs(bosonSellerId, exchangeToken, sellerDeposit, defaultCollectionAddress);
+
+            await expect(tx)
+              .to.emit(bosonExchangeHandler, "FundsEncumbered")
+              .withArgs(bosonBuyerId, exchangeToken, fullPrice - openSeaFee - royalties, fermionProtocolAddress);
+
+            await expect(tx)
+              .to.emit(bosonExchangeHandler, "VoucherRedeemed")
+              .withArgs(bosonOfferId, exchangeId, fermionProtocolAddress);
+
+            // BosonVoucher
+            // - transferred to the protocol
+            await expect(tx)
+              .to.emit(bosonVoucher, "Transfer")
+              .withArgs(wrapperAddress, fermionProtocolAddress, tokenId);
+
+            // - burned
+            await expect(tx).to.emit(bosonVoucher, "Transfer").withArgs(fermionProtocolAddress, ZeroAddress, tokenId);
+
+            // FermionFNFT
+            // - Transfer to buyer (2step seller->wrapper->buyer)
+            await expect(tx)
+              .to.emit(fermionWrapper, "Transfer")
+              .withArgs(defaultSigner.address, wrapperAddress, tokenId);
+            await expect(tx).to.emit(fermionWrapper, "Transfer").withArgs(wrapperAddress, buyerAddress, tokenId);
+
+            // State:
+            // Boson
+            const [exists, exchange, voucher] = await bosonExchangeHandler.getExchange(exchangeId);
+            expect(exists).to.be.equal(true);
+            expect(exchange.state).to.equal(3); // Redeemed
+            expect(voucher.committedDate).to.not.equal(0);
+            expect(voucher.redeemedDate).to.equal(voucher.committedDate); // commit and redeem should happen at the same time
+
+            const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
+            expect(newBosonProtocolBalance).to.equal(
+              bosonProtocolBalance + sellerDeposit + fullPrice - openSeaFee - royalties,
+            );
+
+            // FermionFNFT:
+            expect(await fermionWrapper.tokenState(tokenId)).to.equal(TokenState.Unverified);
+            expect(await fermionWrapper.ownerOf(tokenId)).to.equal(buyerAddress);
+
+            // OpenSea balance should be updated
+            const newOpenSeaBalance = await mockToken.balanceOf(openSeaAddress);
+            expect(newOpenSeaBalance).to.equal(openSeaBalance + openSeaFee);
+
+            const newRoyaltyRecipient1Balance = await mockToken.balanceOf(royaltyRecipient1);
+            expect(newRoyaltyRecipient1Balance).to.equal(royaltyRecipient1Balance + royalties1);
+            const newRoyaltyRecipient2Balance = await mockToken.balanceOf(royaltyRecipient2);
+            expect(newRoyaltyRecipient2Balance).to.equal(royaltyRecipient2Balance + royalties2);
+          });
+
           it("Facilitator can unwrap", async function () {
             await fundsFacet.depositFunds(sellerId, await mockToken.getAddress(), sellerDeposit);
 
