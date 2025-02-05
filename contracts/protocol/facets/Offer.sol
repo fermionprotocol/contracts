@@ -419,7 +419,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         SeaportTypes.AdvancedOrder memory _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
         if (
             _buyerOrder.parameters.offer.length != 1 ||
-            _buyerOrder.parameters.consideration.length > 2 ||
             _buyerOrder.parameters.consideration[1].startAmount >
             (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || // allow +1 in case they round up; minimal exposure
             _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
@@ -427,10 +426,12 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             revert InvalidOpenSeaOrder();
         }
 
+        _priceDiscovery.price = _buyerOrder.parameters.offer[0].startAmount;
         unchecked {
-            _priceDiscovery.price =
-                _buyerOrder.parameters.offer[0].startAmount -
-                _buyerOrder.parameters.consideration[1].startAmount;
+            for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
+                // reduce the price by the openSea fee and the royalties
+                _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
+            }
         }
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));

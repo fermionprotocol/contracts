@@ -1871,14 +1871,6 @@ describe("Offer", function () {
               ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
             });
 
-            it("Buyer order have more than 2 considerations", async function () {
-              buyerOrder.parameters.consideration.push(buyerOrder.parameters.consideration[1]);
-              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
-              await expect(
-                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
-              ).to.be.revertedWithCustomError(fermionErrors, "InvalidOpenSeaOrder");
-            });
-
             it("OS fee is greater than the price", async function () {
               buyerOrder.parameters.offer[0].startAmount = "0";
               buyerOrder.parameters.consideration[1].startAmount = "1";

@@ -74,6 +74,11 @@ contract SeaportWrapper is FermionFNFTBase {
         uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount;
         uint256 reducedPrice = _price - _openSeaFee;
 
+        // reduce the price by the royalties
+        for (uint256 i = 2; i < _buyerOrder.parameters.consideration.length; i++) {
+            reducedPrice -= _buyerOrder.parameters.consideration[i].startAmount;
+        }
+
         address exchangeToken = _buyerOrder.parameters.offer[0].token;
 
         // prepare match advanced order. Can this be optimized with some simpler order?
@@ -121,9 +126,12 @@ contract SeaportWrapper is FermionFNFTBase {
         orders[0] = _buyerOrder;
         orders[1] = wrapperOrder;
 
-        SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](3);
+        // SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](3);
+        SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](
+            _buyerOrder.parameters.consideration.length + 1
+        );
 
-        // NFT from buyer, to NFT from seller
+        // NFT from seller to buyer
         fulfillments[0] = SeaportTypes.Fulfillment({
             offerComponents: new SeaportTypes.FulfillmentComponent[](1),
             considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
@@ -139,13 +147,18 @@ contract SeaportWrapper is FermionFNFTBase {
         fulfillments[1].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
         fulfillments[1].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 1, itemIndex: 0 });
 
-        // Payment from buyer to OpenSea
-        fulfillments[2] = SeaportTypes.Fulfillment({
-            offerComponents: new SeaportTypes.FulfillmentComponent[](1),
-            considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
-        });
-        fulfillments[2].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
-        fulfillments[2].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 1 });
+        // Payment from buyer to OpenSea and royalty recipients
+        for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
+            fulfillments[i + 1] = SeaportTypes.Fulfillment({
+                offerComponents: new SeaportTypes.FulfillmentComponent[](1),
+                considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
+            });
+            fulfillments[i + 1].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
+            fulfillments[i + 1].considerationComponents[0] = SeaportTypes.FulfillmentComponent({
+                orderIndex: 0,
+                itemIndex: i
+            });
+        }
 
         // transfer to itself to finalize the auction
         _transfer(wrappedVoucherOwner, address(this), _tokenId);
