@@ -195,6 +195,51 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             FermionStorage.protocolStatus()
         );
 
+        // Todo: handle zeroAddress
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
+        uint256 royaltyInfoLength = royaltyInfoAll.length - 1; // if length=0, send empty
+
+        wrapperAddress.listFixedPriceOrders(
+            startingNFTId,
+            _prices,
+            _endTimes,
+            royaltyInfoAll[royaltyInfoLength],
+            exchangeToken
+        );
+    }
+
+    function mintWrapOnly(
+        uint256 _offerId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+        if (_prices.length != _endTimes.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, _endTimes.length);
+
+        uint256 quantity = _prices.length;
+        (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, quantity);
+        (address wrapperAddress, address exchangeToken) = wrapNFTS(
+            _offerId,
+            bosonVoucher,
+            startingNFTId,
+            quantity,
+            FermionTypes.WrapType.OS_FIXED_PRICE,
+            FermionStorage.protocolStatus()
+        );
+    }
+
+    function listFixedPriced(
+        uint256 _offerId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        address wrapperAddress,
+        address exchangeToken,
+        uint256 startingNFTId
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+        if (_prices.length != _endTimes.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, _endTimes.length);
+
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
         FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
         uint256 royaltyInfoLength = royaltyInfoAll.length - 1; // if length=0, send empty

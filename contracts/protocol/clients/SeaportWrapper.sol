@@ -195,26 +195,62 @@ contract SeaportWrapper is FermionFNFTBase {
 
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
 
+        SeaportTypes.ItemType itemType = _exchangeToken == address(0)
+            ? SeaportTypes.ItemType.NATIVE
+            : SeaportTypes.ItemType.ERC20;
         for (uint256 i; i < _prices.length; ++i) {
-            uint256 tokenId = _firstTokenId + i;
-            uint256 tokenPrice = _prices[i];
-            if (tokenPrice == 0) revert WrapperErrors.ZeroPriceNotAllowed(); // although it is possible to validate zero price offer, it's impossible to fulfill it
-            uint256 reducedPrice = tokenPrice - (tokenPrice * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT;
-            fixedPrice[tokenId] = reducedPrice;
-
-            // Create order
+            SeaportTypes.ConsiderationItem[] memory consideration = new SeaportTypes.ConsiderationItem[](
+                2 + _royaltyInfo.recipients.length
+            );
+            uint256 reducedPrice;
             SeaportTypes.OfferItem[] memory offer = new SeaportTypes.OfferItem[](1);
-            offer[0] = SeaportTypes.OfferItem({
-                itemType: SeaportTypes.ItemType.ERC721,
-                token: address(this),
-                identifierOrCriteria: tokenId,
-                startAmount: 1,
-                endAmount: 1
-            });
 
-            SeaportTypes.ConsiderationItem[] memory consideration = new SeaportTypes.ConsiderationItem[](2);
+            {
+                uint256 tokenId = _firstTokenId + i;
+                uint256 tokenPrice = _prices[i];
+                if (tokenPrice == 0) revert WrapperErrors.ZeroPriceNotAllowed(); // although it is possible to validate zero price offer, it's impossible to fulfill it
+
+                // Create order
+                offer[0] = SeaportTypes.OfferItem({
+                    itemType: SeaportTypes.ItemType.ERC721,
+                    token: address(this),
+                    identifierOrCriteria: tokenId,
+                    startAmount: 1,
+                    endAmount: 1
+                });
+
+                {
+                    uint256 openSeaFee = (tokenPrice * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT;
+                    reducedPrice = tokenPrice - openSeaFee;
+
+                    consideration[1] = SeaportTypes.ConsiderationItem({
+                        itemType: itemType,
+                        token: _exchangeToken,
+                        identifierOrCriteria: 0,
+                        startAmount: openSeaFee, // If this is too small, OS won't show the order. This can happen if the price is too low.
+                        endAmount: openSeaFee,
+                        recipient: OS_RECIPIENT
+                    });
+                }
+
+                for (uint256 j = 0; j < _royaltyInfo.recipients.length; j++) {
+                    uint256 royaltyAmount = (_royaltyInfo.bps[j] * tokenPrice) / HUNDRED_PERCENT;
+                    consideration[j + 2] = SeaportTypes.ConsiderationItem({
+                        itemType: itemType,
+                        token: _exchangeToken,
+                        identifierOrCriteria: 0,
+                        startAmount: royaltyAmount,
+                        endAmount: royaltyAmount,
+                        recipient: payable(_royaltyInfo.recipients[j])
+                    });
+
+                    reducedPrice -= royaltyAmount;
+                }
+                fixedPrice[tokenId] = reducedPrice;
+            }
+
             consideration[0] = SeaportTypes.ConsiderationItem({
-                itemType: _exchangeToken == address(0) ? SeaportTypes.ItemType.NATIVE : SeaportTypes.ItemType.ERC20,
+                itemType: itemType,
                 token: _exchangeToken,
                 identifierOrCriteria: 0,
                 startAmount: reducedPrice,
@@ -222,28 +258,19 @@ contract SeaportWrapper is FermionFNFTBase {
                 recipient: payable(address(this))
             });
 
-            consideration[1] = SeaportTypes.ConsiderationItem({
-                itemType: _exchangeToken == address(0) ? SeaportTypes.ItemType.NATIVE : SeaportTypes.ItemType.ERC20,
-                token: _exchangeToken,
-                identifierOrCriteria: 0,
-                startAmount: tokenPrice - reducedPrice, // If this is too small, OS won't show the order. This can happen if the price is too low.
-                endAmount: tokenPrice - reducedPrice,
-                recipient: OS_RECIPIENT
-            });
-
             orders[i] = SeaportTypes.Order({
                 parameters: SeaportTypes.OrderParameters({
                     offerer: address(this),
-                    zone: OS_CONDUIT,
+                    zone: 0x000056F7000000EcE9003ca63978907a00FFD100, //0x000056F7000000EcE9003ca63978907a00FFD100, // OS_CONDUIT
                     offer: offer,
                     consideration: consideration,
-                    orderType: SeaportTypes.OrderType.FULL_OPEN,
-                    startTime: 0,
+                    orderType: SeaportTypes.OrderType.FULL_RESTRICTED,
+                    startTime: block.timestamp - 1 minutes,
                     endTime: _endTimes[i],
                     zoneHash: OS_ZONE_HASH,
                     salt: 0,
                     conduitKey: OS_CONDUIT_KEY,
-                    totalOriginalConsiderationItems: 2
+                    totalOriginalConsiderationItems: 2 + _royaltyInfo.recipients.length
                 }),
                 signature: ""
             });
