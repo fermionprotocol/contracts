@@ -8,6 +8,7 @@ import { Common } from "./Common.sol";
 
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
+import { FermionTypes } from "../domain/Types.sol";
 
 /**
  * @title SeaportWrapper
@@ -180,12 +181,14 @@ contract SeaportWrapper is FermionFNFTBase {
      * @param _firstTokenId The first token id.
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
+     * @param _royaltyInfo The royalty info.
      * @param _exchangeToken The token to be used for the exchange.
      */
     function listFixedPriceOrders(
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
+        FermionTypes.RoyaltyInfo calldata _royaltyInfo,
         address _exchangeToken
     ) external {
         SeaportTypes.Order[] memory orders = new SeaportTypes.Order[](_prices.length);

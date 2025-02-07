@@ -3,6 +3,7 @@ pragma solidity 0.8.24;
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
+import { FermionTypes } from "../domain/Types.sol";
 
 /**
  * @title FermionWrapper interface
@@ -43,12 +44,14 @@ interface IFermionWrapper is IERC721 {
      * @param _firstTokenId The first token id.
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
+     * @param _royaltyInfo The royalty info.
      * @param _exchangeToken The token to be used for the exchange.
      */
     function listFixedPriceOrders(
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
+        FermionTypes.RoyaltyInfo calldata _royaltyInfo,
         address _exchangeToken
     ) external;
 

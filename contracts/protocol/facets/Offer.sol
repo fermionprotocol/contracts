@@ -195,7 +195,17 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             FermionStorage.protocolStatus()
         );
 
-        wrapperAddress.listFixedPriceOrders(startingNFTId, _prices, _endTimes, exchangeToken);
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
+        uint256 royaltyInfoLength = royaltyInfoAll.length - 1; // if length=0, send empty
+
+        wrapperAddress.listFixedPriceOrders(
+            startingNFTId,
+            _prices,
+            _endTimes,
+            royaltyInfoAll[royaltyInfoLength],
+            exchangeToken
+        );
     }
 
     /**
@@ -402,7 +412,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      *
      * Reverts if:
      *   - There is more than 1 offer in the order
-     *   - There are more than 2 considerations in the order
      *   - OpenSea fee is higher than the price
      *   - OpenSea fee is higher than the expected fee
      *
