@@ -33,6 +33,7 @@ contract FermionFractionsMint is
      * This function is called when the first NFT is fractionalised.
      * If some NFTs are already fractionalised, use `mintFractions(uint256 _firstTokenId, uint256 _length)` instead.
      *
+     * @dev New epoch is advanced only when this function is called.
      * Emits FractionsSetup and Fractionalised events if successful.
      *
      * Reverts if:
@@ -65,8 +66,8 @@ contract FermionFractionsMint is
         if (_length == 0) {
             revert InvalidLength();
         }
-
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        uint256 currentEpoch = _getERC20Storage()._currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         if ($.nftCount > 0) {
             revert InitialFractionalisationOnly();
         }
@@ -96,6 +97,13 @@ contract FermionFractionsMint is
 
         if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
             revert InvalidPartialAuctionThreshold();
+
+        // if not the first epoch, we need to advance to the next epoch and set the exchange token
+        if (_advanceEpoch() != 0) {
+            address exchangeToken = $.exchangeToken;
+            $ = Common._getBuyoutAuctionStorage(currentEpoch + 1);
+            $.exchangeToken = exchangeToken;
+        }
 
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 
@@ -146,7 +154,7 @@ contract FermionFractionsMint is
             revert InvalidLength();
         }
 
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(_getERC20Storage()._currentEpoch);
         uint256 nftCount = $.nftCount;
         if (nftCount == 0) {
             revert MissingFractionalisation();

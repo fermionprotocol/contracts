@@ -37,13 +37,40 @@ library Common {
         }
     }
 
+    // NOTE: storing the initial buyout auction here when epoch = 0
     // keccak256(abi.encode(uint256(keccak256("fermion.buyout.auction.storage")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant BuyoutAuctionStorageLocation =
         0x224d6815573209d133aab26f2f52964556d2c06abbb82d0961460cd2e673cd00;
 
-    function _getBuyoutAuctionStorage() internal pure returns (FermionTypes.BuyoutAuctionStorage storage $) {
-        assembly {
-            $.slot := BuyoutAuctionStorageLocation
+    // NOTE: pointer to mapping(uint256 epoch => BuyoutAuctionStorageLocation)
+    // keccak256(abi.encode(uint256(keccak256("fermion.buyout.auction.storage.epochs")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant BuyoutAuctionStorageEpochsLocation =
+        0x7ea90b6250b50fe4d5b733a96ceefb11247134d8b2fa5878319c586d1d546a00;
+
+    /**
+     * @notice Get the buyout auction storage for a specific epoch
+     * @dev epoch = 0 is special case and stored directly in the storage location.
+     *       epoch != 0 is stored in the mapping(uint256 epoch => BuyoutAuctionStorageLocation)
+     *       where BuyoutAuctionStorageEpochsLocation is the mapping pointer location
+     *
+     * @param _epoch The epoch
+     * @return $ The storage
+     */
+    function _getBuyoutAuctionStorage(
+        uint256 _epoch
+    ) internal pure returns (FermionTypes.BuyoutAuctionStorage storage $) {
+        if (_epoch == 0) {
+            assembly {
+                $.slot := BuyoutAuctionStorageLocation
+            }
+        } else {
+            // Calculate the storage slot directly in assembly instead of reading from storage.
+            // This is more efficient and avoids the need for external storage reads.
+            assembly {
+                mstore(0x00, _epoch)
+                mstore(0x20, BuyoutAuctionStorageEpochsLocation)
+                $.slot := keccak256(0x00, 0x40)
+            }
         }
     }
 

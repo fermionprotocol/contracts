@@ -20,9 +20,16 @@ import { FermionTypes } from "../domain/Types.sol";
  * - public methods `transferFrom` and `approve` are not defined in this contract. They are defined as part of
  *   the FermionFNFT overrides, where ERC721 and ERC20 are combined. This is done, since otherwise the ERC20 and ERC721
  *   have different return types and cannot be overriden in the usual way.
+ *
+ * The contract implements an epoch-based balance tracking system:
+ * - Each epoch represents a distinct period where token balances and total supply are tracked separately
+ * - Each epoch maintains its own balance mapping and total supply
+ * - The current epoch's balances and total supply are used for all standard ERC20 token operations
+ * - Non standard functions that allows to transfer tokens, query balances and total supply in a specific epoch as well.
+ * NOTE: New epoch is advanced only when initial mintFractions is called (initial mintFractions can be called also when buyout auction parameters need to be updated)
  */
 abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors {
-    event FractionsTransfer(address indexed from, address indexed to, uint256 value);
+    event FractionsTransfer(address indexed from, address indexed to, uint256 value, uint256 epoch);
 
     // ERC20
     /// @custom:storage-location erc7201:openzeppelin.storage.ERC20
@@ -30,6 +37,10 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
         mapping(address account => uint256) _balances;
         mapping(address account => mapping(address spender => uint256)) _allowances;
         uint256 _totalSupply;
+        uint256 _currentEpoch;
+        mapping(uint256 epoch => mapping(address account => uint256)) _epochBalances;
+        mapping(uint256 epoch => mapping(address account => mapping(address spender => uint256))) _epochAllowances;
+        mapping(uint256 epoch => uint256) _epochTotalSupply;
     }
 
     // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
@@ -62,14 +73,23 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      * @dev See {IERC20-totalSupply}.
      */
     function totalSupply() public view virtual returns (uint256) {
-        return _getERC20Storage()._totalSupply;
+        ERC20Storage storage $ = _getERC20Storage();
+        return $._currentEpoch == 0 ? $._totalSupply : $._epochTotalSupply[$._currentEpoch];
     }
 
     /**
-     * @notice Returns the liquid number of fractions. Represents fractions of F-NFTs that are fractionalised
+     * @dev Returns the total supply for a specific epoch.
+     */
+    function totalSupply(uint256 epoch) public view virtual returns (uint256) {
+        ERC20Storage storage $ = _getERC20Storage();
+        return epoch == 0 ? $._totalSupply : $._epochTotalSupply[epoch];
+    }
+
+    /**
+     * @notice Returns the liquid number of fractions for current epoch. Represents fractions of F-NFTs that are fractionalised
      */
     function liquidSupply() public view virtual returns (uint256) {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(_getERC20Storage()._currentEpoch);
         return totalSupply() - $.unrestricedRedeemableSupply - $.lockedRedeemableSupply - $.pendingRedeemableSupply;
     }
 
@@ -77,7 +97,16 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      * @dev See {IERC20-balanceOf}.
      */
     function balanceOf(address account) public view virtual returns (uint256) {
-        return _getERC20Storage()._balances[account];
+        ERC20Storage storage $ = _getERC20Storage();
+        return $._currentEpoch == 0 ? $._balances[account] : $._epochBalances[$._currentEpoch][account];
+    }
+
+    /**
+     * @dev Returns the balance of an account for a specific epoch.
+     */
+    function balanceOf(address account, uint256 epoch) public view virtual returns (uint256) {
+        ERC20Storage storage $ = _getERC20Storage();
+        return epoch == 0 ? $._balances[account] : $._epochBalances[epoch][account];
     }
 
     /**
@@ -90,7 +119,21 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      */
     function transfer(address to, uint256 value) public virtual returns (bool) {
         address owner = _msgSender();
-        _transferFractions(owner, to, value);
+        _transferFractions(owner, to, value, _getERC20Storage()._currentEpoch);
+        return true;
+    }
+
+    /**
+     * @dev Non standard transfer function that allows to transfer tokens in a specific epoch
+     *
+     * Requirements:
+     *
+     * - `to` cannot be the zero address.
+     * - the caller must have a balance of at least `value` in the current epoch.
+     */
+    function transferInEpoch(address to, uint256 value, uint256 epoch) public virtual returns (bool) {
+        address owner = _msgSender();
+        _transferFractions(owner, to, value, epoch);
         return true;
     }
 
@@ -98,8 +141,24 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      * @dev See {IERC20-allowance}.
      */
     function allowance(address owner, address spender) public view virtual returns (uint256) {
-        uint256 spenderAllowance = _getERC20Storage()._allowances[owner][spender];
+        ERC20Storage storage $ = _getERC20Storage();
+        uint256 currentEpoch = $._currentEpoch;
+        uint256 spenderAllowance = currentEpoch == 0
+            ? $._allowances[owner][spender]
+            : $._epochAllowances[currentEpoch][owner][spender];
         if (spenderAllowance == type(uint128).max) spenderAllowance = type(uint256).max; // Update the value to make allowance consistent with standard approaches for infinite allowance
+        return spenderAllowance;
+    }
+
+    /**
+     * @dev Returns the allowance for a specific epoch.
+     */
+    function allowance(address owner, address spender, uint256 epoch) public view virtual returns (uint256) {
+        ERC20Storage storage $ = _getERC20Storage();
+        uint256 spenderAllowance = epoch == 0
+            ? $._allowances[owner][spender]
+            : $._epochAllowances[epoch][owner][spender];
+        if (spenderAllowance == type(uint128).max) spenderAllowance = type(uint256).max;
         return spenderAllowance;
     }
 
@@ -137,8 +196,9 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      */
     function transferFractionsFrom(address from, address to, uint256 value) internal virtual returns (bool) {
         address spender = _msgSender();
-        _spendAllowance(from, spender, value);
-        _transferFractions(from, to, value);
+        uint256 currentEpoch = _getERC20Storage()._currentEpoch;
+        _spendAllowance(from, spender, value, currentEpoch);
+        _transferFractions(from, to, value, currentEpoch);
         return true;
     }
 
@@ -152,14 +212,14 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      *
      * NOTE: This function is not virtual, {_update} should be overridden instead.
      */
-    function _transferFractions(address from, address to, uint256 value) internal {
+    function _transferFractions(address from, address to, uint256 value, uint256 epoch) internal {
         if (from == address(0)) {
             revert ERC20InvalidSender(address(0));
         }
         if (to == address(0)) {
             revert ERC20InvalidReceiver(address(0));
         }
-        _update(from, to, value);
+        _update(from, to, value, epoch);
     }
 
     /**
@@ -169,38 +229,50 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      *
      * Emits a {Transfer} event.
      */
-    function _update(address from, address to, uint256 value) internal virtual {
-        _adjustVotesOnTransfer(from, value);
-
+    function _update(address from, address to, uint256 value, uint256 epoch) internal virtual {
         ERC20Storage storage $ = _getERC20Storage();
+        // Get reference to the correct balances mapping
+        mapping(address => uint256) storage balances = epoch == 0 ? $._balances : $._epochBalances[epoch];
+
+        if (epoch == $._currentEpoch) {
+            _adjustVotesOnTransfer(from, value, epoch);
+        }
+
         if (from == address(0)) {
             // Overflow check required: The rest of the code assumes that totalSupply never overflows
-            $._totalSupply += value;
+            if (epoch == 0) {
+                $._totalSupply += value;
+            } else {
+                $._epochTotalSupply[epoch] += value;
+            }
         } else {
-            uint256 fromBalance = $._balances[from];
+            uint256 fromBalance = balances[from];
             if (fromBalance < value) {
                 revert ERC20InsufficientBalance(from, fromBalance, value);
             }
             unchecked {
-                // Overflow not possible: value <= fromBalance <= totalSupply.
-                $._balances[from] = fromBalance - value;
+                balances[from] = fromBalance - value;
             }
         }
 
         if (to == address(0)) {
             unchecked {
                 // Overflow not possible: value <= totalSupply or value <= fromBalance <= totalSupply.
-                $._totalSupply -= value;
+                if (epoch == 0) {
+                    $._totalSupply -= value;
+                } else {
+                    $._epochTotalSupply[epoch] -= value;
+                }
             }
         } else {
             unchecked {
                 // Overflow not possible: balance + value is at most totalSupply, which we know fits into a uint256.
-                $._balances[to] += value;
+                balances[to] += value;
             }
         }
 
         // NB: not emitting standard ERC20 transfer event since it clashes with ERC721 Transfer event and it could lead to inconsistentcies
-        emit FractionsTransfer(from, to, value);
+        emit FractionsTransfer(from, to, value, epoch);
     }
 
     /**
@@ -215,7 +287,7 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
         if (account == address(0)) {
             revert ERC20InvalidReceiver(address(0));
         }
-        _update(address(0), account, value);
+        _update(address(0), account, value, _getERC20Storage()._currentEpoch);
     }
 
     /**
@@ -226,11 +298,11 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      *
      * NOTE: This function is not virtual, {_update} should be overridden instead
      */
-    function _burn(address account, uint256 value) internal {
+    function _burn(address account, uint256 value, uint256 epoch) internal {
         if (account == address(0)) {
             revert ERC20InvalidSender(address(0));
         }
-        _update(account, address(0), value);
+        _update(account, address(0), value, epoch);
     }
 
     /**
@@ -249,11 +321,11 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      * Overrides to this logic should be done to the variant with an additional `bool emitEvent` argument.
      */
     function _approve(address owner, address spender, uint256 value) internal {
-        _approve(owner, spender, value, true);
+        _approve(owner, spender, value, true, _getERC20Storage()._currentEpoch);
     }
 
     /**
-     * @dev Variant of {_approve} with an optional flag to enable or disable the {Approval} event.
+     * @dev Variant of {_approve} with an optional flag to enable or disable the {Approval} event also accepting an epoch.
      *
      * By default (when calling {_approve}) the flag is set to true. On the other hand, approval changes made by
      * `_spendAllowance` during the `transferFrom` operation set the flag to false. This saves gas by not emitting any
@@ -269,14 +341,21 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      *
      * Requirements are the same as {_approve}.
      */
-    function _approve(address owner, address spender, uint256 value, bool emitEvent) internal virtual {
+    function _approve(address owner, address spender, uint256 value, bool emitEvent, uint256 epoch) internal virtual {
         if (owner == address(0)) {
             revert ERC20InvalidApprover(address(0));
         }
         if (spender == address(0)) {
             revert ERC20InvalidSpender(address(0));
         }
-        _getERC20Storage()._allowances[owner][spender] = value;
+
+        ERC20Storage storage $ = _getERC20Storage();
+
+        if (epoch == 0) {
+            $._allowances[owner][spender] = value;
+        } else {
+            $._epochAllowances[epoch][owner][spender] = value;
+        }
 
         if (value == type(uint128).max) value = type(uint256).max; // Update the value to make events consistent with standard approaches for infinite allowance
 
@@ -293,14 +372,14 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      *
      * Does not emit an {Approval} event.
      */
-    function _spendAllowance(address owner, address spender, uint256 value) internal virtual {
-        uint256 currentAllowance = allowance(owner, spender);
+    function _spendAllowance(address owner, address spender, uint256 value, uint256 epoch) internal virtual {
+        uint256 currentAllowance = allowance(owner, spender, epoch);
         if (currentAllowance != type(uint256).max) {
             if (currentAllowance < value) {
                 revert ERC20InsufficientAllowance(spender, currentAllowance, value);
             }
             unchecked {
-                _approve(owner, spender, currentAllowance - value, false);
+                _approve(owner, spender, currentAllowance - value, false, epoch);
             }
         }
     }
@@ -316,8 +395,8 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
      * @param voter The address of the voter whose votes are being adjusted.
      * @param amount The number of fractions being transferred.
      */
-    function _adjustVotesOnTransfer(address voter, uint256 amount) internal {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+    function _adjustVotesOnTransfer(address voter, uint256 amount, uint256 epoch) internal {
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(epoch);
         FermionTypes.PriceUpdateProposal storage proposal = $.currentProposal;
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
@@ -331,7 +410,7 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
             return; // Voter has no active votes
         }
 
-        uint256 remainingBalance = FermionFractionsERC20Base.balanceOf(voter) - amount;
+        uint256 remainingBalance = FermionFractionsERC20Base.balanceOf(voter, epoch) - amount;
 
         if (remainingBalance >= voteCount) {
             return; // Remaining balance is sufficient to support existing votes
@@ -346,6 +425,22 @@ abstract contract FermionFractionsERC20Base is ContextUpgradeable, IERC20Errors 
             } else {
                 proposal.noVotes -= votesToRemove;
             }
+        }
+    }
+
+    /**
+     * @dev Advances to the next epoch if the current epoch's total supply is 0.
+     * This function should be called when transitioning to a new epoch.
+     * @return newEpoch The new epoch
+     */
+    function _advanceEpoch() internal returns (uint256 newEpoch) {
+        ERC20Storage storage $ = _getERC20Storage();
+        uint256 currentEpoch = $._currentEpoch;
+        uint256 currentTotalSupply = currentEpoch == 0 ? $._totalSupply : $._epochTotalSupply[currentEpoch];
+
+        if (currentTotalSupply != 0) {
+            newEpoch = currentEpoch + 1;
+            $._currentEpoch = newEpoch;
         }
     }
 }
