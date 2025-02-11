@@ -678,6 +678,76 @@ describe("Entity", function () {
       });
     });
 
+    context("renounceAccountRole", function () {
+      const entityId = 1;
+      const entityRoles = [
+        [EntityRole.Custodian, EntityRole.Verifier],
+        [EntityRole.Custodian, EntityRole.Verifier],
+      ];
+      let wallet: HardhatEthersSigner;
+      let wallet2: HardhatEthersSigner;
+
+      beforeEach(async function () {
+        await entityFacet.createEntity([EntityRole.Seller, EntityRole.Verifier, EntityRole.Custodian], metadataURI);
+        wallet = wallets[2];
+        wallet2 = wallets[3];
+        const walletRoles = [
+          [[AccountRole.Manager], [AccountRole.Manager]],
+          [[AccountRole.Manager], [AccountRole.Manager]],
+        ];
+
+        await entityFacet.addEntityAccounts(entityId, [wallet.address, wallet2.address], entityRoles, walletRoles);
+      });
+
+      it("Wallet can renounce its role", async function () {
+        // test event
+        await expect(
+          entityFacet.connect(wallet).renounceAccountRole(entityId, EntityRole.Custodian, AccountRole.Manager),
+        )
+          .to.emit(entityFacet, "EntityAccountRemoved")
+          .withArgs(entityId, wallet.address, [EntityRole.Custodian], [[AccountRole.Manager]]);
+
+        // verify state
+        expect(
+          await entityFacet.hasAccountRole(entityId, wallet.address, EntityRole.Custodian, AccountRole.Manager),
+        ).to.be.equal(false);
+        expect(
+          await entityFacet.hasAccountRole(entityId, wallet2.address, EntityRole.Custodian, AccountRole.Manager),
+        ).to.be.equal(true);
+      });
+
+      context("Revert reasons", function () {
+        it("Entity region is paused", async function () {
+          await pauseFacet.pause([PausableRegion.Entity]);
+
+          await expect(
+            entityFacet.connect(wallet).renounceAccountRole(entityId, EntityRole.Custodian, AccountRole.Manager),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+            .withArgs(PausableRegion.Entity);
+        });
+
+        it("Entity does not exist", async function () {
+          await expect(entityFacet.connect(wallet).renounceAccountRole(0, EntityRole.Custodian, AccountRole.Manager))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(0);
+
+          await expect(entityFacet.connect(wallet).renounceAccountRole(10, EntityRole.Custodian, AccountRole.Manager))
+            .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
+            .withArgs(10);
+        });
+
+        it("Caller does not have the role", async function () {
+          const wallet3 = wallets[4];
+          await expect(
+            entityFacet.connect(wallet3).renounceAccountRole(entityId, EntityRole.Custodian, AccountRole.Manager),
+          )
+            .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
+            .withArgs(entityId, wallet3.address, EntityRole.Custodian, AccountRole.Manager);
+        });
+      });
+    });
+
     context("setAdmin", function () {
       const entityId = 1;
       const metadataURI = "https://example.com/metadata.json";
