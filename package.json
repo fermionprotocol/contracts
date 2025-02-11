@@ -29,10 +29,10 @@
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
     "@types/mocha": ">=10.0.10",
-    "@types/node": ">=22.12.0",
+    "@types/node": ">=22.13.1",
     "chai": "^4.5.0",
     "eip55": "^2.1.1",
-    "eslint": "^9.19.0",
+    "eslint": "^9.20.0",
     "eslint-config-prettier": "^10.0.1",
     "ethers": "^6.13.5",
     "glob": "^11.0.1",
@@ -40,7 +40,7 @@
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.8",
     "hardhat-preprocessor": "^0.1.5",
-    "prettier": "^3.4.2",
+    "prettier": "^3.5.0",
     "prettier-plugin-solidity": "^1.4.2",
     "seaport": "git+https://github.com/ProjectOpenSea/seaport#1.6",
     "seaport-core": "git+https://github.com/ProjectOpenSea/seaport-core#1.6.6",
@@ -50,7 +50,7 @@
     "ts-node": "^10.9.2",
     "typechain": "^8.3.0",
     "typescript": ">=5.7.3",
-    "typescript-eslint": "^8.22.0"
+    "typescript-eslint": "^8.24.0"
   },
   "dependencies": {
     "@opensea/seaport-js": "4.0.4",
