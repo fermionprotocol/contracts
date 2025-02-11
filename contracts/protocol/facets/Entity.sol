@@ -199,20 +199,19 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-     * @notice Allows a wallet to renounce its own role.
-     *
-     * Emits an EntityAccountRemoved event if successful.
-     *
-     * Reverts if:
-     * - Entity region is paused
-     * - Entity does not exist
-     * - Caller does not have the role
-     * - Renouncing would lock the entity (no other wallet has the same role)
-     *
-     * @param _entityId - the entity ID
-     * @param _entityRole - the role to renounce
-     * @param _accountRole - the account role to renounce
-     */
+    * @notice Allows a wallet to renounce one of its account roles for a specific entity role.
+    *
+    * Emits an EntityAccountRemoved event if successful.
+    *
+    * Reverts if:
+    * - Entity region is paused
+    * - Entity does not exist
+    * - Caller does not have the specified account role for the specified entity role
+    *
+    * @param _entityId - the entity ID
+    * @param _entityRole - the entity role for which to renounce the account role
+    * @param _accountRole - the account role to renounce
+    */
     function renounceAccountRole(
         uint256 _entityId,
         FermionTypes.EntityRole _entityRole,
