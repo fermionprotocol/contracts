@@ -222,6 +222,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       functionCall,
     );
 
+    await accessController.renounceRole(ethers.id("UPGRADER"), deployerAddress);
+
     facets["InitializationFacet"] = initializationFacet;
     facets["AccessController"] = accessController;
   }
