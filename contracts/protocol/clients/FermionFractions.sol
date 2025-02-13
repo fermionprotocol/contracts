@@ -8,7 +8,6 @@ import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
 import { Common } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
@@ -22,7 +21,6 @@ abstract contract FermionFractions is
     FermionFractionsERC20Base,
     FermionFNFTBase,
     FermionErrors,
-    FundsLib,
     IFermionFractionsEvents,
     IFermionFractions
 {

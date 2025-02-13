@@ -171,86 +171,138 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * Reverts if:
      * - Offer region is paused
      * - Caller is not the seller's assistant or facilitator
+     * - The lengths of the prices and endTimes arrays do not match
+     *
+     * Note: The notPaused and nonentrant modifier and enforced in the mintWrapFixedPriced function
      *
      * @param _offerId - the offer ID
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
      */
-    function mintWrapAndListNFTs(
-        uint256 _offerId,
-        uint256[] calldata _prices,
-        uint256[] calldata _endTimes
-    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        if (_prices.length != _endTimes.length)
-            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, _endTimes.length);
+    function mintWrapAndListNFTs(uint256 _offerId, uint256[] calldata _prices, uint256[] calldata _endTimes) external {
+        (address wrapperAddress, address exchangeToken, uint256 startingNFTId) = mintWrapFixedPriced(
+            _offerId,
+            _prices.length
+        );
 
-        uint256 quantity = _prices.length;
-        (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, quantity);
-        (address wrapperAddress, address exchangeToken) = wrapNFTS(
+        listFixedPriceOrdersInternal(_offerId, _prices, _endTimes, wrapperAddress, startingNFTId);
+    }
+
+    /**
+     * @notice Mint and wrap NFTs in a way to enable fixed price offers on seaport
+     * This is a two-step process, where the first step is to mint and wrap the NFTs,
+     * and the second step is to list them by calling the listFixedPriceOrders.
+     *
+     * Emits an NFTsMinted and NFTsWrapped event
+     *
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator
+     *
+     * @param _offerId - the offer ID
+     * @param _quantity the number of NFTs to mint
+     */
+    function mintWrapFixedPriced(
+        uint256 _offerId,
+        uint256 _quantity
+    )
+        public
+        notPaused(FermionTypes.PausableRegion.Offer)
+        nonReentrant
+        returns (address wrapperAddress, address exchangeToken, uint256 startingNFTId)
+    {
+        IBosonVoucher bosonVoucher;
+        (bosonVoucher, startingNFTId) = mintNFTs(_offerId, _quantity);
+        (wrapperAddress, exchangeToken) = wrapNFTS(
             _offerId,
             bosonVoucher,
             startingNFTId,
-            quantity,
+            _quantity,
             FermionTypes.WrapType.OS_FIXED_PRICE,
             FermionStorage.protocolStatus()
         );
 
-        // Todo: handle zeroAddress
-        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-        FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
-        uint256 royaltyInfoLength = royaltyInfoAll.length - 1; // if length=0, send empty
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
+        if (offerLookup.firstTokenId == 0) {
+            offerLookup.firstTokenId = startingNFTId;
+        }
 
-        wrapperAddress.listFixedPriceOrders(
-            startingNFTId,
+        offerLookup.itemQuantity += _quantity;
+    }
+
+    /**
+     * @notice List a fixed price offer on seaport.
+     * This is a second step after mintWrapFixedPriced.
+     *
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator <todo
+     * - The lengths of the prices and endTimes arrays are not equal to the number of minted tokens
+     *
+     * @param _offerId - the offer ID
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     */
+    function listFixedPriceOrders(
+        uint256 _offerId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
+        if (_prices.length != offerLookup.itemQuantity)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, offerLookup.itemQuantity);
+
+        listFixedPriceOrdersInternal(
+            _offerId,
             _prices,
             _endTimes,
-            royaltyInfoAll[royaltyInfoLength],
-            exchangeToken
+            offerLookup.fermionFNFTAddress,
+            offerLookup.firstTokenId
         );
     }
 
-    function mintWrapOnly(
-        uint256 _offerId,
-        uint256[] calldata _prices,
-        uint256[] calldata _endTimes
-    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        if (_prices.length != _endTimes.length)
-            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, _endTimes.length);
-
-        uint256 quantity = _prices.length;
-        (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, quantity);
-        (address wrapperAddress, address exchangeToken) = wrapNFTS(
-            _offerId,
-            bosonVoucher,
-            startingNFTId,
-            quantity,
-            FermionTypes.WrapType.OS_FIXED_PRICE,
-            FermionStorage.protocolStatus()
-        );
-    }
-
-    function listFixedPriced(
+    /**
+     * @notice List a fixed price offer on seaport.
+     *
+     * Reverts if:
+     * - The lengths of the prices and endTimes arrays do not match
+     *
+     * @param _offerId - the offer ID
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     */
+    function listFixedPriceOrdersInternal(
         uint256 _offerId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
         address wrapperAddress,
-        address exchangeToken,
         uint256 startingNFTId
-    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+    ) internal {
         if (_prices.length != _endTimes.length)
             revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, _endTimes.length);
 
-        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
-        FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
-        uint256 royaltyInfoLength = royaltyInfoAll.length - 1; // if length=0, send empty
+        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
+        FermionTypes.Offer storage offer = pe.offer[_offerId];
+        FermionTypes.RoyaltyInfo memory lastRoyaltyInfo;
+        {
+            FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
 
-        wrapperAddress.listFixedPriceOrders(
-            startingNFTId,
-            _prices,
-            _endTimes,
-            royaltyInfoAll[royaltyInfoLength],
-            exchangeToken
-        );
+            if (royaltyInfoAll.length > 0) {
+                // Length 0 represents v1.0 offers, where royalties were not supported. Send empty royalties in that case.
+                // In other cases, send the last royalty info.
+                lastRoyaltyInfo = royaltyInfoAll[royaltyInfoAll.length - 1];
+
+                // If some of the royalty recipient is set to 0, replace it with entity admin
+                for (uint256 i = 0; i < lastRoyaltyInfo.recipients.length; i++) {
+                    if (lastRoyaltyInfo.recipients[i] == address(0)) {
+                        lastRoyaltyInfo.recipients[i] = payable(pe.entityData[offer.sellerId].admin);
+                        break;
+                    }
+                }
+            }
+        }
+
+        wrapperAddress.listFixedPriceOrders(startingNFTId, _prices, _endTimes, lastRoyaltyInfo, offer.exchangeToken);
     }
 
     /**

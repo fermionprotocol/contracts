@@ -24,6 +24,7 @@ contract SeaportWrapper is FermionFNFTBase {
         address seaport;
         address openSeaConduit;
         bytes32 openSeaConduitKey;
+        address openSeaSignedZone;
         bytes32 openSeaZoneHash;
         address payable openSeaRecipient;
     }
@@ -33,6 +34,7 @@ contract SeaportWrapper is FermionFNFTBase {
     // OpenSea Conduit
     address private immutable OS_CONDUIT;
     bytes32 private immutable OS_CONDUIT_KEY;
+    address private immutable OS_SIGNED_ZONE;
     bytes32 private immutable OS_ZONE_HASH;
     address payable private immutable OS_RECIPIENT;
 
@@ -51,6 +53,7 @@ contract SeaportWrapper is FermionFNFTBase {
             ? _seaportConfig.seaport
             : _seaportConfig.openSeaConduit;
         OS_CONDUIT_KEY = _seaportConfig.openSeaConduitKey;
+        OS_SIGNED_ZONE = _seaportConfig.openSeaSignedZone;
         OS_ZONE_HASH = _seaportConfig.openSeaZoneHash;
         OS_RECIPIENT = _seaportConfig.openSeaRecipient;
     }
@@ -261,7 +264,7 @@ contract SeaportWrapper is FermionFNFTBase {
             orders[i] = SeaportTypes.Order({
                 parameters: SeaportTypes.OrderParameters({
                     offerer: address(this),
-                    zone: 0x000056F7000000EcE9003ca63978907a00FFD100, //0x000056F7000000EcE9003ca63978907a00FFD100, // OS_CONDUIT
+                    zone: OS_SIGNED_ZONE,
                     offer: offer,
                     consideration: consideration,
                     orderType: SeaportTypes.OrderType.FULL_RESTRICTED,
