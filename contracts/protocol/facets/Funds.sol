@@ -5,19 +5,19 @@ import { FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FundsErrors, EntityErrors, FermionGeneralErrors, OfferErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
-import { Context } from "../libs/Context.sol";
+import { Context } from "../bases/mixins/Context.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 
 /**
  * @title FundsFacet
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
-    constructor(bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {}
+contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents {
+    constructor(bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {}
 
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.

@@ -4,11 +4,11 @@ pragma solidity 0.8.24;
 import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
 import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
-import { Context } from "../libs/Context.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
+import { Context } from "../bases/mixins/Context.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
@@ -27,14 +27,14 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  *
  * @notice Handles offer listing.
  */
-contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
+contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
 
-    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
+    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
