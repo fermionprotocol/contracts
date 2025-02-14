@@ -5,7 +5,6 @@ import { FermionErrors } from "../../protocol/domain/Errors.sol";
 import { ADMIN, PAUSER, UPGRADER, FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
 import { AccessControlUpgradeable as AccessControl } from "@openzeppelin/contracts-upgradeable/access/AccessControlUpgradeable.sol";
 import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import { LibDiamond } from "../libraries/LibDiamond.sol";
 import { Context } from "../../protocol/bases/mixins/Context.sol";
 
 /**

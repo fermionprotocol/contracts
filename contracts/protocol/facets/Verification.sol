@@ -6,7 +6,6 @@ import { FermionTypes } from "../domain/Types.sol";
 import { VerificationErrors, FermionGeneralErrors, OfferErrors, SignatureErrors } from "../domain/Errors.sol";
 import { Access } from "../bases/mixins/Access.sol";
 import { Context } from "../bases/mixins/Context.sol";
-import { Custody } from "../bases/mixins/Custody.sol";
 import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
@@ -23,7 +22,7 @@ import { EIP712 } from "../libs/EIP712.sol";
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, Access, FundsManager, EIP712, VerificationErrors, Custody, IVerificationEvents {
+contract VerificationFacet is Context, Access, FundsManager, EIP712, VerificationErrors, IVerificationEvents {
     using FermionFNFTLib for address;
 
     bytes32 private constant SIGNED_PROPOSAL_TYPEHASH =
