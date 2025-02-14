@@ -219,11 +219,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        EntityLib.validateEntityId(_entityId, pl);
-
-        if (!EntityLib.hasAccountRole(_entityId, msgSender, _entityRole, _accountRole, false)) {
-            revert EntityErrors.AccountHasNoRole(_entityId, msgSender, _entityRole, _accountRole);
-        }
+        EntityLib.validateAccountRole(_entityId, msgSender, _entityRole,_accountRole);
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
 
