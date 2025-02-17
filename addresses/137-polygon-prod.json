@@ -41,9 +41,7 @@
           {
             "facetAddress": "0x721812fc5a76425d665F0C7DfE6F14c6db8CE592",
             "action": 0,
-            "functionSelectors": [
-              "0x1f931c1c"
-            ]
+            "functionSelectors": ["0x1f931c1c"]
           },
           {
             "facetAddress": "0xB90ABb00192eA91C3Aa5AA5c1d5068dc19C142d1",
@@ -71,9 +69,7 @@
           {
             "facetAddress": "0x9834A7c720911470582BC9BB1A311267485D6981",
             "action": 0,
-            "functionSelectors": [
-              "0x0d8e6e2c"
-            ]
+            "functionSelectors": ["0x0d8e6e2c"]
           }
         ],
         {
@@ -95,23 +91,17 @@
     {
       "name": "MetaTransactionFacet",
       "address": "0x74D6D620a3D41fb4a46f4835e069D930B2D7212e",
-      "args": [
-        "0x93b330001bcaad603e21e2639fb041cdea472449"
-      ]
+      "args": ["0x93b330001bcaad603e21e2639fb041cdea472449"]
     },
     {
       "name": "OfferFacet",
       "address": "0xA881367b3f1C97683d46B70E567e753a0EF28954",
-      "args": [
-        "0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"
-      ]
+      "args": ["0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"]
     },
     {
       "name": "VerificationFacet",
       "address": "0x7327163302406a96D4f837E26eaDb0eDd729b188",
-      "args": [
-        "0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"
-      ]
+      "args": ["0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"]
     },
     {
       "name": "CustodyFacet",
