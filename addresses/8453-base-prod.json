@@ -6,7 +6,7 @@
   "contracts": [
     {
       "name": "FermionFNFT",
-      "address": "0xa6916ced80247Ba8752d859CCc4176965bdBEE6A",
+      "address": "0xE462F8bb985Df0CE5a5439a964F4E827d3aA70C3",
       "args": [
         "0xd8C3B2232B3d597156148f757Bb2bd665843aABd",
         "0x8baa62Dc3D748fc466A36229451703560d854C6F",
