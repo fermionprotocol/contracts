@@ -108,7 +108,13 @@ export async function encodeBuyerAdvancedOrder(
 }
 
 export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, wrapperAddress: string) {
-  return async function getOrderParameters(tokenId: string, exchangeToken: string, fullPrice: bigint, endTime: string) {
+  return async function getOrderParameters(
+    tokenId: string,
+    exchangeToken: string,
+    fullPrice: bigint,
+    startTime: string,
+    endTime: string,
+  ) {
     const openSeaFee = (fullPrice * 2_50n) / 100_00n;
     const { executeAllActions } = await seaport.createOrder(
       {
@@ -133,17 +139,16 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
           },
         ],
         conduitKey: seaportConfig.openSeaConduitKey,
-        zone:
-          seaportConfig.openSeaConduit == ZeroAddress
-            ? await seaport.contract.getAddress()
-            : seaportConfig.openSeaConduit,
+        zone: seaportConfig.openSeaSignedZone,
         zoneHash: seaportConfig.openSeaZoneHash,
-        startTime: "0", // matching the value in seaportWrapper.listFixedPriceOrders
+        startTime,
         endTime,
         salt: "0", // matching the value in seaportWrapper.listFixedPriceOrders
+        restrictedByZone: seaportConfig.openSeaSignedZone != ZeroAddress,
       },
       wrapperAddress,
     );
+
     const fixedPriceOrder = await executeAllActions();
 
     return fixedPriceOrder.parameters;

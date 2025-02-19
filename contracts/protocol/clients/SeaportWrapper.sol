@@ -267,7 +267,9 @@ contract SeaportWrapper is FermionFNFTBase {
                     zone: OS_SIGNED_ZONE,
                     offer: offer,
                     consideration: consideration,
-                    orderType: SeaportTypes.OrderType.FULL_RESTRICTED,
+                    orderType: OS_SIGNED_ZONE == address(0)
+                        ? SeaportTypes.OrderType.FULL_OPEN
+                        : SeaportTypes.OrderType.FULL_RESTRICTED,
                     startTime: block.timestamp - 1 minutes,
                     endTime: _endTimes[i],
                     zoneHash: OS_ZONE_HASH,

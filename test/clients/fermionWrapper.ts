@@ -30,6 +30,7 @@ describe("FermionFNFT - wrapper tests", function () {
   let seaport: Seaport;
   const metadataURI = "https://example.com";
   const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
+  const royaltyInfo = { recipients: [], bps: [] };
 
   async function setupFermionWrapperTest() {
     wallets = await ethers.getSigners();
@@ -278,6 +279,7 @@ describe("FermionFNFT - wrapper tests", function () {
       tokenId: string,
       exchangeToken: string,
       fullPrice: bigint,
+      startTime: string,
       endTime: string,
     ) => Promise<OrderComponents>;
     let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
@@ -317,16 +319,19 @@ describe("FermionFNFT - wrapper tests", function () {
 
     context("listFixedPriceOrders", function () {
       it("Protocol can list fixed price offer", async function () {
-        await fermionProtocolSigner.sendTransaction({
+        const tx = await fermionProtocolSigner.sendTransaction({
           to: await fermionWrapperProxy.getAddress(),
           data:
             fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrders", [
               startTokenId,
               prices,
               endTimes,
+              royaltyInfo,
               await mockERC20.getAddress(),
             ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
         });
+
+        const startTime = (await tx.getBlock()).timestamp - 60;
 
         const exchangeToken = await mockERC20.getAddress();
 
@@ -338,6 +343,7 @@ describe("FermionFNFT - wrapper tests", function () {
             tokenId.toString(),
             exchangeToken,
             prices[Number(i)],
+            startTime.toString(),
             endTimes[Number(i)].toString(),
           );
           expect(orderStatus.isValidated).to.equal(true);
@@ -350,7 +356,7 @@ describe("FermionFNFT - wrapper tests", function () {
           await expect(
             fermionWrapperProxy
               .connect(randomWallet)
-              .listFixedPriceOrders(startTokenId, prices, endTimes, await mockBoson.getAddress()),
+              .listFixedPriceOrders(startTokenId, prices, endTimes, royaltyInfo, await mockBoson.getAddress()),
           )
             .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
             .withArgs(startTokenId, randomWallet.address, TokenState.Wrapped);
@@ -366,6 +372,7 @@ describe("FermionFNFT - wrapper tests", function () {
                   startTokenId,
                   zeroPrices,
                   endTimes,
+                  royaltyInfo,
                   await mockERC20.getAddress(),
                 ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
             }),
@@ -590,6 +597,7 @@ describe("FermionFNFT - wrapper tests", function () {
               startTokenId,
               prices,
               endTimes,
+              royaltyInfo,
               await mockERC20.getAddress(),
             ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
         });
@@ -700,6 +708,7 @@ describe("FermionFNFT - wrapper tests", function () {
             startTokenId,
             prices,
             endTimes,
+            royaltyInfo,
             await mockERC20.getAddress(),
           ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
       });

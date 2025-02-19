@@ -983,6 +983,7 @@ describe("Offer", function () {
       tokenId: string,
       exchangeToken: string,
       fullPrice: bigint,
+      startTime: string,
       endTime: string,
     ) => Promise<OrderComponents>;
     let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
@@ -1021,7 +1022,8 @@ describe("Offer", function () {
       const nextBosonExchangeId = await bosonExchangeHandler.getNextExchangeId();
       startingTokenId = deriveTokenId(bosonOfferId, nextBosonExchangeId);
 
-      await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+      const tx = await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+      const startTime = (await tx.getBlock()).timestamp - 60;
 
       const exchangeToken = await mockToken.getAddress();
       orders = await Promise.all(
@@ -1030,6 +1032,7 @@ describe("Offer", function () {
             (startingTokenId + BigInt(i)).toString(),
             exchangeToken,
             price,
+            startTime.toString(),
             endTimes[i].toString(),
           );
         }),
@@ -2727,6 +2730,7 @@ describe("Offer", function () {
         const endTimes = [MaxUint256];
         const abiCoder = new ethers.AbiCoder();
         const encodedPrice = abiCoder.encode(["uint256"], [fullPrice - openSeaFee]);
+        let startTime: number;
 
         beforeEach(async function () {
           const fermionOffer = {
@@ -2746,7 +2750,8 @@ describe("Offer", function () {
           };
 
           await offerFacet.createOffer(fermionOffer);
-          await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+          const tx = await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+          startTime = (await tx.getBlock()).timestamp - 60;
         });
 
         context("unwrap with sale on OS", async function () {
@@ -2761,7 +2766,13 @@ describe("Offer", function () {
             seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
 
             const getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
-            const parameters = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTimes[0].toString());
+            const parameters = await getOrderParameters(
+              tokenId,
+              exchangeToken,
+              fullPrice,
+              startTime.toString(),
+              endTimes[0].toString(),
+            );
 
             const { executeAllActions } = await seaport.fulfillOrder({
               order: { parameters, signature: "0x" },
@@ -2946,6 +2957,7 @@ describe("Offer", function () {
               const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
               let wrapperAddress: string;
               let fermionWrapper: Contract;
+              let startTime: number;
 
               beforeEach(async function () {
                 const fermionOffer = {
@@ -2968,7 +2980,8 @@ describe("Offer", function () {
                 await offerFacet.createOffer(fermionOffer);
 
                 // mint and wrap
-                await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+                const tx = await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+                startTime = (await tx.getBlock()).timestamp - 60;
 
                 wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
                 fermionWrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
@@ -2976,44 +2989,18 @@ describe("Offer", function () {
 
               it("Non-zero item price", async function () {
                 const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
-                const { executeAllActions } = await seaport.createOrder(
-                  {
-                    offer: [
-                      {
-                        itemType: ItemType.ERC721,
-                        token: wrapperAddress,
-                        identifier: tokenId,
-                      },
-                    ],
-                    consideration: [
-                      {
-                        itemType: ItemType.ERC20,
-                        token: exchangeToken,
-                        amount: fullPrice - openSeaFee,
-                      },
-                      {
-                        itemType: ItemType.ERC20,
-                        token: exchangeToken,
-                        amount: openSeaFee,
-                        recipient: openSeaAddress,
-                      },
-                    ],
-                    conduitKey: seaportConfig.openSeaConduitKey,
-                    zone: seaportConfig.openSeaConduit == ZeroAddress ? seaportAddress : seaportConfig.openSeaConduit,
-                    zoneHash: seaportConfig.openSeaZoneHash,
-                    startTime: "0",
-                    endTime: endTimes[0].toString(),
-                    salt: "0",
-                  },
-                  wrapperAddress,
+                const getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
+                const parameters = await getOrderParameters(
+                  tokenId,
+                  exchangeToken,
+                  fullPrice,
+                  startTime.toString(),
+                  endTimes[0].toString(),
                 );
-
-                // just to get the order
-                const fixedPriceOrder = await executeAllActions();
 
                 await mockToken.mint(buyerAddress, fullPrice);
                 const { executeAllActions: executeAllActionsBuyer } = await seaport.fulfillOrder({
-                  order: { ...fixedPriceOrder, signature: "0x" },
+                  order: { parameters, signature: "0x" },
                 });
                 await executeAllActionsBuyer();
                 const encodedPrice = abiCoder.encode(["uint256"], [fullPrice - openSeaFee]);
@@ -3645,7 +3632,8 @@ describe("Offer", function () {
           };
 
           await offerFacet.createOffer(fermionOffer);
-          await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+          const tx = await offerFacet.mintWrapAndListNFTs(bosonOfferId, prices, endTimes);
+          const startTime = (await tx.getBlock()).timestamp - 60;
 
           const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
 
@@ -3656,7 +3644,13 @@ describe("Offer", function () {
 
           seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
           const getOrderParameters = getOrderParametersClosure(seaport, seaportConfig, wrapperAddress);
-          const parameters = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTimes[0].toString());
+          const parameters = await getOrderParameters(
+            tokenId,
+            exchangeToken,
+            fullPrice,
+            startTime.toString(),
+            endTimes[0].toString(),
+          );
 
           const { executeAllActions } = await seaport.fulfillOrder({
             order: { parameters, signature: "0x" },
