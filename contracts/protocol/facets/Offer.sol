@@ -252,6 +252,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         if (_prices.length != offerLookup.itemQuantity)
             revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, offerLookup.itemQuantity);
 
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
+
         listFixedPriceOrdersInternal(
             _offerId,
             _prices,
