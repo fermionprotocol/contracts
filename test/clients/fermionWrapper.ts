@@ -281,13 +281,16 @@ describe("FermionFNFT - wrapper tests", function () {
       fullPrice: bigint,
       startTime: string,
       endTime: string,
+      royalties?: { recipients: string[]; bps: bigint[] },
     ) => Promise<OrderComponents>;
     let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
     let getOrderParametersAndStatus: (
       tokenId: string,
       exchangeToken: string,
       fullPrice: bigint,
+      startTime: string,
       endTime: string,
+      royalties?: { recipients: string[]; bps: bigint[] },
     ) => Promise<{ orderComponents: OrderComponents; orderStatus: { isCancelled: boolean; isValidated: boolean } }>;
 
     before(async function () {
@@ -345,6 +348,43 @@ describe("FermionFNFT - wrapper tests", function () {
             prices[Number(i)],
             startTime.toString(),
             endTimes[Number(i)].toString(),
+          );
+          expect(orderStatus.isValidated).to.equal(true);
+        }
+      });
+
+      it.only("Protocol can list fixed price offer with royalties", async function () {
+        const royaltyInfo = {
+          recipients: [wallets[4].address, wallets[5].address],
+          bps: [10_00n, 5_00n],
+        };
+        const tx = await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrders", [
+              startTokenId,
+              prices,
+              endTimes,
+              royaltyInfo,
+              await mockERC20.getAddress(),
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        const startTime = (await tx.getBlock()).timestamp - 60;
+
+        const exchangeToken = await mockERC20.getAddress();
+
+        for (let i = 0n; i < quantity; i++) {
+          const tokenId = startTokenId + i;
+          expect(await fermionWrapperProxy.ownerOf(tokenId)).to.equal(wrapperAddress);
+
+          const { orderStatus } = await getOrderParametersAndStatus(
+            tokenId.toString(),
+            exchangeToken,
+            prices[Number(i)],
+            startTime.toString(),
+            endTimes[Number(i)].toString(),
+            royaltyInfo,
           );
           expect(orderStatus.isValidated).to.equal(true);
         }

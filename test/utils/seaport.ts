@@ -114,8 +114,25 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
     fullPrice: bigint,
     startTime: string,
     endTime: string,
+    royalties: { recipients: string[]; bps: bigint[] } = { recipients: [], bps: [] },
   ) {
     const openSeaFee = (fullPrice * 2_50n) / 100_00n;
+    let reducedPrice = fullPrice - openSeaFee;
+    const royaltyConsiderations = [];
+    for (let i = 0; i < royalties.recipients.length; i++) {
+      const royalty = (fullPrice * royalties.bps[i]) / 100_00n;
+
+      const consideration = {
+        itemType: ItemType.ERC20,
+        token: exchangeToken,
+        amount: royalty.toString(),
+        recipient: royalties.recipients[i],
+      };
+      royaltyConsiderations.push(consideration);
+
+      reducedPrice -= royalty;
+    }
+
     const { executeAllActions } = await seaport.createOrder(
       {
         offer: [
@@ -129,7 +146,7 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
           {
             itemType: ItemType.ERC20,
             token: exchangeToken,
-            amount: (fullPrice - openSeaFee).toString(),
+            amount: reducedPrice.toString(),
           },
           {
             itemType: ItemType.ERC20,
@@ -137,6 +154,7 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
             amount: openSeaFee.toString(),
             recipient: seaportConfig.openSeaRecipient,
           },
+          ...royaltyConsiderations,
         ],
         conduitKey: seaportConfig.openSeaConduitKey,
         zone: seaportConfig.openSeaSignedZone,
@@ -169,7 +187,9 @@ export function getOrderParametersAndStatusClosure(
     tokenId: string,
     exchangeToken: string,
     fullPrice: bigint,
+    startTime: string,
     endTime: string,
+    royalties: { recipients: string[]; bps: bigint[] },
   ) => Promise<OrderComponents>,
   getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>,
 ) {
@@ -177,9 +197,11 @@ export function getOrderParametersAndStatusClosure(
     tokenId: string,
     exchangeToken: string,
     fullPrice: bigint,
+    startTime: string,
     endTime: string,
+    royalties: { recipients: string[]; bps: bigint[] } = { recipients: [], bps: [] },
   ) {
-    const orderComponents = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTime);
+    const orderComponents = await getOrderParameters(tokenId, exchangeToken, fullPrice, startTime, endTime, royalties);
     const orderStatus = await getOrderStatus(orderComponents);
 
     return { orderComponents, orderStatus };
