@@ -353,7 +353,7 @@ describe("FermionFNFT - wrapper tests", function () {
         }
       });
 
-      it.only("Protocol can list fixed price offer with royalties", async function () {
+      it("Protocol can list fixed price offer with royalties", async function () {
         const royaltyInfo = {
           recipients: [wallets[4].address, wallets[5].address],
           bps: [10_00n, 5_00n],

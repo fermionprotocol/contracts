@@ -977,6 +977,7 @@ describe("Offer", function () {
     const withPhygital = false;
 
     beforeEach(async function () {
+      const royaltyInfo = [{ recipients: [defaultSigner.address, ZeroAddress], bps: [10_00n, 5_10n] }];
       const fermionOffer = {
         sellerId: "1",
         sellerDeposit,
