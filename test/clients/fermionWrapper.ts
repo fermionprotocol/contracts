@@ -41,6 +41,7 @@ describe("FermionFNFT - wrapper tests", function () {
 
     ({ seaportAddress } = await initSeaportFixture());
 
+    seaportConfig.openSeaSignedZone = seaportAddress;
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
       {
@@ -105,6 +106,7 @@ describe("FermionFNFT - wrapper tests", function () {
     // make the account "normal" again
     // `setCode` helper from the toolbox does not accept empty code, so we use the provider directly
     await ethers.provider.send("hardhat_setCode", [await fermionProtocolSigner.getAddress(), "0x"]);
+    seaportConfig.openSeaSignedZone = ZeroAddress;
   });
 
   context("initialize", function () {
@@ -282,6 +284,7 @@ describe("FermionFNFT - wrapper tests", function () {
       startTime: string,
       endTime: string,
       royalties?: { recipients: string[]; bps: bigint[] },
+      validatorEnabled?: boolean,
     ) => Promise<OrderComponents>;
     let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
     let getOrderParametersAndStatus: (
@@ -291,6 +294,7 @@ describe("FermionFNFT - wrapper tests", function () {
       startTime: string,
       endTime: string,
       royalties?: { recipients: string[]; bps: bigint[] },
+      validatorEnabled?: boolean,
     ) => Promise<{ orderComponents: OrderComponents; orderStatus: { isCancelled: boolean; isValidated: boolean } }>;
 
     before(async function () {
@@ -385,6 +389,42 @@ describe("FermionFNFT - wrapper tests", function () {
             startTime.toString(),
             endTimes[Number(i)].toString(),
             royaltyInfo,
+          );
+          expect(orderStatus.isValidated).to.equal(true);
+        }
+      });
+
+      it("Protocol can list fixed price offer with transfer validator disabled", async function () {
+        await fermionWrapperProxy.connect(wrapperContractOwner).setTransferValidator(ZeroAddress);
+
+        const tx = await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrders", [
+              startTokenId,
+              prices,
+              endTimes,
+              royaltyInfo,
+              await mockERC20.getAddress(),
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        const startTime = (await tx.getBlock()).timestamp - 60;
+
+        const exchangeToken = await mockERC20.getAddress();
+
+        for (let i = 0n; i < quantity; i++) {
+          const tokenId = startTokenId + i;
+          expect(await fermionWrapperProxy.ownerOf(tokenId)).to.equal(wrapperAddress);
+
+          const { orderStatus } = await getOrderParametersAndStatus(
+            tokenId.toString(),
+            exchangeToken,
+            prices[Number(i)],
+            startTime.toString(),
+            endTimes[Number(i)].toString(),
+            undefined,
+            false,
           );
           expect(orderStatus.isValidated).to.equal(true);
         }

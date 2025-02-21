@@ -1351,6 +1351,7 @@ describe("Offer", function () {
       startTime: string,
       endTime: string,
       royalties?: { recipients: string[]; bps: bigint[] },
+      validatorEnabled?: boolean,
     ) => Promise<OrderComponents>;
     let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
 

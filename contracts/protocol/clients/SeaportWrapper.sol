@@ -261,18 +261,20 @@ contract SeaportWrapper is FermionFNFTBase {
                 recipient: payable(address(this))
             });
 
+            bool transferValidatorDisabled = Common._getFermionCommonStorage().transferValidator == address(0);
+
             orders[i] = SeaportTypes.Order({
                 parameters: SeaportTypes.OrderParameters({
                     offerer: address(this),
-                    zone: OS_SIGNED_ZONE,
+                    zone: transferValidatorDisabled ? address(0) : OS_SIGNED_ZONE,
                     offer: offer,
                     consideration: consideration,
-                    orderType: OS_SIGNED_ZONE == address(0)
+                    orderType: (transferValidatorDisabled || OS_SIGNED_ZONE == address(0))
                         ? SeaportTypes.OrderType.FULL_OPEN
                         : SeaportTypes.OrderType.FULL_RESTRICTED,
                     startTime: block.timestamp - 1 minutes,
                     endTime: _endTimes[i],
-                    zoneHash: OS_ZONE_HASH,
+                    zoneHash: transferValidatorDisabled ? bytes32(0) : OS_ZONE_HASH,
                     salt: 0,
                     conduitKey: OS_CONDUIT_KEY,
                     totalOriginalConsiderationItems: 2 + _royaltyInfo.recipients.length

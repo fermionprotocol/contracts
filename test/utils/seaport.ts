@@ -7,7 +7,7 @@ import { BigNumberish, Contract } from "ethers";
 import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 import { OrderComponents } from "@opensea/seaport-js/lib/types";
 
-const { getContractFactory, getContractAt, parseEther, ZeroAddress } = ethers;
+const { getContractFactory, getContractAt, parseEther, ZeroAddress, ZeroHash } = ethers;
 
 // Deploys WETH, Boson Protocol Diamond, Boson Price Discovery, Boson Voucher Implementation, Boson Voucher Beacon Client
 export async function initSeaportFixture() {
@@ -115,6 +115,7 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
     startTime: string,
     endTime: string,
     royalties: { recipients: string[]; bps: bigint[] } = { recipients: [], bps: [] },
+    validatorEnabled: boolean = true,
   ) {
     const openSeaFee = (fullPrice * 2_50n) / 100_00n;
     let reducedPrice = fullPrice - openSeaFee;
@@ -157,12 +158,12 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
           ...royaltyConsiderations,
         ],
         conduitKey: seaportConfig.openSeaConduitKey,
-        zone: seaportConfig.openSeaSignedZone,
-        zoneHash: seaportConfig.openSeaZoneHash,
+        zone: validatorEnabled ? seaportConfig.openSeaSignedZone : ZeroAddress,
+        zoneHash: validatorEnabled ? seaportConfig.openSeaZoneHash : ZeroHash,
         startTime,
         endTime,
         salt: "0", // matching the value in seaportWrapper.listFixedPriceOrders
-        restrictedByZone: seaportConfig.openSeaSignedZone != ZeroAddress,
+        restrictedByZone: validatorEnabled && seaportConfig.openSeaSignedZone != ZeroAddress,
       },
       wrapperAddress,
     );
@@ -190,6 +191,7 @@ export function getOrderParametersAndStatusClosure(
     startTime: string,
     endTime: string,
     royalties: { recipients: string[]; bps: bigint[] },
+    validatorEnabled: boolean,
   ) => Promise<OrderComponents>,
   getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>,
 ) {
@@ -200,8 +202,17 @@ export function getOrderParametersAndStatusClosure(
     startTime: string,
     endTime: string,
     royalties: { recipients: string[]; bps: bigint[] } = { recipients: [], bps: [] },
+    validatorEnabled: boolean = true,
   ) {
-    const orderComponents = await getOrderParameters(tokenId, exchangeToken, fullPrice, startTime, endTime, royalties);
+    const orderComponents = await getOrderParameters(
+      tokenId,
+      exchangeToken,
+      fullPrice,
+      startTime,
+      endTime,
+      royalties,
+      validatorEnabled,
+    );
     const orderStatus = await getOrderStatus(orderComponents);
 
     return { orderComponents, orderStatus };
