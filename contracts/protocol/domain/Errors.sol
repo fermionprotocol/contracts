@@ -183,6 +183,7 @@ interface WrapperErrors {
     error ZeroPriceNotAllowed();
     error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
     error InvalidOwner(uint256 tokenId, address expected, address actual);
+    error InvalidUnwrap();
 }
 
 interface FermionErrors is

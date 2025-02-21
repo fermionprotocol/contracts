@@ -4051,6 +4051,73 @@ describe("Offer", function () {
             const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
             expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
           });
+
+          context("Revert reasons", function () {
+            it("unwrap to self should not work after the sale was made", async function () {
+              const minimalPrice = calculateMinimalPrice(
+                verifierFee,
+                0,
+                bosonProtocolFeePercentage,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
+
+              await mockToken.approve(fermionProtocolAddress, minimalPrice);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+              ).to.be.revertedWithCustomError(fermionErrors, "InvalidUnwrap");
+            });
+
+            it("unwrap via OS auction should not work after the sale was made", async function () {
+              const buyer = wallets[4];
+              const openSea = wallets[5]; // a mock OS address
+              openSeaAddress = openSea.address;
+              buyerAddress = buyer.address;
+              seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
+
+              await mockToken.mint(buyerAddress, fullPrice);
+
+              const { executeAllActions } = await seaport.createOrder(
+                {
+                  offer: [
+                    {
+                      itemType: ItemType.ERC20,
+                      token: exchangeToken,
+                      amount: fullPrice.toString(),
+                    },
+                  ],
+                  consideration: [
+                    {
+                      itemType: ItemType.ERC721,
+                      token: wrapperAddress,
+                      identifier: tokenId,
+                    },
+                    {
+                      itemType: ItemType.ERC20,
+                      token: exchangeToken,
+                      amount: openSeaFee.toString(),
+                      recipient: openSeaAddress,
+                    },
+                  ],
+                },
+                buyerAddress,
+              );
+
+              const buyerOrder = await executeAllActions();
+
+              buyerAdvancedOrder = await encodeBuyerAdvancedOrder(buyerOrder);
+              const minimalPrice = calculateMinimalPrice(
+                verifierFee,
+                0,
+                bosonProtocolFeePercentage,
+                fermionConfig.protocolParameters.protocolFeePercentage,
+              );
+
+              await mockToken.approve(fermionProtocolAddress, minimalPrice);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
+              ).to.be.revertedWithCustomError(fermionErrors, "InvalidUnwrap");
+            });
+          });
         });
       });
     });

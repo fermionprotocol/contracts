@@ -931,6 +931,23 @@ describe("FermionFNFT - wrapper tests", function () {
           .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidOwner")
           .withArgs(tokenId, anyValue, wrapperAddress);
       });
+
+      it("FNFTs cannot be unwrapped using `unwrapToSelf` after the item has been sold", async function () {
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [
+              startTokenId,
+              TokenState.Unwrapping,
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await expect(
+          fermionWrapperProxy
+            .connect(mockBosonPriceDiscovery)
+            .unwrapToSelf(startTokenId, await mockERC20.getAddress(), 0),
+        ).to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidUnwrap");
+      });
     });
   });
 

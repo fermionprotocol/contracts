@@ -167,6 +167,8 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      * @param _buyerOrder The Seaport buyer order.
      */
     function unwrap(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
+        if (Common._getFermionCommonStorage().fixedPrice[_tokenId] > 0 && ownerOf(_tokenId) != address(this))
+            revert WrapperErrors.InvalidUnwrap();
         unwrap(_tokenId);
 
         finalizeAuction(_tokenId, _buyerOrder);
@@ -205,6 +207,8 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      * @param _verifierFee The verifier fee
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external {
+        if (Common._getFermionCommonStorage().fixedPrice[_tokenId] > 0 && ownerOf(_tokenId) != address(this))
+            revert WrapperErrors.InvalidUnwrap();
         unwrapNFTAndTransferFundsToBosonPriceDiscoveryClient(_tokenId, _exchangeToken, _verifierFee);
     }
 
