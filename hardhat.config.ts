@@ -61,8 +61,16 @@ const config: HardhatUserConfig = {
       accounts: [vars.get("DEPLOYER_KEY_BASE_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
     },
     base: {
-      url: vars.get("RPC_PROVIDER_BASE", "https://base-sepolia-rpc.publicnode.com"),
+      url: vars.get("RPC_PROVIDER_BASE", "https://mainnet.base.org"),
       accounts: [vars.get("DEPLOYER_KEY_BASE", DEFAULT_DEPLOYER_KEY)],
+    },
+    optimismSepolia: {
+      url: vars.get("RPC_PROVIDER_OPTIMISM_SEPOLIA", "https://sepolia.optimism.io"),
+      accounts: [vars.get("DEPLOYER_KEY_OPTIMISM_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
+    },
+    optimism: {
+      url: vars.get("RPC_PROVIDER_OPTIMISM", "https://optimism.llamarpc.com"),
+      accounts: [vars.get("DEPLOYER_KEY_OPTIMISM", DEFAULT_DEPLOYER_KEY)],
     },
   },
   solidity: {
