@@ -120,6 +120,7 @@ First, obtain the block explorers API keys and set them in Hardhat configuration
 npx hardhat vars set POLYGONSCAN_API_KEY
 npx hardhat vars set ETHERSCAN_API_KEY
 npx hardhat vars set BASESCAN_API_KEY
+npx hardhat vars set OPTIMISTIC_ETHERSCAN_API_KEY
 ```
 
 Verify the contracts by calling
