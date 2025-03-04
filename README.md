@@ -9,7 +9,7 @@
 
 # Overview
 
-[Fermion Protocol](https://fermionprotocol.io) is a verification protocol built on top of [Boson Protocol](https://www.bosonprotocol.io/). This repository contains all core smart contracts and deployment scripts.  
+[Fermion Protocol](https://fermionprotocol.io) is a verification protocol built on top of [Boson Protocol](https://www.bosonprotocol.io/). This repository contains all core smart contracts and deployment scripts.
 
 Documentation is available at [docs.fermionprotocol.io](https://docs.fermionprotocol.io/).
 
