@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="/docs/images/banner.png" width="300">
+  <img src="/docs/images/banner.png">
 
 <h1 align="center">Fermion Protocol</h1>
 </div>
