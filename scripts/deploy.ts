@@ -108,6 +108,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+    deploymentComplete("SeaportWrapper", await fermionSeaportWrapper.getAddress(), seaportWrapperConstructorArgs, true);
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
