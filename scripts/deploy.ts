@@ -108,6 +108,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+    deploymentComplete("SeaportWrapper", await fermionSeaportWrapper.getAddress(), seaportWrapperConstructorArgs, true);
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
@@ -120,6 +121,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     wrapperImplementationAddress = await fermionWrapper.getAddress();
 
     deploymentComplete("FermionFNFT", wrapperImplementationAddress, fermionFNFTConstructorArgs, true);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else {
     deploymentData = await getDeploymentData(env);
     wrapperImplementationAddress = deploymentData.find((contract) => contract.name === "FermionFNFT")?.address;
@@ -221,6 +223,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       await initializationFacet.getAddress(),
       functionCall,
     );
+
+    await accessController.renounceRole(ethers.id("UPGRADER"), deployerAddress);
 
     facets["InitializationFacet"] = initializationFacet;
     facets["AccessController"] = accessController;

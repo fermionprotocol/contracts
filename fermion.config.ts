@@ -54,7 +54,7 @@ const fermionConfig: FermionConfig = {
         openSeaConduit: "0x1E0049783F008A0085193E00003D00cd54003c71",
         openSeaConduitKey: "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
       },
-      wrappedNative: "0x52eF3d68BaB452a294342DC3e5f464d7f610f72E",
+      wrappedNative: "0x113d6C5038832f567808677B4F0B89ffC62c18F7",
     },
     sepolia: {
       seaportConfig: {
@@ -89,6 +89,22 @@ const fermionConfig: FermionConfig = {
       wrappedNative: "0x4200000000000000000000000000000000000006",
     },
     base: {
+      seaportConfig: {
+        seaport: "0x0000000000000068F116a894984e2DB1123eB395",
+        openSeaConduit: "0x1E0049783F008A0085193E00003D00cd54003c71",
+        openSeaConduitKey: "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+      },
+      wrappedNative: "0x4200000000000000000000000000000000000006",
+    },
+    optimismSepolia: {
+      seaportConfig: {
+        seaport: "0x0000000000000068F116a894984e2DB1123eB395",
+        openSeaConduit: "0x1E0049783F008A0085193E00003D00cd54003c71",
+        openSeaConduitKey: "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+      },
+      wrappedNative: "0x4200000000000000000000000000000000000006",
+    },
+    optimism: {
       seaportConfig: {
         seaport: "0x0000000000000068F116a894984e2DB1123eB395",
         openSeaConduit: "0x1E0049783F008A0085193E00003D00cd54003c71",
