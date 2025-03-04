@@ -1,27 +1,36 @@
 {
-  "chainId": 11155111,
-  "network": "sepolia",
+  "chainId": 84532,
+  "network": "baseSepolia",
   "env": "test",
   "protocolVersion": "1.0.1",
   "contracts": [
     {
+      "name": "FermionFNFT",
+      "address": "0xC2D5a374BE4504fC49a5783c913593cd94572aF7",
+      "args": [
+        "0xFDD51a6DB1cE50d1C33b98782035f3cB1E7E1f14",
+        "0xEc7464518335c40b1fCDeFF07F38808CBDCEb3e4",
+        "0x4200000000000000000000000000000000000006"
+      ]
+    },
+    {
       "name": "DiamondCutFacet",
-      "address": "0x72375d8f6c09Be9367B7A1629bb889A7f2a393d0",
+      "address": "0xD3aD65341a5d514E9E51E49E1B26EE04fffC3618",
       "args": []
     },
     {
       "name": "DiamondLoupeFacet",
-      "address": "0x3c641f2206D853E87b30E5d302D39F42e9E2Bae1",
+      "address": "0xe402c4D7f86075DC12ae85F57F2B05bE7402699a",
       "args": []
     },
     {
       "name": "AccessController",
-      "address": "0xbb7691cBd2AE01986036e321498E2d878E2419c7",
+      "address": "0x8F65717bC434Ff8671595055EaB638E7885D897D",
       "args": []
     },
     {
       "name": "InitializationFacet",
-      "address": "0xBA09b47F123F3957352B7231B9a3850D46Da85e3",
+      "address": "0x4497C696657712fc73b9fA9cD13015FAF5733098",
       "args": []
     },
     {
@@ -30,12 +39,12 @@
       "args": [
         [
           {
-            "facetAddress": "0x72375d8f6c09Be9367B7A1629bb889A7f2a393d0",
+            "facetAddress": "0xD3aD65341a5d514E9E51E49E1B26EE04fffC3618",
             "action": 0,
             "functionSelectors": ["0x1f931c1c"]
           },
           {
-            "facetAddress": "0x3c641f2206D853E87b30E5d302D39F42e9E2Bae1",
+            "facetAddress": "0xe402c4D7f86075DC12ae85F57F2B05bE7402699a",
             "action": 0,
             "functionSelectors": [
               "0xcdffacc6",
@@ -46,7 +55,7 @@
             ]
           },
           {
-            "facetAddress": "0xbb7691cBd2AE01986036e321498E2d878E2419c7",
+            "facetAddress": "0x8F65717bC434Ff8671595055EaB638E7885D897D",
             "action": 0,
             "functionSelectors": [
               "0xa217fddf",
@@ -58,81 +67,72 @@
             ]
           },
           {
-            "facetAddress": "0xBA09b47F123F3957352B7231B9a3850D46Da85e3",
+            "facetAddress": "0x4497C696657712fc73b9fA9cD13015FAF5733098",
             "action": 0,
             "functionSelectors": ["0x0d8e6e2c"]
           }
         ],
         {
-          "init": "0xBA09b47F123F3957352B7231B9a3850D46Da85e3",
-          "initCalldata": "0x1e8c8776000000000000000000000000bb7691cbd2ae01986036e321498e2d878e2419c70000000000000000000000002a91a0148ee62fa638be38c7ee05c29a3e568dd80000000000000000000000007de418a7ce94debd057c34ebac232e7027634ade00000000000000000000000049f33f10e2d9850d19396e05b40fd6982aaec524"
+          "init": "0x4497C696657712fc73b9fA9cD13015FAF5733098",
+          "initCalldata": "0x1e8c87760000000000000000000000008f65717bc434ff8671595055eab638e7885d897d0000000000000000000000002a91a0148ee62fa638be38c7ee05c29a3e568dd80000000000000000000000007de418a7ce94debd057c34ebac232e7027634ade000000000000000000000000c2d5a374be4504fc49a5783c913593cd94572af7"
         }
       ]
     },
     {
       "name": "ConfigFacet",
-      "address": "0x6CBeCb13099CbB1e32D1a34DF5dE76944aa79c40",
+      "address": "0xEDa08eF1c6ff51Ca7Fd681295797102c1B84606c",
       "args": []
     },
     {
       "name": "EntityFacet",
-      "address": "0xb976075f497E7782f968C46B2Ec883316ecDeCFc",
+      "address": "0xEF1ABDE45555643578d28cEC0236f564D7d14290",
       "args": []
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0xc38532D4A2f3e321009CF42D79CA9FF586Fc952E",
+      "address": "0x77796972041BfAD11d67b93aDcDa3494c1552b0A",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
       "name": "OfferFacet",
-      "address": "0xd01237c66256a331DD8FA5550429dB6601bBCD05",
+      "address": "0x45111682624Ee07068b58E7b6308911B7b70D262",
       "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0x456BF72267A99168faD277F94D6fb751513Bbd12",
+      "address": "0x475857Eafe30328a2803F0ED49216899BE869Ba8",
       "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
     },
     {
       "name": "CustodyFacet",
-      "address": "0x0Ce5FC16aa82A78fdf451a31b7A300F509fC2C1D",
+      "address": "0xdCbe5589B358497be884c021FB9a9056162bDEbF",
       "args": []
     },
     {
       "name": "FundsFacet",
-      "address": "0x876B92Ad85808c4dad9F6a0802B051bb2B8133e2",
+      "address": "0xb062c3a755674df6337acC812713c3AB79D2F6cA",
       "args": []
     },
     {
       "name": "PauseFacet",
-      "address": "0xa37aA1F6480C3436A061509e6d9fCFD77418cbb7",
+      "address": "0x6678663A66C228BA79C8B2ABB4b4D797C6215026",
       "args": []
     },
     {
       "name": "CustodyVaultFacet",
-      "address": "0x49673E4a266a3F62C05EcCacf4fcD3100AFeF4CA",
+      "address": "0x161D8BBbbF2076ce4cFa70383f9dd1e469A39EbE",
       "args": []
-    },
-    {
-      "name": "FermionFNFT",
-      "address": "0x7863eF87f7d2a9f15f2A7175cC4d044Ea3E81DDc",
-      "args": [
-        "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
-        "0x2062C92447Ac78B977221E9bA2Be258AE90B6A3E",
-        "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
-      ]
     }
   ],
   "externalAddresses": {
     "bosonProtocolAddress": "0x7de418a7ce94debd057c34ebac232e7027634ade",
-    "bosonPriceDiscoveryAddress": "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
-    "bosonTokenAddress": "0x791Bf9Da3DEF5D7Cd3A7a748e56720Cd119D53AC",
+    "bosonPriceDiscoveryAddress": "0xFDD51a6DB1cE50d1C33b98782035f3cB1E7E1f14",
+    "bosonTokenAddress": "0xd4857D5e326eee33d7bC5d2494524Dab65d55851",
     "seaportConfig": {
       "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
       "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
       "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000"
     },
-    "wrappedNativeAddress": "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006"
   }
 }

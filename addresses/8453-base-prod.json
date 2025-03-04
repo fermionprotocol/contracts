@@ -1,0 +1,138 @@
+{
+  "chainId": 8453,
+  "network": "base",
+  "env": "prod",
+  "protocolVersion": "1.0.1",
+  "contracts": [
+    {
+      "name": "FermionFNFT",
+      "address": "0xE462F8bb985Df0CE5a5439a964F4E827d3aA70C3",
+      "args": [
+        "0xd8C3B2232B3d597156148f757Bb2bd665843aABd",
+        "0x8baa62Dc3D748fc466A36229451703560d854C6F",
+        "0x4200000000000000000000000000000000000006"
+      ]
+    },
+    {
+      "name": "DiamondCutFacet",
+      "address": "0xeE5EAD6302e2a621f3Bb2FAB6Fab1cb64FbfE9e5",
+      "args": []
+    },
+    {
+      "name": "DiamondLoupeFacet",
+      "address": "0x854bBa1FDf96f76D5dA5a0164F1f62087c909541",
+      "args": []
+    },
+    {
+      "name": "AccessController",
+      "address": "0x56436fD67f34c1d5ba67286c5265c8a63D046C4D",
+      "args": []
+    },
+    {
+      "name": "InitializationFacet",
+      "address": "0xb0EdC851087FEe63C995F9EC402Cd92592CA3f7e",
+      "args": []
+    },
+    {
+      "name": "FermionDiamond",
+      "address": "0x93b330001bcaad603e21e2639fb041cdea472449",
+      "args": [
+        [
+          {
+            "facetAddress": "0xeE5EAD6302e2a621f3Bb2FAB6Fab1cb64FbfE9e5",
+            "action": 0,
+            "functionSelectors": ["0x1f931c1c"]
+          },
+          {
+            "facetAddress": "0x854bBa1FDf96f76D5dA5a0164F1f62087c909541",
+            "action": 0,
+            "functionSelectors": [
+              "0xcdffacc6",
+              "0x52ef6b2c",
+              "0xadfca15e",
+              "0x7a0ed627",
+              "0x01ffc9a7"
+            ]
+          },
+          {
+            "facetAddress": "0x56436fD67f34c1d5ba67286c5265c8a63D046C4D",
+            "action": 0,
+            "functionSelectors": [
+              "0xa217fddf",
+              "0x248a9ca3",
+              "0x2f2ff15d",
+              "0x91d14854",
+              "0x36568abe",
+              "0xd547741f"
+            ]
+          },
+          {
+            "facetAddress": "0xb0EdC851087FEe63C995F9EC402Cd92592CA3f7e",
+            "action": 0,
+            "functionSelectors": ["0x0d8e6e2c"]
+          }
+        ],
+        {
+          "init": "0xb0EdC851087FEe63C995F9EC402Cd92592CA3f7e",
+          "initCalldata": "0x1e8c877600000000000000000000000056436fd67f34c1d5ba67286c5265c8a63d046c4d0000000000000000000000009ea7c926abebcba7ad0d2954b8e41ba6828cd51600000000000000000000000059a4c19b55193d5a2ead0065c54af4d516e18cb5000000000000000000000000a6916ced80247ba8752d859ccc4176965bdbee6a"
+        }
+      ]
+    },
+    {
+      "name": "ConfigFacet",
+      "address": "0xEaAa19F8ca5B78FAEB3272048f445485339CDE99",
+      "args": []
+    },
+    {
+      "name": "EntityFacet",
+      "address": "0x464F11D47665F3C3e13C41ead62F233faAe3cB96",
+      "args": []
+    },
+    {
+      "name": "MetaTransactionFacet",
+      "address": "0xE642d17272f1F080120Fd578b3655727eeC9Ef1D",
+      "args": ["0x93b330001bcaad603e21e2639fb041cdea472449"]
+    },
+    {
+      "name": "OfferFacet",
+      "address": "0x86692530B2e66b7166fAE481479A8474B0acdfD4",
+      "args": ["0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"]
+    },
+    {
+      "name": "VerificationFacet",
+      "address": "0xdFE29dfdaCCA5952dc147BCB6376ED2F15d00Bb3",
+      "args": ["0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"]
+    },
+    {
+      "name": "CustodyFacet",
+      "address": "0x16Df2455b34f4A33A2575c1B0F33C1cF1486a4C0",
+      "args": []
+    },
+    {
+      "name": "FundsFacet",
+      "address": "0x65B0E33fA96ac3D34Ee3c2aFdF773fe751ca7cFc",
+      "args": []
+    },
+    {
+      "name": "PauseFacet",
+      "address": "0x721812fc5a76425d665F0C7DfE6F14c6db8CE592",
+      "args": []
+    },
+    {
+      "name": "CustodyVaultFacet",
+      "address": "0xB90ABb00192eA91C3Aa5AA5c1d5068dc19C142d1",
+      "args": []
+    }
+  ],
+  "externalAddresses": {
+    "bosonProtocolAddress": "0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5",
+    "bosonPriceDiscoveryAddress": "0xd8C3B2232B3d597156148f757Bb2bd665843aABd",
+    "bosonTokenAddress": "0x2192607C3CBA9Ec3D490206d10d831E68E5F3c97",
+    "seaportConfig": {
+      "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
+      "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
+      "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000"
+    },
+    "wrappedNativeAddress": "0x4200000000000000000000000000000000000006"
+  }
+}
