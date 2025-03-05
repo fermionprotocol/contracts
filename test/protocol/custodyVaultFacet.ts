@@ -2375,7 +2375,12 @@ describe("CustodyVault", function () {
           it("bid does not cover the debt", async function () {
             const bidAmount = (-deficit * 3n) / 4n;
             await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
-            const sellerFractions = await wrapper.balanceOfERC20(buyer.address);
+            const fermionFractionsERC20Address = await wrapper.getERC20FractionsClone();
+            const fermionFractionsERC20 = await ethers.getContractAt(
+              "FermionFractionsERC20",
+              fermionFractionsERC20Address,
+            );
+            const sellerFractions = await fermionFractionsERC20.balanceOf(buyer.address);
             const tx = await wrapper.connect(buyer).voteToStartAuction(exchange.tokenId, sellerFractions); // bid is below exit price, original buyer votes to start auction
             const voteTime = BigInt((await tx.getBlock()).timestamp);
             const auctionEnd = voteTime + auctionParameters.duration + 1n;

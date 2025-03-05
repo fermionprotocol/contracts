@@ -74,23 +74,12 @@ contract FundsLib {
      * @param _amount - amount to be transferred
      */
     function transferERC20ToProtocol(address _tokenAddress, address _from, uint256 _amount) internal {
-        // protocol balance before the transfer
-        uint256 protocolTokenBalanceBefore;
-        uint256 protocolTokenBalanceAfter;
+        // prevent ERC721 deposits
+        isERC721Contract(_tokenAddress, false);
 
-        // transfer ERC20 tokens from the caller
-        if (checkFNFTContract(_tokenAddress)) {
-            protocolTokenBalanceBefore = IFermionFNFT(_tokenAddress).balanceOfERC20(address(this));
-            _tokenAddress.transferFrom(_from, address(this), _amount);
-            protocolTokenBalanceAfter = IFermionFNFT(_tokenAddress).balanceOfERC20(address(this));
-        } else {
-            // prevent ERC721 deposits
-            isERC721Contract(_tokenAddress, false);
-
-            protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
-            IERC20(_tokenAddress).safeTransferFrom(_from, address(this), _amount);
-            protocolTokenBalanceAfter = IERC20(_tokenAddress).balanceOf(address(this));
-        }
+        uint256 protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
+        IERC20(_tokenAddress).safeTransferFrom(_from, address(this), _amount);
+        uint256 protocolTokenBalanceAfter = IERC20(_tokenAddress).balanceOf(address(this));
 
         // make sure that expected amount of tokens was transferred
         uint256 receivedAmount = protocolTokenBalanceAfter - protocolTokenBalanceBefore;
@@ -175,12 +164,7 @@ contract FundsLib {
             (bool success, bytes memory errorMessage) = _to.call{ value: _amount }("");
             if (!success) revert FundsErrors.TokenTransferFailed(_to, _amount, errorMessage);
         } else {
-            // transfer ERC20 tokens
-            if (checkFNFTContract(_tokenAddress)) {
-                _tokenAddress.transfer(_to, _amount);
-            } else {
-                IERC20(_tokenAddress).safeTransfer(_to, _amount);
-            }
+            IERC20(_tokenAddress).safeTransfer(_to, _amount);
         }
     }
 
