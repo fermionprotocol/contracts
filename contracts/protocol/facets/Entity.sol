@@ -199,34 +199,40 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-    * @notice Allows a wallet to renounce one of its account roles for a specific entity role.
-    *
-    * Emits an EntityAccountRemoved event if successful.
-    *
-    * Reverts if:
-    * - Entity region is paused
-    * - Entity does not exist
-    * - Caller does not have the specified account role for the specified entity role
-    *
-    * @param _entityId - the entity ID
-    * @param _entityRole - the entity role for which to renounce the account role
-    * @param _accountRole - the account role to renounce
-    */
+     * @notice Allows a wallet to renounce one of its account roles for a specific entity role.
+     *
+     * Emits an EntityAccountRemoved event if successful.
+     *
+     * Reverts if:
+     * - Entity region is paused
+     * - Entity does not exist
+     * - Caller does not have the specified account role for the specified entity role
+     *
+     * @param _entityId - the entity ID
+     * @param _entityRole - the entity role for which to renounce the account role
+     * @param _accountRole - the account role to renounce
+     */
     function renounceAccountRole(
         uint256 _entityId,
         FermionTypes.EntityRole _entityRole,
         FermionTypes.AccountRole _accountRole
     ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         address msgSender = _msgSender();
-        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        EntityLib.validateAccountRole(_entityId, msgSender, _entityRole,_accountRole);
+        EntityLib.validateAccountRole(_entityId, msgSender, _entityRole, _accountRole);
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
 
         // Instead of using getCompactAccountRole, directly calculate the role mask
         uint256 accountRole = 1 << uint256(_accountRole);
         uint256 compactAccountRole = accountRole << (uint256(_entityRole) * BYTE_SIZE);
-        EntityLib.storeCompactAccountRole(_entityId, msgSender, compactAccountRole, false, pl, pe);
+        EntityLib.storeCompactAccountRole(
+            _entityId,
+            msgSender,
+            compactAccountRole,
+            false,
+            FermionStorage.protocolLookups(),
+            pe
+        );
 
         // Emit event
         FermionTypes.EntityRole[] memory entityRoles = new FermionTypes.EntityRole[](1);
