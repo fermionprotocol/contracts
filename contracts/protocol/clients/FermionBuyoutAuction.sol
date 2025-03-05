@@ -13,7 +13,6 @@ import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
-import "hardhat/console.sol";
 /**
  * @dev Buyout auction
  */
@@ -50,8 +49,6 @@ contract FermionBuyoutAuction is ContextUpgradeable, FermionFNFTBase, FermionErr
 
         uint256 exitPrice = $.auctionParameters.exitPrice;
         uint256 maxBid = auctionDetails.maxBid;
-        console.log("maxBid", maxBid);
-        console.log("exitPrice", exitPrice);
         if (maxBid < exitPrice) {
             revert BidBelowExitPrice(_tokenId, maxBid, exitPrice);
         }
@@ -74,66 +71,59 @@ contract FermionBuyoutAuction is ContextUpgradeable, FermionFNFTBase, FermionErr
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
     function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
-        console.log("Bid started");
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
             Common._getFermionFractionsStorage().currentEpoch
         );
         if (!$.tokenInfo[_tokenId].isFractionalised) revert TokenNotFractionalised(_tokenId);
-        console.log("Token is fractionalised");
 
         FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
         if (auctionDetails.state == FermionTypes.AuctionState.Reserved) revert AuctionReserved(_tokenId);
-        console.log("Auction not reserved");
 
         uint256 minimalBid;
         {
             uint256 maxBid = auctionDetails.maxBid;
             minimalBid = (maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
-            console.log("Calculated minimal bid: %s", minimalBid);
 
+            // due to rounding errors, the minimal bid can be equal to the max bid. Ensure strict increase.
             if (minimalBid == maxBid) minimalBid += 1;
         }
 
         if (_price < minimalBid) {
             revert InvalidBid(_tokenId, _price, minimalBid);
         }
-        console.log("Bid price valid");
 
         uint256 fractionsPerToken;
         {
             FermionTypes.BuyoutAuctionParameters storage auctionParameters = $.auctionParameters;
             if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing) {
-                console.log("Auction is ongoing");
                 if (block.timestamp > auctionDetails.timer) revert AuctionEnded(_tokenId, auctionDetails.timer);
-                console.log("Auction not ended");
 
                 fractionsPerToken = auctionDetails.totalFractions;
             } else {
-                console.log("Auction not started yet");
                 fractionsPerToken = Common.liquidSupply(Common._getFermionFractionsStorage().currentEpoch) / $.nftCount;
                 if (_price >= auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
-                    console.log("Starting auction - price above exit price");
+                    // If price is above the exit price, the cutoff date is set
                     startAuctionInternal(_tokenId);
                 } else {
-                    console.log("Resetting timer for unbidding");
+                    // reset ticker for Unbidding
                     auctionDetails.timer = block.timestamp + auctionParameters.topBidLockTime;
                 }
             }
         }
 
-        console.log("Paying out last bidder");
+        // Return to the previous bidder the fractions and the bid
         address exchangeToken = $.exchangeToken;
         payOutLastBidder(auctionDetails, exchangeToken);
 
         FermionTypes.Votes storage votes = auction.votes;
-        uint256 availableFractions = fractionsPerToken - votes.total;
-        console.log("Available fractions: %s", availableFractions);
+        uint256 availableFractions = fractionsPerToken - votes.total; // available fractions to additionaly be used in bid
 
         address msgSender = _msgSender();
         uint256 bidAmount;
         if (_fractions >= availableFractions) {
-            console.log("Bidder claims all remaining fractions");
+            // Bidder has enough fractions to claim the remaining fractions. In this case they win the auction at the current price.
+            // If the locked fractions belong to other users, the bidder must still pay the corresponding price.
             _fractions = availableFractions;
 
             if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuctionInternal(_tokenId);
@@ -142,17 +132,15 @@ contract FermionBuyoutAuction is ContextUpgradeable, FermionFNFTBase, FermionErr
 
         uint256 totalLockedFractions;
         unchecked {
-            totalLockedFractions = _fractions + votes.individual[msgSender];
-            bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken;
-            console.log("Calculated bid amount: %s", bidAmount);
+            totalLockedFractions = _fractions + votes.individual[msgSender]; // cannot overflow, since _fractions <= availableFractions = fractionsPerToken - votes.total
+            bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken; // cannot overflow, since fractionsPerToken >= totalLockedFractions
         }
 
         auctionDetails.maxBidder = msgSender;
-        auctionDetails.lockedFractions = _fractions;
+        auctionDetails.lockedFractions = _fractions; // locked in addition to the votes. If outbid, this is released back to the bidder
         auctionDetails.maxBid = _price;
 
         if (_fractions > 0) {
-            console.log("Transferring fractions");
             Common._transferFractions(
                 msgSender,
                 address(this),
@@ -161,12 +149,10 @@ contract FermionBuyoutAuction is ContextUpgradeable, FermionFNFTBase, FermionErr
             );
         }
         if (bidAmount > 0) {
-            console.log("Validating payment");
             validateIncomingPayment(exchangeToken, bidAmount);
         }
 
         auctionDetails.lockedBidAmount = bidAmount;
-        console.log("Bid completed successfully");
         emit Bid(_tokenId, msgSender, _price, totalLockedFractions, bidAmount);
     }
 
