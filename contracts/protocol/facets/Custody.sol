@@ -274,6 +274,7 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
      * - Caller is not the new custodian's assistant
      * - Any token in the corresponding offer is checked out
      * - The previous request is too recent
+     * - The custodian fee period is 0
      *
      * @param _offerId The offer ID for which to request the custodian update
      * @param _newCustodianId The ID of the new custodian to take over
@@ -286,6 +287,10 @@ contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEve
         FermionTypes.CustodianFee calldata _newCustodianFee,
         FermionTypes.CustodianVaultParameters calldata _newCustodianVaultParameters
     ) external notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
+        if (_newCustodianFee.period == 0) {
+            revert InvalidCustodianFeePeriod();
+        }
+
         FermionStorage.OfferLookups storage offerLookups = FermionStorage.protocolLookups().offerLookups[_offerId];
 
         // Check if there was a recent request

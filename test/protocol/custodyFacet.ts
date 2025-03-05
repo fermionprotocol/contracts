@@ -1408,6 +1408,24 @@ describe("Custody", function () {
             .withArgs(PausableRegion.Custody);
         });
 
+        it.only("Custodian fee period is 0", async function () {
+          const newCustodianFee = {
+            amount: parseEther("0.07"),
+            period: 0n,
+          };
+
+          await expect(
+            custodyFacet
+              .connect(newCustodian)
+              .requestCustodianUpdate(
+                offerIdCustodianSwitch,
+                newCustodianId,
+                newCustodianFee,
+                newCustodianVaultParameters,
+              ),
+          ).to.be.revertedWithCustomError(fermionErrors, "InvalidCustodianFeePeriod");
+        });
+
         it("Caller is not the new custodian's assistant", async function () {
           // Use a wallet that doesn't have any entity ID yet
           const nonCustodianWallet = wallets[9];

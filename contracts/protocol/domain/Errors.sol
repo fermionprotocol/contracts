@@ -79,6 +79,7 @@ interface CustodyErrors {
     error UpdateRequestExpired(uint256 tokenId);
     error UpdateRequestTooRecent(uint256 tokenId, uint256 waitTime);
     error NoTokensInCustody(uint256 offerId);
+    error InvalidCustodianFeePeriod();
 }
 
 interface AuctionErrors {
