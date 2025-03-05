@@ -237,3 +237,24 @@ export async function getBlockTimestampFromTransaction(tx: TransactionResponse):
   const block = await ethers.provider.getBlock(receipt.blockNumber); // Fetch the block details
   return block.timestamp; // Return the block timestamp
 }
+
+// Helper functions for interacting with ERC20 clones
+export async function getERC20Clone(fermionFNFTProxy: Contract, epoch: bigint = 0n) {
+  if (epoch === 0n) {
+    const cloneAddress = await fermionFNFTProxy.getERC20FractionsClone();
+    return await ethers.getContractAt("FermionFractionsERC20", cloneAddress);
+  } else {
+    const cloneAddress = await fermionFNFTProxy.getERC20FractionsClone(epoch);
+    return await ethers.getContractAt("FermionFractionsERC20", cloneAddress);
+  }
+}
+
+export async function balanceOfERC20(fermionFNFTProxy: Contract, address: string, epoch: bigint = 0n) {
+  const cloneAddress = await getERC20Clone(fermionFNFTProxy, epoch);
+  return await cloneAddress.balanceOf(address);
+}
+
+export async function totalSupplyERC20(fermionFNFTProxy: Contract, epoch: bigint = 0n) {
+  const cloneAddress = await getERC20Clone(fermionFNFTProxy, epoch);
+  return await cloneAddress.totalSupply();
+}
