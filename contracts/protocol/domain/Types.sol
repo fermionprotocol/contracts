@@ -173,6 +173,13 @@ contract FermionTypes {
         uint256 topBidLockTime; // in seconds; if zero, the default value is used
     }
 
+    /// @custom:storage-location erc7201:fermion.fractions.storage
+    struct FermionFractionsStorage {
+        // Mapping from epoch to ERC20 clone address
+        mapping(uint256 => address) epochToClone;
+        uint256 currentEpoch;
+    }
+
     struct PriceUpdateProposal {
         uint256 proposalId; // Tracks the ID of the current proposal
         uint256 newExitPrice;

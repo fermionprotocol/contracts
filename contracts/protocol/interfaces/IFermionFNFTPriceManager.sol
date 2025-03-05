@@ -93,4 +93,20 @@ interface IFermionFNFTPriceManager {
      * @param _fractionAmount The number of tokens to use to vote
      */
     function removeVoteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external;
+
+    /**
+     * @notice Adjusts the voter's records on transfer by removing votes if the remaining balance cannot support them.
+     *         This ensures the proposal's vote count remains accurate.
+     *
+     * @dev If the voter has no active votes or the current proposal is not active, no adjustments are made.
+     *      If the voter's remaining balance after the transfer is greater than or equal to their vote count,
+     *      no votes are removed.
+     *
+     * Reverts:
+     * - `OnlyCurrentERC20Clone` if the caller is not the current epoch's ERC20 clone contract.
+     *
+     * @param from The address of the sender whose votes may need adjustment.
+     * @param amount The number of fractions being transferred.
+     */
+    function adjustVotesOnTransfer(address from, uint256 amount) external;
 }

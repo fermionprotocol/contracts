@@ -4,6 +4,8 @@ pragma solidity 0.8.24;
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FractionalisationErrors } from "../domain/Errors.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 
 error InvalidStateOrCaller(uint256 tokenId, address sender, FermionTypes.TokenState state);
 event TokenStateChange(uint256 indexed tokenId, FermionTypes.TokenState state);
@@ -25,6 +27,16 @@ library Common {
     function _getFermionCommonStorage() internal pure returns (CommonStorage storage $) {
         assembly {
             $.slot := CommonStorageLocation
+        }
+    }
+
+    // keccak256(abi.encode(uint256(keccak256("fermion.fractions.storage")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant FermionFractionsStorageLocation =
+        0x4a7c305e00776741ac7013c3447ca536097b753ba0aa5e566dd79e90f6126200;
+
+    function _getFermionFractionsStorage() internal pure returns (FermionTypes.FermionFractionsStorage storage $) {
+        assembly {
+            $.slot := FermionFractionsStorageLocation
         }
     }
 
@@ -126,6 +138,43 @@ library Common {
         if (auctions.length == 0) revert FractionalisationErrors.TokenNotFractionalised(_tokenId);
         unchecked {
             return auctions[auctions.length - 1];
+        }
+    }
+
+    /**
+     * @notice Returns the liquid number of fractions for current epoch. Represents fractions of F-NFTs that are fractionalised
+     * @dev This function is used in multiple contracts to calculate the available supply
+     * @param _epoch The epoch to check
+     * @return The liquid supply of fractions
+     */
+    function liquidSupply(uint256 _epoch) internal view returns (uint256) {
+        address erc20Clone = _getFermionFractionsStorage().epochToClone[_epoch];
+        if (erc20Clone == address(0)) return 0;
+
+        FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage(_epoch);
+
+        return
+            IERC20(erc20Clone).totalSupply() -
+            $.unrestricedRedeemableSupply -
+            $.lockedRedeemableSupply -
+            $.pendingRedeemableSupply;
+    }
+
+    /**
+     * @notice Helper function to transfer fractions between addresses
+     * @param _from The address to transfer from
+     * @param _to The address to transfer to
+     * @param _amount The amount of fractions to transfer
+     * @param _epoch The epoch of the fractions
+     */
+    function _transferFractions(address _from, address _to, uint256 _amount, uint256 _epoch) internal {
+        FermionTypes.FermionFractionsStorage storage fractionStorage = _getFermionFractionsStorage();
+        address erc20Clone = fractionStorage.epochToClone[_epoch];
+
+        if (_from == address(this)) {
+            FermionFractionsERC20(erc20Clone).transfer(_to, _amount);
+        } else {
+            FermionFractionsERC20(erc20Clone).transferFractionsFrom(_from, _to, _amount);
         }
     }
 }
