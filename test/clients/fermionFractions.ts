@@ -155,6 +155,8 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
     it("The owner can fractionalise a single NFT", async function () {
       expect(await fermionFNFTProxy.balanceOf(seller.address)).to.equal(quantity);
+      expect(await fermionFNFTProxy.totalSupply(0)).to.equal(0n);
+      expect(await fermionFNFTProxy.getERC20CloneAddress(0)).to.equal(ZeroAddress);
 
       const tx = await fermionFNFTProxy
         .connect(seller)
@@ -188,10 +190,12 @@ describe("FermionFNFT - fractionalisation tests", function () {
       expect(await fermionFNFTProxy.balanceOf(seller.address)).to.equal(quantity - 1n);
       expect(await fermionFNFTProxy.tokenState(startTokenId)).to.equal(TokenState.CheckedIn); // token state remains
 
-      // Check ERC20 balances using the helper functions
       expect(await balanceOfERC20(fermionFNFTProxy, seller.address)).to.equal(fractionsAmount);
-      expect(await totalSupplyERC20(fermionFNFTProxy)).to.equal(fractionsAmount);
+      expect(await fermionFNFTProxy.totalSupply(0)).to.equal(fractionsAmount);
       expect(await fermionFNFTProxy.liquidSupply()).to.equal(fractionsAmount);
+      expect(await fermionFNFTProxy.getCurrentEpoch()).to.equal(0n);
+      expect(await fermionFNFTProxy.getERC20CloneAddress(0)).to.not.equal(ZeroAddress);
+      expect(await fermionFNFTProxy.getERC20CloneAddress(1)).to.equal(ZeroAddress);
       expect(await fermionFNFTProxy.getBuyoutAuctionParameters(0)).to.eql(Object.values(auctionParameters));
     });
 
