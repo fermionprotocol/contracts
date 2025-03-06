@@ -37,7 +37,7 @@
 
 "@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#d9e78dc7bc92779b5cc579e8a50ce474b7299e4c":
   version "2.4.1"
-  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#d9e78dc7bc92779b5cc579e8a50ce474b7299e4c"
+  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#ca78d1281980845a5883ad165b1784825f3be478"
   dependencies:
     "@openzeppelin/contracts" "^4.9.6"
     "@openzeppelin/contracts-upgradeable" "4.9.3"
