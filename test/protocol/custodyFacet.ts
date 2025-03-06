@@ -1408,7 +1408,7 @@ describe("Custody", function () {
             .withArgs(PausableRegion.Custody);
         });
 
-        it.only("Custodian fee period is 0", async function () {
+        it("Custodian fee period is 0", async function () {
           const newCustodianFee = {
             amount: parseEther("0.07"),
             period: 0n,
