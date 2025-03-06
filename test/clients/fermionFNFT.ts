@@ -105,7 +105,10 @@ describe("FermionFNFT", function () {
 
   context("supportsInterface", function () {
     it("Supports ERC165 and ERC721 interfaces", async function () {
-      const { interface: ERC165Interface } = await ethers.getContractAt("IERC165", ZeroAddress);
+      const { interface: ERC165Interface } = await ethers.getContractAt(
+        "@openzeppelin/contracts/utils/introspection/IERC165.sol:IERC165",
+        ZeroAddress,
+      );
       const { interface: ERC721Interface } = await ethers.getContractAt("IERC721", ZeroAddress);
       const { interface: FermionWrapperInterface } = await ethers.getContractAt("IFermionWrapper", ZeroAddress);
       const { interface: FermionFractionsInterface } = await ethers.getContractAt("IFermionFractions", ZeroAddress);
