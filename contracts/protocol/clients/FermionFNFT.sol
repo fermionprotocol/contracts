@@ -14,7 +14,6 @@ import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable
 import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**

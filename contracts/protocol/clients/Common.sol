@@ -148,8 +148,9 @@ library Common {
      * @return The liquid supply of fractions
      */
     function liquidSupply(uint256 _epoch) internal view returns (uint256) {
-        address erc20Clone = _getFermionFractionsStorage().epochToClone[_epoch];
-        if (erc20Clone == address(0)) return 0;
+        FermionTypes.FermionFractionsStorage storage fractionStorage = _getFermionFractionsStorage();
+        if (_epoch >= fractionStorage.epochToClone.length) return 0;
+        address erc20Clone = fractionStorage.epochToClone[_epoch];
 
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage(_epoch);
 

@@ -407,7 +407,12 @@ abstract contract FermionFractions is
      * @return The address of the ERC20 clone
      */
     function getERC20CloneAddress(uint256 _epoch) public view returns (address) {
-        return Common._getFermionFractionsStorage().epochToClone[_epoch];
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        if (_epoch >= fractionStorage.epochToClone.length) {
+            return address(0);
+        }
+        address cloneAddress = fractionStorage.epochToClone[_epoch];
+        return cloneAddress;
     }
 
     /**
@@ -446,8 +451,11 @@ abstract contract FermionFractions is
      * @notice Returns the total number of fractions for a specific epoch
      */
     function totalSupply(uint256 _epoch) public view returns (uint256) {
-        address erc20Clone = Common._getFermionFractionsStorage().epochToClone[_epoch];
-        if (erc20Clone == address(0)) return 0;
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        if (_epoch >= fractionStorage.epochToClone.length) {
+            return 0;
+        }
+        address erc20Clone = fractionStorage.epochToClone[_epoch];
 
         return FermionFractionsERC20(erc20Clone).totalSupply();
     }

@@ -11,7 +11,6 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
@@ -20,7 +19,6 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
  * @dev Fractionalisation of NFTs
  */
 contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsLib, IFermionFractionsEvents {
-    using Address for address;
     using Strings for uint256;
 
     // @dev The address of the ERC20 implementation contract that is used for Minimal Clone Implementation
@@ -116,7 +114,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsLib, IFerm
         uint256 newEpoch = _advanceEpoch();
         if (newEpoch != 0) {
             address exchangeToken = $.exchangeToken;
-            $ = Common._getBuyoutAuctionStorage(currentEpoch + 1);
+            $ = Common._getBuyoutAuctionStorage(newEpoch);
             $.exchangeToken = exchangeToken;
         }
 
@@ -305,48 +303,38 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsLib, IFerm
      * @return cloneAddress The address of the created clone
      */
     function _createERC20Clone(uint256 _epoch) internal returns (address cloneAddress) {
-        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
-
         cloneAddress = Clones.clone(erc20Implementation);
-        fractionStorage.epochToClone[fractionStorage.currentEpoch] = cloneAddress;
 
         // Get the ERC721 storage directly
         ERC721.ERC721Storage storage erc721Storage = Common._getERC721Storage();
 
         // Format: name = "<fnft_name>_<epoch_index>", symbol = "<fnft_symbol><epoch_index>"
-        string memory name = string(abi.encodePacked(erc721Storage._name, "_", Strings.toString(_epoch)));
-        string memory symbol = string(abi.encodePacked(erc721Storage._symbol, Strings.toString(_epoch)));
+        string memory epochString = Strings.toString(_epoch);
+        string memory _name = string.concat(erc721Storage._name, "_", epochString);
+        string memory _symbol = string.concat(erc721Storage._symbol, epochString);
 
-        FermionFractionsERC20(cloneAddress).initialize(name, symbol, address(this));
+        FermionFractionsERC20(cloneAddress).initialize(_name, _symbol, address(this));
 
         return cloneAddress;
     }
 
     /**
-     * @dev Advances to the next epoch if the current epoch's total supply is 0.
+     * @dev Advances to the next epoch and creates a new ERC20 clone for the new epoch.
      * This function should be called when transitioning to a new epoch.
-     * Instead of just incrementing the epoch counter, it creates a new ERC20 clone for the new epoch.
      * @return newEpoch The new epoch
      */
     function _advanceEpoch() internal returns (uint256 newEpoch) {
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
         uint256 currentEpoch = fractionStorage.currentEpoch;
+        uint256 arrayLength = fractionStorage.epochToClone.length;
 
-        // Check if we need to create the first ERC20 clone (for epoch 0)
-        if (currentEpoch == 0 && fractionStorage.epochToClone[0] == address(0)) {
-            newEpoch = 0;
-            fractionStorage.epochToClone[0] = _createERC20Clone(0);
-        } else {
-            address currentClone = fractionStorage.epochToClone[currentEpoch];
-            if (currentClone != address(0)) {
-                uint256 totalSupply = FermionFractionsERC20(currentClone).totalSupply();
-            }
-
+        if (currentEpoch != 0 || arrayLength != 0) {
             newEpoch = currentEpoch + 1;
-            fractionStorage.currentEpoch = newEpoch;
-            fractionStorage.epochToClone[newEpoch] = _createERC20Clone(newEpoch);
         }
 
+        address cloneAddress = _createERC20Clone(newEpoch);
+        fractionStorage.epochToClone.push(cloneAddress);
+        fractionStorage.currentEpoch = newEpoch;
         return newEpoch;
     }
 }

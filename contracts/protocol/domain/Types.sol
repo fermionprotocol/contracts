@@ -175,8 +175,8 @@ contract FermionTypes {
 
     /// @custom:storage-location erc7201:fermion.fractions.storage
     struct FermionFractionsStorage {
-        // Mapping from epoch to ERC20 clone address
-        mapping(uint256 => address) epochToClone;
+        // Array of ERC20 clone addresses, index is the epoch
+        address[] epochToClone;
         uint256 currentEpoch;
     }
 

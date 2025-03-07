@@ -11,7 +11,6 @@ import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 
 /**
  * @title FermionFNFTPriceManager
