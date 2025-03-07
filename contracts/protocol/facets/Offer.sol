@@ -89,6 +89,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             revert FermionGeneralErrors.InvalidPercentage(_offer.facilitatorFeePercent);
         }
 
+        if (_offer.custodianFee.period == 0) {
+            revert FermionGeneralErrors.InvalidPeriod();
+        }
+
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
