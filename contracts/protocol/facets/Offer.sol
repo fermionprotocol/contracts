@@ -22,6 +22,8 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
+import "hardhat/console.sol";
+
 /**
  * @title OfferFacet
  *
@@ -99,8 +101,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
         bosonOffer.priceType = IBosonProtocol.PriceType.Discovery;
-        bosonOffer.metadataUri = _offer.metadataURI;
-        bosonOffer.metadataHash = _offer.metadataHash;
+        bosonOffer.metadataUri = _offer.metadata.URI;
+        bosonOffer.metadataHash = _offer.metadata.hash;
         bosonOffer.royaltyInfo = new IBosonProtocol.RoyaltyInfo[](1);
         // bosonOffer.voided and bosonOffer.collectionIndex are not set, the defaults are fine
 
@@ -659,7 +661,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
 
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
             _exchangeToken = offer.exchangeToken;
-            wrapperAddress.initialize(address(_bosonVoucher), msgSender, _exchangeToken, _offerId, offer.metadataURI);
+            wrapperAddress.initialize(address(_bosonVoucher), msgSender, _exchangeToken, _offerId, offer.metadata.URI);
         }
 
         // wrap NFTs

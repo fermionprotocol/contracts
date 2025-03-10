@@ -95,8 +95,7 @@ describe("Funds", function () {
       facilitatorFeePercent: "0",
       exchangeToken: mockToken1Address,
       withPhygital: false,
-      metadataURI: "https://example.com/offer-metadata.json",
-      metadataHash: ZeroHash,
+      metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
     };
 
     await offerFacet.createOffer(fermionOffer);

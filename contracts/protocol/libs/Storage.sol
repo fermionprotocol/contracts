@@ -150,6 +150,8 @@ library FermionStorage {
         FermionTypes.Phygital[] phygitals;
         // phygitals recipient
         uint256 phygitalsRecipient;
+        // verification metadata
+        FermionTypes.Metadata verificationMetadata;
     }
 
     struct SellerLookups {

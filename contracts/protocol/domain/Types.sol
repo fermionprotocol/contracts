@@ -91,6 +91,11 @@ contract FermionTypes {
         bytes functionSignature;
     }
 
+    struct Metadata {
+        string URI;
+        string hash;
+    }
+
     struct Offer {
         uint256 sellerId;
         uint256 sellerDeposit;
@@ -102,8 +107,7 @@ contract FermionTypes {
         uint256 facilitatorFeePercent;
         address exchangeToken;
         bool withPhygital;
-        string metadataURI;
-        string metadataHash;
+        Metadata metadata;
     }
 
     struct CustodianFee {

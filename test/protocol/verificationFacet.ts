@@ -120,8 +120,10 @@ describe("Verification", function () {
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
       withPhygital: false,
-      metadataURI: "https://example.com/offer-metadata.json",
-      metadataHash: ZeroHash,
+      metadata: {
+        URI: "https://example.com/offer-metadata.json",
+        hash: ZeroHash,
+      },
     };
 
     // Make three offers one for normal sale, one of self sale and one for self verification
@@ -2914,8 +2916,7 @@ describe("Verification", function () {
           facilitatorFeePercent: "0",
           exchangeToken: await mockToken.getAddress(),
           withPhygital: true,
-          metadataURI: "https://example.com/offer-metadata.json",
-          metadataHash: ZeroHash,
+          metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
         };
 
         await offerFacet.createOffer(fermionOffer);
