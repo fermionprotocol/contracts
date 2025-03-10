@@ -56,9 +56,15 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
-    function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
+    function submitVerdict(
+        uint256 _tokenId,
+        FermionTypes.VerificationStatus _verificationStatus,
+        FermionTypes.Metadata calldata _verificationMetadata
+    ) external {
         getFundsAndPayVerifier(_tokenId, true);
+        FermionStorage.protocolLookups().tokenLookups[_tokenId].verificationMetadata = _verificationMetadata;
         submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
@@ -74,10 +80,12 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
      *
      * @param _tokenId - the token ID
      * @param _newMetadata - the uri of the new metadata
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
     function submitRevisedMetadata(
         uint256 _tokenId,
-        string memory _newMetadata
+        string memory _newMetadata,
+        FermionTypes.Metadata calldata _verificationMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         if (bytes(_newMetadata).length == 0) revert EmptyMetadata();
 
@@ -95,6 +103,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
             );
         }
 
+        tokenLookups.verificationMetadata = _verificationMetadata;
         updateMetadataAndResetProposals(tokenLookups, _newMetadata, _tokenId);
     }
 
@@ -110,10 +119,12 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
     function removeRevisedMetadataAndSubmitVerdict(
         uint256 _tokenId,
-        FermionTypes.VerificationStatus _verificationStatus
+        FermionTypes.VerificationStatus _verificationStatus,
+        FermionTypes.Metadata calldata _verificationMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
 
@@ -129,6 +140,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
 
         updateMetadataAndResetProposals(tokenLookups, "", _tokenId);
 
+        tokenLookups.verificationMetadata = _verificationMetadata;
         submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
@@ -274,6 +286,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
         }
         submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, inactiveVerifier);
         delete tokenLookups.revisedMetadata;
+        delete tokenLookups.verificationMetadata;
     }
 
     /**
