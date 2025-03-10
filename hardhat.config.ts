@@ -1,5 +1,6 @@
 import { HardhatUserConfig, subtask, task, vars } from "hardhat/config";
 import "@nomicfoundation/hardhat-toolbox";
+import "@nomicfoundation/hardhat-verify";
 import "hardhat-preprocessor";
 import "hardhat-contract-sizer";
 import path from "path";
@@ -31,6 +32,15 @@ task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and init
       const { formatUnits } = await import("ethers");
       console.log("Ether spent: ", formatUnits(etherSpent, "ether"));
     }
+  });
+
+task("verify-suite", "Verify contracts on the block explorer")
+  .addParam("env", "The environment of the contract address file")
+  .addOptionalParam("contracts", "The list of contracts to verify")
+  .setAction(async ({ env, contracts }) => {
+    const { verifySuite } = await import("./scripts/verify");
+
+    await verifySuite(env, contracts && contracts.split(","));
   });
 
 const config: HardhatUserConfig = {
@@ -125,6 +135,36 @@ const config: HardhatUserConfig = {
         return line;
       },
     }),
+  },
+  etherscan: {
+    apiKey: {
+      polygonAmoy: vars.get("POLYGONSCAN_API_KEY", ""),
+      sepolia: vars.get("ETHERSCAN_API_KEY", ""),
+      polygon: vars.get("POLYGONSCAN_API_KEY", ""),
+      mainnet: vars.get("ETHERSCAN_API_KEY", ""),
+      base: vars.get("BASESCAN_API_KEY", ""),
+      baseSepolia: vars.get("BASESCAN_API_KEY", ""),
+      optimism: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
+      optimismSepolia: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
+    },
+    customChains: [
+      {
+        network: "optimism",
+        chainId: 10,
+        urls: {
+          apiURL: "https://api-optimistic.etherscan.io/api",
+          browserURL: "https://optimistic.etherscan.io/",
+        },
+      },
+      {
+        network: "optimismSepolia",
+        chainId: 11155420,
+        urls: {
+          apiURL: "https://api-sepolia-optimistic.etherscan.io/api",
+          browserURL: "https://sepolia-optimism.etherscan.io",
+        },
+      },
+    ],
   },
   mocha: {
     timeout: 100000,

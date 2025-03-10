@@ -1,17 +1,17 @@
-<h1 align="center">Fermion Protocol</h1>
-
-[![Coverage Status](https://coveralls.io/repos/github/fermionprotocol/contracts/badge.svg)](https://coveralls.io/github/fermionprotocol/contracts)
-[![Contracts CI](https://github.com/fermionprotocol/contracts/actions/workflows/ci.yaml/badge.svg)](https://github.com/fermionprotocol/contracts/actions/workflows/ci.yaml)
-
 <div align="center">
+  <img src="/docs/images/banner.png">
 
-**Smart contracts layer of [Fermion Protocol](https://fermionprotocol.io).**
-
+<h1 align="center">Fermion Protocol</h1>
 </div>
+
+[![Coverage Status](https://coveralls.io/repos/github/fermionprotocol/contracts/badge.svg?branch=main)](https://coveralls.io/github/fermionprotocol/contracts?branch=main)
+[![Contracts CI](https://github.com/fermionprotocol/contracts/actions/workflows/ci.yaml/badge.svg)](https://github.com/fermionprotocol/contracts/actions/workflows/ci.yaml)
 
 # Overview
 
 [Fermion Protocol](https://fermionprotocol.io) is a verification protocol built on top of [Boson Protocol](https://www.bosonprotocol.io/). This repository contains all core smart contracts and deployment scripts.
+
+Documentation is available at [docs.fermionprotocol.io](https://docs.fermionprotocol.io/).
 
 ## Getting started
 
@@ -102,13 +102,38 @@ To deploy the Fermion protocol on a public blockchain:
   npx hardhat deploy-suite --network <network> --env <environment> --modules <modules> [--dry-run] [--create3]
   ```
 
-  - `network`: the network to deploy to. The Network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters in `./fermion.config.ts`
+  - `network`: the network to deploy to. The Network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters set in `./fermion.config.ts`
   - `environment`: an optional name for the environment to deploy to. Useful to manage multiple instances on the same network. Value can be anything, typical values are `test`, `staging` and `production`.
   - `modules`: the deployment script is modular and can be deployed step by step. Possible values are `fnft`, `diamond`, `facets`, `initialize` and their combinations.
   - `dry-run`: an optional flag, used to simulate the deployment. If added, the script forks the network and simulates the transactions locally and doesn't submit them to the real network. It is used to test the deployment or upgrade scripts. It also provides an estimate of the cost.
   - `create3`: an optional flag to make a create3 deployment. The deployment address does not depend on the deployer's nonce or contract's bytecode anymore.
 
 - The deployment info is printed into the terminal and JSON with addresses is stored in `addresses/{chainId}-{network}-{environment}.json`
+
+## Contract verification on block explorers
+
+Once the contracts are deployed to public networks, their source code is not public automatically. If you want to enable that users interact with the contracts directly on block explorers (e.g. etherscan) or the Louper, you must verify them.
+
+First, obtain the block explorers API keys and set them in Hardhat configuration variables. You need to set them only for the block explorers on which you intend to verify the contracts.
+
+```shell
+npx hardhat vars set POLYGONSCAN_API_KEY
+npx hardhat vars set ETHERSCAN_API_KEY
+npx hardhat vars set BASESCAN_API_KEY
+npx hardhat vars set OPTIMISTIC_ETHERSCAN_API_KEY
+```
+
+Verify the contracts by calling
+
+```shell
+  npx hardhat verify-suite --network <network> --env <environment> --contracts <contracts>
+```
+
+- `network`: the network to verify the contracts on. The Network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters set in `./fermion.config.ts`
+- `environment`: an optional name for the environment to deploy to. Useful to manage multiple instances on the same network. Value can be anything, typical values are `test`, `staging` and `production`.
+- `contracts`: an optional comma-separated list of contracts to verify. If not provided, all contracts will be verified.
+
+Note: if the contracts were deployed in the past and new commits were added to the branch, the verification might fail. In this case, the recommended approach is to checkout the commit at which the contracts were deployed and run the verification.
 
 ## Contributing
 
