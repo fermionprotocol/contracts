@@ -103,7 +103,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, CustodyLib,
     function removeItemFromCustodianOfferVault(
         uint256 _tokenId,
         uint256 _buyoutAuctionEnd
-    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant returns (int256 released) {
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) returns (int256 released) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         // Only F-NFT contract can call it
         uint256 offerId;
@@ -386,7 +386,8 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, CustodyLib,
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;
         uint256 soldFractions = fractionAuction.availableFractions;
-        offerLookups.fermionFNFTAddress.transfer(winnerAddress, soldFractions);
+        address fermionFNFT = offerLookups.fermionFNFTAddress;
+        fermionFNFT.transfer(winnerAddress, soldFractions);
 
         // release funds in the vault
         uint256 winningBid = fractionAuction.maxBid;
@@ -406,6 +407,18 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, CustodyLib,
         } else {
             vault.amount += winningBid;
             emit VaultBalanceUpdated(_offerId, vault.amount);
+
+            uint256 itemsInVault = offerLookups.custodianVaultItems;
+            uint256 totalOfferItems = offerLookups.itemQuantity;
+            uint256 firstTokenId = offerLookups.firstTokenId;
+            if (vault.amount < itemsInVault * offerLookups.custodianVaultParameters.liquidationThreshold) {
+                // After the auction, the vault balance is below the liquidationThreshold threshold.
+                // Start partial auction for all items in the vault.
+                for (uint256 i; i < totalOfferItems; i++) {
+                    uint256 tokenId = firstTokenId + i;
+                    fermionFNFT.startAuction(tokenId);
+                }
+            }
         }
 
         emit AuctionFinished(_offerId, winnerAddress, soldFractions, winningBid);
