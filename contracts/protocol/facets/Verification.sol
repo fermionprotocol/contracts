@@ -541,11 +541,11 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
                 increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
 
                 if (hasPhygitals) {
-                    pl.tokenLookups[tokenId].phygitalsRecipient = 0; // reset phygitals verification status, so the seller can withdraw them
+                    tokenLookups.phygitalsRecipient = 0; // reset phygitals verification status, so the seller can withdraw them
                 }
             }
 
-            emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
+            emit VerdictSubmitted(verifierId, tokenId, _verificationStatus, tokenLookups.verificationMetadata);
         }
     }
 

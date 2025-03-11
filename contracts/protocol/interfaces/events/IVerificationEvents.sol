@@ -20,7 +20,8 @@ interface IVerificationEvents {
     event VerdictSubmitted(
         uint256 indexed verifierId,
         uint256 indexed nftId,
-        FermionTypes.VerificationStatus verificationStatus
+        FermionTypes.VerificationStatus verificationStatus,
+        FermionTypes.Metadata verificationMetadata
     );
     event RevisedMetadataSubmitted(uint256 indexed nftId, string newMetadata);
     event ProposalSubmitted(uint256 indexed nftId, uint16 buyerProposal, uint16 sellerProposal, uint16 lastProposal);

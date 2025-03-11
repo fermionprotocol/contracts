@@ -52,6 +52,10 @@ describe("Funds", function () {
     bosonProtocolFeePercentage,
     fermionConfig.protocolParameters.protocolFeePercentage,
   );
+  const verificationMetadata = {
+    URI: "https://example.com/verification-metadata.json",
+    hash: id("metadata"),
+  };
 
   async function setupFundsTest() {
     // Create three entities
@@ -205,7 +209,9 @@ describe("Funds", function () {
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
       await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
-      await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+      await verificationFacet
+        .connect(verifier)
+        .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
       await custodyFacet.connect(verifier).checkIn(fnftTokenId);
 
       const fermionFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId);
@@ -514,7 +520,9 @@ describe("Funds", function () {
       await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
       // Submit verdicts
-      await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Rejected);
+      await verificationFacet
+        .connect(verifier)
+        .submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
       const bosonFeeAmount = applyPercentage(encumberedAmount, bosonProtocolFeePercentage);
       const fermionFeeAmount = applyPercentage(
@@ -571,7 +579,9 @@ describe("Funds", function () {
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
       await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
-      await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+      await verificationFacet
+        .connect(verifier)
+        .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
       await custodyFacet.connect(verifier).checkIn(fnftTokenId);
 
       const fermionFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId);
@@ -908,7 +918,9 @@ describe("Funds", function () {
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
         await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
-        await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
+        await verificationFacet
+          .connect(verifier)
+          .submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
 
         const fermionPhygitalFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId);
@@ -1088,7 +1100,9 @@ describe("Funds", function () {
         const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
         await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
-        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Rejected);
+        await verificationFacet
+          .connect(verifier)
+          .submitVerdict(fnftTokenId, VerificationStatus.Rejected, verificationMetadata);
 
         // Withdraw phygital
         const tx = await fundsFacet.withdrawPhygitals([fnftTokenId], [[phygital]]);
@@ -1206,7 +1220,9 @@ describe("Funds", function () {
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
         await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
-        await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
+        await verificationFacet
+          .connect(verifier)
+          .submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
 
         const fermionPhygitalFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId);
@@ -1332,7 +1348,9 @@ describe("Funds", function () {
       it("Buyer can withdraw the phygitals after the checkout request is cleared", async function () {
         const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
         await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
-        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+        await verificationFacet
+          .connect(verifier)
+          .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
         await custodyFacet.clearCheckoutRequest(fnftTokenId);
@@ -1374,7 +1392,9 @@ describe("Funds", function () {
           ),
         );
         await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
-        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+        await verificationFacet
+          .connect(verifier)
+          .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
         await custodyFacet.clearCheckoutRequest(fnftTokenId);
@@ -1424,7 +1444,9 @@ describe("Funds", function () {
           abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital1), Object.values(phygital2)]]),
         );
         await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
-        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+        await verificationFacet
+          .connect(verifier)
+          .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
         await custodyFacet.clearCheckoutRequest(fnftTokenId);
@@ -1444,7 +1466,9 @@ describe("Funds", function () {
         await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
         const digest2 = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital3)]]));
         await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId2, digest2);
-        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId2, VerificationStatus.Verified);
+        await verificationFacet
+          .connect(verifier)
+          .submitVerdict(fnftTokenId2, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId2);
         const fermionFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId + 1n);
         const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionFnftAddress);
@@ -1479,7 +1503,9 @@ describe("Funds", function () {
       it("Treasury can be a contract wallet", async function () {
         const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
         await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
-        await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+        await verificationFacet
+          .connect(verifier)
+          .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
         await custodyFacet.clearCheckoutRequest(fnftTokenId);
@@ -1515,7 +1541,9 @@ describe("Funds", function () {
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(MaxUint256);
 
-          await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+          await verificationFacet
+            .connect(verifier)
+            .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
           await expect(fundsFacet.withdrawPhygitals([fnftTokenId], buyer.address))
             .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
             .withArgs(MaxUint256);
@@ -1535,7 +1563,9 @@ describe("Funds", function () {
           beforeEach(async function () {
             const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
             await verificationFacet.connect(buyer).verifyPhygitals(fnftTokenId, digest);
-            await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
+            await verificationFacet
+              .connect(verifier)
+              .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
             await custodyFacet.connect(custodian).checkIn(fnftTokenId);
             await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
             await custodyFacet.clearCheckoutRequest(fnftTokenId);
@@ -1665,7 +1695,9 @@ describe("Funds", function () {
               abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital2)]]),
             );
             await verificationFacet.connect(buyer2).verifyPhygitals(fnftTokenId2, digest2);
-            await verificationFacet.connect(verifier).submitVerdict(fnftTokenId2, VerificationStatus.Verified);
+            await verificationFacet
+              .connect(verifier)
+              .submitVerdict(fnftTokenId2, VerificationStatus.Verified, verificationMetadata);
             await custodyFacet.connect(custodian).checkIn(fnftTokenId2);
             const fermionFnftAddress = await offerFacet.predictFermionFNFTAddress(offerId + 1n);
             const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionFnftAddress);

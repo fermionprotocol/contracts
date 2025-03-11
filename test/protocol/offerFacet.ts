@@ -843,7 +843,7 @@ describe("Offer", function () {
     });
   });
 
-  context.only("cancelFixedPriceOrders", function () {
+  context("cancelFixedPriceOrders", function () {
     const bosonOfferId = 1n;
     const sellerDeposit = 100n;
     const quantity = 15n;
