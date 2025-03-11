@@ -22,8 +22,6 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
-import "hardhat/console.sol";
-
 /**
  * @title OfferFacet
  *
