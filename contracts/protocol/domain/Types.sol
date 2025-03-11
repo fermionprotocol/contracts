@@ -24,7 +24,8 @@ contract FermionTypes {
 
     enum VerificationStatus {
         Verified,
-        Rejected
+        Rejected,
+        Inexistent // This value is not stored anywhere. If other values are added to the enum, always move it to the end
     }
 
     enum CheckoutRequestStatus {
@@ -64,6 +65,7 @@ contract FermionTypes {
         CheckedOut,
         Burned
     }
+
     enum PriceUpdateProposalState {
         NotInit, // Explicitly represents an uninitialized state
         Active,

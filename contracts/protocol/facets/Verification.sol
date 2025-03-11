@@ -357,6 +357,38 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
     }
 
     /**
+     * @notice Get the verification status and metadata for a specific token
+     *
+     * @param _tokenId - the token ID
+     *
+     * @return verificationStatus - the verification status
+     * @return verificationMetadata - optional verification metadata, with more information about the verification
+     */
+    function getVerificationDetails(
+        uint256 _tokenId
+    )
+        external
+        view
+        returns (FermionTypes.VerificationStatus verificationStatus, FermionTypes.Metadata memory verificationMetadata)
+    {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        (uint256 offerId, ) = FermionStorage.getOfferFromTokenId(_tokenId);
+        FermionTypes.TokenState tokenState = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).tokenState(
+            _tokenId
+        );
+
+        if (tokenState <= FermionTypes.TokenState.Unverified) {
+            verificationStatus = FermionTypes.VerificationStatus.Inexistent;
+        } else if (tokenState == FermionTypes.TokenState.Burned) {
+            verificationStatus = FermionTypes.VerificationStatus.Rejected;
+        } else {
+            verificationStatus = FermionTypes.VerificationStatus.Verified;
+        }
+
+        verificationMetadata = pl.tokenLookups[_tokenId].verificationMetadata;
+    }
+
+    /**
      * @notice Transfer the funds from Boson to Fermion and pay the verifier
      *
      * Reverts if:
@@ -434,6 +466,8 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
         FermionTypes.VerificationStatus _verificationStatus,
         bool _afterTimeout
     ) internal {
+        if (_verificationStatus == FermionTypes.VerificationStatus.Inexistent) revert InvalidVerificationStatus();
+
         uint256 tokenId = _tokenId;
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
         uint256 verifierId = offer.verifierId;
