@@ -186,9 +186,8 @@ describe("Verification", function () {
       bosonProtocolFeePercentage,
       selfSaleFermionPercentage,
     );
-    let selfSaleData = ethers.AbiCoder.defaultAbiCoder().encode(["uint256", "uint256"], [minimalPrice, minimalPrice]);
     await mockToken.approve(fermionProtocolAddress, minimalPrice);
-    await offerFacet.unwrapNFT(tokenIdSelf, WrapType.SELF_SALE, selfSaleData);
+    await offerFacet.unwrapNFT(tokenIdSelf, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
 
     // unwrap to self #2
     const tokenIdSelfSaleSelfVerification = deriveTokenId(
@@ -201,8 +200,11 @@ describe("Verification", function () {
       bosonProtocolFeePercentage,
       defaultFermionFee,
     );
-    selfSaleData = ethers.AbiCoder.defaultAbiCoder().encode(["uint256", "uint256"], [minimalPriceSelfVerification, 1]);
-    const tx = await offerFacet.unwrapNFT(tokenIdSelfSaleSelfVerification, WrapType.SELF_SALE, selfSaleData);
+    const tx = await offerFacet.unwrapNFT(
+      tokenIdSelfSaleSelfVerification,
+      WrapType.SELF_SALE,
+      toBeHex(minimalPriceSelfVerification, 32),
+    );
     const timestamp = BigInt((await tx.getBlock()).timestamp);
     itemVerificationTimeout = String(timestamp + fermionConfig.protocolParameters.defaultVerificationTimeout);
     itemMaxVerificationTimeout = timestamp + fermionConfig.protocolParameters.maxVerificationTimeout;
