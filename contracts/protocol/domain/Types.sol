@@ -25,7 +25,7 @@ contract FermionTypes {
     enum VerificationStatus {
         Verified,
         Rejected,
-        Inexistent // This value is not stored anywhere. If other values are added to the enum, always move it to the end
+        Pending
     }
 
     enum CheckoutRequestStatus {

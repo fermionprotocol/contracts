@@ -929,14 +929,6 @@ describe("Verification", function () {
           .withArgs(PausableRegion.Verification);
       });
 
-      it("Invalid Verification status", async function () {
-        await expect(
-          verificationFacet
-            .connect(verifier)
-            .submitVerdict(exchange.tokenId, VerificationStatus.Inexistent, verificationMetadata),
-        ).to.be.revertedWithCustomError(fermionErrors, "InvalidVerificationStatus");
-      });
-
       it("Phygitals are not verified", async function () {
         await expect(
           verificationFacet
@@ -1743,18 +1735,6 @@ describe("Verification", function () {
           .withArgs(PausableRegion.Verification);
       });
 
-      it("Invalid verification status", async function () {
-        await expect(
-          verificationFacet
-            .connect(verifier)
-            .removeRevisedMetadataAndSubmitVerdict(
-              exchange.tokenId,
-              VerificationStatus.Inexistent,
-              verificationMetadata,
-            ),
-        ).to.be.revertedWithCustomError(fermionErrors, "InvalidVerificationStatus");
-      });
-
       it("Caller is not the verifiers's assistant", async function () {
         const wallet = wallets[9];
 
@@ -1880,7 +1860,7 @@ describe("Verification", function () {
       // Fermion
       expect(await verificationFacet.getRevisedMetadata(exchange.tokenId)).to.equal(newMetadataURI);
       const [verificationStatus, metadata] = await verificationFacet.getVerificationDetails(exchange.tokenId);
-      expect(verificationStatus).to.equal(VerificationStatus.Inexistent);
+      expect(verificationStatus).to.equal(VerificationStatus.Pending);
       expect(metadata).to.eql([verificationMetadata.URI, verificationMetadata.hash]);
       // Available funds - only the verifier is paid at this step
       expect(await fundsFacet.getAvailableFunds(exchange.verifierId, exchangeToken)).to.equal(verifierFee);
@@ -1916,7 +1896,7 @@ describe("Verification", function () {
       // State
       const [verificationStatus, metadata] = await verificationFacet.getVerificationDetails(exchange.tokenId);
       expect(metadata).to.eql([verificationMetadata2.URI, verificationMetadata2.hash]);
-      expect(verificationStatus).to.equal(VerificationStatus.Inexistent);
+      expect(verificationStatus).to.equal(VerificationStatus.Pending);
       expect(await verificationFacet.getRevisedMetadata(exchange.tokenId)).to.equal(newMetadataURI2);
       expect(await verificationFacet.getProposals(exchange.tokenId)).to.eql([0n, 0n]);
     });
@@ -3395,6 +3375,48 @@ describe("Verification", function () {
           .to.be.revertedWithCustomError(fermionErrors, "VerificationTimeoutTooLong")
           .withArgs(newTimeout, itemMaxVerificationTimeout);
       });
+    });
+  });
+
+  context("getVerificationDetails", function () {
+    it("Reverts if token is in state earlier than unverified", async function () {
+      const offerId = await (await getBosonHandler("IBosonOfferHandler")).getNextOfferId();
+      const exchangeId = await bosonExchangeHandler.getNextExchangeId();
+      const tokenId = deriveTokenId(offerId, exchangeId);
+
+      await expect(verificationFacet.getVerificationDetails(tokenId))
+        .to.be.revertedWithCustomError(verificationFacet, "InvalidTokenId")
+        .withArgs(tokenId);
+
+      const fermionOffer = {
+        sellerId,
+        sellerDeposit,
+        verifierId,
+        verifierFee: 0n,
+        custodianId: "3",
+        custodianFee: {
+          amount: parseEther("0.05"),
+          period: 30n * 24n * 60n * 60n, // 30 days
+        },
+        facilitatorId: sellerId,
+        facilitatorFeePercent: "0",
+        exchangeToken: await mockToken.getAddress(),
+        withPhygital: false,
+        metadata: {
+          URI: "https://example.com/offer-metadata.json",
+          hash: ZeroHash,
+        },
+      };
+
+      await offerFacet.createOffer(fermionOffer);
+      await offerFacet.mintAndWrapNFTs(offerId, 1n);
+
+      await expect(verificationFacet.getVerificationDetails(tokenId)).to.be.revertedWithCustomError(
+        verificationFacet,
+        "InexistentVerificationStatus",
+      );
+
+      // await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
     });
   });
 });

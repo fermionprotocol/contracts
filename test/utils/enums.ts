@@ -29,7 +29,7 @@ export enum AccountRole {
 export enum VerificationStatus {
   Verified,
   Rejected,
-  Inexistent,
+  Pending,
 }
 
 export enum CheckoutRequestStatus {

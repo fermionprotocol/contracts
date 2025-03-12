@@ -373,12 +373,21 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
     {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         (uint256 offerId, ) = FermionStorage.getOfferFromTokenId(_tokenId);
-        FermionTypes.TokenState tokenState = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).tokenState(
-            _tokenId
-        );
 
-        if (tokenState <= FermionTypes.TokenState.Unverified) {
-            verificationStatus = FermionTypes.VerificationStatus.Inexistent;
+        address fermionFNFTAddress = pl.offerLookups[offerId].fermionFNFTAddress;
+
+        if (fermionFNFTAddress == address(0)) {
+            revert FermionGeneralErrors.InvalidTokenId(_tokenId);
+        }
+
+        FermionTypes.TokenState tokenState = IFermionFNFT(fermionFNFTAddress).tokenState(_tokenId);
+
+        if (tokenState < FermionTypes.TokenState.Unverified) {
+            revert InexistentVerificationStatus();
+        }
+
+        if (tokenState == FermionTypes.TokenState.Unverified) {
+            verificationStatus = FermionTypes.VerificationStatus.Pending;
         } else if (tokenState == FermionTypes.TokenState.Burned) {
             verificationStatus = FermionTypes.VerificationStatus.Rejected;
         } else {
@@ -466,8 +475,6 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
         FermionTypes.VerificationStatus _verificationStatus,
         bool _afterTimeout
     ) internal {
-        if (_verificationStatus == FermionTypes.VerificationStatus.Inexistent) revert InvalidVerificationStatus();
-
         uint256 tokenId = _tokenId;
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
         uint256 verifierId = offer.verifierId;

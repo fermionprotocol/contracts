@@ -14,6 +14,7 @@ interface FermionGeneralErrors {
     error UnexpectedDataReturned(bytes data);
     // Array elements that are not in ascending order (i.e arr[i-1] > arr[i])
     error NonAscendingOrder();
+    error InvalidTokenId(uint256 tokenId);
 }
 
 interface InitializationErrors {
@@ -64,7 +65,7 @@ interface VerificationErrors {
     error PhygitalsAlreadyVerified(uint256 tokenId);
     error PhygitalsDigestMismatch(uint256 tokenId, bytes32 expectedDigest, bytes32 actualDigest);
     error PhygitalsVerificationMissing(uint256 tokenId);
-    error InvalidVerificationStatus();
+    error InexistentVerificationStatus();
 }
 
 interface CustodyErrors {
