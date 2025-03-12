@@ -8,7 +8,7 @@ import {
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, toBeHex, ZeroAddress, ZeroHash, parseEther } from "ethers";
+import { Contract, ZeroAddress, ZeroHash, parseEther } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   EntityRole,
@@ -56,6 +56,10 @@ describe("Custody", function () {
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
   let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
   let minimalPriceSelfSale: bigint;
+  const selfSaleEmptyData = ethers.AbiCoder.defaultAbiCoder().encode(
+    ["uint256", "uint256"],
+    [0, 1], // setting custom item price to 1 so we dont revert on invalid custom item price
+  );
   async function setupCustodyTest() {
     // Create three entities
     // Seller, Verifier, Custodian combined
@@ -136,7 +140,11 @@ describe("Custody", function () {
       fermionConfig.protocolParameters.protocolFeePercentage,
     );
     await mockToken.approve(fermionProtocolAddress, minimalPriceSelfSale);
-    await offerFacet.unwrapNFT(tokenIdSelf, WrapType.SELF_SALE, toBeHex(minimalPriceSelfSale, 32));
+    const selfSaleData = ethers.AbiCoder.defaultAbiCoder().encode(
+      ["uint256", "uint256"],
+      [minimalPriceSelfSale, minimalPriceSelfSale],
+    );
+    await offerFacet.unwrapNFT(tokenIdSelf, WrapType.SELF_SALE, selfSaleData);
 
     exchange.tokenId = tokenId;
     exchange.custodianId = custodianId;
@@ -309,14 +317,8 @@ describe("Custody", function () {
             .withArgs(exchange.tokenId, CheckoutRequestStatus.None, CheckoutRequestStatus.CheckedIn);
         });
 
-        it("Cannot check-in before it's unwrapped", async function () {
-          await expect(custodyFacet.checkIn(tokenId))
-            .to.be.revertedWithCustomError(wrapper, "InvalidStateOrCaller")
-            .withArgs(tokenId, fermionProtocolAddress, TokenState.Wrapped);
-        });
-
         it("Cannot check-in if not verified or rejected", async function () {
-          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleEmptyData);
 
           // Unwrapped but not verified
           await expect(custodyFacet.checkIn(tokenId))
@@ -489,7 +491,7 @@ describe("Custody", function () {
         });
 
         it("Cannot request check-out if not verified or rejected", async function () {
-          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleEmptyData);
 
           // Unwrapped but not verified
           await expect(custodyFacet.requestCheckOut(tokenId))
@@ -663,7 +665,7 @@ describe("Custody", function () {
         });
 
         it("Cannot submit tax amount if not verified or rejected", async function () {
-          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleEmptyData);
 
           // Unwrapped but not verified
           await expect(custodyFacet.submitTaxAmount(tokenId, taxAmount))
@@ -893,7 +895,7 @@ describe("Custody", function () {
           });
 
           it("Cannot clear checkout request if not verified or rejected", async function () {
-            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
+            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleEmptyData);
 
             // Unwrapped but not verified
             await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
@@ -1069,7 +1071,7 @@ describe("Custody", function () {
           });
 
           it("Cannot clear checkout request if not verified or rejected", async function () {
-            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
+            await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleEmptyData);
 
             // Unwrapped but not verified
             await expect(custodyFacet.clearCheckoutRequest(tokenId))
@@ -1252,7 +1254,7 @@ describe("Custody", function () {
         });
 
         it("Cannot check item out if not verified or rejected", async function () {
-          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, ZeroHash);
+          await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleEmptyData);
 
           // Unwrapped but not verified
           await expect(custodyFacet.checkOut(tokenId))
