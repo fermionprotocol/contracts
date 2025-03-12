@@ -61,6 +61,7 @@ interface OfferErrors {
     error InvalidRoyaltyRecipient(address recipient);
     error InvalidRoyaltyPercentage(uint256 percentage);
     error OfferWithoutRoyalties(uint256 offerId);
+    error InvalidCustomItemPrice();
 }
 
 interface VerificationErrors {
