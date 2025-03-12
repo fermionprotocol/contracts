@@ -150,6 +150,8 @@ library FermionStorage {
         FermionTypes.Phygital[] phygitals;
         // phygitals recipient
         uint256 phygitalsRecipient;
+        // custom item price used only in case of forceful fractionalisation
+        uint256 selfSaleItemPrice;
     }
 
     struct SellerLookups {
