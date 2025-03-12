@@ -71,14 +71,4 @@ interface IFermionFractions {
      * @param _amount The number of fractions to mint
      */
     function mintAdditionalFractions(uint256 _amount) external;
-
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `value`.
-     */
-    function transfer(address to, uint256 value) external returns (bool);
 }
