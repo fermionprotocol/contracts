@@ -447,7 +447,7 @@ describe("CustodyVault", function () {
             // offer vault is created
             const expectedOfferVault = {
               amount: 0n,
-              period: offerVaultCreationTimestamp,
+              period: expectedCustodianVault.period,
             };
 
             expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
@@ -506,7 +506,7 @@ describe("CustodyVault", function () {
             // offer vault is created
             const expectedOfferVault = {
               amount: 0n,
-              period: offerVaultCreationTimestamp,
+              period: vaultCreationTimestamp + payoutPeriods * custodianFee.period, // matches the last payout from item vault
             };
             let itemCount = 1n;
 
@@ -575,7 +575,7 @@ describe("CustodyVault", function () {
             // offer vault is created
             const expectedOfferVault = {
               amount: 0n,
-              period: offerVaultCreationTimestamp,
+              period: vaultCreationTimestamp + payoutPeriods * custodianFee.period, // matches the last payout from item vault
             };
             let itemCount = 1n;
 
@@ -878,15 +878,16 @@ describe("CustodyVault", function () {
             const tx = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
             await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted");
 
-            const offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const auctionStart = BigInt((await tx.getBlock()).timestamp);
+            const auctionEnd = auctionStart + custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR;
 
             await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
               .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
               .withArgs(exchange.tokenId);
 
             await expect(custodyVaultFacet.releaseFundsFromVault(offerId))
-              .to.be.revertedWithCustomError(fermionErrors, "PeriodNotOver")
-              .withArgs(offerId, offerVaultCreationTimestamp + custodianFee.period);
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionOngoing")
+              .withArgs(offerId, auctionEnd);
           });
 
           it("Existing fractionalised F-NFT in collection", async function () {

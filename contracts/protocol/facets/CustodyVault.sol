@@ -464,29 +464,33 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, CustodyLib,
                 addItemToCustodianOfferVault(_tokenId, 1, 0, false, pl);
             } else {
                 // no vault yet. Use the default parameters
-                FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
-                _buyoutAuctionParameters.exitPrice = pl.tokenLookups[_tokenId].itemPrice;
-                uint256 partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * _custodianFee.amount;
-                uint256 newFractionsPerAuction = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) /
-                    _buyoutAuctionParameters.exitPrice;
-                FermionTypes.CustodianVaultParameters memory _custodianVaultParameters = FermionTypes
-                    .CustodianVaultParameters({
+                FermionTypes.CustodianVaultParameters memory _custodianVaultParameters;
+                {
+                    FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
+                    _buyoutAuctionParameters.exitPrice = pl.tokenLookups[_tokenId].itemPrice;
+                    uint256 partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * _custodianFee.amount;
+                    uint256 newFractionsPerAuction = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) /
+                        _buyoutAuctionParameters.exitPrice;
+                    _custodianVaultParameters = FermionTypes.CustodianVaultParameters({
                         partialAuctionThreshold: partialAuctionThreshold,
                         partialAuctionDuration: _custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR,
                         liquidationThreshold: LIQUIDATION_THRESHOLD_MULTIPLIER * _custodianFee.amount,
                         newFractionsPerAuction: newFractionsPerAuction
                     });
 
-                fermionFNFTAddress.mintFractions(
-                    _tokenId,
-                    1,
-                    DEFAULT_FRACTION_AMOUNT,
-                    _buyoutAuctionParameters,
-                    _custodianVaultParameters,
-                    0,
-                    address(0)
-                );
-
+                    fermionFNFTAddress.mintFractions(
+                        _tokenId,
+                        1,
+                        DEFAULT_FRACTION_AMOUNT,
+                        _buyoutAuctionParameters,
+                        _custodianVaultParameters,
+                        0,
+                        address(0)
+                    );
+                }
+                // set the offer vault period in the past, so the auction covers the past expenses, too
+                // Since this is the first fractionalisation, offer vault period should match the item vault period
+                pl.tokenLookups[_offerId].vault.period = pl.tokenLookups[_tokenId].vault.period;
                 setupCustodianOfferVault(_tokenId, 1, _custodianVaultParameters, 0, false);
             }
 
