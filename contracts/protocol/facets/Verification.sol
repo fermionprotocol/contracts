@@ -4,13 +4,13 @@ pragma solidity 0.8.24;
 import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { VerificationErrors, FermionGeneralErrors, OfferErrors, SignatureErrors } from "../domain/Errors.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
+import { Context } from "../bases/mixins/Context.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
 import { MathLib } from "../libs/MathLib.sol";
-import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
@@ -22,7 +22,7 @@ import { EIP712 } from "../libs/EIP712.sol";
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErrors, IVerificationEvents {
+contract VerificationFacet is Context, Access, FundsManager, EIP712, VerificationErrors, IVerificationEvents {
     using FermionFNFTLib for address;
 
     bytes32 private constant SIGNED_PROPOSAL_TYPEHASH =
@@ -34,7 +34,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
         address _bosonProtocol,
         bytes32 _fnftCodeHash,
         address _fermionProtocolAddress
-    ) FundsLib(_fnftCodeHash) EIP712(_fermionProtocolAddress) {
+    ) FundsManager(_fnftCodeHash) EIP712(_fermionProtocolAddress) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }

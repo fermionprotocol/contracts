@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import { ADMIN, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";

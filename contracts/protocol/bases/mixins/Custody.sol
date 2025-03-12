@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionGeneralErrors, CustodianVaultErrors } from "../domain/Errors.sol";
-import { FermionTypes } from "../domain/Types.sol";
-import { FermionStorage } from "../libs/Storage.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
-import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
+import { FermionGeneralErrors, CustodianVaultErrors } from "../../domain/Errors.sol";
+import { FermionTypes } from "../../domain/Types.sol";
+import { FermionStorage } from "../../libs/Storage.sol";
+import { FundsManager } from "./FundsManager.sol";
+import { ICustodyEvents } from "../../interfaces/events/ICustodyEvents.sol";
 
 /**
- * @title CustodyLib
+ * @title Custody Base Mixin Contract
  *
- * @notice Custody methods used by multiple facets.
+ * @notice Base contract providing custody methods used by multiple facets
  */
-abstract contract CustodyLib is FundsLib {
+abstract contract Custody is FundsManager {
     /**
      * @notice Creates a custodian vault for a tokenId
      * The amount for first period is encumbered (it is available in the protocol since the verification time).
