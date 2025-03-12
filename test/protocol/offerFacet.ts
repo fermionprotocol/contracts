@@ -154,8 +154,10 @@ describe("Offer", function () {
         facilitatorFeePercent: "0",
         exchangeToken,
         withPhygital,
-        metadataURI,
-        metadataHash: id(metadataURI),
+        metadata: {
+          URI: metadataURI,
+          hash: id(metadataURI),
+        },
         royaltyInfo,
       };
     });
@@ -172,6 +174,7 @@ describe("Offer", function () {
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
             royaltyInfo: royaltyInfoStruct,
+            metadata: [metadataURI, id(metadataURI)],
           }),
           bosonOfferId,
         );
@@ -184,8 +187,8 @@ describe("Offer", function () {
       expect(offer.verifierFee).to.equal(verifierFee);
       expect(offer.custodianId).to.equal(custodianId);
       expect(offer.exchangeToken).to.equal(exchangeToken);
-      expect(offer.metadataURI).to.equal(metadataURI);
-      expect(offer.metadataHash).to.equal(id(metadataURI));
+      expect(offer.metadata.URI).to.equal(metadataURI);
+      expect(offer.metadata.hash).to.equal(id(metadataURI));
       expect(offer.royaltyInfo).to.eql(royaltyInfoStruct);
     });
 
@@ -275,6 +278,7 @@ describe("Offer", function () {
             ...fermionOffer2,
             custodianFee: Object.values(fermionOffer2.custodianFee),
             royaltyInfo: fermionOffer2.royaltyInfo.map((ri) => Object.values(ri)),
+            metadata: [metadataURI, id(metadataURI)],
           }),
           bosonOfferId,
         );
@@ -307,6 +311,7 @@ describe("Offer", function () {
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
             royaltyInfo: royaltyInfoStruct,
+            metadata: [metadataURI, id(metadataURI)],
           }),
           bosonOfferId,
         );
@@ -321,6 +326,7 @@ describe("Offer", function () {
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
             royaltyInfo: royaltyInfoStruct,
+            metadata: [metadataURI, id(metadataURI)],
           }),
           "2",
         );
@@ -344,6 +350,7 @@ describe("Offer", function () {
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
             royaltyInfo: royaltyInfoStruct,
+            metadata: [metadataURI, id(metadataURI)],
           }),
           bosonOfferId,
         );
@@ -358,6 +365,7 @@ describe("Offer", function () {
             ...fermionOffer,
             custodianFee: Object.values(fermionOffer.custodianFee),
             royaltyInfo: royaltyInfoStruct,
+            metadata: [metadataURI, id(metadataURI)],
           }),
           "2",
         );
@@ -543,8 +551,7 @@ describe("Offer", function () {
         facilitatorFeePercent: "0",
         exchangeToken,
         withPhygital,
-        metadataURI,
-        metadataHash: id(metadataURI),
+        metadata: { URI: metadataURI, hash: id(metadataURI) },
         royaltyInfo,
       };
 
@@ -557,8 +564,8 @@ describe("Offer", function () {
       expect(offer.verifierFee).to.equal(verifierFee);
       expect(offer.custodianId).to.equal(custodianId);
       expect(offer.exchangeToken).to.equal(exchangeToken);
-      expect(offer.metadataURI).to.equal(metadataURI);
-      expect(offer.metadataHash).to.equal(id(metadataURI));
+      expect(offer.metadata.URI).to.equal(metadataURI);
+      expect(offer.metadata.hash).to.equal(id(metadataURI));
     });
 
     it("Get non-existent offer", async function () {
@@ -569,8 +576,8 @@ describe("Offer", function () {
       expect(offer.verifierFee).to.equal(0);
       expect(offer.custodianId).to.equal(0);
       expect(offer.exchangeToken).to.equal(ZeroAddress);
-      expect(offer.metadataURI).to.equal("");
-      expect(offer.metadataHash).to.equal("");
+      expect(offer.metadata.URI).to.equal("");
+      expect(offer.metadata.hash).to.equal("");
     });
   });
 
@@ -591,8 +598,7 @@ describe("Offer", function () {
         facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
         withPhygital,
-        metadataURI: "https://example.com/offer-metadata.json",
-        metadataHash: ZeroHash,
+        metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
         royaltyInfo,
       };
 
@@ -788,8 +794,7 @@ describe("Offer", function () {
         facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
         withPhygital,
-        metadataURI: "https://example.com/offer-metadata.json",
-        metadataHash: ZeroHash,
+        metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
         royaltyInfo,
       };
 
@@ -1391,8 +1396,10 @@ describe("Offer", function () {
         facilitatorFeePercent: "0",
         exchangeToken: await mockToken.getAddress(),
         withPhygital,
-        metadataURI: "https://example.com/offer-metadata.json",
-        metadataHash: ZeroHash,
+        metadata: {
+          URI: "https://example.com/offer-metadata.json",
+          hash: ZeroHash,
+        },
         royaltyInfo,
       };
 
@@ -1561,8 +1568,7 @@ describe("Offer", function () {
             facilitatorFeePercent: "0",
             exchangeToken,
             withPhygital,
-            metadataURI: "https://example.com/offer-metadata.json",
-            metadataHash: ZeroHash,
+            metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
             royaltyInfo,
           };
 
@@ -1917,8 +1923,7 @@ describe("Offer", function () {
                 facilitatorFeePercent: "0",
                 exchangeToken: await mockToken.getAddress(),
                 withPhygital,
-                metadataURI: "https://example.com/offer-metadata.json",
-                metadataHash: ZeroHash,
+                metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
                 royaltyInfo,
               };
 
@@ -2260,8 +2265,7 @@ describe("Offer", function () {
                     facilitatorFeePercent: "0",
                     exchangeToken: ZeroAddress,
                     withPhygital,
-                    metadataURI: "https://example.com/offer-metadata.json",
-                    metadataHash: ZeroHash,
+                    metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
                     royaltyInfo,
                   };
 
@@ -2340,8 +2344,7 @@ describe("Offer", function () {
                 facilitatorFeePercent: "0",
                 exchangeToken: bosonTokenAddress,
                 withPhygital,
-                metadataURI: "https://example.com/offer-metadata.json",
-                metadataHash: ZeroHash,
+                metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
                 royaltyInfo,
               };
 
@@ -2712,8 +2715,7 @@ describe("Offer", function () {
                 facilitatorFeePercent: "0",
                 exchangeToken: ZeroAddress,
                 withPhygital,
-                metadataURI: "https://example.com/offer-metadata.json",
-                metadataHash: ZeroHash,
+                metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
                 royaltyInfo,
               };
 
@@ -2928,8 +2930,7 @@ describe("Offer", function () {
                     facilitatorFeePercent: "0",
                     exchangeToken: ZeroAddress,
                     withPhygital,
-                    metadataURI: "https://example.com/offer-metadata.json",
-                    metadataHash: ZeroHash,
+                    metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
                     royaltyInfo,
                   };
 
@@ -3047,8 +3048,10 @@ describe("Offer", function () {
                 facilitatorFeePercent: "0",
                 exchangeToken: bosonTokenAddress,
                 withPhygital,
-                metadataURI: "https://example.com/offer-metadata.json",
-                metadataHash: ZeroHash,
+                metadata: {
+                  URI: "https://example.com/offer-metadata.json",
+                  hash: ZeroHash,
+                },
                 royaltyInfo,
               };
 
@@ -3124,8 +3127,7 @@ describe("Offer", function () {
             facilitatorFeePercent: "0",
             exchangeToken,
             withPhygital,
-            metadataURI: "https://example.com/offer-metadata.json",
-            metadataHash: ZeroHash,
+            metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
             royaltyInfo,
           };
 
@@ -3351,8 +3353,7 @@ describe("Offer", function () {
                   facilitatorFeePercent: "0",
                   exchangeToken: await mockToken.getAddress(),
                   withPhygital,
-                  metadataURI: "https://example.com/offer-metadata.json",
-                  metadataHash: ZeroHash,
+                  metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
                   royaltyInfo,
                 };
 
@@ -3584,8 +3585,7 @@ describe("Offer", function () {
                       facilitatorFeePercent: "0",
                       exchangeToken: ZeroAddress,
                       withPhygital,
-                      metadataURI: "https://example.com/offer-metadata.json",
-                      metadataHash: ZeroHash,
+                      metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
                       royaltyInfo,
                     };
 
@@ -3662,8 +3662,7 @@ describe("Offer", function () {
                   facilitatorFeePercent: "0",
                   exchangeToken: bosonTokenAddress,
                   withPhygital,
-                  metadataURI: "https://example.com/offer-metadata.json",
-                  metadataHash: ZeroHash,
+                  metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
                   royaltyInfo,
                 };
 
@@ -3810,8 +3809,7 @@ describe("Offer", function () {
             facilitatorFeePercent: "0",
             exchangeToken,
             withPhygital,
-            metadataURI: "https://example.com/offer-metadata.json",
-            metadataHash: ZeroHash,
+            metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
             royaltyInfo,
           };
 
@@ -3937,8 +3935,7 @@ describe("Offer", function () {
               facilitatorFeePercent: "0",
               exchangeToken: ZeroAddress,
               withPhygital,
-              metadataURI: "https://example.com/offer-metadata.json",
-              metadataHash: ZeroHash,
+              metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
               royaltyInfo,
             };
 
@@ -4006,8 +4003,7 @@ describe("Offer", function () {
             facilitatorFeePercent: "0",
             exchangeToken,
             withPhygital,
-            metadataURI: "https://example.com/offer-metadata.json",
-            metadataHash: ZeroHash,
+            metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
             royaltyInfo,
           };
 

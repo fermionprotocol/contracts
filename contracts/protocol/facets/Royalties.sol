@@ -134,13 +134,13 @@ contract RoyaltiesFacet is OfferErrors, Access {
         address fermionFNFTAddress = FermionStorage.protocolLookups().offerLookups[offerId].fermionFNFTAddress;
         if (fermionFNFTAddress == address(0)) {
             // Token not preminted and wrapped yet
-            revert InvalidTokenId(fermionFNFTAddress, _tokenId);
+            revert FermionGeneralErrors.InvalidTokenId(fermionFNFTAddress, _tokenId);
         } else if (fermionFNFTAddress != msg.sender) {
             // This check is necessary only if the call is not from the FNFT contract, since that contract does the check anyway
             try IERC721Metadata(fermionFNFTAddress).tokenURI(_tokenId) returns (string memory uri) {
                 // fermionFNFT will not return malformed URIs, so we can safely ignore the return value
             } catch {
-                revert InvalidTokenId(fermionFNFTAddress, _tokenId);
+                revert FermionGeneralErrors.InvalidTokenId(fermionFNFTAddress, _tokenId);
             }
         }
 
