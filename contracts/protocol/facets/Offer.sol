@@ -10,6 +10,7 @@ import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
 import { Context } from "../libs/Context.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
+import { RoyaltiesLib } from "../libs/RoyaltiesLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
@@ -63,10 +64,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
     function createOffer(
         FermionTypes.Offer calldata _offer
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        if (
-            _offer.sellerId != _offer.facilitatorId &&
-            !FermionStorage.protocolLookups().sellerLookups[_offer.sellerId].isSellersFacilitator[_offer.facilitatorId]
-        ) {
+        FermionStorage.SellerLookups storage sellerLookups = FermionStorage.protocolLookups().sellerLookups[
+            _offer.sellerId
+        ];
+        if (_offer.sellerId != _offer.facilitatorId && !sellerLookups.isSellersFacilitator[_offer.facilitatorId]) {
             revert EntityErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
         }
         EntityLib.validateSellerAssistantOrFacilitator(_offer.sellerId, _offer.facilitatorId);
@@ -88,6 +89,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         if (_offer.facilitatorFeePercent > HUNDRED_PERCENT) {
             revert FermionGeneralErrors.InvalidPercentage(_offer.facilitatorFeePercent);
         }
+
+        if (_offer.royaltyInfo.length != 1) revert InvalidRoyaltyInfo();
+        RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo[0]);
 
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
@@ -167,31 +171,141 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * Reverts if:
      * - Offer region is paused
      * - Caller is not the seller's assistant or facilitator
+     * - The lengths of the prices and endTimes arrays do not match
+     *
+     * Note: The notPaused and nonentrant modifier and enforced in the mintWrapFixedPriced function
      *
      * @param _offerId - the offer ID
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
      */
-    function mintWrapAndListNFTs(
-        uint256 _offerId,
-        uint256[] calldata _prices,
-        uint256[] calldata _endTimes
-    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        if (_prices.length != _endTimes.length)
-            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, _endTimes.length);
+    function mintWrapAndListNFTs(uint256 _offerId, uint256[] calldata _prices, uint256[] calldata _endTimes) external {
+        (address wrapperAddress, address exchangeToken, uint256 startingNFTId) = mintWrapFixedPriced(
+            _offerId,
+            _prices.length
+        );
 
-        uint256 quantity = _prices.length;
-        (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, quantity);
-        (address wrapperAddress, address exchangeToken) = wrapNFTS(
+        listFixedPriceOrdersInternal(_offerId, _prices, _endTimes, wrapperAddress, startingNFTId);
+    }
+
+    /**
+     * @notice Mint and wrap NFTs in a way to enable fixed price offers on seaport
+     * This is a two-step process, where the first step is to mint and wrap the NFTs,
+     * and the second step is to list them by calling the listFixedPriceOrders.
+     *
+     * Emits an NFTsMinted and NFTsWrapped event
+     *
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator
+     *
+     * @param _offerId - the offer ID
+     * @param _quantity the number of NFTs to mint
+     */
+    function mintWrapFixedPriced(
+        uint256 _offerId,
+        uint256 _quantity
+    )
+        public
+        notPaused(FermionTypes.PausableRegion.Offer)
+        nonReentrant
+        returns (address wrapperAddress, address exchangeToken, uint256 startingNFTId)
+    {
+        IBosonVoucher bosonVoucher;
+        (bosonVoucher, startingNFTId) = mintNFTs(_offerId, _quantity);
+        (wrapperAddress, exchangeToken) = wrapNFTS(
             _offerId,
             bosonVoucher,
             startingNFTId,
-            quantity,
+            _quantity,
             FermionTypes.WrapType.OS_FIXED_PRICE,
             FermionStorage.protocolStatus()
         );
 
-        wrapperAddress.listFixedPriceOrders(startingNFTId, _prices, _endTimes, exchangeToken);
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
+        if (offerLookup.firstTokenId == 0) {
+            offerLookup.firstTokenId = startingNFTId;
+        }
+
+        offerLookup.itemQuantity += _quantity;
+    }
+
+    /**
+     * @notice List a fixed price offer on seaport.
+     * This is a second step after mintWrapFixedPriced.
+     *
+     * Reverts if:
+     * - Offer region is paused
+     * - Caller is not the seller's assistant or facilitator <todo
+     * - The lengths of the prices and endTimes arrays are not equal to the number of minted tokens
+     *
+     * @param _offerId - the offer ID
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     */
+    function listFixedPriceOrders(
+        uint256 _offerId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes
+    ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
+        if (_prices.length != offerLookup.itemQuantity)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, offerLookup.itemQuantity);
+
+        FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
+
+        listFixedPriceOrdersInternal(
+            _offerId,
+            _prices,
+            _endTimes,
+            offerLookup.fermionFNFTAddress,
+            offerLookup.firstTokenId
+        );
+    }
+
+    /**
+     * @notice List a fixed price offer on seaport.
+     *
+     * Reverts if:
+     * - The lengths of the prices and endTimes arrays do not match
+     *
+     * @param _offerId - the offer ID
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     */
+    function listFixedPriceOrdersInternal(
+        uint256 _offerId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        address wrapperAddress,
+        uint256 startingNFTId
+    ) internal {
+        if (_prices.length != _endTimes.length)
+            revert FermionGeneralErrors.ArrayLengthMismatch(_prices.length, _endTimes.length);
+
+        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
+        FermionTypes.Offer storage offer = pe.offer[_offerId];
+        FermionTypes.RoyaltyInfo memory lastRoyaltyInfo;
+        {
+            FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
+
+            if (royaltyInfoAll.length > 0) {
+                // Length 0 represents v1.0 offers, where royalties were not supported. Send empty royalties in that case.
+                // In other cases, send the last royalty info.
+                lastRoyaltyInfo = royaltyInfoAll[royaltyInfoAll.length - 1];
+
+                // If some of the royalty recipient is set to 0, replace it with entity admin
+                for (uint256 i = 0; i < lastRoyaltyInfo.recipients.length; i++) {
+                    if (lastRoyaltyInfo.recipients[i] == address(0)) {
+                        lastRoyaltyInfo.recipients[i] = payable(pe.entityData[offer.sellerId].admin);
+                        break;
+                    }
+                }
+            }
+        }
+
+        wrapperAddress.listFixedPriceOrders(startingNFTId, _prices, _endTimes, lastRoyaltyInfo, offer.exchangeToken);
     }
 
     /**
@@ -398,7 +512,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      *
      * Reverts if:
      *   - There is more than 1 offer in the order
-     *   - There are more than 2 considerations in the order
      *   - OpenSea fee is higher than the price
      *   - OpenSea fee is higher than the expected fee
      *
@@ -411,11 +524,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         IBosonProtocol.PriceDiscovery memory _priceDiscovery,
         address,
         bytes memory _data
-    ) internal view {
+    ) internal pure {
         SeaportTypes.AdvancedOrder memory _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
         if (
             _buyerOrder.parameters.offer.length != 1 ||
-            _buyerOrder.parameters.consideration.length > 2 ||
             _buyerOrder.parameters.consideration[1].startAmount >
             (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || // allow +1 in case they round up; minimal exposure
             _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
@@ -423,10 +535,12 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             revert InvalidOpenSeaOrder();
         }
 
+        _priceDiscovery.price = _buyerOrder.parameters.offer[0].startAmount;
         unchecked {
-            _priceDiscovery.price =
-                _buyerOrder.parameters.offer[0].startAmount -
-                _buyerOrder.parameters.consideration[1].startAmount;
+            for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
+                // reduce the price by the openSea fee and the royalties
+                _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
+            }
         }
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
@@ -451,7 +565,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         IBosonProtocol.PriceDiscovery memory _priceDiscovery,
         address exchangeToken,
         bytes memory _data
-    ) internal view {
+    ) internal pure {
         _priceDiscovery.price = abi.decode(_data, (uint256)); // If this does not match the true price, Boson Protocol will revert
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(

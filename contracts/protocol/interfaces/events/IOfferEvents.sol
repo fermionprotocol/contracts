@@ -25,4 +25,5 @@ interface IOfferEvents {
         FermionTypes.WrapType wrapType
     );
     event ItemPriceObserved(uint256 indexed tokenId, uint256 price);
+    event OfferRoyaltyInfoUpdated(uint256 offerId, uint256 indexed sellerId, FermionTypes.RoyaltyInfo royaltyInfo);
 }

@@ -30,6 +30,9 @@ describe("Entity", function () {
       expect(await configFacet.getProtocolFeePercentage()).to.equal(
         fermionConfig.protocolParameters.protocolFeePercentage,
       );
+      expect(await configFacet.getMaxRoyaltyPercentage()).to.equal(
+        fermionConfig.protocolParameters.maxRoyaltyPercentage,
+      );
       expect(await configFacet.getDefaultVerificationTimeout()).to.equal(
         fermionConfig.protocolParameters.defaultVerificationTimeout,
       );
@@ -52,6 +55,14 @@ describe("Entity", function () {
       await expect(tx).to.emit(configFacet, "ProtocolFeePercentageChanged").withArgs(newPercentage);
 
       expect(await configFacet.getProtocolFeePercentage()).to.equal(newPercentage);
+    });
+
+    it("Set the max royalty percentage", async function () {
+      const newPercentage = 80_00;
+      const tx = await configFacet.setMaxRoyaltyPercentage(newPercentage);
+      await expect(tx).to.emit(configFacet, "MaxRoyaltyPercentageChanged").withArgs(newPercentage);
+
+      expect(await configFacet.getMaxRoyaltyPercentage()).to.equal(newPercentage);
     });
 
     it("Set the protocol fee table", async function () {
@@ -144,6 +155,10 @@ describe("Entity", function () {
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
 
+        await expect(configFacet.connect(randomWallet).setMaxRoyaltyPercentage(1000))
+          .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomWallet, adminRole);
+
         await expect(configFacet.connect(randomWallet).setDefaultVerificationTimeout(24n * 60n * 60n * 14n))
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
@@ -176,6 +191,10 @@ describe("Entity", function () {
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
 
+        await expect(configFacet.setMaxRoyaltyPercentage(1000))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Config);
+
         await expect(configFacet.setDefaultVerificationTimeout(24n * 60n * 60n * 14n))
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
@@ -203,6 +222,13 @@ describe("Entity", function () {
           .withArgs(percentage);
 
         await expect(configFacet.setProtocolFeeTable(wallets[10].address, [1000, 2000, 3000], [500, 1000, percentage]))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
+          .withArgs(percentage);
+      });
+
+      it("Invalid max royalty percentage", async function () {
+        const percentage = 10001n;
+        await expect(configFacet.setMaxRoyaltyPercentage(percentage))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
           .withArgs(percentage);
       });

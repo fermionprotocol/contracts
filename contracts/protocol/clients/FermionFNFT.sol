@@ -10,12 +10,12 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { Common } from "./Common.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { IERC2981 } from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
@@ -34,14 +34,14 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     constructor(
         address _bosonPriceDiscovery,
         address _seaportWrapper,
+        address _strictAuthorizedTransferSecurityRegistry,
         address _wrappedNative,
         address _fnftFractionMint,
         address _fermionFNFTPriceManager,
         address _fnftBuyoutAuction
     )
-        FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative)
+        FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _strictAuthorizedTransferSecurityRegistry, _wrappedNative)
         ERC2771Context(address(0))
-        FundsLib(bytes32(0))
         FermionFractions(_fnftFractionMint, _fermionFNFTPriceManager, _fnftBuyoutAuction)
     {}
 
@@ -89,7 +89,8 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
             super.supportsInterface(_interfaceId) ||
             _interfaceId == type(IFermionWrapper).interfaceId ||
             _interfaceId == type(IFermionFractions).interfaceId ||
-            _interfaceId == type(IFermionFNFT).interfaceId;
+            _interfaceId == type(IFermionFNFT).interfaceId ||
+            _interfaceId == type(IERC2981).interfaceId;
     }
 
     /**

@@ -12,6 +12,7 @@ import { FundsLib } from "../libs/FundsLib.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { FundsFacet } from "../facets/Funds.sol";
 
 /**
  * @dev Buyout auction
@@ -405,6 +406,13 @@ contract FermionBuyoutAuction is
 
             transferERC20FromProtocol($.exchangeToken, payable(auctionDetails.maxBidder), claimAmount);
             auctionProceeds += (releasedFromVault - claimAmount);
+        }
+
+        if (auctionProceeds > 0) {
+            FundsLib.transferERC20FromProtocol($.exchangeToken, payable(fermionProtocol), auctionProceeds);
+            unchecked {
+                auctionProceeds -= FundsFacet(fermionProtocol).collectRoyalties(_tokenId, auctionProceeds);
+            }
         }
 
         uint256 lockedVotes = votes.total;

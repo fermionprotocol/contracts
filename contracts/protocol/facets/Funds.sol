@@ -8,9 +8,9 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../libs/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsLib } from "../libs/FundsLib.sol";
+import { MathLib } from "../libs/MathLib.sol";
 import { Context } from "../libs/Context.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
-
 /**
  * @title FundsFacet
  *
@@ -232,6 +232,55 @@ contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
 
             emit PhygitalsWithdrawn(_tokenIds[i], phygitals);
         }
+    }
+
+    /**
+     * @notice Collects the royalties after the buyout auction.
+     *
+     * Emits AvailableFundsIncreased events for every royalty recipient.
+     *
+     * Reverts if:
+     * - Funds region is paused
+     * - Caller is not the F-NFT contract owning the token
+     *
+     * @param _tokenId - the token id
+     * @param _saleProceeds - the amount collected from the sale
+     * @return royalties - the total amount of royalties collected
+     */
+    function collectRoyalties(
+        uint256 _tokenId,
+        uint256 _saleProceeds
+    ) external notPaused(FermionTypes.PausableRegion.Funds) returns (uint256 royalties) {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        verifyFermionFNFTCaller(offerId, pl);
+
+        FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
+        uint256 royaltyInfoLength = royaltyInfoAll.length;
+        if (royaltyInfoLength == 0) return 0; // offers from v1.0.0 do not have royalties
+        FermionTypes.RoyaltyInfo memory royaltyInfo = royaltyInfoAll[royaltyInfoLength - 1];
+
+        address tokenAddress = offer.exchangeToken;
+        for (uint256 i = 0; i < royaltyInfo.recipients.length; i++) {
+            uint256 _entityId;
+            if (royaltyInfo.recipients[i] == address(0)) {
+                _entityId = offer.sellerId;
+            } else {
+                _entityId = EntityLib.getOrCreateEntityId(
+                    royaltyInfo.recipients[i],
+                    FermionTypes.EntityRole.RoyaltyRecipient,
+                    pl
+                );
+            }
+
+            uint256 amount = MathLib.applyPercentage(_saleProceeds, royaltyInfo.bps[i]);
+            royalties += amount;
+
+            FundsLib.increaseAvailableFunds(_entityId, tokenAddress, amount);
+        }
+
+        // return the remainder
+        FundsLib.transferERC20FromProtocol(tokenAddress, payable(msg.sender), _saleProceeds - royalties);
     }
 
     /**
