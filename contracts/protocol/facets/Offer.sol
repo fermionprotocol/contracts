@@ -93,6 +93,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         if (_offer.royaltyInfo.length != 1) revert InvalidRoyaltyInfo();
         RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo[0]);
 
+        if (_offer.custodianFee.period == 0) {
+            revert FermionGeneralErrors.InvalidPeriod();
+        }
+
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;

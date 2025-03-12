@@ -507,6 +507,19 @@ describe("Offer", function () {
           .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyRecipient")
           .withArgs(rando.address);
       });
+      it("Custodian fee period cannot be zero", async function () {
+        const fermionOffer2 = {
+          ...fermionOffer,
+          custodianFee: {
+            ...fermionOffer.custodianFee,
+            period: 0n,
+          },
+        };
+        await expect(offerFacet.createOffer(fermionOffer2)).to.be.revertedWithCustomError(
+          fermionErrors,
+          "InvalidPeriod",
+        );
+      });
     });
   });
 

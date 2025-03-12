@@ -17,12 +17,7 @@ import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Fractionalisation and buyout auction
  */
-abstract contract FermionFractions is
-    FermionFNFTBase,
-    FermionErrors,
-    IFermionFractionsEvents,
-    IFermionFractions
-{
+abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFractionsEvents, IFermionFractions {
     using Address for address;
 
     address private immutable FNFT_FRACTION_MINT;
