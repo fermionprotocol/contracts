@@ -380,7 +380,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         bytes memory _data
     ) internal {
         (uint256 exchangeAmount, uint256 customItemPrice) = abi.decode(_data, (uint256, uint256));
-
+        if (customItemPrice == 0) {
+            revert InvalidCustomItemPrice();
+        }
         if (exchangeAmount > 0) {
             validateIncomingPayment(exchangeToken, exchangeAmount);
             transferERC20FromProtocol(exchangeToken, payable(_priceDiscovery.priceDiscoveryContract), exchangeAmount);
@@ -392,7 +394,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             (_tokenId, exchangeToken, exchangeAmount)
         );
 
-        // Store the custom item price for later use in fractionalisation
+        // Store the custom item price for later use in case of forceful fractionalisation
         FermionStorage.protocolLookups().tokenLookups[_tokenId].itemPrice = customItemPrice;
     }
 
