@@ -605,6 +605,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             revert InvalidQuantity(_quantity);
         }
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
 
         // Check the caller is the the seller's assistant or facilitator
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
@@ -618,6 +619,12 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         // Premint NFTs on boson voucher
         bosonVoucher = IBosonVoucher(FermionStorage.protocolStatus().bosonNftCollection);
         bosonVoucher.preMint(_offerId, _quantity);
+
+        if (offerLookup.firstTokenId == 0) {
+            offerLookup.firstTokenId = startingNFTId;
+        }
+
+        offerLookup.itemQuantity += _quantity;
 
         // emit event
         emit NFTsMinted(_offerId, startingNFTId, _quantity);
