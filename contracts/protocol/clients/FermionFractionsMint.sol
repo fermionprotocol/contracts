@@ -309,9 +309,15 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsLib, IFerm
         ERC721.ERC721Storage storage erc721Storage = Common._getERC721Storage();
 
         // Format: name = "<fnft_name>_<epoch_index>", symbol = "<fnft_symbol><epoch_index>"
-        string memory epochString = Strings.toString(_epoch);
-        string memory _name = string.concat(erc721Storage._name, "_", epochString);
-        string memory _symbol = string.concat(erc721Storage._symbol, epochString);
+        // Only append epoch if it's not 0
+        string memory _name = erc721Storage._name;
+        string memory _symbol = erc721Storage._symbol;
+
+        if (_epoch != 0) {
+            string memory epochString = Strings.toString(_epoch);
+            _name = string.concat(_name, "_", epochString);
+            _symbol = string.concat(_symbol, epochString);
+        }
 
         FermionFractionsERC20(cloneAddress).initialize(_name, _symbol, address(this));
 
