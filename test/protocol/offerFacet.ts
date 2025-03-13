@@ -986,8 +986,9 @@ describe("Offer", function () {
     const exchangeId = 1n;
     const tokenId = deriveTokenId(bosonOfferId, exchangeId).toString();
     const fullPrice = parseEther("10");
-    const openSeaFee = (fullPrice * 2_50n) / 100_00n;
     const withPhygital = false;
+    const openSeaFeePercentage = BigInt(fermionConfig.protocolParameters.openSeaFeePercentage);
+    const openSeaFee = (fullPrice * openSeaFeePercentage) / 10000n;
     const priceSubOSFee = fullPrice - openSeaFee;
     let openSeaAddress: string, buyerAddress: string;
     let bosonProtocolBalance: bigint, openSeaBalance: bigint;
@@ -1293,7 +1294,7 @@ describe("Offer", function () {
                     {
                       itemType: ItemType.ERC20,
                       token: exchangeToken,
-                      amount: openSeaFee,
+                      amount: openSeaFee.toString(),
                       recipient: openSeaAddress,
                     },
                   ],
@@ -3095,7 +3096,8 @@ describe("Offer", function () {
           it("Unwrap via OS auction", async function () {
             // Buyer makes an offer with a price lower than the listed price
             const offerPrice = (fullPrice * 9n) / 10n;
-            const openSeaFee = (offerPrice * 2_50n) / 100_00n;
+            const openSeaFeePercentage = BigInt(fermionConfig.protocolParameters.openSeaFeePercentage);
+            const openSeaFee = (offerPrice * openSeaFeePercentage) / 10000n;
             const priceSubOSFee = offerPrice - openSeaFee;
 
             const buyer = wallets[4];

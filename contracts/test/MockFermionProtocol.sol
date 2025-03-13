@@ -85,10 +85,10 @@ contract MockFermion {
 
     /**
      * @notice Gets the current OpenSea fee percentage.
-     * @return the OpenSea fee percentage (250 = 2.5%)
+     * @return the OpenSea fee percentage (50 = 0.5%)
      */
     function getOpenSeaFeePercentage() external pure returns (uint16) {
-        return 250; // 2.5%
+        return 50; // 0.5%
     }
 
     fallback() external payable {
