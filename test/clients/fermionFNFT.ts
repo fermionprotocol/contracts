@@ -77,6 +77,7 @@ describe("FermionFNFT", function () {
         await mockExchangeToken.getAddress(),
         offerId,
         metadataURI,
+        { name: "", symbol: "" },
       );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
@@ -137,6 +138,19 @@ describe("FermionFNFT", function () {
 
     it("symbol", async function () {
       expect(await fermionFNFTProxy.symbol()).to.equal(`FFNFT_${offerId}`);
+    });
+
+    it("custom name and symbol", async function () {
+      const Proxy = await ethers.getContractFactory("MockProxy");
+      const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
+
+      const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
+      const randomWallet = wallets[4].address;
+
+      await fermionFNFTProxy.initialize(randomWallet, randomWallet, randomWallet, offerId, metadataURI, {
+        name: "",
+        symbol: "",
+      });
     });
   });
 

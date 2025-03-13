@@ -1171,7 +1171,7 @@ describe("Entity", function () {
 
         await offerFacet.addSupportedToken(ZeroAddress);
         await offerFacet.createOffer(fermionOffer);
-        await offerFacet.mintAndWrapNFTs(bosonOfferId, "1");
+        await offerFacet.mintAndWrapNFTs(bosonOfferId, "1", { name: "test FNFT", symbol: "tFNFT" });
 
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(bosonOfferId);
         wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);

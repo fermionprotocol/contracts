@@ -29,6 +29,7 @@ describe("FermionFNFT - wrapper tests", function () {
   let seaport: Seaport;
   const metadataURI = "https://example.com";
   const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
+  const tokenMetadata = { name: "test FNFT", symbol: "tFNFT" };
 
   async function setupFermionWrapperTest() {
     wallets = await ethers.getSigners();
@@ -107,7 +108,14 @@ describe("FermionFNFT - wrapper tests", function () {
 
     it("Initialization via proxy sets the new owner and metadataURI", async function () {
       await expect(
-        fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId, metadataURI),
+        fermionWrapperProxy.initialize(
+          ZeroAddress,
+          wrapperContractOwner.address,
+          ZeroAddress,
+          offerId,
+          metadataURI,
+          tokenMetadata,
+        ),
       )
         .to.emit(fermionWrapperProxy, "OwnershipTransferred")
         .withArgs(ZeroAddress, wrapperContractOwner.address);
@@ -119,7 +127,14 @@ describe("FermionFNFT - wrapper tests", function () {
     context("Revert reasons", function () {
       it("Direct initialization fails", async function () {
         await expect(
-          fermionWrapper.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId, metadataURI),
+          fermionWrapper.initialize(
+            ZeroAddress,
+            wrapperContractOwner.address,
+            ZeroAddress,
+            offerId,
+            metadataURI,
+            tokenMetadata,
+          ),
         ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
 
@@ -130,10 +145,18 @@ describe("FermionFNFT - wrapper tests", function () {
           ZeroAddress,
           offerId,
           metadataURI,
+          tokenMetadata,
         );
 
         await expect(
-          fermionWrapperProxy.initialize(ZeroAddress, wrapperContractOwner.address, ZeroAddress, offerId, metadataURI),
+          fermionWrapperProxy.initialize(
+            ZeroAddress,
+            wrapperContractOwner.address,
+            ZeroAddress,
+            offerId,
+            metadataURI,
+            tokenMetadata,
+          ),
         ).to.be.revertedWithCustomError(fermionWrapper, "InvalidInitialization");
       });
     });
@@ -148,6 +171,7 @@ describe("FermionFNFT - wrapper tests", function () {
         ZeroAddress,
         offerId,
         metadataURI,
+        tokenMetadata,
       );
     });
 
@@ -212,6 +236,7 @@ describe("FermionFNFT - wrapper tests", function () {
         ZeroAddress,
         offerId,
         metadataURI,
+        tokenMetadata,
       );
 
       seller = wallets[3];
@@ -300,6 +325,7 @@ describe("FermionFNFT - wrapper tests", function () {
         ZeroAddress,
         offerId,
         metadataURI,
+        tokenMetadata,
       );
 
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(wrapperAddress, true);
@@ -472,6 +498,7 @@ describe("FermionFNFT - wrapper tests", function () {
         ZeroAddress,
         offerId,
         metadataURI,
+        tokenMetadata,
       );
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
     });
@@ -680,6 +707,7 @@ describe("FermionFNFT - wrapper tests", function () {
         ZeroAddress,
         offerId,
         metadataURI,
+        tokenMetadata,
       );
       await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
 
@@ -855,6 +883,7 @@ describe("FermionFNFT - wrapper tests", function () {
         ZeroAddress,
         offerId,
         metadataURI,
+        tokenMetadata,
       );
     });
 

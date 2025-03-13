@@ -54,6 +54,7 @@ describe("Custody", function () {
   const exchange = { tokenId: "", custodianId: "" };
   const exchangeSelfSale = { tokenId: "", custodianId: "" };
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
+
   let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
   let minimalPriceSelfSale: bigint;
   async function setupCustodyTest() {
@@ -105,9 +106,10 @@ describe("Custody", function () {
 
     // Mint and wrap some NFTs
     const quantity = "1";
-    await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity); // offerId = 2; exchangeId = 1
-    await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
-    await offerFacet.mintAndWrapNFTs(offerIdSelfCustody, "2"); // offerId = 3; exchangeId = 3
+    const tokenMetadata = { name: "test FNFT", symbol: "tFNFT" };
+    await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity, tokenMetadata); // offerId = 2; exchangeId = 1
+    await offerFacet.mintAndWrapNFTs(offerId, quantity, tokenMetadata); // offerId = 1; exchangeId = 2
+    await offerFacet.mintAndWrapNFTs(offerIdSelfCustody, "2", tokenMetadata); // offerId = 3; exchangeId = 3
     const exchangeIdSelf = "1";
     const exchangeId = "2";
     const exchangeIdSelfCustody = "3";
