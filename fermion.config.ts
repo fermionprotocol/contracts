@@ -10,6 +10,7 @@ interface ProtocolParameters {
   protocolFeePercentage: number;
   defaultVerificationTimeout: bigint;
   maxVerificationTimeout: bigint;
+  openSeaFeePercentage: number;
 }
 
 interface ExternalContracts {
@@ -32,6 +33,7 @@ const fermionConfig: FermionConfig = {
     protocolFeePercentage: 500,
     defaultVerificationTimeout: 60n * 60n * 24n * 7n,
     maxVerificationTimeout: 60n * 60n * 24n * 30n,
+    openSeaFeePercentage: 250, // 2.5%
   },
   externalContracts: {
     hardhat: {
