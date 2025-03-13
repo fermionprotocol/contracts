@@ -103,6 +103,7 @@ To run the integration test, you need to set up the RPC endpoints for the networ
 npx hardhat vars set RPC_PROVIDER_POLYGON
 npx hardhat vars set RPC_PROVIDER_ETHEREUM
 npx hardhat vars set RPC_PROVIDER_BASE
+npx hardhat vars set RPC_PROVIDER_OPTIMISM
 ```
 
 The test are run on a forked version of the network, so no transactions are submitted to the real networks and no real ethers are spent to cover the gas costs.
