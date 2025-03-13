@@ -44,12 +44,6 @@ yarn build
 npx hardhat test
 ```
 
-To enable gas reporter use
-
-```shell
-REPORT_GAS=true npx hardhat test
-```
-
 **Run coverage**
 
 ```shell
@@ -57,7 +51,6 @@ yarn coverage
 ```
 
 **Lint and prettify contracts and scripts**
-**Run coverage**
 
 ```shell
 yarn tidy:contracts
@@ -73,6 +66,60 @@ Other supporting contracts are in `contracts/diamond`, `contracts/external` and 
 Unit tests are separated by facet and available in `./test`. All contracts are extensively tested. 100% coverage is one of the requirements for code to be included in the main branch.
 
 We advise you to fork the repository before making any local changes. If you want your changes to be added to this repository, refer to [Contributing](#contributing) for details.
+
+### Testing
+
+To test the contract run
+
+```shell
+npx hardhat test
+```
+
+By default, the gas reporter is disabled. To get the gas report, run the tests with the following command
+
+```shell
+REPORT_GAS=true npx hardhat test
+```
+
+To get the coverage report, run
+
+```shell
+yarn coverage
+```
+
+Coverage report formats are "html", "json-summary", "lcov", "text" and the reports get written in `./coverage/`.
+
+#### Integration test
+
+In addition to unit tests, we provide integration tests, found in `./test/integration`. We use the integration tests to ensure compatibility with already deployed contracts.
+
+Currently, we provide the integration tests for:
+
+- seaport contracts on ethereum and polygon.
+
+To run the integration test, you need to set up the RPC endpoints for the network on which you are running the tests. The commands are
+
+```shell
+npx hardhat vars set RPC_PROVIDER_POLYGON
+npx hardhat vars set RPC_PROVIDER_ETHEREUM
+npx hardhat vars set RPC_PROVIDER_BASE
+npx hardhat vars set RPC_PROVIDER_OPTIMISM
+```
+
+The tests are run on a forked version of the network, so no transactions are submitted to the real networks and no real ethers are spent to cover the gas costs.
+
+To run the test call
+
+```shell
+npx hardhat test <testFile> --network <network>
+```
+
+- `testFile`: path to test file
+- `network`: the network to run the test on. The network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters in `./fermion.config.ts`
+
+For example, to run seaport integration test on ethereum, call `npx hardhat test ./test/integration/seaport.ts --network mainnet`
+
+NB: Normal tests and coverage reports skip integration reports.
 
 ## Deployment
 
