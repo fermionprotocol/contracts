@@ -22,13 +22,15 @@ interface IFermionFNFT is IFermionWrapper, IFermionFractions {
      * @param _exchangeToken The address of the exchange token
      * @param _offerId The offer id
      * @param _metadataUri The metadata URI, used for all tokens and contract URI
+     * @param _tokenMetadata - optional token metadata (name and symbol)
      */
     function initialize(
         address _voucherAddress,
         address _owner,
         address _exchangeToken,
         uint256 _offerId,
-        string memory _metadataUri
+        string memory _metadataUri,
+        FermionTypes.TokenMetadata memory _tokenMetadata
     ) external;
 
     /**

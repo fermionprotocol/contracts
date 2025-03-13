@@ -205,4 +205,9 @@ contract FermionTypes {
         address contractAddress;
         uint256 tokenId;
     }
+
+    struct TokenMetadata {
+        string name;
+        string symbol;
+    }
 }
