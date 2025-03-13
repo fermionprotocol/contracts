@@ -74,7 +74,6 @@ contract SeaportWrapper is FermionFNFTBase {
         uint256 _price = _buyerOrder.parameters.offer[0].startAmount;
         uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount;
 
-        uint16 openSeaFeePercentage = IFermionConfig(fermionProtocol).getOpenSeaFeePercentage();
         uint256 reducedPrice = _price - _openSeaFee;
 
         address exchangeToken = _buyerOrder.parameters.offer[0].token;
