@@ -372,6 +372,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * @param _priceDiscovery - the price discovery object
      * @param exchangeToken - the exchange token
      * @param _data - abi encoded (exchangeAmount, customItemPrice) (uint256, uint256)
+     * @dev customItemPrice is not used in selfSale, but is used in forceful fractionalisation
      */
     function selfSale(
         uint256 _tokenId,
