@@ -51,6 +51,7 @@ interface OfferErrors {
     error NoSuchOffer(uint256 offerId);
     error InvalidOpenSeaOrder();
     error NoPhygitalOffer(uint256 offerId);
+    error InvalidCustomItemPrice();
 }
 
 interface VerificationErrors {
