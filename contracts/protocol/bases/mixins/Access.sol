@@ -4,7 +4,7 @@ pragma solidity 0.8.24;
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
 import { FermionTypes } from "../../domain/Types.sol";
 import { FermionStorage } from "../../libs/Storage.sol";
-import { PauseErrors } from "../../domain/Errors.sol";
+import { PauseErrors, FermionGeneralErrors } from "../../domain/Errors.sol";
 import { Context } from "../../bases/mixins/Context.sol";
 import { ReentrancyGuard } from "../../bases/mixins/ReentrancyGuard.sol";
 
@@ -47,5 +47,18 @@ contract Access is Context, ReentrancyGuard {
         if ((FermionStorage.protocolStatus().paused & powerOfTwo) == powerOfTwo)
             revert PauseErrors.RegionPaused(_region);
         _;
+    }
+
+    /** Checks if the caller is the F-NFT contract owning the token.
+     *
+     * Reverts if:
+     * - The caller is not the F-NFT contract owning the token
+     *
+     * @param _offerId - offer ID associated with the vault
+     * @param pl - the number of tokens to add to the vault
+     */
+    function verifyFermionFNFTCaller(uint256 _offerId, FermionStorage.ProtocolLookups storage pl) internal view {
+        if (msg.sender != pl.offerLookups[_offerId].fermionFNFTAddress)
+            revert FermionGeneralErrors.AccessDenied(msg.sender); // not using _msgSender() since the FNFT will never use meta transactions
     }
 }

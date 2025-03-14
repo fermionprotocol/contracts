@@ -10,6 +10,7 @@ import { EntityLib } from "../libs/EntityLib.sol";
 import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { Context } from "../bases/mixins/Context.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
+import { RoyaltiesLib } from "../libs/RoyaltiesLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
@@ -63,10 +64,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
     function createOffer(
         FermionTypes.Offer calldata _offer
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        if (
-            _offer.sellerId != _offer.facilitatorId &&
-            !FermionStorage.protocolLookups().sellerLookups[_offer.sellerId].isSellersFacilitator[_offer.facilitatorId]
-        ) {
+        FermionStorage.SellerLookups storage sellerLookups = FermionStorage.protocolLookups().sellerLookups[
+            _offer.sellerId
+        ];
+        if (_offer.sellerId != _offer.facilitatorId && !sellerLookups.isSellersFacilitator[_offer.facilitatorId]) {
             revert EntityErrors.NotSellersFacilitator(_offer.sellerId, _offer.facilitatorId);
         }
         EntityLib.validateSellerAssistantOrFacilitator(_offer.sellerId, _offer.facilitatorId);
@@ -88,6 +89,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         if (_offer.facilitatorFeePercent > HUNDRED_PERCENT) {
             revert FermionGeneralErrors.InvalidPercentage(_offer.facilitatorFeePercent);
         }
+
+        if (_offer.royaltyInfo.length != 1) revert InvalidRoyaltyInfo();
+        RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo[0]);
 
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
@@ -415,7 +419,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         SeaportTypes.AdvancedOrder memory _buyerOrder = abi.decode(_data, (SeaportTypes.AdvancedOrder));
         if (
             _buyerOrder.parameters.offer.length != 1 ||
-            _buyerOrder.parameters.consideration.length > 2 ||
             _buyerOrder.parameters.consideration[1].startAmount >
             (_buyerOrder.parameters.offer[0].startAmount * FermionStorage.protocolConfig().openSeaFeePercentage) /
                 HUNDRED_PERCENT +
@@ -425,10 +428,12 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             revert InvalidOpenSeaOrder();
         }
 
+        _priceDiscovery.price = _buyerOrder.parameters.offer[0].startAmount;
         unchecked {
-            _priceDiscovery.price =
-                _buyerOrder.parameters.offer[0].startAmount -
-                _buyerOrder.parameters.consideration[1].startAmount;
+            for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
+                // reduce the price by the openSea fee and the royalties
+                _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
+            }
         }
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
@@ -453,7 +458,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         IBosonProtocol.PriceDiscovery memory _priceDiscovery,
         address exchangeToken,
         bytes memory _data
-    ) internal view {
+    ) internal pure {
         _priceDiscovery.price = abi.decode(_data, (uint256)); // If this does not match the true price, Boson Protocol will revert
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(

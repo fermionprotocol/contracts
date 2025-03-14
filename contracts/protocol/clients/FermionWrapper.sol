@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionGeneralErrors, WrapperErrors } from "../domain/Errors.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
@@ -8,6 +9,8 @@ import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionWrapperEvents } from "../interfaces/events/IFermionWrapperEvents.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
+import { CreatorToken, ITransferValidator721 } from "./CreatorToken.sol";
+import { RoyaltiesFacet } from "../facets/Royalties.sol";
 import { VerificationFacet } from "../facets/Verification.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -26,11 +29,12 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWrapperEvents {
+contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapper, IFermionWrapperEvents {
     using SafeERC20 for IERC20;
     using Address for address;
     IWrappedNative private immutable WRAPPED_NATIVE;
     address private immutable SEAPORT_WRAPPER;
+    address private immutable STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY;
 
     /**
      * @notice Constructor
@@ -39,11 +43,13 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWr
     constructor(
         address _bosonPriceDiscovery,
         address _seaportWrapper,
+        address _strictAuthorizedTransferSecurityRegistry,
         address _wrappedNative
     ) FermionFNFTBase(_bosonPriceDiscovery) {
         if (_wrappedNative == address(0)) revert FermionGeneralErrors.InvalidAddress();
         WRAPPED_NATIVE = IWrappedNative(_wrappedNative);
         SEAPORT_WRAPPER = _seaportWrapper;
+        STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY = _strictAuthorizedTransferSecurityRegistry;
     }
 
     /**
@@ -59,6 +65,8 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWr
         Common._getFermionCommonStorage().metadataUri = _metadataUri;
         __Ownable_init(_owner);
         SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
+        if (STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY != address(0))
+            _setTransferValidator(STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY);
     }
 
     /**
@@ -230,6 +238,28 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWr
     }
 
     /**
+     * @notice Provides royalty info. (EIP-2981)
+     * Called with the sale price to determine how much royalty is owed and to whom.
+     *
+     * @param _tokenId - the voucher queried for royalty information
+     * @param _salePrice - the sale price of the voucher specified by _tokenId
+     *
+     * @return receiver - address of who should be sent the royalty payment
+     * @return royaltyAmount - the royalty payment amount for the given sale price
+     */
+    function royaltyInfo(
+        uint256 _tokenId,
+        uint256 _salePrice
+    ) external view returns (address receiver, uint256 royaltyAmount) {
+        _requireOwned(_tokenId);
+
+        uint256 royaltyPercentage;
+        (receiver, royaltyPercentage) = RoyaltiesFacet(fermionProtocol).getEIP2981Royalties(_tokenId);
+
+        royaltyAmount = (_salePrice * royaltyPercentage) / HUNDRED_PERCENT;
+    }
+
+    /**
      * @notice Puts the F-NFT from wrapped to unverified state and transfers Boson rNFT to fermion protocol
      *
      * @param _tokenId The token id.
@@ -277,14 +307,25 @@ contract FermionWrapper is FermionFNFTBase, Ownable, IFermionWrapper, IFermionWr
      */
     function _update(address _to, uint256 _tokenId, address _auth) internal virtual override returns (address) {
         FermionTypes.TokenState state = Common._getFermionCommonStorage().tokenState[_tokenId];
+        address msgSender = _msgSender();
 
         if (
             (state == FermionTypes.TokenState.Wrapped && !isFixedPriceSale(_tokenId)) ||
             (state == FermionTypes.TokenState.Unverified && _to != address(0))
         ) {
-            revert InvalidStateOrCaller(_tokenId, _msgSender(), state);
+            revert InvalidStateOrCaller(_tokenId, msgSender, state);
         }
-        return super._update(_to, _tokenId, _auth);
+
+        address from = super._update(_to, _tokenId, _auth);
+        if (from != msgSender && msgSender != fermionProtocol) {
+            // Call the transfer validator if one is set.
+            // If transfer is initiated by the protocol, no need to call the validator (mint/burn/checkout)
+            address transferValidator = Common._getFermionCommonStorage().transferValidator;
+            if (transferValidator != address(0)) {
+                ITransferValidator721(transferValidator).validateTransfer(msgSender, from, _to, _tokenId);
+            }
+        }
+        return from;
     }
 
     /**

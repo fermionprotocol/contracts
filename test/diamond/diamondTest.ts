@@ -36,7 +36,7 @@ describe("DiamondTest", async function () {
       addresses.push(address);
     }
     console.log({ addresses });
-    assert.equal(addresses.length, 14); // default facets: [diamondCut, diamondLoupe, accessControl, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause, config, custodyVault, priceOracleRegistry]
+    assert.equal(addresses.length, 15); // default facets: [diamondCut, diamondLoupe, accessControl, initialization], protocol: [entity, metaTransaction, offer, verification, custody, funds, pause, config, custodyVault, priceOracleRegistry, royalties]
   });
 
   it("static calls work", async () => {

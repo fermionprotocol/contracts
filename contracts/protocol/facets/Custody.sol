@@ -223,7 +223,11 @@ contract CustodyFacet is Context, CustodyErrors, Access, Custody, ICustodyEvents
 
         checkoutRequest.status = FermionTypes.CheckoutRequestStatus.CheckOutRequestCleared;
 
-        pl.tokenLookups[_tokenId].phygitalsRecipient = EntityLib.getOrCreateBuyerId(buyer, pl);
+        pl.tokenLookups[_tokenId].phygitalsRecipient = EntityLib.getOrCreateEntityId(
+            buyer,
+            FermionTypes.EntityRole.Buyer,
+            pl
+        );
 
         emit CheckOutRequestCleared(offer.custodianId, _tokenId);
     }

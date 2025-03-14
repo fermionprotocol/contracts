@@ -40,7 +40,11 @@ interface EntityErrors {
     );
     error ChangeNotAllowed();
     error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
-    error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
+    error AssociatedEntityAlreadyExists(
+        FermionTypes.AssociatedRole associatedRole,
+        uint256 sellerId,
+        uint256 facilitatorId
+    );
     error AccountAlreadyExists(address account);
     error NewAccountSameAsOld();
 }
@@ -51,6 +55,11 @@ interface OfferErrors {
     error NoSuchOffer(uint256 offerId);
     error InvalidOpenSeaOrder();
     error NoPhygitalOffer(uint256 offerId);
+    error InvalidRoyaltyInfo();
+    error InvalidRoyaltyRecipient(address recipient);
+    error InvalidRoyaltyPercentage(uint256 percentage);
+    error OfferWithoutRoyalties(uint256 offerId);
+    error InvalidTokenId(address fnftAddress, uint256 tokenId);
 }
 
 interface VerificationErrors {
