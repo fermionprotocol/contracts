@@ -67,7 +67,7 @@ describe("MetaTransactions", function () {
 
     // Mint and wrap some NFTs
     const quantity = "1";
-    await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
+    await offerFacet.mintAndWrapNFTs(offerId, quantity, { name: "test FNFT", symbol: "tFNFT" }); // offerId = 1; exchangeId = 2
 
     // Unwrap some NFTs - normal sale and sale with self-verification
     buyer = wallets[5];
@@ -1161,7 +1161,10 @@ describe("MetaTransactions", function () {
           const metaTxTestProxy = await ethers.getContractAt("MetaTxTest", await proxy.getAddress());
           await metaTxTestProxy
             .connect(trustedForwarder)
-            .initialize(dummyAddress, dummyAddress, dummyAddress, "1", "http://metadata");
+            .initialize(dummyAddress, dummyAddress, dummyAddress, "1", "http://metadata", {
+              name: "test FNFT",
+              symbol: "tFNFT",
+            });
 
           data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
           dataWithAddress = data + buyer.address.slice(2).toLowerCase();
