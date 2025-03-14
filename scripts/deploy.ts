@@ -10,7 +10,7 @@ import { initSeaportFixture } from "./../test/utils/seaport";
 import { BaseContract, Contract, ZeroAddress } from "ethers";
 import fermionConfig from "./../fermion.config";
 
-const version = "0.0.1";
+const version = "1.0.1";
 let deploymentData: any[] = [];
 
 export async function deploySuite(env: string = "", modules: string[] = [], create3: boolean = false) {
@@ -37,29 +37,32 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, bosonTokenAddress: string;
   let seaportAddress: string, seaportContract: Contract;
   let wrappedNativeAddress: string;
-  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[network.name];
-  if (network.name === "hardhat" || network.name === "localhost") {
-    const isForking = hre.config.networks["hardhat"].forking;
-    const deployerBalance = isForking ? await ethers.provider.getBalance(deployerAddress) : 0n;
-
+  const isForking = hre.config.networks["hardhat"].forking;
+  const networkName = isForking ? isForking.originalChain.name : network.name;
+  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[networkName];
+  if ((network.name === "hardhat" && !isForking) || network.name === "localhost") {
     let weth: BaseContract;
     ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress, weth } =
       await initBosonProtocolFixture(false));
     ({ seaportAddress, seaportContract } = await initSeaportFixture());
     seaportConfig.seaport = seaportAddress;
     wrappedNativeAddress = await weth.getAddress();
-
-    if (isForking) {
-      await network.provider.send("hardhat_setBalance", [deployerAddress, "0x" + deployerBalance.toString(16)]);
-    }
   } else {
+    if (isForking) {
+      // At least one tx is needed for fork to work properly
+      const [deployer] = await ethers.getSigners();
+      await deployer.sendTransaction({ to: deployer.address });
+    }
+
     checkDeployerAddress(network.name);
 
     // Get boson protocol address
-    const { chainId } = await ethers.provider.getNetwork();
+    const { chainId } = isForking ? isForking.originalChain : await ethers.provider.getNetwork();
+
+    const bosonNetworkName = networkName == "ethereum" ? "mainnet" : networkName.toLowerCase();
     const { contracts: bosonContracts } = JSON.parse(
       fs.readFileSync(
-        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${network.name.toLowerCase()}-${env}.json`,
+        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${bosonNetworkName}-${env.replace("-dry-run", "")}.json`,
         "utf8",
       ),
     );
@@ -70,6 +73,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       (contract) => contract.name === "BosonPriceDiscoveryClient",
     )?.address;
     const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler", bosonProtocolAddress);
+
     bosonTokenAddress = await bosonConfigHandler.getTokenAddress();
 
     if (!bosonProtocolAddress || !bosonPriceDiscoveryAddress || !bosonTokenAddress) {
@@ -90,6 +94,14 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   console.log(`Boson Protocol address: ${bosonProtocolAddress}`);
   console.log(`Seaport address: ${seaportAddress}`);
 
+  const externalContracts = {
+    bosonProtocolAddress,
+    bosonPriceDiscoveryAddress,
+    bosonTokenAddress,
+    seaportConfig,
+    wrappedNativeAddress,
+  };
+
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("fnft")) {
@@ -102,6 +114,21 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionFractionsMint = await FermionFractionsMint.deploy(bosonPriceDiscoveryAddress);
     const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
     const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(bosonPriceDiscoveryAddress);
+
+    deploymentComplete("SeaportWrapper", await fermionSeaportWrapper.getAddress(), seaportWrapperConstructorArgs, true);
+    deploymentComplete("FermionFNFTPriceManager", await fermionFNFTPriceManager.getAddress(), [], true);
+    deploymentComplete(
+      "FermionFractionsMint",
+      await fermionFractionsMint.getAddress(),
+      [bosonPriceDiscoveryAddress],
+      true,
+    );
+    deploymentComplete(
+      "FermionBuyoutAuction",
+      await fermionBuyoutAuction.getAddress(),
+      [bosonPriceDiscoveryAddress],
+      true,
+    );
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
@@ -117,6 +144,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     wrapperImplementationAddress = await fermionWrapper.getAddress();
 
     deploymentComplete("FermionFNFT", wrapperImplementationAddress, fermionFNFTConstructorArgs, true);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else {
     deploymentData = await getDeploymentData(env);
     wrapperImplementationAddress = deploymentData.find((contract) => contract.name === "FermionFNFT")?.address;
@@ -134,7 +162,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       wrapperImplementationAddress,
       create3,
     ));
-    await writeContracts(deploymentData, env, version);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else {
     // get the diamond address and initialization from contracts file
     deploymentData = await getDeploymentData(env);
@@ -197,7 +225,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       FundsFacet: [fnftCodeHash],
     };
     facets = await deployFacets(facetNames, constructorArgs, true);
-    await writeContracts(deploymentData, env, version);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else if (modules.includes("initialize")) {
     // get the facets from from contracts file
     deploymentData = await getDeploymentData(env);
@@ -249,6 +277,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       await initializationFacet.getAddress(),
       functionCall,
     );
+
+    await accessController.renounceRole(ethers.id("UPGRADER"), deployerAddress);
 
     facets["InitializationFacet"] = initializationFacet;
     facets["AccessController"] = accessController;
@@ -359,6 +389,7 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
 }
 
 function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
+  // ToDo: calculate interfaceId?
   if (save) deploymentData.push({ name, address, args });
   console.log(`✅ ${name} deployed to: ${address}`);
 }
