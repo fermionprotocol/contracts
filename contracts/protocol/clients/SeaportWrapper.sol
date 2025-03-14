@@ -3,8 +3,9 @@ pragma solidity 0.8.24;
 
 import { FermionGeneralErrors, WrapperErrors } from "../domain/Errors.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
+import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { Common } from "./Common.sol";
+import { IFermionConfig } from "../interfaces/IFermionConfig.sol";
 
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
@@ -72,6 +73,7 @@ contract SeaportWrapper is FermionFNFTBase {
 
         uint256 _price = _buyerOrder.parameters.offer[0].startAmount;
         uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount;
+
         uint256 reducedPrice = _price - _openSeaFee;
 
         // reduce the price by the royalties
@@ -192,11 +194,13 @@ contract SeaportWrapper is FermionFNFTBase {
 
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
 
+        uint16 openSeaFeePercentage = IFermionConfig(fermionProtocol).getOpenSeaFeePercentage();
+
         for (uint256 i; i < _prices.length; ++i) {
             uint256 tokenId = _firstTokenId + i;
             uint256 tokenPrice = _prices[i];
             if (tokenPrice == 0) revert WrapperErrors.ZeroPriceNotAllowed(); // although it is possible to validate zero price offer, it's impossible to fulfill it
-            uint256 reducedPrice = tokenPrice - (tokenPrice * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT;
+            uint256 reducedPrice = tokenPrice - (tokenPrice * openSeaFeePercentage) / HUNDRED_PERCENT;
             fixedPrice[tokenId] = reducedPrice;
 
             // Create order

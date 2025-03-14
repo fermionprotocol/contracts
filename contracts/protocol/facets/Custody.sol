@@ -3,12 +3,12 @@ pragma solidity 0.8.24;
 
 import { CustodyErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { CustodyLib } from "../libs/CustodyLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { Custody } from "../bases/mixins/Custody.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { Context } from "../libs/Context.sol";
+import { Context } from "../bases/mixins/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
@@ -19,10 +19,10 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
  *
  * @notice Handles RWA custody.
  */
-contract CustodyFacet is Context, CustodyErrors, Access, CustodyLib, ICustodyEvents, IFundsEvents {
+contract CustodyFacet is Context, CustodyErrors, Access, Custody, ICustodyEvents, IFundsEvents {
     using FermionFNFTLib for address;
 
-    constructor(bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {}
+    constructor(bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {}
 
     /**
      * @notice Notifies the protocol that an RWA has been checked in

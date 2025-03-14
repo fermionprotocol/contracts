@@ -11,6 +11,7 @@ interface ProtocolParameters {
   defaultVerificationTimeout: bigint;
   maxVerificationTimeout: bigint;
   maxRoyaltyPercentage: number;
+  openSeaFeePercentage: number;
 }
 
 interface ExternalContracts {
@@ -35,6 +36,7 @@ const fermionConfig: FermionConfig = {
     defaultVerificationTimeout: 60n * 60n * 24n * 7n,
     maxVerificationTimeout: 60n * 60n * 24n * 30n,
     maxRoyaltyPercentage: 100_00,
+    openSeaFeePercentage: 50, // 0.5%
   },
   externalContracts: {
     hardhat: {
@@ -108,7 +110,10 @@ const fermionConfig: FermionConfig = {
         seaport: "0x0000000000000068F116a894984e2DB1123eB395",
         openSeaConduit: "0x1E0049783F008A0085193E00003D00cd54003c71",
         openSeaConduitKey: "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+        openSeaZoneHash: ZeroHash, // ToDo: add the correct value
+        openSeaRecipient: ZeroAddress, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x4200000000000000000000000000000000000006",
     },
     base: {
@@ -116,7 +121,10 @@ const fermionConfig: FermionConfig = {
         seaport: "0x0000000000000068F116a894984e2DB1123eB395",
         openSeaConduit: "0x1E0049783F008A0085193E00003D00cd54003c71",
         openSeaConduitKey: "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+        openSeaZoneHash: ZeroHash, // ToDo: add the correct value
+        openSeaRecipient: ZeroAddress, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x4200000000000000000000000000000000000006",
     },
     optimismSepolia: {
@@ -124,7 +132,10 @@ const fermionConfig: FermionConfig = {
         seaport: "0x0000000000000068F116a894984e2DB1123eB395",
         openSeaConduit: "0x1E0049783F008A0085193E00003D00cd54003c71",
         openSeaConduitKey: "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+        openSeaZoneHash: ZeroHash, // ToDo: add the correct value
+        openSeaRecipient: ZeroAddress, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x4200000000000000000000000000000000000006",
     },
     optimism: {
@@ -132,7 +143,10 @@ const fermionConfig: FermionConfig = {
         seaport: "0x0000000000000068F116a894984e2DB1123eB395",
         openSeaConduit: "0x1E0049783F008A0085193E00003D00cd54003c71",
         openSeaConduitKey: "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+        openSeaZoneHash: ZeroHash, // ToDo: add the correct value
+        openSeaRecipient: ZeroAddress, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x4200000000000000000000000000000000000006",
     },
   },

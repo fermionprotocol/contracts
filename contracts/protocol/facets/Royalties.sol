@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import { OfferErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { RoyaltiesLib } from "../libs/RoyaltiesLib.sol";

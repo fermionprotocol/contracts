@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import { ADMIN, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
 import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
@@ -25,13 +25,15 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      * @param _maxRoyaltyPercentage The maximal total royalty percentage per offer item.
      * @param _maxVerificationTimeout The maximum allowed verification timeout in seconds.
      * @param _defaultVerificationTimeout The default timeout in seconds for verification if none is specified.
+     * @param _openSeaFeePercentage The OpenSea fee percentage (in basis points, e.g. 2.5% = 250).
      */
     function init(
         address payable _treasury,
         uint16 _protocolFeePercentage,
         uint16 _maxRoyaltyPercentage,
         uint256 _maxVerificationTimeout,
-        uint256 _defaultVerificationTimeout
+        uint256 _defaultVerificationTimeout,
+        uint16 _openSeaFeePercentage
     ) external {
         // Initialize protocol config params
         setTreasuryAddressInternal(_treasury);
@@ -39,6 +41,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
         setMaxRoyaltyPercentageInternal(_maxRoyaltyPercentage);
         setMaxVerificationTimeoutInternal(_maxVerificationTimeout);
         setDefaultVerificationTimeoutInternal(_defaultVerificationTimeout);
+        setOpenSeaFeePercentageInternal(_openSeaFeePercentage);
     }
 
     /**
@@ -221,6 +224,33 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
      */
     function getMaxVerificationTimeout() external view returns (uint256) {
         return FermionStorage.protocolConfig().maxVerificationTimeout;
+    }
+
+    /**
+     * @notice Sets the OpenSea fee percentage.
+     *
+     * Emits an OpenSeaFeePercentageChanged event if successful.
+     *
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The _openSeaFeePercentage value is greater than 10000
+     *
+     * @param _openSeaFeePercentage - the percentage that OpenSea takes as a fee in basis points (e.g, 2.5% = 250, 100% = 10000)
+     *
+     */
+    function setOpenSeaFeePercentage(
+        uint16 _openSeaFeePercentage
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
+        setOpenSeaFeePercentageInternal(_openSeaFeePercentage);
+    }
+
+    /**
+     * @notice Gets the current OpenSea fee percentage.
+     *
+     * @return the OpenSea fee percentage
+     */
+    function getOpenSeaFeePercentage() external view returns (uint16) {
+        return FermionStorage.protocolConfig().openSeaFeePercentage;
     }
 
     /**
@@ -418,6 +448,24 @@ contract ConfigFacet is Access, FermionGeneralErrors, IConfigEvents {
 
         // Notify watchers of state change
         emit DefaultVerificationTimeoutChanged(_defaultVerificationTimeout);
+    }
+
+    /**
+     * @notice Sets the OpenSea fee percentage.
+     *
+     * Emits an OpenSeaFeePercentageChanged event if successful.
+     *
+     * Reverts if:
+     * - The caller is not a protocol admin
+     * - The _openSeaFeePercentage value is greater than 10000
+     *
+     * @param _openSeaFeePercentage - the percentage that OpenSea takes as a fee in basis points (e.g, 2.5% = 250, 100% = 10000)
+     *
+     */
+    function setOpenSeaFeePercentageInternal(uint16 _openSeaFeePercentage) internal {
+        checkMaxPercentage(_openSeaFeePercentage);
+        FermionStorage.protocolConfig().openSeaFeePercentage = _openSeaFeePercentage;
+        emit OpenSeaFeePercentageChanged(_openSeaFeePercentage);
     }
 
     /**

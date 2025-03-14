@@ -259,6 +259,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
         fermionConfig.protocolParameters.maxRoyaltyPercentage,
         fermionConfig.protocolParameters.maxVerificationTimeout,
         fermionConfig.protocolParameters.defaultVerificationTimeout,
+        fermionConfig.protocolParameters.openSeaFeePercentage,
       ],
       OfferFacet: [],
     };

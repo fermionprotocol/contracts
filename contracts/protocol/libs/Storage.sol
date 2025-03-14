@@ -55,6 +55,8 @@ library FermionStorage {
         uint16 protocolFeePercentage;
         // Max royalty percentage
         uint16 maxRoyaltyPercentage;
+        // OpenSea fee percentage
+        uint16 openSeaFeePercentage;
         // Default verification timeout
         uint256 defaultVerificationTimeout;
         // Max verification timeout
