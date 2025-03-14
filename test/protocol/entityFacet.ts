@@ -716,6 +716,27 @@ describe("Entity", function () {
         ).to.be.equal(true);
       });
 
+      it("Check admin can't renounce any role", async function () {
+        // verify state before
+        expect(
+          await entityFacet.hasAccountRole(entityId, defaultSigner.address, EntityRole.Custodian, AccountRole.Manager),
+        ).to.be.equal(true);
+        // test event
+        await expect(
+          entityFacet.renounceAccountRole(entityId, EntityRole.Custodian, AccountRole.Manager),
+        )
+          .to.emit(entityFacet, "EntityAccountRemoved")
+          .withArgs(entityId, defaultSigner.address, [EntityRole.Custodian], [[AccountRole.Manager]]);
+
+        // TODO: I would expect the method to revert to explicitely inform renouncing role from the admin doesn't have any effect
+        // (so it would be considered an invalid call)
+
+        // verify state after didn't change
+        expect(
+          await entityFacet.hasAccountRole(entityId, defaultSigner.address, EntityRole.Custodian, AccountRole.Manager),
+        ).to.be.equal(true);
+      });
+
       context("Revert reasons", function () {
         it("Entity region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Entity]);
