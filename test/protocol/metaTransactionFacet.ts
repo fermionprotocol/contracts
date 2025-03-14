@@ -1133,6 +1133,7 @@ describe("MetaTransactions", function () {
               seaport: wallets[10].address, // dummy address
               openSeaConduit: mockConduit.address,
               openSeaConduitKey: ZeroHash,
+              openSeaSignedZone: ZeroAddress,
               openSeaZoneHash: ZeroHash,
               openSeaRecipient: ZeroAddress,
             },

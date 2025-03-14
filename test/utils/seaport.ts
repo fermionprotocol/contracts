@@ -7,8 +7,9 @@ import { BigNumberish, Contract } from "ethers";
 import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 import { OrderComponents } from "@opensea/seaport-js/lib/types";
 import fermionConfig from "./../../fermion.config";
+import { applyPercentage } from "./common";
 
-const { getContractFactory, getContractAt, parseEther, ZeroAddress } = ethers;
+const { getContractFactory, getContractAt, parseEther, ZeroAddress, ZeroHash } = ethers;
 
 // Deploys WETH, Boson Protocol Diamond, Boson Price Discovery, Boson Voucher Implementation, Boson Voucher Beacon Client
 export async function initSeaportFixture() {
@@ -46,7 +47,7 @@ export function createBuyerAdvancedOrderClosure(
     const fullPrice = parseEther("1");
     // Use the OpenSea fee percentage from the config (0.5%)
     const openSeaFeePercentage = BigInt(fermionConfig.protocolParameters.openSeaFeePercentage);
-    const openSeaFee = (fullPrice * openSeaFeePercentage) / 10000n;
+    const openSeaFee = applyPercentage(fullPrice, openSeaFeePercentage);
     const openSea = wallets[5]; // a mock OS address
     const seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
 
@@ -111,9 +112,33 @@ export async function encodeBuyerAdvancedOrder(
 }
 
 export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, wrapperAddress: string) {
-  return async function getOrderParameters(tokenId: string, exchangeToken: string, fullPrice: bigint, endTime: string) {
+  return async function getOrderParameters(
+    tokenId: string,
+    exchangeToken: string,
+    fullPrice: bigint,
+    startTime: string,
+    endTime: string,
+    royalties: { recipients: string[]; bps: bigint[] } = { recipients: [], bps: [] },
+    validatorEnabled: boolean = true,
+  ) {
     const openSeaFeePercentage = BigInt(fermionConfig.protocolParameters.openSeaFeePercentage);
-    const openSeaFee = (fullPrice * openSeaFeePercentage) / 10000n;
+    const openSeaFee = applyPercentage(fullPrice, openSeaFeePercentage);
+    let reducedPrice = fullPrice - openSeaFee;
+    const royaltyConsiderations = [];
+    for (let i = 0; i < royalties.recipients.length; i++) {
+      const royalty = applyPercentage(fullPrice, royalties.bps[i]);
+
+      const consideration = {
+        itemType: ItemType.ERC20,
+        token: exchangeToken,
+        amount: royalty.toString(),
+        recipient: royalties.recipients[i],
+      };
+      royaltyConsiderations.push(consideration);
+
+      reducedPrice -= royalty;
+    }
+
     const { executeAllActions } = await seaport.createOrder(
       {
         offer: [
@@ -127,7 +152,7 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
           {
             itemType: ItemType.ERC20 as any,
             token: exchangeToken,
-            amount: (fullPrice - openSeaFee).toString(),
+            amount: reducedPrice.toString(),
           },
           {
             itemType: ItemType.ERC20 as any,
@@ -135,19 +160,19 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
             amount: openSeaFee.toString(),
             recipient: seaportConfig.openSeaRecipient,
           },
+          ...royaltyConsiderations,
         ],
         conduitKey: seaportConfig.openSeaConduitKey,
-        zone:
-          seaportConfig.openSeaConduit == ZeroAddress
-            ? await seaport.contract.getAddress()
-            : seaportConfig.openSeaConduit,
-        zoneHash: seaportConfig.openSeaZoneHash,
-        startTime: "0", // matching the value in seaportWrapper.listFixedPriceOrders
+        zone: validatorEnabled ? seaportConfig.openSeaSignedZone : ZeroAddress,
+        zoneHash: validatorEnabled ? seaportConfig.openSeaZoneHash : ZeroHash,
+        startTime,
         endTime,
         salt: "0", // matching the value in seaportWrapper.listFixedPriceOrders
+        restrictedByZone: validatorEnabled && seaportConfig.openSeaSignedZone != ZeroAddress,
       },
       wrapperAddress,
     );
+
     const fixedPriceOrder = await executeAllActions();
 
     return fixedPriceOrder.parameters;
@@ -168,7 +193,10 @@ export function getOrderParametersAndStatusClosure(
     tokenId: string,
     exchangeToken: string,
     fullPrice: bigint,
+    startTime: string,
     endTime: string,
+    royalties: { recipients: string[]; bps: bigint[] },
+    validatorEnabled: boolean,
   ) => Promise<OrderComponents>,
   getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>,
 ) {
@@ -176,9 +204,20 @@ export function getOrderParametersAndStatusClosure(
     tokenId: string,
     exchangeToken: string,
     fullPrice: bigint,
+    startTime: string,
     endTime: string,
+    royalties: { recipients: string[]; bps: bigint[] } = { recipients: [], bps: [] },
+    validatorEnabled: boolean = true,
   ) {
-    const orderComponents = await getOrderParameters(tokenId, exchangeToken, fullPrice, endTime);
+    const orderComponents = await getOrderParameters(
+      tokenId,
+      exchangeToken,
+      fullPrice,
+      startTime,
+      endTime,
+      royalties,
+      validatorEnabled,
+    );
     const orderStatus = await getOrderStatus(orderComponents);
 
     return { orderComponents, orderStatus };
