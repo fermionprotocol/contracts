@@ -5,7 +5,7 @@ import { ADMIN, SLOT_SIZE } from "../domain/Constants.sol";
 import { MetaTransactionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEvents.sol";
 import { EIP712 } from "../libs/EIP712.sol";
 
