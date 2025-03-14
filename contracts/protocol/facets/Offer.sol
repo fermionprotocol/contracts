@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
+import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../libs/Access.sol";
@@ -417,7 +417,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             _buyerOrder.parameters.offer.length != 1 ||
             _buyerOrder.parameters.consideration.length > 2 ||
             _buyerOrder.parameters.consideration[1].startAmount >
-            (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || // allow +1 in case they round up; minimal exposure
+            (_buyerOrder.parameters.offer[0].startAmount * FermionStorage.protocolConfig().openSeaFeePercentage) /
+                HUNDRED_PERCENT +
+                1 || // allow +1 in case they round up; minimal exposure
             _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
         ) {
             revert InvalidOpenSeaOrder();
