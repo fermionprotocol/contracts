@@ -86,7 +86,7 @@ describe("Verification", function () {
   let itemVerificationTimeout: string;
   let itemMaxVerificationTimeout: bigint;
   const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-  const defaultFermionFee = BigInt(fermionConfig.protocolParameters.protocolFeePercentage);
+  let defaultFermionFee: bigint;
 
   async function setupVerificationTest() {
     // Create three entities
@@ -307,6 +307,8 @@ describe("Verification", function () {
       defaultSigner,
       seaportAddress,
     } = await loadFixture(deployFermionProtocolFixture));
+
+    defaultFermionFee = BigInt(fermionConfig.protocolParameters.protocolFeePercentage);
 
     await loadFixture(setupVerificationTest);
 
