@@ -2,17 +2,8 @@
   "chainId": 11155111,
   "network": "sepolia",
   "env": "test",
-  "protocolVersion": "0.0.1",
+  "protocolVersion": "1.0.1",
   "contracts": [
-    {
-      "name": "FermionFNFT",
-      "address": "0x49F33f10E2D9850D19396e05B40fD6982aaEC524",
-      "args": [
-        "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
-        "0x1970AD2Ef393F724758BcbfB91e6f65308699840",
-        "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
-      ]
-    },
     {
       "name": "DiamondCutFacet",
       "address": "0x72375d8f6c09Be9367B7A1629bb889A7f2a393d0",
@@ -122,6 +113,26 @@
       "name": "CustodyVaultFacet",
       "address": "0x49673E4a266a3F62C05EcCacf4fcD3100AFeF4CA",
       "args": []
+    },
+    {
+      "name": "FermionFNFT",
+      "address": "0x7863eF87f7d2a9f15f2A7175cC4d044Ea3E81DDc",
+      "args": [
+        "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
+        "0x2062C92447Ac78B977221E9bA2Be258AE90B6A3E",
+        "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
+      ]
     }
-  ]
+  ],
+  "externalAddresses": {
+    "bosonProtocolAddress": "0x7de418a7ce94debd057c34ebac232e7027634ade",
+    "bosonPriceDiscoveryAddress": "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
+    "bosonTokenAddress": "0x791Bf9Da3DEF5D7Cd3A7a748e56720Cd119D53AC",
+    "seaportConfig": {
+      "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
+      "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
+      "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000"
+    },
+    "wrappedNativeAddress": "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
+  }
 }
