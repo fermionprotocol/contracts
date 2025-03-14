@@ -368,7 +368,7 @@ library EntityLib {
         FermionTypes.EntityRole _role,
         FermionStorage.ProtocolLookups storage pl
     ) internal returns (uint256 entityId) {
-        entityId = pl.accountId[_entityAddress];
+        entityId = pl.entityId[_entityAddress];
 
         if (entityId == 0) {
             FermionTypes.EntityRole[] memory _roles = new FermionTypes.EntityRole[](1);
