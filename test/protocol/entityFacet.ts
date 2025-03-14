@@ -755,6 +755,55 @@ describe("Entity", function () {
             await entityFacet.hasAccountRole(entityId, defaultSigner.address, EntityRole.Seller, AccountRole.Manager),
           ).to.be.equal(true);
         });
+
+        it("Caller has an entity-wide role", async function () {
+          const entityWideWallet = wallets[5];
+
+          // Verify that the wallet is not the entity admin
+          expect(
+            await entityFacet.hasAccountRole(
+              entityId,
+              entityWideWallet.address,
+              EntityRole.Seller,
+              AccountRole.Manager,
+            ),
+          ).to.be.equal(false);
+
+          await entityFacet.addEntityAccounts(entityId, [entityWideWallet.address], [[]], [[[AccountRole.Assistant]]]);
+
+          // Try to renounce the role for a specific entity role
+          await expect(
+            entityFacet
+              .connect(entityWideWallet)
+              .renounceAccountRole(entityId, EntityRole.Seller, AccountRole.Assistant),
+          ).to.be.revertedWithCustomError(fermionErrors, "ChangeNotAllowed");
+
+          // Verify the wallet still has the role for all entity roles
+          expect(
+            await entityFacet.hasAccountRole(
+              entityId,
+              entityWideWallet.address,
+              EntityRole.Seller,
+              AccountRole.Assistant,
+            ),
+          ).to.be.equal(true);
+          expect(
+            await entityFacet.hasAccountRole(
+              entityId,
+              entityWideWallet.address,
+              EntityRole.Verifier,
+              AccountRole.Assistant,
+            ),
+          ).to.be.equal(true);
+          expect(
+            await entityFacet.hasAccountRole(
+              entityId,
+              entityWideWallet.address,
+              EntityRole.Custodian,
+              AccountRole.Assistant,
+            ),
+          ).to.be.equal(true);
+        });
       });
     });
 
