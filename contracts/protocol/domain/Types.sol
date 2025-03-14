@@ -124,6 +124,13 @@ contract FermionTypes {
         uint256 taxAmount;
     }
 
+    struct CustodianUpdateRequest {
+        uint256 newCustodianId;
+        CustodianFee custodianFee;
+        CustodianVaultParameters custodianVaultParameters;
+        uint256 requestTimestamp;
+    }
+
     struct CustodianVaultParameters {
         uint256 partialAuctionThreshold;
         uint256 partialAuctionDuration;
