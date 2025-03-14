@@ -123,6 +123,8 @@ library FermionStorage {
         uint256 custodianVaultItems;
         uint256 itemQuantity;
         uint256 firstTokenId;
+        // custodian update request
+        FermionTypes.CustodianUpdateRequest custodianUpdateRequest;
     }
 
     struct TokenLookups {
