@@ -53,6 +53,8 @@ library FermionStorage {
         address payable treasury;
         // Default Protocol fee
         uint16 protocolFeePercentage;
+        // OpenSea fee percentage
+        uint16 openSeaFeePercentage;
         // Default verification timeout
         uint256 defaultVerificationTimeout;
         // Max verification timeout
@@ -60,8 +62,6 @@ library FermionStorage {
         // Token-specific fee tables
         mapping(address => uint256[]) tokenPriceRanges; // Price ranges for each token
         mapping(address => uint16[]) tokenFeePercentages; // Fee percentages for each price range
-        // OpenSea fee percentage
-        uint16 openSeaFeePercentage;
     }
 
     // Protocol entities storage
