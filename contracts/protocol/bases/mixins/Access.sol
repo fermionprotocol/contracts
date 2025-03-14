@@ -2,11 +2,11 @@
 pragma solidity 0.8.24;
 
 import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.sol";
-import { FermionTypes } from "../domain/Types.sol";
-import { FermionStorage } from "./Storage.sol";
-import { PauseErrors } from "../domain/Errors.sol";
-import { Context } from "./Context.sol";
-import { ReentrancyGuard } from "./ReentrancyGuard.sol";
+import { FermionTypes } from "../../domain/Types.sol";
+import { FermionStorage } from "../../libs/Storage.sol";
+import { PauseErrors } from "../../domain/Errors.sol";
+import { Context } from "../../bases/mixins/Context.sol";
+import { ReentrancyGuard } from "../../bases/mixins/ReentrancyGuard.sol";
 
 /**
  * @title Access control

@@ -10,7 +10,7 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { Common } from "./Common.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
@@ -41,7 +41,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     )
         FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative)
         ERC2771Context(address(0))
-        FundsLib(bytes32(0))
+        FundsManager(bytes32(0))
         FermionFractions(_fnftFractionMint, _fermionFNFTPriceManager, _fnftBuyoutAuction)
     {}
 
