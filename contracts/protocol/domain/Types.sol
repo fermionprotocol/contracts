@@ -24,7 +24,8 @@ contract FermionTypes {
 
     enum VerificationStatus {
         Verified,
-        Rejected
+        Rejected,
+        Pending
     }
 
     enum CheckoutRequestStatus {
@@ -64,6 +65,7 @@ contract FermionTypes {
         CheckedOut,
         Burned
     }
+
     enum PriceUpdateProposalState {
         NotInit, // Explicitly represents an uninitialized state
         Active,
@@ -91,6 +93,11 @@ contract FermionTypes {
         bytes functionSignature;
     }
 
+    struct Metadata {
+        string URI;
+        string hash;
+    }
+
     struct Offer {
         uint256 sellerId;
         uint256 sellerDeposit;
@@ -102,8 +109,7 @@ contract FermionTypes {
         uint256 facilitatorFeePercent;
         address exchangeToken;
         bool withPhygital;
-        string metadataURI;
-        string metadataHash;
+        Metadata metadata;
     }
 
     struct CustodianFee {
