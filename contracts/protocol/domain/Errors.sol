@@ -71,10 +71,15 @@ interface CustodyErrors {
     error NotTokenBuyer(uint256 tokenId, address owner, address caller);
     error InvalidTaxAmount();
     error InvalidCheckoutRequestStatus(
-        uint256 tokenId,
+        uint256 offerId,
         FermionTypes.CheckoutRequestStatus expectedStatus,
         FermionTypes.CheckoutRequestStatus actualStatus
     );
+    error InsufficientVaultBalance(uint256 tokenId, uint256 required, uint256 available);
+    error UpdateRequestExpired(uint256 tokenId);
+    error UpdateRequestTooRecent(uint256 tokenId, uint256 waitTime);
+    error NoTokensInCustody(uint256 offerId);
+    error InvalidCustodianFeePeriod();
 }
 
 interface AuctionErrors {
@@ -174,6 +179,7 @@ interface WrapperErrors {
     error ZeroPriceNotAllowed();
     error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
     error InvalidOwner(uint256 tokenId, address expected, address actual);
+    error InvalidOpenSeaFee(uint256 actual, uint256 expected);
 }
 
 interface FermionErrors is

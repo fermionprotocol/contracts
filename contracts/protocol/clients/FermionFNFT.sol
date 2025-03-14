@@ -79,6 +79,36 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     }
 
     /**
+     * @notice Updates the name of the token
+     * @dev Only callable by the contract owner
+     * @param _name The new name for the token
+     */
+    function setName(string memory _name) external onlyOwner {
+        Common._getERC721Storage()._name = _name;
+    }
+
+    /**
+     * @notice Updates the symbol of the token
+     * @dev Only callable by the contract owner
+     * @param _symbol The new symbol for the token
+     */
+    function setSymbol(string memory _symbol) external onlyOwner {
+        Common._getERC721Storage()._symbol = _symbol;
+    }
+
+    /**
+     * @notice Updates both the name and symbol of the token in a single transaction
+     * @dev Only callable by the contract owner
+     * @param _name The new name for the token
+     * @param _symbol The new symbol for the token
+     */
+    function setNameAndSymbol(string memory _name, string memory _symbol) external onlyOwner {
+        ERC721Storage storage $ = Common._getERC721Storage();
+        $._name = _name;
+        $._symbol = _symbol;
+    }
+
+    /**
      * @dev Returns true if this contract implements the interface defined by
      * `interfaceId`. See the corresponding
      * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
