@@ -207,7 +207,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity region is paused
      * - Entity does not exist
      * - Caller does not have the specified account role for the specified entity role
-     * - Caller is the entity's admin (admins cannot renounce roles through this function)
+     * - Caller has an entity-wide role for the specified account role (entity-wide roles, including entity admins, cannot be renounced through this function)
      *
      * @param _entityId - the entity ID
      * @param _entityRole - the entity role for which to renounce the account role
@@ -223,7 +223,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_entityId, pl);
 
-        if (pl.entityId[msgSender] == _entityId) {
+        if (EntityLib.hasAccountRole(_entityId, msgSender, _entityRole, _accountRole, true)) {
             revert ChangeNotAllowed();
         }
 
