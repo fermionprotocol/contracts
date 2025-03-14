@@ -44,7 +44,10 @@ contract FermionBuyoutAuction is
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
         FermionTypes.AuctionDetails storage auctionDetails = Common.getLastAuction(_tokenId, $).details;
 
+        bool isProtocolCaller = fermionProtocol == _msgSender();
+
         if (!$.tokenInfo[_tokenId].isFractionalised) {
+            if (isProtocolCaller) return; // if protocol tries to start an auction for a non-fractionalised token, just return
             revert TokenNotFractionalised(_tokenId);
         }
 
@@ -54,7 +57,8 @@ contract FermionBuyoutAuction is
 
         uint256 exitPrice = $.auctionParameters.exitPrice;
         uint256 maxBid = auctionDetails.maxBid;
-        if (maxBid < exitPrice) {
+        if (maxBid < exitPrice && !isProtocolCaller) {
+            // protocol can start the auction even if the highest bid is below the exit price
             revert BidBelowExitPrice(_tokenId, maxBid, exitPrice);
         }
 
