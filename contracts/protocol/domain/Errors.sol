@@ -189,6 +189,7 @@ interface WrapperErrors {
     error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
     error InvalidOwner(uint256 tokenId, address expected, address actual);
     error InvalidUnwrap();
+    error InvalidOpenSeaFee(uint256 actual, uint256 expected);
 }
 
 interface FermionErrors is

@@ -6,7 +6,7 @@ import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityErrors } from "../domain/Errors.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
-import { ContextLib } from "../libs/Context.sol";
+import { ContextLib } from "./ContextLib.sol";
 
 /**
  * @title EntityLib

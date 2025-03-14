@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import { OfferErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { RoyaltiesLib } from "../libs/RoyaltiesLib.sol";
@@ -35,18 +35,18 @@ contract RoyaltiesFacet is OfferErrors, Access {
         uint256[] calldata _offerIds,
         FermionTypes.RoyaltyInfo calldata _royaltyInfo
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
-        uint256 sellerId = 0;
+        uint256 sellerId;
         FermionStorage.SellerLookups storage sellerLookups;
         for (uint256 i = 0; i < _offerIds.length; i++) {
             // Make sure the caller is the assistant, offer exists and is not voided
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerIds[i]];
-            if (sellerId == 0) {
+            if (sellerId != offer.sellerId) {
                 sellerId = offer.sellerId;
                 sellerLookups = FermionStorage.protocolLookups().sellerLookups[sellerId];
             } else {
                 sellerLookups = sellerLookups;
-                // Stupid workaround to avoid uninitialized variable warning. TODO: Is this more efficient or is more
-                // efficient to initialize it before the loop to FermionStorage.protocolLookups().sellerLookups[0]
+                // A workaround to avoid uninitialized variable warning.
+                // This more efficient than initializing it before the loop to FermionStorage.protocolLookups().sellerLookups[0]
             }
 
             EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);

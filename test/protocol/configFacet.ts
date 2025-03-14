@@ -39,6 +39,11 @@ describe("Entity", function () {
       expect(await configFacet.getMaxVerificationTimeout()).to.equal(
         fermionConfig.protocolParameters.maxVerificationTimeout,
       );
+      if ("openSeaFeePercentage" in fermionConfig.protocolParameters) {
+        expect(await configFacet.getOpenSeaFeePercentage()).to.equal(
+          fermionConfig.protocolParameters.openSeaFeePercentage,
+        );
+      }
     });
 
     it("Set the treasury address", async function () {
@@ -140,6 +145,14 @@ describe("Entity", function () {
       expect(await configFacet.getFNFTImplementationAddress()).to.equal(newAddress);
     });
 
+    it("Set the OpenSea fee percentage", async function () {
+      const newPercentage = 300; // 3%
+      const tx = await configFacet.setOpenSeaFeePercentage(newPercentage);
+      await expect(tx).to.emit(configFacet, "OpenSeaFeePercentageChanged").withArgs(newPercentage);
+
+      expect(await configFacet.getOpenSeaFeePercentage()).to.equal(newPercentage);
+    });
+
     context("Revert reasons", function () {
       it("Caller is not the admin", async function () {
         const accessControl = await ethers.getContractAt("IAccessControl", ethers.ZeroAddress);
@@ -178,6 +191,10 @@ describe("Entity", function () {
         )
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
+
+        await expect(configFacet.connect(randomWallet).setOpenSeaFeePercentage(300))
+          .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomWallet, adminRole);
       });
 
       it("Region is paused", async function () {
@@ -204,6 +221,10 @@ describe("Entity", function () {
           .withArgs(PausableRegion.Config);
 
         await expect(configFacet.setFNFTImplementationAddress(wallets[10].address))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Config);
+
+        await expect(configFacet.setOpenSeaFeePercentage(300))
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
       });
@@ -289,6 +310,13 @@ describe("Entity", function () {
           beacon,
           "BeaconInvalidImplementation",
         );
+      });
+
+      it("Invalid OpenSea fee percentage", async function () {
+        const percentage = 10001n;
+        await expect(configFacet.setOpenSeaFeePercentage(percentage))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
+          .withArgs(percentage);
       });
     });
   });

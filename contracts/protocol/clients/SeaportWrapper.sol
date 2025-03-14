@@ -3,8 +3,9 @@ pragma solidity 0.8.24;
 
 import { FermionGeneralErrors, WrapperErrors } from "../domain/Errors.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
+import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { Common } from "./Common.sol";
+import { IFermionConfig } from "../interfaces/IFermionConfig.sol";
 
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
@@ -76,6 +77,7 @@ contract SeaportWrapper is FermionFNFTBase {
 
         uint256 _price = _buyerOrder.parameters.offer[0].startAmount;
         uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount;
+
         uint256 reducedPrice = _price - _openSeaFee;
 
         // reduce the price by the royalties
@@ -223,7 +225,8 @@ contract SeaportWrapper is FermionFNFTBase {
                 });
 
                 {
-                    uint256 openSeaFee = (tokenPrice * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT;
+                    uint256 openSeaFee = (tokenPrice * IFermionConfig(fermionProtocol).getOpenSeaFeePercentage()) /
+                        HUNDRED_PERCENT;
                     reducedPrice = tokenPrice - openSeaFee;
 
                     consideration[1] = SeaportTypes.ConsiderationItem({

@@ -4,12 +4,12 @@ pragma solidity 0.8.24;
 import { HUNDRED_PERCENT, AUCTION_END_BUFFER, MINIMAL_BID_INCREMENT, DEFAULT_FRACTION_AMOUNT, PARTIAL_THRESHOLD_MULTIPLIER, LIQUIDATION_THRESHOLD_MULTIPLIER, PARTIAL_AUCTION_DURATION_DIVISOR } from "../domain/Constants.sol";
 import { FundsErrors, FermionGeneralErrors, CustodianVaultErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { CustodyLib } from "../libs/CustodyLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { Custody } from "../bases/mixins/Custody.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { Context } from "../libs/Context.sol";
+import { Context } from "../bases/mixins/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 
@@ -18,10 +18,10 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  *
  * @notice Handles Custody Vaults and partial auctions.
  */
-contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, CustodyLib, ICustodyEvents {
+contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, ICustodyEvents {
     using FermionFNFTLib for address;
 
-    constructor(bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {}
+    constructor(bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {}
 
     /**
      * @notice When the first NFT is fractionalised, the custodian offer vault is setup.
