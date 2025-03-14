@@ -14,6 +14,7 @@ interface FermionGeneralErrors {
     error UnexpectedDataReturned(bytes data);
     // Array elements that are not in ascending order (i.e arr[i-1] > arr[i])
     error NonAscendingOrder();
+    error InvalidPeriod();
 }
 
 interface InitializationErrors {
