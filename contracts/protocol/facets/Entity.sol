@@ -207,6 +207,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity region is paused
      * - Entity does not exist
      * - Caller does not have the specified account role for the specified entity role
+     * - Caller is the entity's admin (admins cannot renounce roles through this function)
      *
      * @param _entityId - the entity ID
      * @param _entityRole - the entity role for which to renounce the account role
@@ -218,6 +219,14 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         FermionTypes.AccountRole _accountRole
     ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         address msgSender = _msgSender();
+
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        EntityLib.validateEntityId(_entityId, pl);
+
+        if (pl.entityId[msgSender] == _entityId) {
+            revert ChangeNotAllowed();
+        }
+
         EntityLib.validateAccountRole(_entityId, msgSender, _entityRole, _accountRole);
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
@@ -225,14 +234,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         // Instead of using getCompactAccountRole, directly calculate the role mask
         uint256 accountRole = 1 << uint256(_accountRole);
         uint256 compactAccountRole = accountRole << (uint256(_entityRole) * BYTE_SIZE);
-        EntityLib.storeCompactAccountRole(
-            _entityId,
-            msgSender,
-            compactAccountRole,
-            false,
-            FermionStorage.protocolLookups(),
-            pe
-        );
+        EntityLib.storeCompactAccountRole(_entityId, msgSender, compactAccountRole, false, pl, pe);
 
         // Emit event
         FermionTypes.EntityRole[] memory entityRoles = new FermionTypes.EntityRole[](1);

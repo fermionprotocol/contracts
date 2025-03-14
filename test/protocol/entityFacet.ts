@@ -745,6 +745,16 @@ describe("Entity", function () {
             .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
             .withArgs(entityId, wallet3.address, EntityRole.Custodian, AccountRole.Manager);
         });
+
+        it("Caller is the entity admin", async function () {
+          await expect(
+            entityFacet.renounceAccountRole(entityId, EntityRole.Seller, AccountRole.Manager),
+          ).to.be.revertedWithCustomError(fermionErrors, "ChangeNotAllowed");
+
+          expect(
+            await entityFacet.hasAccountRole(entityId, defaultSigner.address, EntityRole.Seller, AccountRole.Manager),
+          ).to.be.equal(true);
+        });
       });
     });
 
