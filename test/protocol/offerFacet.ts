@@ -1870,12 +1870,15 @@ describe("Offer", function () {
         });
 
         context("unwrapToSelf", function () {
-          const minimalPrice = calculateMinimalPrice(
-            verifierFee,
-            0, // facilitatorFee 0
-            bosonProtocolFeePercentage,
-            fermionConfig.protocolParameters.protocolFeePercentage,
-          );
+          let minimalPrice: bigint;
+          before(async function () {
+            minimalPrice = calculateMinimalPrice(
+              verifierFee,
+              0, // facilitatorFee 0
+              bosonProtocolFeePercentage,
+              fermionConfig.protocolParameters.protocolFeePercentage,
+            );
+          });
 
           it("Unwrapping", async function () {
             await mockToken.approve(fermionProtocolAddress, sellerDeposit);
@@ -3243,12 +3246,15 @@ describe("Offer", function () {
         });
 
         context("unwrapToSelf", function () {
-          const minimalPrice = calculateMinimalPrice(
-            verifierFee,
-            0,
-            bosonProtocolFeePercentage,
-            fermionConfig.protocolParameters.protocolFeePercentage,
-          );
+          let minimalPrice: bigint;
+          before(async function () {
+            minimalPrice = calculateMinimalPrice(
+              verifierFee,
+              0,
+              bosonProtocolFeePercentage,
+              fermionConfig.protocolParameters.protocolFeePercentage,
+            );
+          });
 
           it("Unwrapping", async function () {
             await mockToken.approve(fermionProtocolAddress, minimalPrice);

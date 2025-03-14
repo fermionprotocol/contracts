@@ -46,12 +46,7 @@ describe("Funds", function () {
     period: 30n * 24n * 60n * 60n, // 30 days
   };
   const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-  const minimalPrice = calculateMinimalPrice(
-    verifierFee,
-    0, // facilitatorFee 0
-    bosonProtocolFeePercentage,
-    fermionConfig.protocolParameters.protocolFeePercentage,
-  );
+  let minimalPrice: bigint;
 
   async function setupFundsTest() {
     // Create three entities
@@ -108,6 +103,13 @@ describe("Funds", function () {
       await offerFacet.createOffer({ ...fermionOffer, verifierFee: 0, withPhygital: true });
       await offerFacet.mintAndWrapNFTs(++offerId, quantity, tokenMetadata);
     }
+
+    minimalPrice = calculateMinimalPrice(
+      verifierFee,
+      0, // facilitatorFee 0
+      bosonProtocolFeePercentage,
+      fermionConfig.protocolParameters.protocolFeePercentage,
+    );
   }
 
   before(async function () {

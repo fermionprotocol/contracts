@@ -16,7 +16,7 @@
     "postinstall": "npx ts-node-transpile-only ./scripts/postinstall.ts"
   },
   "devDependencies": {
-    "@bosonprotocol/boson-protocol-contracts": "git+https://github.com/bosonprotocol/boson-protocol-contracts#d9e78dc7bc92779b5cc579e8a50ce474b7299e4c",
+    "@bosonprotocol/boson-protocol-contracts": "git+https://github.com/bosonprotocol/boson-protocol-contracts#f099648a49045c8bad1a1bdb8e2c4ffcf67b69da",
     "@nomicfoundation/hardhat-chai-matchers": "^2.0.8",
     "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@nomicfoundation/hardhat-ignition": "^0.15.10",
