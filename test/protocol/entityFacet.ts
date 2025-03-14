@@ -730,6 +730,8 @@ describe("Entity", function () {
 
         // TODO: I would expect the method to revert to explicitely inform renouncing role from the admin doesn't have any effect
         // (so it would be considered an invalid call)
+        // OR at least the EntityAccountRemoved event not been raised, as it signifies something did happen when
+        // in reality nothing changed
 
         // verify state after didn't change
         expect(
