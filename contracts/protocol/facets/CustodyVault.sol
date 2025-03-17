@@ -12,6 +12,9 @@ import { EntityLib } from "../libs/EntityLib.sol";
 import { Context } from "../bases/mixins/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title CustodyVaultFacet
@@ -20,7 +23,7 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  */
 contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, ICustodyEvents {
     using FermionFNFTLib for address;
-
+    using SafeERC20 for IERC20;
     constructor(bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {}
 
     /**
@@ -389,8 +392,9 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IC
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;
         uint256 soldFractions = fractionAuction.availableFractions;
-        address fermionFNFT = offerLookups.fermionFNFTAddress;
-        fermionFNFT.transfer(winnerAddress, soldFractions);
+
+        address fermionFNFTAddress = offerLookups.fermionFNFTAddress;
+        IERC20(IFermionFNFT(fermionFNFTAddress).getERC20FractionsClone()).safeTransfer(winnerAddress, soldFractions);
 
         // release funds in the vault
         uint256 winningBid = fractionAuction.maxBid;
@@ -419,7 +423,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IC
                 // Start partial auction for all items in the vault.
                 for (uint256 i; i < totalOfferItems; i++) {
                     uint256 tokenId = firstTokenId + i;
-                    fermionFNFT.startAuction(tokenId);
+                    fermionFNFTAddress.startAuction(tokenId);
                 }
             }
         }

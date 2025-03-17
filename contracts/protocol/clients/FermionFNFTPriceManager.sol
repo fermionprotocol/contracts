@@ -5,11 +5,12 @@ import { Common } from "./Common.sol";
 import { FermionGeneralErrors, FractionalisationErrors, FermionErrors } from "../domain/Errors.sol";
 import { HUNDRED_PERCENT, MIN_QUORUM_PERCENT, DEFAULT_GOV_VOTE_DURATION, MIN_GOV_VOTE_DURATION, MAX_GOV_VOTE_DURATION } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
 import { IPriceOracle } from "../interfaces/IPriceOracle.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 /**
  * @title FermionFNFTPriceManager
@@ -26,7 +27,7 @@ import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsE
  *           Any direct call to its external methods will have no impact on the protocol state, as they
  *           rely on the context and storage of the calling contract.
  */
-contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IFermionFNFTPriceManager {
+contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, ContextUpgradeable {
     /**
      * @notice Fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.
      * They need to lock their fractions to vote. The fractions can be unlocked before the auction starts.
@@ -54,8 +55,8 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
         uint256 _fractionAmount
     ) external returns (bool startAuctionInternal) {
         if (_fractionAmount == 0) revert InvalidAmount();
-
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
@@ -68,7 +69,7 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
 
         uint256 fractionsPerToken = auctionState >= FermionTypes.AuctionState.Ongoing
             ? auctionDetails.totalFractions
-            : liquidSupply() / $.nftCount;
+            : Common.liquidSupply(currentEpoch) / $.nftCount;
 
         FermionTypes.Votes storage votes = auction.votes;
         uint256 availableFractions = fractionsPerToken - votes.total - auctionDetails.lockedFractions;
@@ -77,7 +78,7 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
 
         if (_fractionAmount > availableFractions) _fractionAmount = availableFractions;
 
-        _transferFractions(msgSender, address(this), _fractionAmount);
+        Common._transferFractions(msgSender, address(this), _fractionAmount, currentEpoch);
 
         votes.individual[msgSender] += _fractionAmount;
         votes.total += _fractionAmount;
@@ -111,7 +112,10 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
     function removeVoteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
         if (_fractionAmount == 0) revert InvalidAmount();
 
-        FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, Common._getBuyoutAuctionStorage());
+        FermionTypes.Auction storage auction = Common.getLastAuction(
+            _tokenId,
+            Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
+        );
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
         address msgSender = _msgSender();
@@ -123,7 +127,12 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
         if (_fractionAmount > votes.individual[msgSender]) {
             revert NotEnoughLockedVotes(_tokenId, _fractionAmount, votes.individual[msgSender]);
         }
-        _transferFractions(address(this), msgSender, _fractionAmount);
+        Common._transferFractions(
+            address(this),
+            msgSender,
+            _fractionAmount,
+            Common._getFermionFractionsStorage().currentEpoch
+        );
 
         unchecked {
             votes.individual[msgSender] -= _fractionAmount;
@@ -158,7 +167,9 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
         uint256 _voteDuration,
         address _fermionProtocol
     ) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
+            Common._getFermionFractionsStorage().currentEpoch
+        );
         FermionTypes.PriceUpdateProposal storage currentProposal = $.currentProposal;
 
         if (currentProposal.state == FermionTypes.PriceUpdateProposalState.Active) {
@@ -180,7 +191,9 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
             }
         }
 
-        if (FermionFractionsERC20Base.balanceOf(_msgSender()) == 0) {
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        address erc20Clone = fractionStorage.epochToClone[fractionStorage.currentEpoch];
+        if (IERC20(erc20Clone).balanceOf(_msgSender()) == 0) {
             revert FractionalisationErrors.OnlyFractionOwner();
         }
 
@@ -225,15 +238,20 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
      * @param _voteYes True to vote YES, false to vote NO.
      */
     function voteOnProposal(bool _voteYes) external {
-        FermionTypes.PriceUpdateProposal storage proposal = Common._getBuyoutAuctionStorage().currentProposal;
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        uint256 currentEpoch = fractionStorage.currentEpoch;
+        FermionTypes.PriceUpdateProposal storage proposal = Common
+            ._getBuyoutAuctionStorage(currentEpoch)
+            .currentProposal;
+        address erc20Clone = fractionStorage.epochToClone[currentEpoch];
         address msgSender = _msgSender();
-        uint256 fractionsBalance = FermionFractionsERC20Base.balanceOf(msgSender);
+        uint256 fractionsBalance = IERC20(erc20Clone).balanceOf(msgSender);
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
             revert FractionalisationErrors.ProposalNotActive(proposal.proposalId);
         }
 
-        if (!_finalizeProposal(proposal, liquidSupply())) {
+        if (!_finalizeProposal(proposal, Common.liquidSupply(currentEpoch))) {
             if (fractionsBalance == 0) revert FractionalisationErrors.NoVotingPower(msgSender);
 
             FermionTypes.PriceUpdateVoter storage voter = proposal.voters[msgSender];
@@ -270,7 +288,9 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
      * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
      */
     function removeVoteOnProposal() external {
-        FermionTypes.PriceUpdateProposal storage proposal = Common._getBuyoutAuctionStorage().currentProposal;
+        FermionTypes.PriceUpdateProposal storage proposal = Common
+            ._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
+            .currentProposal;
         address msgSender = _msgSender();
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
@@ -322,7 +342,10 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
         if (totalVotes >= quorumRequired) {
             if (_proposal.yesVotes > _proposal.noVotes) {
                 _proposal.state = FermionTypes.PriceUpdateProposalState.Executed;
-                Common._getBuyoutAuctionStorage().auctionParameters.exitPrice = _proposal.newExitPrice;
+                Common
+                    ._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
+                    .auctionParameters
+                    .exitPrice = _proposal.newExitPrice;
                 emit IFermionFractionsEvents.ExitPriceUpdated(_proposal.newExitPrice, false);
             } else {
                 _proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
@@ -356,5 +379,60 @@ contract FermionFNFTPriceManager is FermionFractionsERC20Base, FermionErrors, IF
      */
     function _isInvalidPriceError(bytes memory _reason) internal pure returns (bool) {
         return _reason.length == 4 && bytes4(_reason) == IPriceOracle.InvalidPrice.selector;
+    }
+
+    /**
+     * @notice Adjusts the voter's records on transfer by removing votes if the remaining balance cannot support them.
+     *         This ensures the proposal's vote count remains accurate.
+     *
+     * @dev If the voter has no active votes or the current proposal is not active, no adjustments are made.
+     *      If the voter's remaining balance after the transfer is greater than or equal to their vote count,
+     *      no votes are removed. If caller of the function is not the current epoch's ERC20 clone contract,
+     *      no votes are adjusted.
+     *
+     * @param from The address of the sender whose votes may need adjustment.
+     * @param amount The number of fractions being transferred.
+     */
+    function adjustVotesOnTransfer(address from, uint256 amount) external {
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        uint256 currentEpoch = fractionStorage.currentEpoch;
+        address currentERC20Clone = fractionStorage.epochToClone[currentEpoch];
+
+        if (_msgSender() != currentERC20Clone) {
+            return;
+        }
+
+        FermionTypes.PriceUpdateProposal storage proposal = Common
+            ._getBuyoutAuctionStorage(currentEpoch)
+            .currentProposal;
+
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
+            return;
+        }
+
+        FermionTypes.PriceUpdateVoter storage voter = proposal.voters[from];
+        uint256 voteCount = voter.voteCount;
+
+        if (voteCount == 0 || voter.proposalId != proposal.proposalId) {
+            return;
+        }
+
+        uint256 remainingBalance = IERC20(currentERC20Clone).balanceOf(from);
+
+        if (remainingBalance >= voteCount) {
+            return;
+        }
+
+        uint256 votesToRemove = voteCount - remainingBalance;
+        voter.voteCount = remainingBalance;
+
+        unchecked {
+            if (voter.votedYes) {
+                proposal.yesVotes -= votesToRemove;
+            } else {
+                proposal.noVotes -= votesToRemove;
+            }
+        }
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(proposal.proposalId, from, votesToRemove, voter.votedYes);
     }
 }

@@ -4,7 +4,6 @@ pragma solidity 0.8.24;
 import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
 import { Common } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
@@ -14,12 +13,12 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FermionBuyoutAuction } from "./FermionBuyoutAuction.sol";
+import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 
 /**
  * @dev Fractionalisation and buyout auction
  */
 abstract contract FermionFractions is
-    FermionFractionsERC20Base,
     FermionFNFTBase,
     FermionErrors,
     FundsManager,
@@ -50,7 +49,7 @@ abstract contract FermionFractions is
      * @param _exchangeToken The address of the exchange token
      */
     function intializeFractions(address _exchangeToken) internal virtual {
-        Common._getBuyoutAuctionStorage().exchangeToken = _exchangeToken;
+        Common._getBuyoutAuctionStorage(0).exchangeToken = _exchangeToken;
     }
 
     /**
@@ -174,6 +173,21 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Adjusts the voter's records on transfer by removing votes if the remaining balance cannot support them.
+     *         This ensures the proposal's vote count remains accurate when fractions are transferred.
+     *
+     * @dev This function is called by the FermionFractionsERC20 contract after a transfer occurs.
+     *      If the voter has no active votes or the current proposal is not active, no adjustments are made.
+     *      If caller of the function is not the current epoch's ERC20 clone contract, no votes are adjusted.
+     *
+     * @param from The address of the sender whose votes may need adjustment.
+     * @param amount The number of fractions being transferred.
+     */
+    function adjustVotesOnTransfer(address from, uint256 amount) external {
+        forwardCall(FNFT_PRICE_MANAGER);
+    }
+
+    /**
      * @notice Starts the auction for a specific fractionalized token. Can be called by anyone.
      *
      * Emits:
@@ -275,6 +289,24 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Claim the auction proceeds of all finalized auctions from a specific epoch.
+     * This withdraws only the proceeds of already finalized auctions for a specific epoch.
+     * To finalize an auction, one must call either `redeem`, `finalizeAndClaim` or `claimWithLockedFractions`.
+     *
+     * Emits a ClaimedFromEpoch event if successful.
+     *
+     * Reverts if:
+     * - The amount to claim is zero
+     * - The caller has less fractions available than the amount to claim
+     *
+     * @param _fractions Number of fractions to exchange for auction proceeds
+     * @param _epoch The epoch to claim from
+     */
+    function claimFromEpoch(uint256 _fractions, uint256 _epoch) public {
+        forwardCall(FNFT_BUYOUT_AUCTION);
+    }
+
+    /**
      * @notice Finalize the auction for tokenId and claim the auction proceeds of all finalized auctions.
      * Use this if some auction ended, but was not finalized yet.
      *
@@ -284,6 +316,7 @@ abstract contract FermionFractions is
      * - The amount to claim is zero
      * - The caller has less fractions available than the amount to claim
      *
+     * @param _tokenId The token Id
      * @param _fractions Number of fractions to exchange for auction proceeds
      */
     function finalizeAndClaim(uint256 _tokenId, uint256 _fractions) external {
@@ -322,6 +355,7 @@ abstract contract FermionFractions is
             )
         );
     }
+
     /**
      * @notice Allows a fraction owner to vote on the current active proposal.
      *         If the caller has acquired additional fractions, the vote will be updated
@@ -364,60 +398,83 @@ abstract contract FermionFractions is
     }
 
     /**
-     * @notice Returns the number of fractions. Represents the ERC20 balanceOf method
+     * @notice Returns the address of the ERC20 clone for a specific epoch
+     * Users should interact with this contract directly for ERC20 operations
      *
-     * @param _owner The address to check
+     * @param _epoch The epoch
+     * @return The address of the ERC20 clone
      */
-    function balanceOf(
-        address _owner
-    ) public view virtual override(ERC721, FermionFractionsERC20Base) returns (uint256) {
-        return FermionFractionsERC20Base.balanceOf(_owner);
+    function getERC20CloneAddress(uint256 _epoch) public view returns (address) {
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        if (_epoch >= fractionStorage.epochToClone.length) {
+            return address(0);
+        }
+        address cloneAddress = fractionStorage.epochToClone[_epoch];
+        return cloneAddress;
     }
 
     /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `value`.
+     * @notice Returns the buyout auction parameters for an arbitrary epoch
      */
-    function transfer(
-        address to,
-        uint256 value
-    ) public virtual override(FermionFractionsERC20Base, IFermionFractions) returns (bool) {
-        return FermionFractionsERC20Base.transfer(to, value);
+    function getBuyoutAuctionParameters(
+        uint256 _epoch
+    ) external view returns (FermionTypes.BuyoutAuctionParameters memory) {
+        return Common._getBuyoutAuctionStorage(_epoch).auctionParameters;
     }
 
     /**
-     * @notice Returns the buyout auction parameters
-     */
-    function getBuyoutAuctionParameters() external view returns (FermionTypes.BuyoutAuctionParameters memory) {
-        return Common._getBuyoutAuctionStorage().auctionParameters;
-    }
-
-    /**
-     * @notice Returns the auction details
+     * @notice Returns the latest auction details for current epoch
      *
      * @param _tokenId The token Id
      * @return auction The auction details
      */
     function getAuctionDetails(uint256 _tokenId) external view returns (FermionTypes.AuctionDetails memory) {
-        return Common.getLastAuction(_tokenId, Common._getBuyoutAuctionStorage()).details;
+        return
+            Common
+                .getLastAuction(
+                    _tokenId,
+                    Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
+                )
+                .details;
+    }
+
+    /**
+     * @notice Returns the current epoch
+     */
+    function getCurrentEpoch() external view returns (uint256) {
+        return Common._getFermionFractionsStorage().currentEpoch;
+    }
+
+    /**
+     * @notice Returns the total number of fractions for a specific epoch
+     */
+    function totalSupply(uint256 _epoch) public view returns (uint256) {
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        if (_epoch >= fractionStorage.epochToClone.length) {
+            return 0;
+        }
+        address erc20Clone = fractionStorage.epochToClone[_epoch];
+
+        return FermionFractionsERC20(erc20Clone).totalSupply();
     }
 
     /**
      * @notice Returns the auction details for past auctions
-     *
+     * @dev with each new epoch the auction index is reset to 0
      * @param _tokenId The token Id
      * @param _auctionIndex The auction index (if there are multiple auctions for the same F-NFT)
+     * @param _epoch The epoch in which the auction took place
      * @return auction The auction details
      */
     function getPastAuctionDetails(
         uint256 _tokenId,
-        uint256 _auctionIndex
+        uint256 _auctionIndex,
+        uint256 _epoch
     ) external view returns (FermionTypes.AuctionDetails memory) {
-        FermionTypes.Auction[] storage auctionList = Common._getBuyoutAuctionStorage().tokenInfo[_tokenId].auctions;
+        FermionTypes.Auction[] storage auctionList = Common
+            ._getBuyoutAuctionStorage(_epoch)
+            .tokenInfo[_tokenId]
+            .auctions;
         uint256 numberOfAuctions = auctionList.length; // it can be greater than one if the item was fractionalized multiple times
         if (_auctionIndex >= numberOfAuctions) {
             revert InvalidAuctionIndex(_auctionIndex, numberOfAuctions);
@@ -437,11 +494,14 @@ abstract contract FermionFractions is
     function getVotes(
         uint256 _tokenId
     ) external view returns (uint256 totalVotes, uint256 threshold, uint256 availableFractions) {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
+            Common._getFermionFractionsStorage().currentEpoch
+        );
         FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
 
         uint256 fractionsPerToken = auction.details.totalFractions;
-        if (fractionsPerToken == 0) fractionsPerToken = liquidSupply() / $.nftCount;
+        if (fractionsPerToken == 0)
+            fractionsPerToken = Common.liquidSupply(Common._getFermionFractionsStorage().currentEpoch) / $.nftCount;
 
         FermionTypes.Votes storage votes = auction.votes;
         totalVotes = votes.total;
@@ -455,8 +515,15 @@ abstract contract FermionFractions is
      * @param _tokenId The token Id
      * @return lockedVotes The locked votes
      */
-    function getIndividualLockedVotes(uint256 _tokenId, address _voter) external view returns (uint256 lockedVotes) {
-        return Common.getLastAuction(_tokenId, Common._getBuyoutAuctionStorage()).votes.individual[_voter];
+    function getIndividualLockedVotes(uint256 _tokenId, address _voter) external view returns (uint256) {
+        return
+            Common
+                .getLastAuction(
+                    _tokenId,
+                    Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
+                )
+                .votes
+                .individual[_voter];
     }
 
     /**
@@ -483,7 +550,9 @@ abstract contract FermionFractions is
             FermionTypes.PriceUpdateProposalState state
         )
     {
-        FermionTypes.PriceUpdateProposal storage proposal = Common._getBuyoutAuctionStorage().currentProposal;
+        FermionTypes.PriceUpdateProposal storage proposal = Common
+            ._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
+            .currentProposal;
         return (
             proposal.proposalId,
             proposal.newExitPrice,
@@ -501,8 +570,18 @@ abstract contract FermionFractions is
      * @param _voter The address of the voter.
      * @return voterDetails The details of the voter's vote.
      */
-    function getVoterDetails(address _voter) external view returns (FermionTypes.PriceUpdateVoter memory voterDetails) {
-        voterDetails = Common._getBuyoutAuctionStorage().currentProposal.voters[_voter];
+    function getVoterDetails(address _voter) external view returns (FermionTypes.PriceUpdateVoter memory) {
+        return
+            Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch).currentProposal.voters[
+                _voter
+            ];
+    }
+
+    /**
+     * @notice Returns the liquid number of fractions for current epoch. Represents fractions of F-NFTs that are fractionalised
+     */
+    function liquidSupply() public view returns (uint256) {
+        return Common.liquidSupply(Common._getFermionFractionsStorage().currentEpoch);
     }
 
     /**
