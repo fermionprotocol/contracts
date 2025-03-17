@@ -75,15 +75,15 @@ contract RoyaltiesFacet is OfferErrors, Access {
      * @return royaltyPercentage - the royalty percentage in bps
      */
     function getEIP2981Royalties(uint256 _tokenId) external view returns (address receiver, uint256 royaltyPercentage) {
-        // EIP2981 returns only 1 recipient. Sum all bps and return treasury address as recipient
-        (FermionTypes.RoyaltyInfo storage royaltyInfo, address defaultTreasury) = fetchRoyalties(_tokenId);
+        // EIP2981 returns only 1 recipient. Sum all bps and return admin address as recipient
+        (FermionTypes.RoyaltyInfo storage royaltyInfo, address defaultRecipient) = fetchRoyalties(_tokenId);
 
         uint256 recipientLength = royaltyInfo.recipients.length;
         if (recipientLength == 0) return (address(0), uint256(0));
 
         uint256 totalBps = getTotalRoyaltyPercentage(royaltyInfo.bps);
 
-        return (royaltyInfo.recipients[0] == address(0) ? defaultTreasury : royaltyInfo.recipients[0], totalBps);
+        return (royaltyInfo.recipients[0] == address(0) ? defaultRecipient : royaltyInfo.recipients[0], totalBps);
     }
 
     /**
@@ -99,12 +99,12 @@ contract RoyaltiesFacet is OfferErrors, Access {
     function getRoyalties(
         uint256 _tokenId
     ) external view returns (address payable[] memory recipients, uint256[] memory bps) {
-        (FermionTypes.RoyaltyInfo memory royaltyInfo, address treasury) = fetchRoyalties(_tokenId);
+        (FermionTypes.RoyaltyInfo memory royaltyInfo, address defaultRecipient) = fetchRoyalties(_tokenId);
 
-        // replace default recipient with the treasury address
+        // replace default recipient with the default recipient (admin) address
         for (uint256 i; i < royaltyInfo.recipients.length; ++i) {
             if (royaltyInfo.recipients[i] == address(0)) {
-                royaltyInfo.recipients[i] = payable(treasury);
+                royaltyInfo.recipients[i] = payable(defaultRecipient);
                 break;
             }
         }
@@ -119,11 +119,11 @@ contract RoyaltiesFacet is OfferErrors, Access {
      *
      * @param _tokenId - the token id
      * @return royaltyInfo - list of royalty recipients and corresponding bps
-     * @return defaultTreasury - the seller's default treasury address
+     * @return defaultRecipient - the seller's default recipient address
      */
     function fetchRoyalties(
         uint256 _tokenId
-    ) internal view returns (FermionTypes.RoyaltyInfo storage royaltyInfo, address defaultTreasury) {
+    ) internal view returns (FermionTypes.RoyaltyInfo storage royaltyInfo, address defaultRecipient) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         address fermionFNFTAddress = FermionStorage.protocolLookups().offerLookups[offerId].fermionFNFTAddress;
@@ -139,7 +139,7 @@ contract RoyaltiesFacet is OfferErrors, Access {
             }
         }
 
-        defaultTreasury = FermionStorage.protocolEntities().entityData[offer.sellerId].admin;
+        defaultRecipient = FermionStorage.protocolEntities().entityData[offer.sellerId].admin;
         royaltyInfo = offer.royaltyInfo;
     }
 
