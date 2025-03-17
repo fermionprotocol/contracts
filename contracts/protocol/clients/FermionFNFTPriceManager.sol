@@ -433,5 +433,6 @@ contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, Con
                 proposal.noVotes -= votesToRemove;
             }
         }
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(proposal.proposalId, from, votesToRemove, voter.votedYes);
     }
 }
