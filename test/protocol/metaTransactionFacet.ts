@@ -1457,31 +1457,13 @@ describe("MetaTransactions", function () {
       context("Test msgData", function () {
         let trustedForwarder: HardhatEthersSigner;
         let data: string, dataWithAddress: string;
-        let seaportWrapperConstructorArgs: any[];
 
         beforeEach(async function () {
-          const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
-
-          seaportWrapperConstructorArgs = [
-            mockBosonPriceDiscovery.address,
-            {
-              seaport: wallets[10].address, // dummy address
-              openSeaConduit: mockConduit.address,
-              openSeaConduitKey: ZeroHash,
-              openSeaZoneHash: ZeroHash,
-              openSeaRecipient: ZeroAddress,
-            },
-          ];
-
           trustedForwarder = wallets[1];
         });
 
         it("msg.data includes the sender, _msgData() does not - fermion FNFT", async function () {
-          const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
-          fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
-
           const MetaTxTestFactory = await getContractFactory("MetaTxTestFractions");
-
           const metaTxTest = await MetaTxTestFactory.deploy(trustedForwarder);
 
           data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
