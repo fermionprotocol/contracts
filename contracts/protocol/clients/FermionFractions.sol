@@ -125,6 +125,24 @@ abstract contract FermionFractions is
     }
 
     /**
+     * @notice Migrates the fractions to the new ERC20 clone for the current epoch.
+     * This function can be used only if the FermionFNFT was deployed in v1.0.1 or earlier.
+     * Using this function on a contract deployed in v1.0.2 or later will revert since ERC20 balances are zero.
+     *
+     * Emits FractionsMigrated event if successful.
+     *
+     * Reverts if:
+     * - Number of owners is zero
+     * - Owner has no fractions
+     * - Owner has already migrated
+     *
+     * @param _owners The array of owners to migrate the fractions for
+     */
+    function migrateFractions(address[] calldata _owners) external {
+        forwardCall(FNFT_FRACTION_MINT);
+    }
+
+    /**
      * @notice Fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.
      * They need to lock their fractions to vote. The fractions can be unlocked before the auction starts.
      * The fractions can be used to bid in the auction.

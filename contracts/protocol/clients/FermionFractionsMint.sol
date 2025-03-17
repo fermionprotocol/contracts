@@ -235,10 +235,6 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
      * @param _owners The array of owners to migrate the fractions for
      */
     function migrateFractions(address[] calldata _owners) external {
-        if (_owners.length == 0) {
-            revert InvalidLength();
-        }
-
         // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
         FermionFractionsERC20.ERC20Storage storage $;
         bytes32 ERC20StorageLocation = 0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
@@ -247,14 +243,23 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
         }
 
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
-        address cloneAddress = fractionStorage.epochToClone[0]; // Migration is relevant only for the first epoch
 
-        if (cloneAddress == address(0)) {
+        address cloneAddress;
+        if (fractionStorage.epochToClone.length == 0) {
             _advanceEpoch();
-            fractionStorage.migrated[address(this)] = true;
+            cloneAddress = fractionStorage.epochToClone[0];
 
             uint256 fractionBalance = $._balances[address(this)];
-            if (fractionBalance > 0) FermionFractionsERC20(cloneAddress).mint(address(this), fractionBalance);
+            if (fractionBalance > 0) {
+                FermionFractionsERC20(cloneAddress).mint(address(this), fractionBalance);
+                emit FractionsMigrated(address(this), fractionBalance);
+            }
+            fractionStorage.migrated[address(this)] = true;
+        } else {
+            if (_owners.length == 0) {
+                revert InvalidLength();
+            }
+            cloneAddress = fractionStorage.epochToClone[0];
         }
 
         for (uint256 i; i < _owners.length; ++i) {
