@@ -110,8 +110,9 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const predictedFermionDiamondAddress = await predictFermionDiamondAddress(create3, 8); // Diamond will be deployed 8 tx from now
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
-    const fermionFractionsERC20 = await FermionFractionsERC20.deploy();
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
     const fermionFractionsMint = await FermionFractionsMint.deploy(
       bosonPriceDiscoveryAddress,
@@ -254,7 +255,9 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // Init other facets, using the initialization facet
     // Prepare init call
     const init = {
-      MetaTransactionFacet: [await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT"])],
+      MetaTransactionFacet: [
+        await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT", "FermionFractionsERC20"]),
+      ],
       ConfigFacet: [
         fermionConfig.protocolParameters.treasury,
         fermionConfig.protocolParameters.protocolFeePercentage,
@@ -405,4 +408,18 @@ async function getDeploymentData(env: string) {
     deploymentData = contractsFile.contracts;
   }
   return deploymentData;
+}
+
+async function predictFermionDiamondAddress(create3: boolean, transactionOffset: number = 0) {
+  if (create3) {
+    // TODO
+  }
+
+  const accounts = await ethers.getSigners();
+  const deployer = accounts[0];
+
+  const currentNonce = await ethers.provider.getTransactionCount(deployer.address, "latest");
+  const diamondDeployNonce = currentNonce + transactionOffset;
+
+  return ethers.getCreateAddress({ from: deployer.address, nonce: diamondDeployNonce });
 }

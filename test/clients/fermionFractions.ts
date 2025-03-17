@@ -59,7 +59,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
-    const fermionFractionsERC20Implementation = await FermionFractionsERC20.deploy();
+    const fermionFractionsERC20Implementation = await FermionFractionsERC20.deploy(ZeroAddress);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");

@@ -11,6 +11,7 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 /**
@@ -78,6 +79,19 @@ library FermionFNFTLib {
         _fnft.functionCallWithAddress(
             abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", _from, _to, _tokenId)
         );
+    }
+
+    /**
+     * @notice Transfers the ERC20 FNFT fractions
+     *
+     * N.B. Although the Fermion FNFT returns a boolean, as per ERC20 standard, it is not decoded here
+     * since the the return value is not used in the protocol.
+     *
+     * @param _to The address to transfer to.
+     * @param _value The number of fractions to transfer.
+     */
+    function transfer(address _fnft, address _to, uint256 _value) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(ERC20.transfer, (_to, _value)));
     }
 
     /**
