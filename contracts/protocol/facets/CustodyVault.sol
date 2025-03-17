@@ -21,7 +21,6 @@ import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
  */
 contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, ICustodyEvents {
     using FermionFNFTLib for address;
-    constructor(bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {}
 
     /**
      * @notice When the first NFT is fractionalised, the custodian offer vault is setup.

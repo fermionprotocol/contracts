@@ -30,11 +30,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
 
-    constructor(
-        address _bosonProtocol,
-        bytes32 _fnftCodeHash,
-        address _fermionProtocolAddress
-    ) FundsManager(_fnftCodeHash) EIP712(_fermionProtocolAddress) {
+    constructor(address _bosonProtocol, address _fermionProtocolAddress) EIP712(_fermionProtocolAddress) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }

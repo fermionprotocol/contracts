@@ -16,9 +16,7 @@ import { FundsManager } from "../bases/mixins/FundsManager.sol";
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents {
-    constructor(bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {}
-
+contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *
