@@ -961,7 +961,7 @@ describe("Offer", function () {
     const withPhygital = false;
 
     beforeEach(async function () {
-      const royaltyInfo = [{ recipients: [defaultSigner.address, ZeroAddress], bps: [10_00n, 5_10n] }];
+      const royaltyInfo = { recipients: [defaultSigner.address, ZeroAddress], bps: [10_00n, 5_10n] };
       const fermionOffer = {
         sellerId: "1",
         sellerDeposit,
@@ -4074,9 +4074,10 @@ describe("Offer", function () {
                 fermionConfig.protocolParameters.protocolFeePercentage,
               );
 
+              const selfSaleData = abiCoder.encode(["uint256", "uint256"], [minimalPrice, "1"]);
               await mockToken.approve(fermionProtocolAddress, minimalPrice);
               await expect(
-                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32)),
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleData),
               ).to.be.revertedWithCustomError(fermionErrors, "InvalidUnwrap");
             });
 

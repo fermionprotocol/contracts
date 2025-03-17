@@ -278,26 +278,16 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
         FermionTypes.Offer storage offer = pe.offer[_offerId];
-        FermionTypes.RoyaltyInfo memory lastRoyaltyInfo;
-        {
-            FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
-
-            if (royaltyInfoAll.length > 0) {
-                // Length 0 represents v1.0 offers, where royalties were not supported. Send empty royalties in that case.
-                // In other cases, send the last royalty info.
-                lastRoyaltyInfo = royaltyInfoAll[royaltyInfoAll.length - 1];
-
-                // If some of the royalty recipient is set to 0, replace it with entity admin
-                for (uint256 i = 0; i < lastRoyaltyInfo.recipients.length; i++) {
-                    if (lastRoyaltyInfo.recipients[i] == address(0)) {
-                        lastRoyaltyInfo.recipients[i] = payable(pe.entityData[offer.sellerId].admin);
-                        break;
-                    }
-                }
+        FermionTypes.RoyaltyInfo memory royaltyInfo = offer.royaltyInfo;
+        // If some of the royalty recipient is set to 0, replace it with entity admin
+        for (uint256 i; i < royaltyInfo.recipients.length; ++i) {
+            if (royaltyInfo.recipients[i] == address(0)) {
+                royaltyInfo.recipients[i] = payable(pe.entityData[offer.sellerId].admin);
+                break;
             }
         }
 
-        wrapperAddress.listFixedPriceOrders(startingNFTId, _prices, _endTimes, lastRoyaltyInfo, offer.exchangeToken);
+        wrapperAddress.listFixedPriceOrders(startingNFTId, _prices, _endTimes, royaltyInfo, offer.exchangeToken);
     }
 
     /**

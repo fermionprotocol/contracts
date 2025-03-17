@@ -2015,7 +2015,7 @@ describe("Funds", function () {
       );
     });
 
-    it.only("Offers without royalties (pre v1.1.0)", async function () {
+    it("Offers without royalties (pre v1.1.0)", async function () {
       // "delete" offer.royaltyInfo
       const protocolEntitiesSlotNumber = BigInt("0x88d4ceef162f03fe6cb4afc6ec9059995e2e55e4c807661ebd7d646b852a9700"); // // keccak256(abi.encode(uint256(keccak256("fermion.protocol.entities")) - 1)) & ~bytes32(uint256(0xff));
       const offerSlot = BigInt(keccak256(toBeHex(offerId, 32) + (protocolEntitiesSlotNumber + 2n).toString(16)));
