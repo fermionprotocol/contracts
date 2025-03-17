@@ -21,7 +21,7 @@ import {
   DEFAULT_GOV_VOTE_DURATION,
   HUNDRED_PERCENT,
 } from "../utils/constants";
-import { balanceOfERC20, totalSupplyERC20, getERC20Clone } from "../utils/common";
+import { balanceOfERC20, totalSupplyERC20, getERC20Clone, impersonateAccount } from "../utils/common";
 
 const { ZeroAddress } = ethers;
 
@@ -582,6 +582,82 @@ describe("FermionFNFT - fractionalisation tests", function () {
         )
           .to.be.revertedWithCustomError(fermionFNFTProxy, "ERC721NonexistentToken")
           .withArgs(tokenId);
+      });
+      it("ERC20 fraction clone is already initialised", async function () {
+        await fermionFNFTProxy
+          .connect(seller)
+          .mintFractions(
+            startTokenId,
+            1,
+            fractionsAmount,
+            auctionParameters,
+            custodianVaultParameters,
+            additionalDeposit,
+            ZeroAddress,
+          );
+
+        const erc20Clone = await getERC20Clone(fermionFNFTProxy);
+        await expect(
+          erc20Clone.initialize("Fractions Name", "SYMBOL", wallets[0].address),
+        ).to.be.revertedWithCustomError(erc20Clone, "InvalidInitialization");
+      });
+      it("ERC20 don't allow mint/burn via transferFractionsFrom", async function () {
+        await fermionFNFTProxy
+          .connect(seller)
+          .mintFractions(
+            startTokenId,
+            1,
+            fractionsAmount,
+            auctionParameters,
+            custodianVaultParameters,
+            additionalDeposit,
+            ZeroAddress,
+          );
+        const erc20Clone = await getERC20Clone(fermionFNFTProxy);
+        const fermionFNFTProxySigner = await impersonateAccount(await fermionFNFTProxy.getAddress());
+        const arbitraryAddress = wallets[0].address;
+        await expect(
+          erc20Clone
+            .connect(fermionFNFTProxySigner)
+            .transferFractionsFrom(ZeroAddress, arbitraryAddress, fractionsAmount),
+        ).to.be.revertedWithCustomError(erc20Clone, "ERC20InvalidSender");
+        await expect(
+          erc20Clone
+            .connect(fermionFNFTProxySigner)
+            .transferFractionsFrom(arbitraryAddress, ZeroAddress, fractionsAmount),
+        ).to.be.revertedWithCustomError(erc20Clone, "ERC20InvalidReceiver");
+      });
+      it("Only FermionFNFTProxy can call transferFractionsFrom, mint and burn", async function () {
+        await fermionFNFTProxy
+          .connect(seller)
+          .mintFractions(
+            startTokenId,
+            1,
+            fractionsAmount,
+            auctionParameters,
+            custodianVaultParameters,
+            additionalDeposit,
+            ZeroAddress,
+          );
+
+        const randomSigner = wallets[9];
+        const erc20Clone = await getERC20Clone(fermionFNFTProxy);
+
+        await expect(erc20Clone.connect(randomSigner).mint(randomSigner.address, fractionsAmount))
+          .to.be.revertedWithCustomError(erc20Clone, "OwnableUnauthorizedAccount")
+          .withArgs(randomSigner.address);
+
+        await expect(erc20Clone.connect(randomSigner).burn(randomSigner.address, fractionsAmount))
+          .to.be.revertedWithCustomError(erc20Clone, "OwnableUnauthorizedAccount")
+          .withArgs(randomSigner.address);
+
+        await expect(
+          erc20Clone
+            .connect(randomSigner)
+            .transferFractionsFrom(randomSigner.address, randomSigner.address, fractionsAmount),
+        )
+          .to.be.revertedWithCustomError(erc20Clone, "OwnableUnauthorizedAccount")
+          .withArgs(randomSigner.address);
       });
     });
   });

@@ -16,7 +16,13 @@ import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Buyout auction
  */
-contract FermionBuyoutAuction is ContextUpgradeable, FermionFNFTBase, FermionErrors, FundsManager, IFermionFractionsEvents {
+contract FermionBuyoutAuction is
+    ContextUpgradeable,
+    FermionFNFTBase,
+    FermionErrors,
+    FundsManager,
+    IFermionFractionsEvents
+{
     using Address for address;
     constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsManager(bytes32(0)) {}
 
