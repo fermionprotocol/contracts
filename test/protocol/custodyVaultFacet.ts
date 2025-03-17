@@ -3112,7 +3112,7 @@ describe("CustodyVault", function () {
           for (let i = 0n; i < tokenCount; i++) {
             await expect(tx)
               .to.emit(wrapper, "AuctionStarted")
-              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd);
+              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd, 0);
           }
 
           expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance);
@@ -3159,7 +3159,7 @@ describe("CustodyVault", function () {
           // buyout auctions
           // No auction for the first token
           try {
-            await expect(tx).to.emit(wrapper, "AuctionStarted").withArgs(exchange.tokenId, buyoutAuctionEnd);
+            await expect(tx).to.emit(wrapper, "AuctionStarted").withArgs(exchange.tokenId, buyoutAuctionEnd, 0);
             assert(false, "Should not find the event");
           } catch (error) {
             expect(
@@ -3171,7 +3171,7 @@ describe("CustodyVault", function () {
           for (let i = 1n; i < tokenCount; i++) {
             await expect(tx)
               .to.emit(wrapper, "AuctionStarted")
-              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd);
+              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd, 0);
           }
         });
 

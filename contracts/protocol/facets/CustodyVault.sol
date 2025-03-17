@@ -15,7 +15,6 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 
 /**
  * @title CustodyVaultFacet
@@ -421,7 +420,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IC
                 // Start partial auction for all items in the vault.
                 for (uint256 i; i < totalOfferItems; i++) {
                     uint256 tokenId = firstTokenId + i;
-                    IFermionBuyoutAuction(fermionFNFTAddress).startAuction(tokenId);
+                    fermionFNFTAddress.startAuction(tokenId);
                 }
             }
         }
