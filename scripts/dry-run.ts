@@ -6,7 +6,7 @@ const { ethers } = hre;
 const { getSigners, parseEther, getContractAt } = hre.ethers;
 const networkName = hre.network.name;
 
-export async function setupDryRun(env: string, adminAddress: string = "") {
+export async function setupDryRun(env: string, adminAddress: string = "", isTest: boolean = false) {
   let forkedEnv = env;
 
   console.warn("This is a dry run. No actual upgrade will be performed");
@@ -25,14 +25,20 @@ export async function setupDryRun(env: string, adminAddress: string = "") {
     url: hre.config.networks[networkName].url,
     enabled: true,
     // blockNumber: "0x" + blockNumber.toString(16), // if performance is too slow, try commenting this line out
+    originalChain: {
+      chainId: forkedChainId,
+      name: networkName,
+    },
   };
 
-  checkDeployerAddress(networkName);
+  if (!isTest) checkDeployerAddress(networkName);
   hre.config.networks["hardhat"].accounts = [
     { privateKey: hre.config.networks[networkName].accounts[0], balance: deployerBalance.toString() },
   ];
-  hre.config.networks["hardhat"].gasPrice = "auto";
-  delete hre.config.networks["hardhat"].initialBaseFeePerGas;
+  hre.config.networks["hardhat"].gasPrice = Number((await ethers.provider.getFeeData()).gasPrice);
+  hre.config.networks["hardhat"].initialBaseFeePerGas = Number(
+    (await ethers.provider.getBlock("latest")).baseFeePerGas,
+  );
 
   await hre.changeNetwork("hardhat");
 

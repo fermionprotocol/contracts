@@ -7,7 +7,7 @@ import { FermionTypes } from "../domain/Types.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
@@ -18,7 +18,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 /**
  * @dev Fractionalisation of NFTs
  */
-contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsLib, IFermionFractionsEvents {
+contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, IFermionFractionsEvents {
     using Strings for uint256;
 
     // @dev The address of the ERC20 implementation contract that is used for Minimal Clone Implementation
@@ -32,7 +32,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsLib, IFerm
     constructor(
         address _bosonPriceDiscovery,
         address _erc20Implementation
-    ) FermionFNFTBase(_bosonPriceDiscovery) FundsLib(bytes32(0)) {
+    ) FermionFNFTBase(_bosonPriceDiscovery) FundsManager(bytes32(0)) {
         if (_erc20Implementation == address(0)) revert FermionGeneralErrors.InvalidAddress();
         erc20Implementation = _erc20Implementation;
     }

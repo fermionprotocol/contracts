@@ -730,7 +730,7 @@ describe("FermionFNFT - wrapper tests", function () {
       const balanceBefore = await mockERC20.balanceOf(fermionProtocolSigner.address);
       const wrapperBalanceBefore = await mockERC20.balanceOf(wrapperAddress);
       const bosonPriceDiscoveryBalance = await mockERC20.balanceOf(mockBosonPriceDiscovery.address);
-      const priceSubOSFee = prices[0] - (prices[0] * 2_50n) / 10_000n;
+      const priceSubOSFee = prices[0] - (prices[0] * 50n) / 10_000n;
 
       const tx = await fermionWrapperProxy
         .connect(mockBosonPriceDiscovery)

@@ -7,7 +7,7 @@ import { FermionTypes } from "../domain/Types.sol";
 import { Common } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -16,9 +16,9 @@ import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Buyout auction
  */
-contract FermionBuyoutAuction is ContextUpgradeable, FermionFNFTBase, FermionErrors, FundsLib, IFermionFractionsEvents {
+contract FermionBuyoutAuction is ContextUpgradeable, FermionFNFTBase, FermionErrors, FundsManager, IFermionFractionsEvents {
     using Address for address;
-    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsLib(bytes32(0)) {}
+    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsManager(bytes32(0)) {}
 
     /**
      * @notice Starts the auction for a specific fractionalized token. Can be called by anyone.

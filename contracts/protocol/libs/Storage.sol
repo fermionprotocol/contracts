@@ -53,6 +53,8 @@ library FermionStorage {
         address payable treasury;
         // Default Protocol fee
         uint16 protocolFeePercentage;
+        // OpenSea fee percentage
+        uint16 openSeaFeePercentage;
         // Default verification timeout
         uint256 defaultVerificationTimeout;
         // Max verification timeout
@@ -121,6 +123,10 @@ library FermionStorage {
         FermionTypes.CustodianVaultParameters custodianVaultParameters;
         // number of items in custodian vault
         uint256 custodianVaultItems;
+        uint256 itemQuantity;
+        uint256 firstTokenId;
+        // custodian update request
+        FermionTypes.CustodianUpdateRequest custodianUpdateRequest;
     }
 
     struct TokenLookups {
