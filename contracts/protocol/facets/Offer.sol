@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
+import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
-import { Context } from "../libs/Context.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
+import { Context } from "../bases/mixins/Context.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
@@ -27,14 +27,14 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  *
  * @notice Handles offer listing.
  */
-contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
+contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
 
-    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
+    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
@@ -421,7 +421,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             _buyerOrder.parameters.offer.length != 1 ||
             _buyerOrder.parameters.consideration.length > 2 ||
             _buyerOrder.parameters.consideration[1].startAmount >
-            (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || // allow +1 in case they round up; minimal exposure
+            (_buyerOrder.parameters.offer[0].startAmount * FermionStorage.protocolConfig().openSeaFeePercentage) /
+                HUNDRED_PERCENT +
+                1 || // allow +1 in case they round up; minimal exposure
             _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
         ) {
             revert InvalidOpenSeaOrder();
@@ -609,6 +611,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             revert InvalidQuantity(_quantity);
         }
         FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
+        FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
 
         // Check the caller is the the seller's assistant or facilitator
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
@@ -622,6 +625,12 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         // Premint NFTs on boson voucher
         bosonVoucher = IBosonVoucher(FermionStorage.protocolStatus().bosonNftCollection);
         bosonVoucher.preMint(_offerId, _quantity);
+
+        if (offerLookup.firstTokenId == 0) {
+            offerLookup.firstTokenId = startingNFTId;
+        }
+
+        offerLookup.itemQuantity += _quantity;
 
         // emit event
         emit NFTsMinted(_offerId, startingNFTId, _quantity);

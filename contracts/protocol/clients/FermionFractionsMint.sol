@@ -8,7 +8,7 @@ import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
@@ -21,12 +21,12 @@ contract FermionFractionsMint is
     FermionFractionsERC20Base,
     FermionFNFTBase,
     FermionErrors,
-    FundsLib,
+    FundsManager,
     IFermionFractionsEvents
 {
     using Address for address;
 
-    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsLib(bytes32(0)) {}
+    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsManager(bytes32(0)) {}
 
     /**
      * @notice Locks the F-NFTs and mints the fractions. Sets the auction parameters and custodian vault parameters.
