@@ -110,7 +110,7 @@ contract FermionTypes {
         bool withPhygital;
         string metadataURI;
         string metadataHash;
-        RoyaltyInfo[] royaltyInfo;
+        RoyaltyInfo royaltyInfo;
     }
 
     struct CustodianFee {

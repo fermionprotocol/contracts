@@ -256,14 +256,11 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
         verifyFermionFNFTCaller(offerId, pl);
 
-        FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
-        uint256 royaltyInfoLength = royaltyInfoAll.length;
-        if (royaltyInfoLength == 0) return 0; // offers from v1.0.0 do not have royalties
-        FermionTypes.RoyaltyInfo memory royaltyInfo = royaltyInfoAll[royaltyInfoLength - 1];
+        FermionTypes.RoyaltyInfo memory royaltyInfo = offer.royaltyInfo;
 
         address tokenAddress = offer.exchangeToken;
-        uint256 recepientsLength = royaltyInfo.recipients.length;
-        for (uint256 i; i < recepientsLength; i++) {
+        uint256 recipientsLength = royaltyInfo.recipients.length;
+        for (uint256 i; i < recipientsLength; i++) {
             uint256 _entityId;
             if (royaltyInfo.recipients[i] == address(0)) {
                 _entityId = offer.sellerId;

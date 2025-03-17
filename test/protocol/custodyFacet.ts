@@ -110,7 +110,7 @@ describe("Custody", function () {
       withPhygital: false,
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
-      royaltyInfo: [{ recipients: [], bps: [] }],
+      royaltyInfo: { recipients: [], bps: [] },
     };
 
     // Make four offers one for normal sale, one of self sale, one for self custody and one for custodian switch

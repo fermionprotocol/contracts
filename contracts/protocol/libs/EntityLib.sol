@@ -379,7 +379,7 @@ library EntityLib {
             uint256 compactEntityRoles = entityData.roles;
             if (!checkEntityRole(compactEntityRoles, _role)) {
                 compactEntityRoles |= (1 << uint256(_role));
-                FermionStorage.protocolEntities().entityData[entityId].roles = compactEntityRoles;
+                entityData.roles = compactEntityRoles;
                 emit IEntityEvents.EntityStored(
                     entityId,
                     _entityAddress,

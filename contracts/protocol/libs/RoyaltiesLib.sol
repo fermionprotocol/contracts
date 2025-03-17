@@ -34,8 +34,8 @@ library RoyaltiesLib {
         mapping(uint256 => bool) storage isSellersRoyaltyRecipient = _sellerLookups.isSellersRoyaltyRecipient;
 
         uint256 totalRoyalties;
-        uint256 recepientsLength = _royaltyInfo.recipients.length;
-        for (uint256 i; i < recepientsLength; ++i) {
+        uint256 recipientsLength = _royaltyInfo.recipients.length;
+        for (uint256 i; i < recipientsLength; ++i) {
             if (_royaltyInfo.recipients[i] != address(0)) {
                 uint256 royaltyRecipientId = EntityLib.getOrCreateEntityId(
                     _royaltyInfo.recipients[i],

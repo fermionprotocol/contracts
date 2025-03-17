@@ -158,7 +158,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Another entity with seller role can act as a facilitator for the seller.
      * This function enables the facilitator to act on behalf of the seller.
      *
-     * Emits an AssociatedEntityAdded for each facilitator event if successful.
+     * Emits an AssociatedEntityAdded event for each added facilitator if successful.
      *
      * Reverts if:
      * - Entity region is paused
@@ -200,7 +200,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * When creating an offer, only the allowed royalty recipients can be set as the recipients.
      *
-     * Emits an AssociatedEntityAdded for each facilitator event if successful.
+     * Emits an AssociatedEntityAdded event for each added royalty recipient if successful.
      *
      * Reverts if:
      * - Entity region is paused
@@ -211,7 +211,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @dev Pausing modifier is enforced via `addOrRemoveAssociatedEntities`
      *
      * @param _sellerId - the seller's entity ID
-     * @param _royaltyRecipientIds - the facilitator's entity IDs
+     * @param _royaltyRecipientIds - the royalty recipient's entity IDs
      */
     function addRoyaltyRecipients(uint256 _sellerId, uint256[] calldata _royaltyRecipientIds) external {
         addOrRemoveAssociatedEntities(
@@ -224,7 +224,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
     /** Remove seller's allowed royalty recipients.
      *
-     * Emits an AssociatedEntityRemoved event for each facilitator if successful.
+     * Emits an AssociatedEntityRemoved event for each removed royalty recipient if successful.
      *
      * Reverts if:
      * - Entity region is paused
@@ -234,7 +234,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @dev Pausing modifier is enforced via `addOrRemoveAssociatedEntities`
      *
      * @param _sellerId - the seller's entity ID
-     * @param _royaltyRecipientIds - the facilitator's entity IDs
+     * @param _royaltyRecipientIds - the royalty recipient's entity IDs
      */
     function removeRoyaltyRecipients(uint256 _sellerId, uint256[] calldata _royaltyRecipientIds) external {
         addOrRemoveAssociatedEntities(

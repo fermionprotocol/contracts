@@ -42,8 +42,8 @@ describe("Offer", function () {
     amount: parseEther("0.05"),
     period: 30n * 24n * 60n * 60n, // 30 days
   };
-  const royaltyInfo = [{ recipients: [], bps: [] }]; // one empty royalty info
-  const royaltyInfoStruct = royaltyInfo.map((ri) => Object.values(ri));
+  const royaltyInfo = { recipients: [], bps: [] }; // one empty royalty info
+  const royaltyInfoStruct = Object.values(royaltyInfo);
   let offerFacet: Contract,
     entityFacet: Contract,
     fundsFacet: Contract,
@@ -195,13 +195,12 @@ describe("Offer", function () {
       const royalties1 = 8_00n;
       const royalties2 = 5_00n;
       const sellerRoyalties = 1_00n;
-      const royaltyInfo = [
-        {
-          recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address, ZeroAddress],
-          bps: [royalties1, royalties2, sellerRoyalties, sellerRoyalties],
-        },
-      ];
-      const royaltyInfoStruct = royaltyInfo.map((ri) => Object.values(ri));
+      const royaltyInfo = {
+        recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address, ZeroAddress],
+        bps: [royalties1, royalties2, sellerRoyalties, sellerRoyalties],
+      };
+
+      const royaltyInfoStruct = Object.values(royaltyInfo);
 
       // test event
       await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
@@ -276,7 +275,7 @@ describe("Offer", function () {
           Object.values({
             ...fermionOffer2,
             custodianFee: Object.values(fermionOffer2.custodianFee),
-            royaltyInfo: fermionOffer2.royaltyInfo.map((ri) => Object.values(ri)),
+            royaltyInfo: Object.values(fermionOffer2.royaltyInfo),
           }),
           bosonOfferId,
         );
@@ -437,35 +436,17 @@ describe("Offer", function () {
           .withArgs(facilitatorFeePercent);
       });
 
-      it("Royalty info is of incorrect length", async function () {
-        // empty royalty info
-        const emptyRoyaltyInfo = [];
-        await expect(
-          offerFacet.createOffer({ ...fermionOffer, royaltyInfo: emptyRoyaltyInfo }),
-        ).to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyInfo");
-
-        // royalty info with more than 1 element
-        const royaltyInfo = [
-          { recipients: [], bps: [] },
-          { recipients: [], bps: [] },
-        ];
-        await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo })).to.be.revertedWithCustomError(
-          fermionErrors,
-          "InvalidRoyaltyInfo",
-        );
-      });
-
       it("Number of recipients and bps does not match", async function () {
         // multiple recipients over the limit
         const royalties1 = 8_00;
         const royalties2 = 7_01;
 
-        let royaltyInfo = [{ recipients: [royaltyRecipient.address], bps: [royalties1, royalties2] }];
+        let royaltyInfo = { recipients: [royaltyRecipient.address], bps: [royalties1, royalties2] };
         await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
           .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
           .withArgs(1, 2);
 
-        royaltyInfo = [{ recipients: [royaltyRecipient.address, royaltyRecipient2.address], bps: [royalties1] }];
+        royaltyInfo = { recipients: [royaltyRecipient.address, royaltyRecipient2.address], bps: [royalties1] };
         await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
           .to.be.revertedWithCustomError(fermionErrors, "ArrayLengthMismatch")
           .withArgs(2, 1);
@@ -477,7 +458,7 @@ describe("Offer", function () {
 
         // single recipient over the limit
         const royalties = 15_01;
-        let royaltyInfo = [{ recipients: [royaltyRecipient.address], bps: [royalties] }];
+        let royaltyInfo = { recipients: [royaltyRecipient.address], bps: [royalties] };
         await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyPercentage")
           .withArgs(royalties);
@@ -485,9 +466,10 @@ describe("Offer", function () {
         // multiple recipients over the limit
         const royalties1 = 8_00;
         const royalties2 = 7_01;
-        royaltyInfo = [
-          { recipients: [royaltyRecipient.address, royaltyRecipient2.address], bps: [royalties1, royalties2] },
-        ];
+        royaltyInfo = {
+          recipients: [royaltyRecipient.address, royaltyRecipient2.address],
+          bps: [royalties1, royalties2],
+        };
         await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyPercentage")
           .withArgs(royalties1 + royalties2);
@@ -497,14 +479,14 @@ describe("Offer", function () {
         const royalties = 10_00;
 
         // existing entity, but not allowlisted
-        let royaltyInfo = [{ recipients: [facilitator.address], bps: [royalties] }];
+        let royaltyInfo = { recipients: [facilitator.address], bps: [royalties] };
         await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyRecipient")
           .withArgs(facilitator.address);
 
         // non-existing entity, but not allowlisted
         const rando = wallets[10];
-        royaltyInfo = [{ recipients: [rando.address], bps: [royalties] }];
+        royaltyInfo = { recipients: [rando.address], bps: [royalties] };
         await expect(offerFacet.createOffer({ ...fermionOffer, royaltyInfo }))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidRoyaltyRecipient")
           .withArgs(rando.address);

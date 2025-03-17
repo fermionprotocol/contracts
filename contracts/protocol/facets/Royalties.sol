@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { OfferErrors, FermionGeneralErrors } from "../domain/Errors.sol";
+import { OfferErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -54,8 +54,7 @@ contract RoyaltiesFacet is OfferErrors, Access {
 
             RoyaltiesLib.validateRoyaltyInfo(sellerLookups, sellerId, _royaltyInfo);
 
-            // Add new entry to the royaltyInfo array
-            offer.royaltyInfo.push(_royaltyInfo);
+            offer.royaltyInfo = _royaltyInfo;
 
             // Notify watchers of state change
             emit IOfferEvents.OfferRoyaltyInfoUpdated(_offerIds[i], sellerId, _royaltyInfo);
@@ -77,7 +76,7 @@ contract RoyaltiesFacet is OfferErrors, Access {
      */
     function getEIP2981Royalties(uint256 _tokenId) external view returns (address receiver, uint256 royaltyPercentage) {
         // EIP2981 returns only 1 recipient. Sum all bps and return treasury address as recipient
-        (FermionTypes.RoyaltyInfo storage royaltyInfo, , address defaultTreasury) = fetchRoyalties(_tokenId);
+        (FermionTypes.RoyaltyInfo storage royaltyInfo, address defaultTreasury) = fetchRoyalties(_tokenId);
 
         uint256 recipientLength = royaltyInfo.recipients.length;
         if (recipientLength == 0) return (address(0), uint256(0));
@@ -100,7 +99,7 @@ contract RoyaltiesFacet is OfferErrors, Access {
     function getRoyalties(
         uint256 _tokenId
     ) external view returns (address payable[] memory recipients, uint256[] memory bps) {
-        (FermionTypes.RoyaltyInfo memory royaltyInfo, , address treasury) = fetchRoyalties(_tokenId);
+        (FermionTypes.RoyaltyInfo memory royaltyInfo, address treasury) = fetchRoyalties(_tokenId);
 
         // replace default recipient with the treasury address
         for (uint256 i; i < royaltyInfo.recipients.length; ++i) {
@@ -120,16 +119,11 @@ contract RoyaltiesFacet is OfferErrors, Access {
      *
      * @param _tokenId - the token id
      * @return royaltyInfo - list of royalty recipients and corresponding bps
-     * @return royaltyInfoIndex - index of the royalty info
      * @return defaultTreasury - the seller's default treasury address
      */
     function fetchRoyalties(
         uint256 _tokenId
-    )
-        internal
-        view
-        returns (FermionTypes.RoyaltyInfo storage royaltyInfo, uint256 royaltyInfoIndex, address defaultTreasury)
-    {
+    ) internal view returns (FermionTypes.RoyaltyInfo storage royaltyInfo, address defaultTreasury) {
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
 
         address fermionFNFTAddress = FermionStorage.protocolLookups().offerLookups[offerId].fermionFNFTAddress;
@@ -146,14 +140,7 @@ contract RoyaltiesFacet is OfferErrors, Access {
         }
 
         defaultTreasury = FermionStorage.protocolEntities().entityData[offer.sellerId].admin;
-        FermionTypes.RoyaltyInfo[] storage royaltyInfoAll = offer.royaltyInfo;
-
-        uint256 royaltyInfoLength = royaltyInfoAll.length;
-        if (royaltyInfoLength == 0) revert OfferWithoutRoyalties(offerId);
-
-        royaltyInfoIndex = royaltyInfoLength - 1;
-        // get the last royalty info
-        return (royaltyInfoAll[royaltyInfoIndex], royaltyInfoIndex, defaultTreasury);
+        royaltyInfo = offer.royaltyInfo;
     }
 
     /**

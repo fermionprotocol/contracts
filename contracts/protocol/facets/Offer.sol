@@ -90,8 +90,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             revert FermionGeneralErrors.InvalidPercentage(_offer.facilitatorFeePercent);
         }
 
-        if (_offer.royaltyInfo.length != 1) revert InvalidRoyaltyInfo();
-        RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo[0]);
+        RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo);
 
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;

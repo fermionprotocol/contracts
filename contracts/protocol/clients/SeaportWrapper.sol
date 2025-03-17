@@ -128,7 +128,6 @@ contract SeaportWrapper is FermionFNFTBase {
         orders[0] = _buyerOrder;
         orders[1] = wrapperOrder;
 
-        // SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](3);
         SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](
             _buyerOrder.parameters.consideration.length + 1
         );
