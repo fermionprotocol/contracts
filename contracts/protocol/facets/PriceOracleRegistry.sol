@@ -2,7 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionStorage } from "../libs/Storage.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { IPriceOracle } from "../interfaces/IPriceOracle.sol";
 import { IPriceOracleRegistryEvents } from "../interfaces/events/IPriceOracleRegistryEvents.sol";

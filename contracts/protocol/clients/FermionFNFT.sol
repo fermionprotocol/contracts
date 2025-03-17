@@ -10,7 +10,7 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { Common } from "./Common.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
@@ -41,7 +41,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     )
         FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _wrappedNative)
         ERC2771Context(address(0))
-        FundsLib(bytes32(0))
+        FundsManager(bytes32(0))
         FermionFractions(_fnftFractionMint, _fermionFNFTPriceManager, _fnftBuyoutAuction)
     {}
 
@@ -76,6 +76,36 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
 
         string memory _offerIdString = Strings.toString(_offerId);
         __ERC721_init(string.concat("Fermion FNFT ", _offerIdString), string.concat("FFNFT_", _offerIdString));
+    }
+
+    /**
+     * @notice Updates the name of the token
+     * @dev Only callable by the contract owner
+     * @param _name The new name for the token
+     */
+    function setName(string memory _name) external onlyOwner {
+        Common._getERC721Storage()._name = _name;
+    }
+
+    /**
+     * @notice Updates the symbol of the token
+     * @dev Only callable by the contract owner
+     * @param _symbol The new symbol for the token
+     */
+    function setSymbol(string memory _symbol) external onlyOwner {
+        Common._getERC721Storage()._symbol = _symbol;
+    }
+
+    /**
+     * @notice Updates both the name and symbol of the token in a single transaction
+     * @dev Only callable by the contract owner
+     * @param _name The new name for the token
+     * @param _symbol The new symbol for the token
+     */
+    function setNameAndSymbol(string memory _name, string memory _symbol) external onlyOwner {
+        ERC721Storage storage $ = Common._getERC721Storage();
+        $._name = _name;
+        $._symbol = _symbol;
     }
 
     /**

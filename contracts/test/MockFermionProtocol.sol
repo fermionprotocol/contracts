@@ -83,6 +83,14 @@ contract MockFermion {
         return approvedOracles[oracleAddress];
     }
 
+    /**
+     * @notice Gets the current OpenSea fee percentage.
+     * @return the OpenSea fee percentage (50 = 0.5%)
+     */
+    function getOpenSeaFeePercentage() external pure returns (uint16) {
+        return 50; // 0.5%
+    }
+
     fallback() external payable {
         address to = destinationOverride == address(0) ? DESTINATION : destinationOverride;
         // Delegate calls to the destination
