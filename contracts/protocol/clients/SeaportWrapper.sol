@@ -132,7 +132,6 @@ contract SeaportWrapper is FermionFNFTBase {
         orders[0] = _buyerOrder;
         orders[1] = wrapperOrder;
 
-        // SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](3);
         SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](
             _buyerOrder.parameters.consideration.length + 1
         );
@@ -153,8 +152,9 @@ contract SeaportWrapper is FermionFNFTBase {
         fulfillments[1].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
         fulfillments[1].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 1, itemIndex: 0 });
 
+        uint256 orderParamsConsiderationLength = _buyerOrder.parameters.consideration.length;
         // Payment from buyer to OpenSea and royalty recipients
-        for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
+        for (uint256 i = 1; i < orderParamsConsiderationLength; ++i) {
             fulfillments[i + 1] = SeaportTypes.Fulfillment({
                 offerComponents: new SeaportTypes.FulfillmentComponent[](1),
                 considerationComponents: new SeaportTypes.FulfillmentComponent[](1)

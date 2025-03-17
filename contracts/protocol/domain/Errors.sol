@@ -60,6 +60,7 @@ interface OfferErrors {
     error InvalidRoyaltyPercentage(uint256 percentage);
     error OfferWithoutRoyalties(uint256 offerId);
     error InvalidTokenId(address fnftAddress, uint256 tokenId);
+    error InvalidCustomItemPrice();
 }
 
 interface VerificationErrors {

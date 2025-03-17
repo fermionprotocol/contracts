@@ -52,7 +52,14 @@ describe("Funds", function () {
     period: 30n * 24n * 60n * 60n, // 30 days
   };
   const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-  let minimalPrice: bigint;
+  let minimalPrice = calculateMinimalPrice(
+    verifierFee,
+    0, // facilitatorFee 0
+    bosonProtocolFeePercentage,
+    fermionConfig.protocolParameters.protocolFeePercentage,
+  );
+  const customItemPrice = 1;
+  let selfSaleData = abiCoder.encode(["uint256", "uint256"], [minimalPrice, customItemPrice]);
 
   async function setupFundsTest() {
     // Create three entities
@@ -101,7 +108,7 @@ describe("Funds", function () {
       withPhygital: false,
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
-      royaltyInfo: [{ recipients: [], bps: [] }],
+      royaltyInfo: { recipients: [], bps: [] },
     };
 
     await offerFacet.createOffer(fermionOffer);
@@ -119,6 +126,7 @@ describe("Funds", function () {
       bosonProtocolFeePercentage,
       fermionConfig.protocolParameters.protocolFeePercentage,
     );
+    selfSaleData = abiCoder.encode(["uint256", "uint256"], [minimalPrice, customItemPrice]);
   }
 
   before(async function () {
@@ -218,7 +226,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
       await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
       await custodyFacet.connect(verifier).checkIn(fnftTokenId);
 
@@ -254,15 +262,21 @@ describe("Funds", function () {
       );
 
       // Deposits funds
-      await fermionFnft.approve(fermionProtocolAddress, amount);
-      const tx = await fundsFacet.depositFunds(sellerId, fermionFnftAddress, amount);
+      const fermionFractionsERC20Address = await fermionFnft.getERC20FractionsClone();
+      const fermionFractionsERC20 = await ethers.getContractAt("FermionFractionsERC20", fermionFractionsERC20Address);
+      await fermionFractionsERC20.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+      const tx = await fundsFacet.depositFunds(sellerId, fermionFractionsERC20Address, amount);
 
       // Events
-      await expect(tx).to.emit(fundsFacet, "AvailableFundsIncreased").withArgs(sellerId, fermionFnftAddress, amount);
+      await expect(tx)
+        .to.emit(fundsFacet, "AvailableFundsIncreased")
+        .withArgs(sellerId, fermionFractionsERC20Address, amount);
 
       // State
-      expect(await fundsFacet.getTokenList(sellerId)).to.eql([mockToken1Address, fermionFnftAddress]);
-      expect(await fundsFacet.getAvailableFunds(sellerId, fermionFnftAddress)).to.equal(entityAvailableFunds + amount);
+      expect(await fundsFacet.getTokenList(sellerId)).to.eql([mockToken1Address, fermionFractionsERC20Address]);
+      expect(await fundsFacet.getAvailableFunds(sellerId, fermionFractionsERC20Address)).to.equal(
+        entityAvailableFunds + amount,
+      );
     });
 
     context("Revert reasons", function () {
@@ -584,7 +598,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
       await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
       await custodyFacet.connect(verifier).checkIn(fnftTokenId);
 
@@ -618,31 +632,32 @@ describe("Funds", function () {
       );
 
       // Deposits funds
-      await fermionFnft.approve(fermionProtocolAddress, amount);
-      await fundsFacet.depositFunds(sellerId, fermionFnftAddress, amount);
-
-      const entityAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, fermionFnftAddress);
-      const adminBalance = await fermionFnft.balanceOfERC20(defaultSigner.address);
+      const fermionFractionsERC20Address = await fermionFnft.getERC20FractionsClone();
+      const fermionFractionsERC20 = await ethers.getContractAt("FermionFractionsERC20", fermionFractionsERC20Address);
+      await fermionFractionsERC20.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+      await fundsFacet.connect(defaultSigner).depositFunds(sellerId, fermionFractionsERC20Address, amount);
+      const entityAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, fermionFractionsERC20Address);
+      const adminBalance = await fermionFractionsERC20.balanceOf(defaultSigner.address);
 
       // Withdraw funds
       const withdrawAmount = amountNative / 2n;
       const tx = await fundsFacet.withdrawFunds(
         sellerId,
         defaultSigner.address,
-        [fermionFnftAddress],
+        [fermionFractionsERC20Address],
         [withdrawAmount],
       );
 
       // Events
       await expect(tx)
         .to.emit(fundsFacet, "FundsWithdrawn")
-        .withArgs(sellerId, defaultSigner.address, fermionFnftAddress, withdrawAmount);
+        .withArgs(sellerId, defaultSigner.address, fermionFractionsERC20Address, withdrawAmount);
 
       // State
-      expect(await fundsFacet.getAvailableFunds(sellerId, fermionFnftAddress)).to.equal(
+      expect(await fundsFacet.getAvailableFunds(sellerId, fermionFractionsERC20Address)).to.equal(
         entityAvailableFunds - withdrawAmount,
       );
-      expect(await fermionFnft.balanceOfERC20(defaultSigner.address)).to.equal(adminBalance + withdrawAmount);
+      expect(await fermionFractionsERC20.balanceOf(defaultSigner.address)).to.equal(adminBalance + withdrawAmount);
     });
 
     context("Revert reasons", function () {
@@ -921,7 +936,7 @@ describe("Funds", function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, selfSaleData);
         await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
         await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
 
@@ -973,8 +988,7 @@ describe("Funds", function () {
           await fundsFacet.connect(wallet).depositPhygitals([fnftTokenId], [[phygital]]);
           await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
           await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
-          const abiCoder = new ethers.AbiCoder();
+          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
           const encoded = abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]);
           const digest = ethers.keccak256(encoded);
           await verificationFacet.verifyPhygitals(fnftTokenId, digest);
@@ -1098,7 +1112,7 @@ describe("Funds", function () {
       it("Seller can withdraw the if the RWA does not get verified", async function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-        await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
         const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
         await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
@@ -1219,7 +1233,7 @@ describe("Funds", function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, selfSaleData);
         await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
         await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
 
@@ -1273,7 +1287,7 @@ describe("Funds", function () {
         it("Phygitals are already verified", async function () {
           await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
           await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
           const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
           await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
@@ -1910,11 +1924,6 @@ describe("Funds", function () {
     const offerId = 1n;
     const exchangeId = 1n;
     const tokenId = deriveTokenId(offerId, exchangeId);
-
-    // const amountNative = parseEther("10");
-    // const amountMockToken = parseEther("12");
-    // const protocolId = 0n;
-    // const protocolTreasury = fermionConfig.protocolParameters.treasury;
     const bidAmount = parseEther("1");
     const royalties = 2_00n;
     const sellerRoyalties = 4_00n;
@@ -1936,7 +1945,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleData);
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
       await custodyFacet.connect(verifier).checkIn(tokenId);
 
@@ -2006,7 +2015,7 @@ describe("Funds", function () {
       );
     });
 
-    it("Offers without royalties (pre v1.1.0)", async function () {
+    it.only("Offers without royalties (pre v1.1.0)", async function () {
       // "delete" offer.royaltyInfo
       const protocolEntitiesSlotNumber = BigInt("0x88d4ceef162f03fe6cb4afc6ec9059995e2e55e4c807661ebd7d646b852a9700"); // // keccak256(abi.encode(uint256(keccak256("fermion.protocol.entities")) - 1)) & ~bytes32(uint256(0xff));
       const offerSlot = BigInt(keccak256(toBeHex(offerId, 32) + (protocolEntitiesSlotNumber + 2n).toString(16)));

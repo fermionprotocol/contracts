@@ -158,7 +158,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Another entity with seller role can act as a facilitator for the seller.
      * This function enables the facilitator to act on behalf of the seller.
      *
-     * Emits an AssociatedEntityAdded for each facilitator event if successful.
+     * Emits an AssociatedEntityAdded event for each added facilitator if successful.
      *
      * Reverts if:
      * - Entity region is paused
@@ -200,7 +200,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * When creating an offer, only the allowed royalty recipients can be set as the recipients.
      *
-     * Emits an AssociatedEntityAdded for each facilitator event if successful.
+     * Emits an AssociatedEntityAdded event for each added royalty recipient if successful.
      *
      * Reverts if:
      * - Entity region is paused
@@ -211,7 +211,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @dev Pausing modifier is enforced via `addOrRemoveAssociatedEntities`
      *
      * @param _sellerId - the seller's entity ID
-     * @param _royaltyRecipientIds - the facilitator's entity IDs
+     * @param _royaltyRecipientIds - the royalty recipient's entity IDs
      */
     function addRoyaltyRecipients(uint256 _sellerId, uint256[] calldata _royaltyRecipientIds) external {
         addOrRemoveAssociatedEntities(
@@ -224,7 +224,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
     /** Remove seller's allowed royalty recipients.
      *
-     * Emits an AssociatedEntityRemoved event for each facilitator if successful.
+     * Emits an AssociatedEntityRemoved event for each removed royalty recipient if successful.
      *
      * Reverts if:
      * - Entity region is paused
@@ -234,7 +234,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @dev Pausing modifier is enforced via `addOrRemoveAssociatedEntities`
      *
      * @param _sellerId - the seller's entity ID
-     * @param _royaltyRecipientIds - the facilitator's entity IDs
+     * @param _royaltyRecipientIds - the royalty recipient's entity IDs
      */
     function removeRoyaltyRecipients(uint256 _sellerId, uint256[] calldata _royaltyRecipientIds) external {
         addOrRemoveAssociatedEntities(
@@ -718,7 +718,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         ) = getAssociatedLookups(_sellerId, _associatedRole, pl);
 
         mapping(uint256 => FermionTypes.EntityData) storage entityData = FermionStorage.protocolEntities().entityData;
-        for (uint256 i = 0; i < _associatedEntitiesIds.length; i++) {
+        for (uint256 i; i < _associatedEntitiesIds.length; ++i) {
             uint256 associatedEntityId = _associatedEntitiesIds[i];
             if (_add) {
                 if (isAssociatedRole[associatedEntityId])
@@ -737,7 +737,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                 emit AssociatedEntityAdded(_associatedRole, _sellerId, associatedEntityId);
             } else {
                 uint256 facilitatorsLength = associatedEntities.length;
-                for (uint256 j = 0; j < facilitatorsLength; j++) {
+                for (uint256 j; j < facilitatorsLength; ++j) {
                     if (associatedEntities[j] == associatedEntityId) {
                         if (j != facilitatorsLength - 1)
                             associatedEntities[j] = associatedEntities[facilitatorsLength - 1];

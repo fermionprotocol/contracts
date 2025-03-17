@@ -110,7 +110,7 @@ contract FermionTypes {
         bool withPhygital;
         string metadataURI;
         string metadataHash;
-        RoyaltyInfo[] royaltyInfo;
+        RoyaltyInfo royaltyInfo;
     }
 
     struct CustodianFee {
@@ -185,6 +185,13 @@ contract FermionTypes {
         uint256 duration; // in seconds; if zero, the default value is used
         uint256 unlockThreshold; // in percents; if zero, the default value is used
         uint256 topBidLockTime; // in seconds; if zero, the default value is used
+    }
+
+    /// @custom:storage-location erc7201:fermion.fractions.storage
+    struct FermionFractionsStorage {
+        // Array of ERC20 clone addresses, index is the epoch
+        address[] epochToClone;
+        uint256 currentEpoch;
     }
 
     struct PriceUpdateProposal {

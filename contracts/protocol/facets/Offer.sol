@@ -90,8 +90,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             revert FermionGeneralErrors.InvalidPercentage(_offer.facilitatorFeePercent);
         }
 
-        if (_offer.royaltyInfo.length != 1) revert InvalidRoyaltyInfo();
-        RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo[0]);
+        RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo);
 
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
@@ -468,7 +467,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
 
     /** [unwrapNFTFunction] Handles the case where the seller unwraps the NFT to themselves.
      *
-     * `_data` encodes `uint256 exchangeAmount` - the exchange amount the seller is willing to pay in case of a self-sale.
+     * `_data` encodes `(uint256 exchangeAmount, uint256 customItemPrice)` - the exchange amount the seller is willing to pay in case of a self-sale,
+     * and the custom item price to be used for fractionalisation.
      *
      * Reverts if:
      * - The caller does not provide enough funds to cover the exchangeAmount
@@ -477,7 +477,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
      * @param _tokenId - the token ID
      * @param _priceDiscovery - the price discovery object
      * @param exchangeToken - the exchange token
-     * @param _data - abi encoded exchange amount (uint256)
+     * @param _data - abi encoded (exchangeAmount, customItemPrice) (uint256, uint256)
+     * @dev customItemPrice is not used in selfSale, but is used in forceful fractionalisation
      */
     function selfSale(
         uint256 _tokenId,
@@ -485,8 +486,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         address exchangeToken,
         bytes memory _data
     ) internal {
-        uint256 exchangeAmount = abi.decode(_data, (uint256));
-
+        (uint256 exchangeAmount, uint256 customItemPrice) = abi.decode(_data, (uint256, uint256));
+        if (customItemPrice == 0) {
+            revert InvalidCustomItemPrice();
+        }
         if (exchangeAmount > 0) {
             validateIncomingPayment(exchangeToken, exchangeAmount);
             transferERC20FromProtocol(exchangeToken, payable(_priceDiscovery.priceDiscoveryContract), exchangeAmount);
@@ -497,6 +500,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             IFermionWrapper.unwrapToSelf,
             (_tokenId, exchangeToken, exchangeAmount)
         );
+
+        // Store the custom item price for later use in case of forceful fractionalisation
+        FermionStorage.protocolLookups().tokenLookups[_tokenId].selfSaleItemPrice = customItemPrice;
     }
 
     /** [unwrapNFTFunction] Handles the case where the seller unwraps the NFT via an OpenSea auction.

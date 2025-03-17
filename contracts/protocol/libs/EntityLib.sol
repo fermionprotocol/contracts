@@ -160,8 +160,8 @@ library EntityLib {
                 roles[i] = FermionTypes.EntityRole(i);
             }
         } else {
-            uint256 count = 0;
-            for (uint256 i = 0; i < TOTAL_ROLE_COUNT; i++) {
+            uint256 count;
+            for (uint256 i; i < TOTAL_ROLE_COUNT; ++i) {
                 // Check if the entity has role by bitwise AND operation with shifted 1
                 if (_compactRole & (1 << i) != 0) {
                     roles[count] = FermionTypes.EntityRole(i);
@@ -379,7 +379,7 @@ library EntityLib {
             uint256 compactEntityRoles = entityData.roles;
             if (!checkEntityRole(compactEntityRoles, _role)) {
                 compactEntityRoles |= (1 << uint256(_role));
-                FermionStorage.protocolEntities().entityData[entityId].roles = compactEntityRoles;
+                entityData.roles = compactEntityRoles;
                 emit IEntityEvents.EntityStored(
                     entityId,
                     _entityAddress,

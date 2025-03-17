@@ -101,19 +101,17 @@ describe("Royalties", function () {
     let fermionOffer: FermionTypes.OfferStruct;
     const bosonOfferId = "1";
     const withPhygital = false;
-    let initialRoyaltyInfo: FermionTypes.RoyaltyInfoStruct[];
+    let initialRoyaltyInfo: FermionTypes.RoyaltyInfoStruct;
     let royaltyInfo: FermionTypes.RoyaltyInfoStruct;
 
     before(async function () {
       const initialRoyalties1 = 8_00n;
       const initialRoyalties2 = 5_00n;
       const initialSellerRoyalties = 1_00n;
-      initialRoyaltyInfo = [
-        {
-          recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address],
-          bps: [initialRoyalties1, initialRoyalties2, initialSellerRoyalties],
-        },
-      ];
+      initialRoyaltyInfo = {
+        recipients: [royaltyRecipient.address, royaltyRecipient2.address, defaultSigner.address],
+        bps: [initialRoyalties1, initialRoyalties2, initialSellerRoyalties],
+      };
       exchangeToken = await mockToken.getAddress();
 
       fermionOffer = {
@@ -153,13 +151,13 @@ describe("Royalties", function () {
 
       // verify state
       const offer = await offerFacet.getOffer(bosonOfferId);
-      expect(offer.royaltyInfo).to.eql([Object.values(initialRoyaltyInfo[0]), Object.values(royaltyInfo)]);
+      expect(offer.royaltyInfo).to.eql(Object.values(royaltyInfo));
     });
 
     it("Update multiple offers (remove from one, add to another)", async function () {
       // create another offer with no royalties
       const bosonOfferId2 = "2";
-      await offerFacet.createOffer({ ...fermionOffer, royaltyInfo: [{ recipients: [], bps: [] }] });
+      await offerFacet.createOffer({ ...fermionOffer, royaltyInfo: { recipients: [], bps: [] } });
 
       const royalties1 = 1_00n;
       const royalties2 = 9_00n;
@@ -179,9 +177,9 @@ describe("Royalties", function () {
 
       // verify state
       const offer = await offerFacet.getOffer(bosonOfferId);
-      expect(offer.royaltyInfo).to.eql([Object.values(initialRoyaltyInfo[0]), Object.values(royaltyInfo)]);
+      expect(offer.royaltyInfo).to.eql(Object.values(royaltyInfo));
       const offer2 = await offerFacet.getOffer(bosonOfferId2);
-      expect(offer2.royaltyInfo).to.eql([[[], []], Object.values(royaltyInfo)]);
+      expect(offer2.royaltyInfo).to.eql(Object.values(royaltyInfo));
     });
 
     it("Remove all royalties", async function () {
@@ -197,7 +195,7 @@ describe("Royalties", function () {
 
       // verify state
       const offer = await offerFacet.getOffer(bosonOfferId);
-      expect(offer.royaltyInfo).to.eql([Object.values(initialRoyaltyInfo[0]), Object.values(royaltyInfo)]);
+      expect(offer.royaltyInfo).to.eql(Object.values(royaltyInfo));
     });
 
     it("Assistant wallets can update the royalties", async function () {
@@ -356,7 +354,7 @@ describe("Royalties", function () {
         withPhygital,
         metadataURI,
         metadataHash: id(metadataURI),
-        royaltyInfo: [royaltyInfo],
+        royaltyInfo,
       };
 
       const bosonExchangeHandler = await getBosonHandler("IBosonExchangeHandler");
