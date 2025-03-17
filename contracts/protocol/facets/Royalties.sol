@@ -37,7 +37,8 @@ contract RoyaltiesFacet is OfferErrors, Access {
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         uint256 sellerId;
         FermionStorage.SellerLookups storage sellerLookups;
-        for (uint256 i = 0; i < _offerIds.length; i++) {
+        uint256 offerIdsLength =  _offerIds.length;
+        for (uint256 i; i < offerIdsLength; i++) {
             // Make sure the caller is the assistant, offer exists and is not voided
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerIds[i]];
             if (sellerId != offer.sellerId) {
@@ -102,7 +103,7 @@ contract RoyaltiesFacet is OfferErrors, Access {
         (FermionTypes.RoyaltyInfo memory royaltyInfo, , address treasury) = fetchRoyalties(_tokenId);
 
         // replace default recipient with the treasury address
-        for (uint256 i = 0; i < royaltyInfo.recipients.length; i++) {
+        for (uint256 i; i < royaltyInfo.recipients.length; ++i) {
             if (royaltyInfo.recipients[i] == address(0)) {
                 royaltyInfo.recipients[i] = payable(treasury);
                 break;
@@ -163,7 +164,7 @@ contract RoyaltiesFacet is OfferErrors, Access {
      */
     function getTotalRoyaltyPercentage(uint256[] storage _bps) internal view returns (uint256 totalBps) {
         uint256 bpsLength = _bps.length;
-        for (uint256 i = 0; i < bpsLength; i++) {
+        for (uint256 i; i < bpsLength; ++i) {
             totalBps += _bps[i];
         }
     }

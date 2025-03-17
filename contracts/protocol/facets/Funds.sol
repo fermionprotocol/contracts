@@ -262,7 +262,8 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
         FermionTypes.RoyaltyInfo memory royaltyInfo = royaltyInfoAll[royaltyInfoLength - 1];
 
         address tokenAddress = offer.exchangeToken;
-        for (uint256 i = 0; i < royaltyInfo.recipients.length; i++) {
+        uint256 recepientsLength = royaltyInfo.recipients.length;
+        for (uint256 i; i < recepientsLength; i++) {
             uint256 _entityId;
             if (royaltyInfo.recipients[i] == address(0)) {
                 _entityId = offer.sellerId;

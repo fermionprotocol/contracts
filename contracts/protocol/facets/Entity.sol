@@ -718,7 +718,8 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         ) = getAssociatedLookups(_sellerId, _associatedRole, pl);
 
         mapping(uint256 => FermionTypes.EntityData) storage entityData = FermionStorage.protocolEntities().entityData;
-        for (uint256 i = 0; i < _associatedEntitiesIds.length; i++) {
+        uint256 associatedEntitiesIdsLength = _associatedEntitiesIds.length;
+        for (uint256 i; i < associatedEntitiesIdsLength; ++i) {
             uint256 associatedEntityId = _associatedEntitiesIds[i];
             if (_add) {
                 if (isAssociatedRole[associatedEntityId])
@@ -737,7 +738,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                 emit AssociatedEntityAdded(_associatedRole, _sellerId, associatedEntityId);
             } else {
                 uint256 facilitatorsLength = associatedEntities.length;
-                for (uint256 j = 0; j < facilitatorsLength; j++) {
+                for (uint256 j; j < facilitatorsLength; ++j) {
                     if (associatedEntities[j] == associatedEntityId) {
                         if (j != facilitatorsLength - 1)
                             associatedEntities[j] = associatedEntities[facilitatorsLength - 1];
