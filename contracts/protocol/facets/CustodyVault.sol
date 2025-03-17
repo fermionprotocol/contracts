@@ -470,7 +470,10 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IC
                 FermionTypes.CustodianVaultParameters memory _custodianVaultParameters;
                 {
                     FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
-                    _buyoutAuctionParameters.exitPrice = pl.tokenLookups[_tokenId].itemPrice;
+                    FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+                    _buyoutAuctionParameters.exitPrice = tokenLookups.selfSaleItemPrice != 0
+                        ? tokenLookups.selfSaleItemPrice
+                        : tokenLookups.itemPrice;
                     uint256 partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * _custodianFee.amount;
                     uint256 newFractionsPerAuction = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) /
                         _buyoutAuctionParameters.exitPrice;

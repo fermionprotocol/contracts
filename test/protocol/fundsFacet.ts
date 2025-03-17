@@ -52,7 +52,14 @@ describe("Funds", function () {
     period: 30n * 24n * 60n * 60n, // 30 days
   };
   const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
-  let minimalPrice: bigint;
+  let minimalPrice = calculateMinimalPrice(
+    verifierFee,
+    0, // facilitatorFee 0
+    bosonProtocolFeePercentage,
+    fermionConfig.protocolParameters.protocolFeePercentage,
+  );
+  const customItemPrice = 1;
+  let selfSaleData = abiCoder.encode(["uint256", "uint256"], [minimalPrice, customItemPrice]);
 
   async function setupFundsTest() {
     // Create three entities
@@ -119,6 +126,7 @@ describe("Funds", function () {
       bosonProtocolFeePercentage,
       fermionConfig.protocolParameters.protocolFeePercentage,
     );
+    selfSaleData = abiCoder.encode(["uint256", "uint256"], [minimalPrice, customItemPrice]);
   }
 
   before(async function () {
@@ -218,7 +226,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
       await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
       await custodyFacet.connect(verifier).checkIn(fnftTokenId);
 
@@ -584,7 +592,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
       await verificationFacet.connect(verifier).submitVerdict(fnftTokenId, VerificationStatus.Verified);
       await custodyFacet.connect(verifier).checkIn(fnftTokenId);
 
@@ -921,7 +929,7 @@ describe("Funds", function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, selfSaleData);
         await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
         await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
 
@@ -973,8 +981,7 @@ describe("Funds", function () {
           await fundsFacet.connect(wallet).depositPhygitals([fnftTokenId], [[phygital]]);
           await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
           await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
-          const abiCoder = new ethers.AbiCoder();
+          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
           const encoded = abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]);
           const digest = ethers.keccak256(encoded);
           await verificationFacet.verifyPhygitals(fnftTokenId, digest);
@@ -1098,7 +1105,7 @@ describe("Funds", function () {
       it("Seller can withdraw the if the RWA does not get verified", async function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-        await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
         const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
         await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
@@ -1219,7 +1226,7 @@ describe("Funds", function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, selfSaleData);
         await verificationFacet.connect(verifier).submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified);
         await custodyFacet.connect(verifier).checkIn(phygitalFnftTokenId);
 
@@ -1273,7 +1280,7 @@ describe("Funds", function () {
         it("Phygitals are already verified", async function () {
           await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
           await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
           const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
           await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
@@ -1931,7 +1938,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleData);
       await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
       await custodyFacet.connect(verifier).checkIn(tokenId);
 
