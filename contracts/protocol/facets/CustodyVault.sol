@@ -12,6 +12,9 @@ import { EntityLib } from "../libs/EntityLib.sol";
 import { Context } from "../bases/mixins/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title CustodyVaultFacet
@@ -20,7 +23,7 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  */
 contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, ICustodyEvents {
     using FermionFNFTLib for address;
-
+    using SafeERC20 for IERC20;
     constructor(bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {}
 
     /**
@@ -103,7 +106,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IC
     function removeItemFromCustodianOfferVault(
         uint256 _tokenId,
         uint256 _buyoutAuctionEnd
-    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) nonReentrant returns (int256 released) {
+    ) external notPaused(FermionTypes.PausableRegion.CustodyVault) returns (int256 released) {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         // Only F-NFT contract can call it
         uint256 offerId;
@@ -386,7 +389,9 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IC
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;
         uint256 soldFractions = fractionAuction.availableFractions;
-        offerLookups.fermionFNFTAddress.transfer(winnerAddress, soldFractions);
+
+        address fermionFNFTAddress = offerLookups.fermionFNFTAddress;
+        IERC20(IFermionFNFT(fermionFNFTAddress).getERC20FractionsClone()).safeTransfer(winnerAddress, soldFractions);
 
         // release funds in the vault
         uint256 winningBid = fractionAuction.maxBid;
@@ -406,6 +411,18 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IC
         } else {
             vault.amount += winningBid;
             emit VaultBalanceUpdated(_offerId, vault.amount);
+
+            uint256 itemsInVault = offerLookups.custodianVaultItems;
+            uint256 totalOfferItems = offerLookups.itemQuantity;
+            uint256 firstTokenId = offerLookups.firstTokenId;
+            if (vault.amount < itemsInVault * offerLookups.custodianVaultParameters.liquidationThreshold) {
+                // After the auction, the vault balance is below the liquidationThreshold threshold.
+                // Start partial auction for all items in the vault.
+                for (uint256 i; i < totalOfferItems; i++) {
+                    uint256 tokenId = firstTokenId + i;
+                    fermionFNFTAddress.startAuction(tokenId);
+                }
+            }
         }
 
         emit AuctionFinished(_offerId, winnerAddress, soldFractions, winningBid);
@@ -451,29 +468,36 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IC
                 addItemToCustodianOfferVault(_tokenId, 1, 0, false, pl);
             } else {
                 // no vault yet. Use the default parameters
-                FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
-                _buyoutAuctionParameters.exitPrice = pl.tokenLookups[_tokenId].itemPrice;
-                uint256 partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * _custodianFee.amount;
-                uint256 newFractionsPerAuction = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) /
-                    _buyoutAuctionParameters.exitPrice;
-                FermionTypes.CustodianVaultParameters memory _custodianVaultParameters = FermionTypes
-                    .CustodianVaultParameters({
+                FermionTypes.CustodianVaultParameters memory _custodianVaultParameters;
+                {
+                    FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters;
+                FermionStorage.TokenLookups storage tokenLookups = pl.tokenLookups[_tokenId];
+                    _buyoutAuctionParameters.exitPrice = tokenLookups.selfSaleItemPrice != 0
+                    ? tokenLookups.selfSaleItemPrice
+                    : tokenLookups.itemPrice;
+                    uint256 partialAuctionThreshold = PARTIAL_THRESHOLD_MULTIPLIER * _custodianFee.amount;
+                    uint256 newFractionsPerAuction = (partialAuctionThreshold * DEFAULT_FRACTION_AMOUNT) /
+                        _buyoutAuctionParameters.exitPrice;
+                    _custodianVaultParameters = FermionTypes.CustodianVaultParameters({
                         partialAuctionThreshold: partialAuctionThreshold,
                         partialAuctionDuration: _custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR,
                         liquidationThreshold: LIQUIDATION_THRESHOLD_MULTIPLIER * _custodianFee.amount,
                         newFractionsPerAuction: newFractionsPerAuction
                     });
 
-                fermionFNFTAddress.mintFractions(
-                    _tokenId,
-                    1,
-                    DEFAULT_FRACTION_AMOUNT,
-                    _buyoutAuctionParameters,
-                    _custodianVaultParameters,
-                    0,
-                    address(0)
-                );
-
+                    fermionFNFTAddress.mintFractions(
+                        _tokenId,
+                        1,
+                        DEFAULT_FRACTION_AMOUNT,
+                        _buyoutAuctionParameters,
+                        _custodianVaultParameters,
+                        0,
+                        address(0)
+                    );
+                }
+                // set the offer vault period in the past, so the auction covers the past expenses, too
+                // Since this is the first fractionalisation, offer vault period should match the item vault period
+                pl.tokenLookups[_offerId].vault.period = pl.tokenLookups[_tokenId].vault.period;
                 setupCustodianOfferVault(_tokenId, 1, _custodianVaultParameters, 0, false);
             }
 
