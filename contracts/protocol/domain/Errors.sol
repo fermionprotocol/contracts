@@ -66,6 +66,7 @@ interface VerificationErrors {
     error PhygitalsDigestMismatch(uint256 tokenId, bytes32 expectedDigest, bytes32 actualDigest);
     error PhygitalsVerificationMissing(uint256 tokenId);
     error InexistentVerificationStatus();
+    error InvalidVerificationStatus();
 }
 
 interface CustodyErrors {

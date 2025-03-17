@@ -475,6 +475,8 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
         FermionTypes.VerificationStatus _verificationStatus,
         bool _afterTimeout
     ) internal {
+        if (_verificationStatus == FermionTypes.VerificationStatus.Pending) revert InvalidVerificationStatus();
+
         uint256 tokenId = _tokenId;
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
         uint256 verifierId = offer.verifierId;

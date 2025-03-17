@@ -931,6 +931,14 @@ describe("Verification", function () {
           .withArgs(PausableRegion.Verification);
       });
 
+      it("Invalid Verification status", async function () {
+        await expect(
+          verificationFacet
+            .connect(verifier)
+            .submitVerdict(exchange.tokenId, VerificationStatus.Pending, verificationMetadata),
+        ).to.be.revertedWithCustomError(fermionErrors, "InvalidVerificationStatus");
+      });
+
       it("Phygitals are not verified", async function () {
         await expect(
           verificationFacet
@@ -1735,6 +1743,14 @@ describe("Verification", function () {
         )
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Verification);
+      });
+
+      it("Invalid verification status", async function () {
+        await expect(
+          verificationFacet
+            .connect(verifier)
+            .removeRevisedMetadataAndSubmitVerdict(exchange.tokenId, VerificationStatus.Pending, verificationMetadata),
+        ).to.be.revertedWithCustomError(fermionErrors, "InvalidVerificationStatus");
       });
 
       it("Caller is not the verifiers's assistant", async function () {
