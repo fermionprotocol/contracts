@@ -4,9 +4,9 @@ pragma solidity 0.8.24;
 import { BYTE_SIZE } from "../domain/Constants.sol";
 import { EntityErrors, FermionGeneralErrors, OfferErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { Context } from "../libs/Context.sol";
+import { Context } from "../bases/mixins/Context.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
 
@@ -198,7 +198,55 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         addOrRemoveFacilitators(_sellerId, _facilitatorIds, false);
     }
 
-    /** Add entity wide admin account.
+    /**
+     * @notice Allows a wallet to renounce one of its account roles for a specific entity role.
+     *
+     * Emits an EntityAccountRemoved event if successful.
+     *
+     * Reverts if:
+     * - Entity region is paused
+     * - Entity does not exist
+     * - Caller does not have the specified account role for the specified entity role
+     * - Caller has an entity-wide role for the specified account role (entity-wide roles, including entity admins, cannot be renounced through this function)
+     *
+     * @param _entityId - the entity ID
+     * @param _entityRole - the entity role for which to renounce the account role
+     * @param _accountRole - the account role to renounce
+     */
+    function renounceAccountRole(
+        uint256 _entityId,
+        FermionTypes.EntityRole _entityRole,
+        FermionTypes.AccountRole _accountRole
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
+        address msgSender = _msgSender();
+
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        EntityLib.validateEntityId(_entityId, pl);
+
+        if (EntityLib.hasAccountRole(_entityId, msgSender, _entityRole, _accountRole, true)) {
+            revert ChangeNotAllowed();
+        }
+
+        EntityLib.validateAccountRole(_entityId, msgSender, _entityRole, _accountRole);
+
+        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
+
+        // Instead of using getCompactAccountRole, directly calculate the role mask
+        uint256 accountRole = 1 << uint256(_accountRole);
+        uint256 compactAccountRole = accountRole << (uint256(_entityRole) * BYTE_SIZE);
+        EntityLib.storeCompactAccountRole(_entityId, msgSender, compactAccountRole, false, pl, pe);
+
+        // Emit event
+        FermionTypes.EntityRole[] memory entityRoles = new FermionTypes.EntityRole[](1);
+        entityRoles[0] = _entityRole;
+        FermionTypes.AccountRole[][] memory accountRoles = new FermionTypes.AccountRole[][](1);
+        accountRoles[0] = new FermionTypes.AccountRole[](1);
+        accountRoles[0][0] = _accountRole;
+        emit EntityAccountRemoved(_entityId, msgSender, entityRoles, accountRoles);
+    }
+
+    /**
+     * @notice Add entity wide admin account.
      *
      * This is different from adding a account with manager role for each entity role.
      * The account is given the manager role for all entity roles, even for roles that do not exist yet.

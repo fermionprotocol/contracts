@@ -6,6 +6,7 @@ import { ItemType } from "@opensea/seaport-js/lib/constants";
 import { BigNumberish, Contract } from "ethers";
 import { OrderWithCounter } from "@opensea/seaport-js/lib/types";
 import { OrderComponents } from "@opensea/seaport-js/lib/types";
+import fermionConfig from "./../../fermion.config";
 
 const { getContractFactory, getContractAt, parseEther, ZeroAddress } = ethers;
 
@@ -43,7 +44,9 @@ export function createBuyerAdvancedOrderClosure(
 ) {
   return async function (buyer: HardhatEthersSigner, offerId: string, exchangeId: string | BigNumberish) {
     const fullPrice = parseEther("1");
-    const openSeaFee = (fullPrice * 2n) / 100n;
+    // Use the OpenSea fee percentage from the config (0.5%)
+    const openSeaFeePercentage = BigInt(fermionConfig.protocolParameters.openSeaFeePercentage);
+    const openSeaFee = (fullPrice * openSeaFeePercentage) / 10000n;
     const openSea = wallets[5]; // a mock OS address
     const seaport = new Seaport(buyer, { overrides: { seaportVersion: "1.6", contractAddress: seaportAddress } });
 
@@ -56,7 +59,7 @@ export function createBuyerAdvancedOrderClosure(
       {
         offer: [
           {
-            itemType: ItemType.ERC20,
+            itemType: ItemType.ERC20 as any,
             token: exchangeToken,
             amount: fullPrice.toString(),
           },
@@ -68,7 +71,7 @@ export function createBuyerAdvancedOrderClosure(
             identifier: tokenId,
           },
           {
-            itemType: ItemType.ERC20,
+            itemType: ItemType.ERC20 as any,
             token: exchangeToken,
             amount: openSeaFee.toString(),
             recipient: openSea.address,
@@ -109,7 +112,8 @@ export async function encodeBuyerAdvancedOrder(
 
 export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, wrapperAddress: string) {
   return async function getOrderParameters(tokenId: string, exchangeToken: string, fullPrice: bigint, endTime: string) {
-    const openSeaFee = (fullPrice * 2_50n) / 100_00n;
+    const openSeaFeePercentage = BigInt(fermionConfig.protocolParameters.openSeaFeePercentage);
+    const openSeaFee = (fullPrice * openSeaFeePercentage) / 10000n;
     const { executeAllActions } = await seaport.createOrder(
       {
         offer: [
@@ -121,12 +125,12 @@ export function getOrderParametersClosure(seaport: Seaport, seaportConfig: any, 
         ],
         consideration: [
           {
-            itemType: ItemType.ERC20,
+            itemType: ItemType.ERC20 as any,
             token: exchangeToken,
             amount: (fullPrice - openSeaFee).toString(),
           },
           {
-            itemType: ItemType.ERC20,
+            itemType: ItemType.ERC20 as any,
             token: exchangeToken,
             amount: openSeaFee.toString(),
             recipient: seaportConfig.openSeaRecipient,
