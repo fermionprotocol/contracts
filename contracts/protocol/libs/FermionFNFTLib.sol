@@ -9,6 +9,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
@@ -207,6 +208,15 @@ library FermionFNFTLib {
      */
     function cancelFixedPriceOrders(address _fnft, SeaportTypes.OrderComponents[] calldata _orders) internal {
         _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.cancelFixedPriceOrders, (_orders)));
+    }
+
+    /**
+     * @notice Forcefully start the buyout auction.
+     *
+     * @param _tokenId The ID of the fractionalized token for which the auction is being started.
+     */
+    function startAuction(address _fnft, uint256 _tokenId) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionBuyoutAuction.startAuction, (_tokenId)));
     }
 
     /**

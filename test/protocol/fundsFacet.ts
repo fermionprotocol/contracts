@@ -8,7 +8,7 @@ import {
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroAddress, ZeroHash, parseEther, id, MaxUint256, toBeHex } from "ethers";
+import { Contract, ZeroAddress, ZeroHash, parseEther, id, MaxUint256 } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, PausableRegion, VerificationStatus, AccountRole, WrapType } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
@@ -50,7 +50,9 @@ describe("Funds", function () {
     URI: "https://example.com/verification-metadata.json",
     hash: id("metadata"),
   };
+  const customItemPrice = 1;
   let minimalPrice: bigint;
+  let selfSaleData: string;
 
   async function setupFundsTest() {
     // Create three entities
@@ -112,6 +114,7 @@ describe("Funds", function () {
       bosonProtocolFeePercentage,
       fermionConfig.protocolParameters.protocolFeePercentage,
     );
+    selfSaleData = abiCoder.encode(["uint256", "uint256"], [minimalPrice, customItemPrice]);
   }
 
   before(async function () {
@@ -210,7 +213,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
       await verificationFacet
         .connect(verifier)
         .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
@@ -580,7 +583,7 @@ describe("Funds", function () {
       await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
       await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
       await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+      await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
       await verificationFacet
         .connect(verifier)
         .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
@@ -919,7 +922,7 @@ describe("Funds", function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, selfSaleData);
         await verificationFacet
           .connect(verifier)
           .submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified, verificationMetadata);
@@ -973,8 +976,7 @@ describe("Funds", function () {
           await fundsFacet.connect(wallet).depositPhygitals([fnftTokenId], [[phygital]]);
           await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
           await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
-          const abiCoder = new ethers.AbiCoder();
+          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
           const encoded = abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]);
           const digest = ethers.keccak256(encoded);
           await verificationFacet.verifyPhygitals(fnftTokenId, digest);
@@ -1098,7 +1100,7 @@ describe("Funds", function () {
       it("Seller can withdraw the if the RWA does not get verified", async function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-        await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
         const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
         await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
@@ -1221,7 +1223,7 @@ describe("Funds", function () {
         await mockToken1.approve(fermionProtocolAddress, sellerDeposit);
         await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
         await mockToken1.approve(fermionProtocolAddress, 2n * verifierFee);
-        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+        await offerFacet.unwrapNFT(phygitalFnftTokenId, WrapType.SELF_SALE, selfSaleData);
         await verificationFacet
           .connect(verifier)
           .submitVerdict(phygitalFnftTokenId, VerificationStatus.Verified, verificationMetadata);
@@ -1277,7 +1279,7 @@ describe("Funds", function () {
         it("Phygitals are already verified", async function () {
           await mockToken1.approve(fermionProtocolAddress, sellerDeposit + minimalPrice);
           await fundsFacet.depositFunds(sellerId, mockToken1Address, sellerDeposit);
-          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
+          await offerFacet.unwrapNFT(fnftTokenId, WrapType.SELF_SALE, selfSaleData);
           const digest = ethers.keccak256(abiCoder.encode(["tuple(address,uint256)[]"], [[Object.values(phygital)]]));
           await verificationFacet.verifyPhygitals(fnftTokenId, digest);
 
