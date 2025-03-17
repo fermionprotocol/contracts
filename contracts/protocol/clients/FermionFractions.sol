@@ -178,9 +178,7 @@ abstract contract FermionFractions is
      *
      * @dev This function is called by the FermionFractionsERC20 contract after a transfer occurs.
      *      If the voter has no active votes or the current proposal is not active, no adjustments are made.
-     *
-     * Reverts:
-     * - `OnlyCurrentERC20Clone` if the caller is not the current epoch's ERC20 clone contract.
+     *      If caller of the function is not the current epoch's ERC20 clone contract, no votes are adjusted.
      *
      * @param from The address of the sender whose votes may need adjustment.
      * @param amount The number of fractions being transferred.

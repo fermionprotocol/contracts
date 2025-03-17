@@ -159,7 +159,6 @@ interface FractionalisationErrors is AuctionErrors {
     error OngoingProposalExists();
     error ConflictingVote();
     error OracleInternalError();
-    error OnlyCurrentERC20Clone();
 }
 
 interface PriceOracleRegistryErrors {

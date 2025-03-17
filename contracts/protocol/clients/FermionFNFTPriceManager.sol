@@ -387,10 +387,8 @@ contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, Con
      *
      * @dev If the voter has no active votes or the current proposal is not active, no adjustments are made.
      *      If the voter's remaining balance after the transfer is greater than or equal to their vote count,
-     *      no votes are removed.
-     *
-     * Reverts:
-     * - `OnlyCurrentERC20Clone` if the caller is not the current epoch's ERC20 clone contract.
+     *      no votes are removed. If caller of the function is not the current epoch's ERC20 clone contract,
+     *      no votes are adjusted.
      *
      * @param from The address of the sender whose votes may need adjustment.
      * @param amount The number of fractions being transferred.
@@ -398,9 +396,11 @@ contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, Con
     function adjustVotesOnTransfer(address from, uint256 amount) external {
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
         uint256 currentEpoch = fractionStorage.currentEpoch;
-        address erc20Clone = fractionStorage.epochToClone[currentEpoch];
+        address currentERC20Clone = fractionStorage.epochToClone[currentEpoch];
 
-        if (_msgSender() != erc20Clone) revert OnlyCurrentERC20Clone();
+        if (_msgSender() != currentERC20Clone) {
+            return;
+        }
 
         FermionTypes.PriceUpdateProposal storage proposal = Common
             ._getBuyoutAuctionStorage(currentEpoch)
@@ -417,7 +417,7 @@ contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, Con
             return;
         }
 
-        uint256 remainingBalance = IERC20(erc20Clone).balanceOf(from);
+        uint256 remainingBalance = IERC20(currentERC20Clone).balanceOf(from);
 
         if (remainingBalance >= voteCount) {
             return;

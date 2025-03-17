@@ -100,10 +100,9 @@ interface IFermionFNFTPriceManager {
      *
      * @dev If the voter has no active votes or the current proposal is not active, no adjustments are made.
      *      If the voter's remaining balance after the transfer is greater than or equal to their vote count,
-     *      no votes are removed.
+     *      no votes are removed.If caller of the function is not the current epoch's ERC20 clone contract,
+     *      no votes are adjusted.
      *
-     * Reverts:
-     * - `OnlyCurrentERC20Clone` if the caller is not the current epoch's ERC20 clone contract.
      *
      * @param from The address of the sender whose votes may need adjustment.
      * @param amount The number of fractions being transferred.
