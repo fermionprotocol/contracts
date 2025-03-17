@@ -1234,7 +1234,6 @@ describe("MetaTransactions", function () {
 
       context("Externally owned account", function () {
         let entity, message;
-        // const tokenId = deriveTokenId(offerId, exchangeId).toString();
         const approval = parseEther("1");
 
         beforeEach(async function () {

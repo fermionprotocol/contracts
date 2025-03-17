@@ -59,7 +59,9 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
      * @param _functionSignature - the function signature
      * @param _nonce - the nonce value of the transaction
      * @param _sig - meta transaction signature, r, s, v
-     * @param _offerIdWithEpoch - the offer ID, if FermionFNFT or {epoch+1}{offerId} Fermion Fraction is called or 0 for this contract.
+     * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
+     * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
+     * associated with offerId and epoch.
      */
     function executeMetaTransaction(
         address _userAddress,
@@ -92,7 +94,9 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
      * If epoch is -1, returns the address of the FermionFNFT contract.
      * Otherwise, returns the address of the ERC20 clone for the specific epoch.
      *
-     * @param _offerIdWithEpoch - the offer ID, if FermionFNFT or {epoch+1}{offerId} Fermion Fraction is called or 0 for this contract.
+     * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
+     * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
+     * associated with offerId and epoch.
      */
     function getContractAddress(uint256 _offerIdWithEpoch) internal view returns (address) {
         if (_offerIdWithEpoch == 0) return address(this);

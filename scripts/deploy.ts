@@ -389,7 +389,7 @@ async function getDeploymentData(env: string) {
 
 async function predictFermionDiamondAddress(create3: boolean, transactionOffset: number = 0) {
   if (create3) {
-    // TODO
+    throw Error(`Create3 address calculation is not supported yet.`);
   }
 
   const accounts = await ethers.getSigners();
