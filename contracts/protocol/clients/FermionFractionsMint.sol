@@ -41,6 +41,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
      * @notice Locks the F-NFTs and mints the fractions. Sets the auction parameters and custodian vault parameters.
      * This function is called when the first NFT is fractionalised.
      * If some NFTs are already fractionalised, use `mintFractions(uint256 _firstTokenId, uint256 _length)` instead.
+     * If the FermionFNFT was deployed in v1.0.1 or earlier, use `migrateFractions(address[] calldata _owners)` before this can be used.
      *
      * @dev New epoch is advanced only when this function is called.
      * Emits FractionsSetup and Fractionalised events if successful.
@@ -150,6 +151,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
     /**
      * @notice Locks the F-NFTs and mints the fractions. The number of fractions matches the number of fractions for existing NFTs.
      * This function is called when additional NFTs are fractionalised.
+     * If the FermionFNFT was deployed in v1.0.1 or earlier, use `migrateFractions(address[] calldata _owners)` before this can be used.
      *
      * Reverts if:
      * - Number of tokens to fractionalise is zero
@@ -194,6 +196,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
 
     /**
      * @notice Mints additional fractions to be sold in the partial auction to fill the custodian vault.
+     * If the FermionFNFT was deployed in v1.0.1 or earlier, use `migrateFractions(address[] calldata _owners)` before this can be used.
      *
      * Emits AdditionalFractionsMinted event if successful.
      *
@@ -215,6 +218,56 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
         FermionFractionsERC20(fractionStorage.epochToClone[currentEpoch]).mint(fermionProtocol, _amount);
 
         emit AdditionalFractionsMinted(_amount, Common.liquidSupply(currentEpoch));
+    }
+
+    /**
+     * @notice Migrates the fractions to the new ERC20 clone for the current epoch.
+     * This function can be used only if the FermionFNFT was deployed in v1.0.1 or earlier.
+     * Using this function on a contract deployed in v1.0.2 or later will revert since ERC20 balances are zero.
+     *
+     * Emits FractionsMigrated event if successful.
+     *
+     * Reverts if:
+     * - Number of owners is zero
+     * - Owner has no fractions
+     * - Owner has already migrated
+     *
+     * @param _owners The array of owners to migrate the fractions for
+     */
+    function migrateFractions(address[] calldata _owners) external {
+        if (_owners.length == 0) {
+            revert InvalidLength();
+        }
+
+        // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+        FermionFractionsERC20.ERC20Storage storage $;
+        bytes32 ERC20StorageLocation = 0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00;
+        assembly {
+            $.slot := ERC20StorageLocation
+        }
+
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        address cloneAddress = fractionStorage.epochToClone[0]; // Migration is relevant only for the first epoch
+
+        if (cloneAddress == address(0)) {
+            _advanceEpoch();
+            fractionStorage.migrated[address(this)] = true;
+
+            uint256 fractionBalance = $._balances[address(this)];
+            if (fractionBalance > 0) FermionFractionsERC20(cloneAddress).mint(address(this), fractionBalance);
+        }
+
+        for (uint256 i; i < _owners.length; ++i) {
+            if (fractionStorage.migrated[_owners[i]]) revert AlreadyMigrated(_owners[i]);
+            fractionStorage.migrated[_owners[i]] = true;
+
+            uint256 fractionBalance = $._balances[_owners[i]];
+            if (fractionBalance == 0) revert NoFractions();
+
+            FermionFractionsERC20(cloneAddress).mint(_owners[i], fractionBalance);
+
+            emit FractionsMigrated(_owners[i], fractionBalance);
+        }
     }
 
     /**
