@@ -37,7 +37,7 @@ contract RoyaltiesFacet is OfferErrors, Access {
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         uint256 sellerId;
         FermionStorage.SellerLookups storage sellerLookups;
-        uint256 offerIdsLength =  _offerIds.length;
+        uint256 offerIdsLength = _offerIds.length;
         for (uint256 i; i < offerIdsLength; i++) {
             // Make sure the caller is the assistant, offer exists and is not voided
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerIds[i]];

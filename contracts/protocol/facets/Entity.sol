@@ -718,8 +718,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         ) = getAssociatedLookups(_sellerId, _associatedRole, pl);
 
         mapping(uint256 => FermionTypes.EntityData) storage entityData = FermionStorage.protocolEntities().entityData;
-        uint256 associatedEntitiesIdsLength = _associatedEntitiesIds.length;
-        for (uint256 i; i < associatedEntitiesIdsLength; ++i) {
+        for (uint256 i; i < _associatedEntitiesIds.length; ++i) {
             uint256 associatedEntityId = _associatedEntitiesIds[i];
             if (_add) {
                 if (isAssociatedRole[associatedEntityId])

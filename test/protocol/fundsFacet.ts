@@ -1910,11 +1910,6 @@ describe("Funds", function () {
     const offerId = 1n;
     const exchangeId = 1n;
     const tokenId = deriveTokenId(offerId, exchangeId);
-
-    // const amountNative = parseEther("10");
-    // const amountMockToken = parseEther("12");
-    // const protocolId = 0n;
-    // const protocolTreasury = fermionConfig.protocolParameters.treasury;
     const bidAmount = parseEther("1");
     const royalties = 2_00n;
     const sellerRoyalties = 4_00n;
