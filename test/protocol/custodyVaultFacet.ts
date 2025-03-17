@@ -2376,7 +2376,12 @@ describe("CustodyVault", function () {
           it("bid does not cover the debt", async function () {
             const bidAmount = (-deficit * 3n) / 4n;
             await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
-            const sellerFractions = await wrapper.balanceOfERC20(buyer.address);
+            const fermionFractionsERC20Address = await wrapper.getERC20FractionsClone();
+            const fermionFractionsERC20 = await ethers.getContractAt(
+              "FermionFractionsERC20",
+              fermionFractionsERC20Address,
+            );
+            const sellerFractions = await fermionFractionsERC20.balanceOf(buyer.address);
             const tx = await wrapper.connect(buyer).voteToStartAuction(exchange.tokenId, sellerFractions); // bid is below exit price, original buyer votes to start auction
             const voteTime = BigInt((await tx.getBlock()).timestamp);
             const auctionEnd = voteTime + auctionParameters.duration + 1n;
@@ -3107,7 +3112,7 @@ describe("CustodyVault", function () {
           for (let i = 0n; i < tokenCount; i++) {
             await expect(tx)
               .to.emit(wrapper, "AuctionStarted")
-              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd);
+              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd, 0);
           }
 
           expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance);
@@ -3154,7 +3159,7 @@ describe("CustodyVault", function () {
           // buyout auctions
           // No auction for the first token
           try {
-            await expect(tx).to.emit(wrapper, "AuctionStarted").withArgs(exchange.tokenId, buyoutAuctionEnd);
+            await expect(tx).to.emit(wrapper, "AuctionStarted").withArgs(exchange.tokenId, buyoutAuctionEnd, 0);
             assert(false, "Should not find the event");
           } catch (error) {
             expect(
@@ -3166,7 +3171,7 @@ describe("CustodyVault", function () {
           for (let i = 1n; i < tokenCount; i++) {
             await expect(tx)
               .to.emit(wrapper, "AuctionStarted")
-              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd);
+              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd, 0);
           }
         });
 

@@ -50,8 +50,13 @@ describe("FermionFNFT - wrapper tests", function () {
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy();
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
-    const fermionFractionsMint = await FermionFractionsMint.deploy(mockBosonPriceDiscovery.address);
+    const fermionFractionsMint = await FermionFractionsMint.deploy(
+      mockBosonPriceDiscovery.address,
+      await fermionFractionsERC20.getAddress(),
+    );
     const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
     const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(mockBosonPriceDiscovery.address);
 
