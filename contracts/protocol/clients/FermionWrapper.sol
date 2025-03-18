@@ -122,18 +122,23 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      * @param _firstTokenId The first token id.
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
+     * @param _royaltyInfo The royalty info.
      * @param _exchangeToken The token to be used for the exchange.
      */
     function listFixedPriceOrders(
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
+        FermionTypes.RoyaltyInfo calldata _royaltyInfo,
         address _exchangeToken
     ) external {
         Common.checkStateAndCaller(_firstTokenId, FermionTypes.TokenState.Wrapped, _msgSender(), fermionProtocol);
 
         SEAPORT_WRAPPER.functionDelegateCall(
-            abi.encodeCall(SeaportWrapper.listFixedPriceOrders, (_firstTokenId, _prices, _endTimes, _exchangeToken))
+            abi.encodeCall(
+                SeaportWrapper.listFixedPriceOrders,
+                (_firstTokenId, _prices, _endTimes, _royaltyInfo, _exchangeToken)
+            )
         );
     }
 
@@ -162,6 +167,8 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      * @param _buyerOrder The Seaport buyer order.
      */
     function unwrap(uint256 _tokenId, SeaportTypes.AdvancedOrder calldata _buyerOrder) external {
+        if (Common._getFermionCommonStorage().fixedPrice[_tokenId] > 0 && ownerOf(_tokenId) != address(this))
+            revert WrapperErrors.InvalidUnwrap();
         unwrap(_tokenId);
 
         finalizeAuction(_tokenId, _buyerOrder);
@@ -185,11 +192,11 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
     function unwrapFixedPriced(uint256 _tokenId, address _exchangeToken) external {
         if (ownerOf(_tokenId) == address(this)) revert WrapperErrors.InvalidOwner(_tokenId, address(0), address(this)); // Zero address means the expected value is anything but the actual value
 
-        unwrap(_tokenId);
-
-        IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, Common._getFermionCommonStorage().fixedPrice[_tokenId]);
-
-        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
+        unwrapNFTAndTransferFundsToBosonPriceDiscoveryClient(
+            _tokenId,
+            _exchangeToken,
+            Common._getFermionCommonStorage().fixedPrice[_tokenId]
+        );
     }
 
     /**
@@ -200,18 +207,9 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      * @param _verifierFee The verifier fee
      */
     function unwrapToSelf(uint256 _tokenId, address _exchangeToken, uint256 _verifierFee) external {
-        unwrap(_tokenId);
-
-        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
-
-        if (_verifierFee > 0) {
-            if (_exchangeToken == address(0)) {
-                WRAPPED_NATIVE.deposit{ value: _verifierFee }();
-                WRAPPED_NATIVE.transfer(BP_PRICE_DISCOVERY, _verifierFee);
-            } else {
-                IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _verifierFee);
-            }
-        }
+        if (Common._getFermionCommonStorage().fixedPrice[_tokenId] > 0 && ownerOf(_tokenId) != address(this))
+            revert WrapperErrors.InvalidUnwrap();
+        unwrapNFTAndTransferFundsToBosonPriceDiscoveryClient(_tokenId, _exchangeToken, _verifierFee);
     }
 
     /**
@@ -346,6 +344,33 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
         }
 
         return isFixedPrice;
+    }
+
+    /**
+     * @notice Unwraps the voucher and transfers the funds to Boson Protocol price discovery client.
+     * This is used for the unwraps, where the funds are not already transferred to the Boson protocol
+     *
+     * @param _tokenId The token id.
+     * @param _exchangeToken The token to be used for the exchange.
+     * @param _value The amount to transfer
+     */
+    function unwrapNFTAndTransferFundsToBosonPriceDiscoveryClient(
+        uint256 _tokenId,
+        address _exchangeToken,
+        uint256 _value
+    ) internal {
+        unwrap(_tokenId);
+
+        Common.changeTokenState(_tokenId, FermionTypes.TokenState.Unverified); // Move to the next state
+
+        if (_value > 0) {
+            if (_exchangeToken == address(0)) {
+                WRAPPED_NATIVE.deposit{ value: _value }();
+                WRAPPED_NATIVE.transfer(BP_PRICE_DISCOVERY, _value);
+            } else {
+                IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _value);
+            }
+        }
     }
 
     receive() external payable {}
