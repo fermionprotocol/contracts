@@ -125,8 +125,10 @@ describe("Royalties", function () {
         facilitatorFeePercent: "0",
         exchangeToken,
         withPhygital,
-        metadataURI,
-        metadataHash: id(metadataURI),
+        metadata: {
+          URI: metadataURI,
+          hash: id(metadataURI),
+        },
         royaltyInfo: initialRoyaltyInfo,
       };
 
@@ -352,8 +354,7 @@ describe("Royalties", function () {
         facilitatorFeePercent: "0",
         exchangeToken,
         withPhygital,
-        metadataURI,
-        metadataHash: id(metadataURI),
+        metadata: { URI: metadataURI, hash: id(metadataURI) },
         royaltyInfo,
       };
 
