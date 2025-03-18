@@ -40,4 +40,5 @@ interface IFermionFractionsEvents {
         bool votedYes
     );
     event ExitPriceUpdated(uint256 newPrice, bool isOracleUpdate);
+    event FractionsMigrated(address owners, uint256 fractionBalance);
 }
