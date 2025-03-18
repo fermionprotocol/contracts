@@ -436,6 +436,20 @@ describe("Offer", function () {
           .withArgs(facilitatorFeePercent);
       });
 
+      it("Custodian fee period cannot be zero", async function () {
+        const fermionOffer2 = {
+          ...fermionOffer,
+          custodianFee: {
+            ...fermionOffer.custodianFee,
+            period: 0n,
+          },
+        };
+        await expect(offerFacet.createOffer(fermionOffer2)).to.be.revertedWithCustomError(
+          fermionErrors,
+          "InvalidPeriod",
+        );
+      });
+
       it("Number of recipients and bps does not match", async function () {
         // multiple recipients over the limit
         const royalties1 = 8_00;
