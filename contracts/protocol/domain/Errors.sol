@@ -15,6 +15,7 @@ interface FermionGeneralErrors {
     // Array elements that are not in ascending order (i.e arr[i-1] > arr[i])
     error NonAscendingOrder();
     error InvalidTokenId(address fnftAddress, uint256 tokenId);
+    error InvalidPeriod();
 }
 
 interface InitializationErrors {

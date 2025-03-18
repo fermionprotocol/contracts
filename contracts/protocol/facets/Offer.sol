@@ -90,6 +90,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             revert FermionGeneralErrors.InvalidPercentage(_offer.facilitatorFeePercent);
         }
 
+        if (_offer.custodianFee.period == 0) {
+            revert FermionGeneralErrors.InvalidPeriod();
+        }
+
         RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo);
 
         // Create offer in Boson
