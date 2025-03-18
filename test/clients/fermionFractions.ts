@@ -22,8 +22,9 @@ import {
   HUNDRED_PERCENT,
 } from "../utils/constants";
 import { balanceOfERC20, totalSupplyERC20, getERC20Clone, impersonateAccount } from "../utils/common";
+import { setStorageAt } from "@nomicfoundation/hardhat-network-helpers";
 
-const { ZeroAddress } = ethers;
+const { ZeroAddress, keccak256, toBeHex } = ethers;
 
 describe("FermionFNFT - fractionalisation tests", function () {
   let fermionFNFTProxy: Contract;
@@ -924,6 +925,153 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(fermionFNFTProxy.connect(seller).mintAdditionalFractions(fractionsAmount))
           .to.be.revertedWithCustomError(fermionFNFTProxy, "AccessDenied")
           .withArgs(seller.address);
+      });
+    });
+  });
+
+  context("migrateFractions", function () {
+    const fractionsAmount = 5000n * 10n ** 18n;
+    const auctionParameters = {
+      exitPrice: parseEther("0.1"),
+      duration: 60n * 60n * 24n * 7n, // 1 week
+      unlockThreshold: 7500n, // 75%
+      topBidLockTime: 60n * 60n * 24n * 2n, // two days
+    };
+    const custodianFee = {
+      amount: parseEther("0.05"),
+      period: 30n * 24n * 60n * 60n, // 30 days
+    };
+    const custodianVaultParameters = {
+      partialAuctionThreshold: custodianFee.amount * 15n,
+      partialAuctionDuration: custodianFee.period / 2n,
+      liquidationThreshold: custodianFee.amount * 2n,
+      newFractionsPerAuction: fractionsAmount * 5n,
+    };
+    let accounts: string[];
+    let balances: bigint[];
+
+    beforeEach(async function () {
+      // Mint fractions, but then manually delete the state to simulate v1.0.1 state
+      await fermionFNFTProxy
+        .connect(seller)
+        .mintFractions(
+          startTokenId,
+          1,
+          fractionsAmount,
+          auctionParameters,
+          custodianVaultParameters,
+          additionalDeposit,
+          ZeroAddress,
+        );
+
+      const fermionFnftAddress = await fermionFNFTProxy.getAddress();
+      const erc20FractionsAddress = await fermionFNFTProxy.getERC20CloneAddress(0);
+
+      // delete the FermionFNFT state
+      const fermionFractionSlotNumber = BigInt("0x4a7c305e00776741ac7013c3447ca536097b753ba0aa5e566dd79e90f6126200"); // keccak256(abi.encode(uint256(keccak256("fermion.fractions.storage")) - 1)) & ~bytes32(uint256(0xff))
+      const epochToCloneSlot = BigInt(keccak256("0x" + fermionFractionSlotNumber.toString(16)));
+      const currentEpochSlot = fermionFractionSlotNumber + 1n;
+
+      await setStorageAt(fermionFnftAddress, fermionFractionSlotNumber, ZeroHash); // set epochToClone length to 0
+      await setStorageAt(fermionFnftAddress, epochToCloneSlot, ZeroHash); // set first epoch to clone address to 0
+      await setStorageAt(fermionFnftAddress, currentEpochSlot, ZeroHash); // set currentEpoch to 0
+
+      // delete the ERC20 contract
+      await ethers.provider.send("hardhat_setCode", [await erc20FractionsAddress, "0x"]);
+
+      // set up the balances
+      const erc20StorageSlotNumber = BigInt("0x52c63247e1f47db19d5ce0460030c497f067ca4cebf71ba98eeadabe20bace00"); // keccak256(abi.encode(uint256(keccak256("openzeppelin.storage.ERC20")) - 1)) & ~bytes32(uint256(0xff))
+      accounts = wallets.slice(3, 10).map((wallet) => wallet.address);
+      accounts.push(await fermionFNFTProxy.getAddress());
+      balances = [...Array(Number(accounts.length)).keys()].map((n) => parseEther((n + 1).toString()));
+
+      for (let i = 0; i < accounts.length; i++) {
+        const balanceSlot = BigInt(keccak256(toBeHex(accounts[i], 32) + erc20StorageSlotNumber.toString(16)));
+        await setStorageAt(fermionFnftAddress, balanceSlot, toBeHex(balances[i].toString(), 32));
+      }
+    });
+
+    it("Migrate all accounts", async function () {
+      expect(await fermionFNFTProxy.getERC20CloneAddress(0)).to.equal(ZeroAddress);
+
+      const tx = await fermionFNFTProxy.migrateFractions(accounts.slice(0, -1)); // do not pass in the fnft contract address
+      const erc20CloneAddress = await fermionFNFTProxy.getERC20CloneAddress(0);
+      const erc20Clone = await ethers.getContractAt("ERC20", erc20CloneAddress);
+
+      for (let i = 0; i < accounts.length; i++) {
+        await expect(tx).to.emit(fermionFNFTProxy, "FractionsMigrated").withArgs(accounts[i], balances[i]);
+
+        expect(await erc20Clone.balanceOf(accounts[i])).to.equal(balances[i]);
+      }
+    });
+
+    it("Migrating in multiple steps", async function () {
+      await fermionFNFTProxy.migrateFractions(accounts.slice(0, 3));
+
+      const accounts2 = accounts.slice(3, 7);
+      const balances2 = balances.slice(3, 7);
+      const tx = await fermionFNFTProxy.migrateFractions(accounts2);
+      const erc20CloneAddress = await fermionFNFTProxy.getERC20CloneAddress(0);
+      const erc20Clone = await ethers.getContractAt("ERC20", erc20CloneAddress);
+
+      for (let i = 0; i < accounts2.length; i++) {
+        await expect(tx).to.emit(fermionFNFTProxy, "FractionsMigrated").withArgs(accounts2[i], balances2[i]);
+
+        expect(await erc20Clone.balanceOf(accounts2[i])).to.equal(balances2[i]);
+      }
+    });
+
+    context("Revert reasons", function () {
+      it("Address length is 0", async function () {
+        await fermionFNFTProxy.migrateFractions([]); // make initial migration
+
+        await expect(fermionFNFTProxy.migrateFractions([])).to.be.revertedWithCustomError(
+          fermionFNFTProxy,
+          "InvalidLength",
+        );
+      });
+
+      it("Balance is 0", async function () {
+        const randomAddress = wallets[10].address;
+        await expect(fermionFNFTProxy.migrateFractions([randomAddress])).to.be.revertedWithCustomError(
+          fermionFNFTProxy,
+          "NoFractions",
+        );
+      });
+
+      it("Migrated already", async function () {
+        await fermionFNFTProxy.migrateFractions(accounts.slice(0, -1));
+
+        await expect(fermionFNFTProxy.migrateFractions([accounts[2]]))
+          .to.be.revertedWithCustomError(fermionFNFTProxy, "AlreadyMigrated")
+          .withArgs(accounts[2]);
+      });
+
+      it("Cannot make another initial initialization", async function () {
+        await expect(
+          fermionFNFTProxy.mintFractions(
+            startTokenId + 1n,
+            1,
+            fractionsAmount,
+            auctionParameters,
+            custodianVaultParameters,
+            additionalDeposit,
+            ZeroAddress,
+          ),
+        ).to.be.revertedWithCustomError(fermionFNFTProxy, "InitialFractionalisationOnly");
+      });
+
+      it("Cannot make new fractions until migration is complete", async function () {
+        await expect(
+          fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit),
+        ).to.be.revertedWithPanic(0x32); // reverts because the migration is not complete
+
+        await fermionFNFTProxy.migrateFractions(accounts.slice(0, -1));
+
+        await expect(fermionFNFTProxy.connect(seller).mintFractions(startTokenId + 1n, 1, additionalDeposit)).to.emit(
+          fermionFNFTProxy,
+          "Fractionalised",
+        );
       });
     });
   });

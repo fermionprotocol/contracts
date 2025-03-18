@@ -198,6 +198,7 @@ contract FermionTypes {
         // Array of ERC20 clone addresses, index is the epoch
         address[] epochToClone;
         uint256 currentEpoch;
+        mapping(address => bool) migrated;
     }
 
     struct PriceUpdateProposal {
