@@ -3425,7 +3425,7 @@ describe("Verification", function () {
   });
 
   context("getVerificationDetails", function () {
-    it.only("Reverts if token is in state earlier than unverified", async function () {
+    it("Reverts if token is in state earlier than unverified", async function () {
       const offerId = await (await getBosonHandler("IBosonOfferHandler")).getNextOfferId();
       const exchangeId = await bosonExchangeHandler.getNextExchangeId();
       const tokenId = deriveTokenId(offerId, exchangeId);
