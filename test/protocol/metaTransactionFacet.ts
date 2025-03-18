@@ -1223,7 +1223,11 @@ describe("MetaTransactions", function () {
           newFractionsPerAuction: fractionsAmount * 5n,
         };
 
-        await verificationFacet.submitVerdict(tokenId, VerificationStatus.Verified);
+        const verificationMetadata = {
+          URI: "https://example.com/verification-metadata.json",
+          hash: id("metadata"),
+        };
+        await verificationFacet.submitVerdict(tokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.checkIn(tokenId);
 
         await fermionFNFT
