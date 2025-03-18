@@ -6,11 +6,11 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import { ERC2771Context } from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 import { FundsErrors, FermionGeneralErrors } from "../../domain/Errors.sol";
 import { FermionStorage } from "../../libs/Storage.sol";
 import { ContextLib } from "../../libs/ContextLib.sol";
 import { FermionFNFTLib } from "../../libs/FermionFNFTLib.sol";
-import { IFermionFNFT } from "../../interfaces/IFermionFNFT.sol";
 import { IFundsEvents } from "../../interfaces/events/IFundsEvents.sol";
 
 /**
@@ -21,12 +21,6 @@ import { IFundsEvents } from "../../interfaces/events/IFundsEvents.sol";
 contract FundsManager {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
-
-    bytes32 private immutable FNFT_CODEHASH;
-
-    constructor(bytes32 _fnftCodeHash) {
-        FNFT_CODEHASH = _fnftCodeHash;
-    }
 
     /**
      * @notice Validates that incoming payments matches expectation. If token is a native currency, it makes sure
@@ -67,7 +61,7 @@ contract FundsManager {
      * N.B. Special caution is needed when interacting with the FermionFNFT contract,
      * as it treats _msgSender() differently when the caller is the Fermion protocol.
      * If FundsLib methods are used in the contracts that are not part of the diamond,
-     * `checkFNFTContract` should be overridden to return false.
+     * `checkTrustedForwarder` should be overridden to return false.
      *
      * @param _tokenAddress - address of the token to be transferred
      * @param _from - address to transfer funds from
@@ -78,7 +72,14 @@ contract FundsManager {
         isERC721Contract(_tokenAddress, false);
 
         uint256 protocolTokenBalanceBefore = IERC20(_tokenAddress).balanceOf(address(this));
-        IERC20(_tokenAddress).safeTransferFrom(_from, address(this), _amount);
+
+        // transfer ERC20 tokens from the caller
+        if (checkTrustedForwarder(_tokenAddress)) {
+            _tokenAddress.transferFrom(_from, address(this), _amount);
+        } else {
+            IERC20(_tokenAddress).safeTransferFrom(_from, address(this), _amount);
+        }
+
         uint256 protocolTokenBalanceAfter = IERC20(_tokenAddress).balanceOf(address(this));
 
         // make sure that expected amount of tokens was transferred
@@ -164,7 +165,12 @@ contract FundsManager {
             (bool success, bytes memory errorMessage) = _to.call{ value: _amount }("");
             if (!success) revert FundsErrors.TokenTransferFailed(_to, _amount, errorMessage);
         } else {
-            IERC20(_tokenAddress).safeTransfer(_to, _amount);
+            // transfer ERC20 tokens
+            if (checkTrustedForwarder(_tokenAddress)) {
+                _tokenAddress.transfer(_to, _amount);
+            } else {
+                IERC20(_tokenAddress).safeTransfer(_to, _amount);
+            }
         }
     }
 
@@ -175,8 +181,12 @@ contract FundsManager {
      *
      * @param _tokenAddress - address of the token to be transferred
      */
-    function checkFNFTContract(address _tokenAddress) internal view virtual returns (bool) {
-        return _tokenAddress.codehash == FNFT_CODEHASH;
+    function checkTrustedForwarder(address _tokenAddress) internal view virtual returns (bool) {
+        try ERC2771Context(_tokenAddress).trustedForwarder() returns (address trustedForwarder) {
+            return trustedForwarder == address(this);
+        } catch {
+            return false;
+        }
     }
 
     /**
@@ -250,7 +260,7 @@ contract FundsManager {
         isERC721Contract(_tokenAddress, true);
 
         // transfer ERC721 tokens from the caller
-        if (checkFNFTContract(_tokenAddress)) {
+        if (checkTrustedForwarder(_tokenAddress)) {
             _tokenAddress.transferFrom(_from, address(this), _tokenId);
         } else {
             IERC721(_tokenAddress).transferFrom(_from, address(this), _tokenId);
@@ -277,7 +287,7 @@ contract FundsManager {
         // 2. If the buyer is withdrawing the token, they cannot plug in an arbitrary token address
 
         // transfer ERC721 tokens from the protocol
-        if (checkFNFTContract(_tokenAddress)) {
+        if (checkTrustedForwarder(_tokenAddress)) {
             _tokenAddress.safeTransferFrom(address(this), _to, _tokenId);
         } else {
             IERC721(_tokenAddress).safeTransferFrom(address(this), _to, _tokenId);

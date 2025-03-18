@@ -25,7 +25,7 @@ contract FermionBuyoutAuction is
     IFermionFractionsEvents
 {
     using Address for address;
-    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsManager(bytes32(0)) {}
+    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) {}
 
     /**
      * @notice Starts the auction for a specific fractionalized token. Can be called by anyone.

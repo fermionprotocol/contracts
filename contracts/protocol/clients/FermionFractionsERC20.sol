@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { ERC20Upgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import { ERC20PermitUpgradeable } from "@openzeppelin/contracts-upgradeable/token/ERC20/extensions/ERC20PermitUpgradeable.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
+import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 
 /**
  * @dev Implementation of the Fermion Fractions ERC20 epoch token.
  * This implementation is designed to be used with minimal proxies (EIP-1167).
  */
-contract FermionFractionsERC20 is Initializable, ERC20Upgradeable, OwnableUpgradeable {
+contract FermionFractionsERC20 is Initializable, ERC20PermitUpgradeable, ERC2771Context, OwnableUpgradeable {
     /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor() {
+    constructor(address _fermionProtocol) ERC2771Context(_fermionProtocol) {
         _disableInitializers();
     }
 
@@ -22,6 +24,7 @@ contract FermionFractionsERC20 is Initializable, ERC20Upgradeable, OwnableUpgrad
      */
     function initialize(string memory name_, string memory symbol_, address owner_) external initializer {
         __ERC20_init(name_, symbol_);
+        __ERC20Permit_init(name_);
         __Ownable_init(owner_);
     }
 
@@ -62,5 +65,17 @@ contract FermionFractionsERC20 is Initializable, ERC20Upgradeable, OwnableUpgrad
         if (from != address(0) && to != address(0)) {
             IFermionFNFTPriceManager(owner()).adjustVotesOnTransfer(from, value);
         }
+    }
+
+    function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address) {
+        return ERC2771Context._msgSender();
+    }
+
+    function _msgData() internal view virtual override(Context, ERC2771Context) returns (bytes calldata) {
+        return ERC2771Context._msgData();
+    }
+
+    function _contextSuffixLength() internal view virtual override(Context, ERC2771Context) returns (uint256) {
+        return ERC2771Context._contextSuffixLength();
     }
 }

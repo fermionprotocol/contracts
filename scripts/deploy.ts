@@ -111,8 +111,9 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const predictedFermionDiamondAddress = await predictFermionDiamondAddress(create3, 8); // Diamond will be deployed 8 tx from now
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
-    const fermionFractionsERC20 = await FermionFractionsERC20.deploy();
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
     const fermionFractionsMint = await FermionFractionsMint.deploy(
       bosonPriceDiscoveryAddress,
@@ -204,33 +205,10 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let facets = {};
 
   if (allModules || modules.includes("facets")) {
-    const nonce = 1n;
-    const nonceHex = ethers.toBeArray(nonce);
-    const input_arr = [diamondAddress, nonceHex];
-    const rlp_encoded = ethers.encodeRlp(input_arr);
-    const contract_address_long = ethers.keccak256(rlp_encoded);
-    const fermionFNFTBeaconAdress = "0x" + contract_address_long.substring(26); //Trim the first 24 characters.
-    const { chainId } = await ethers.provider.getNetwork();
-    const { bytecode: beaconProxyBytecode } = await ethers.getContractFactory("BeaconProxy");
-    const abiCoder = new ethers.AbiCoder();
-    const expectedfermionFNFTBeaconProxy = ethers.getCreate2Address(
-      diamondAddress,
-      ethers.solidityPackedKeccak256(["uint256"], [chainId]),
-      ethers.solidityPackedKeccak256(
-        ["bytes", "bytes"],
-        [beaconProxyBytecode, abiCoder.encode(["address", "bytes"], [fermionFNFTBeaconAdress, "0x"])],
-      ),
-    );
-    const cloneCode = `0x363d3d373d3d3d363d73${expectedfermionFNFTBeaconProxy.slice(2)}5af43d82803e903d91602b57fd5bf3`; // https://eips.ethereum.org/EIPS/eip-1167
-    const fnftCodeHash = ethers.keccak256(cloneCode);
-
     const constructorArgs = {
       MetaTransactionFacet: [diamondAddress],
-      OfferFacet: [bosonProtocolAddress, fnftCodeHash],
-      VerificationFacet: [bosonProtocolAddress, fnftCodeHash, diamondAddress],
-      CustodyFacet: [fnftCodeHash],
-      CustodyVaultFacet: [fnftCodeHash],
-      FundsFacet: [fnftCodeHash],
+      OfferFacet: [bosonProtocolAddress],
+      VerificationFacet: [bosonProtocolAddress, diamondAddress],
     };
     facets = await deployFacets(facetNames, constructorArgs, true);
     await writeContracts(deploymentData, env, version, externalContracts);
@@ -257,7 +235,9 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // Init other facets, using the initialization facet
     // Prepare init call
     const init = {
-      MetaTransactionFacet: [await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT"])],
+      MetaTransactionFacet: [
+        await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT", "FermionFractionsERC20"]),
+      ],
       ConfigFacet: [
         fermionConfig.protocolParameters.treasury,
         fermionConfig.protocolParameters.protocolFeePercentage,
@@ -409,4 +389,18 @@ async function getDeploymentData(env: string) {
     deploymentData = contractsFile.contracts;
   }
   return deploymentData;
+}
+
+async function predictFermionDiamondAddress(create3: boolean, transactionOffset: number = 0) {
+  if (create3) {
+    throw Error(`Create3 address calculation is not supported yet.`);
+  }
+
+  const accounts = await ethers.getSigners();
+  const deployer = accounts[0];
+
+  const currentNonce = await ethers.provider.getTransactionCount(deployer.address, "latest");
+  const diamondDeployNonce = currentNonce + transactionOffset;
+
+  return ethers.getCreateAddress({ from: deployer.address, nonce: diamondDeployNonce });
 }

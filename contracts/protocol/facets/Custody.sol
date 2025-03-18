@@ -22,8 +22,6 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 contract CustodyFacet is Context, CustodyErrors, Access, Custody, ICustodyEvents, IFundsEvents {
     using FermionFNFTLib for address;
 
-    constructor(bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {}
-
     /**
      * @notice Notifies the protocol that an RWA has been checked in
      *

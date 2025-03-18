@@ -29,10 +29,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
      * @param _bosonPriceDiscovery The address of the Boson Price Discovery contract
      * @param _erc20Implementation The address of the ERC20 implementation contract that will be cloned
      */
-    constructor(
-        address _bosonPriceDiscovery,
-        address _erc20Implementation
-    ) FermionFNFTBase(_bosonPriceDiscovery) FundsManager(bytes32(0)) {
+    constructor(address _bosonPriceDiscovery, address _erc20Implementation) FermionFNFTBase(_bosonPriceDiscovery) {
         if (_erc20Implementation == address(0)) revert FermionGeneralErrors.InvalidAddress();
         erc20Implementation = _erc20Implementation;
     }

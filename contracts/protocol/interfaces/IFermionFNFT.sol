@@ -60,6 +60,15 @@ interface IFermionFNFT is IFermionWrapper, IFermionFractions {
     function tokenState(uint256 _tokenId) external view returns (FermionTypes.TokenState);
 
     /**
+     * @notice Returns the address of the ERC20 clone for a specific epoch
+     * Users should interact with this contract directly for ERC20 operations
+     *
+     * @param _epoch The epoch
+     * @return The address of the ERC20 clone
+     */
+    function getERC20FractionsClone(uint256 _epoch) external view returns (address);
+
+    /**
      * @notice Returns the address of the ERC20 clone for the current epoch
      * Users should interact with this contract directly for ERC20 operations
      *

@@ -8,6 +8,7 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../bases/mixins/Access.sol";
 import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEvents.sol";
 import { EIP712 } from "../libs/EIP712.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 
 /**
  * @title MetaTransactionFacet
@@ -58,7 +59,9 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
      * @param _functionSignature - the function signature
      * @param _nonce - the nonce value of the transaction
      * @param _sig - meta transaction signature, r, s, v
-     * @param _offerId - the offer ID, if FermionFNFT is called. 0 for this contract.
+     * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
+     * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
+     * associated with offerId and epoch.
      */
     function executeMetaTransaction(
         address _userAddress,
@@ -66,7 +69,7 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
         bytes calldata _functionSignature,
         uint256 _nonce,
         Signature calldata _sig,
-        uint256 _offerId
+        uint256 _offerIdWithEpoch
     ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
         address userAddress = _userAddress; // stack too deep workaround.
         validateTx(_functionName, _functionSignature, _nonce, userAddress);
@@ -74,15 +77,38 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
         FermionTypes.MetaTransaction memory metaTx;
         metaTx.nonce = _nonce;
         metaTx.from = userAddress;
-        metaTx.contractAddress = _offerId == 0
-            ? address(this)
-            : FermionStorage.protocolLookups().offerLookups[_offerId].fermionFNFTAddress;
+        metaTx.contractAddress = getContractAddress(_offerIdWithEpoch);
         metaTx.functionName = _functionName;
         metaTx.functionSignature = _functionSignature;
 
         verify(userAddress, hashMetaTransaction(metaTx), _sig);
 
         return executeTx(metaTx.contractAddress, userAddress, _functionName, _functionSignature, _nonce);
+    }
+
+    /**
+     * @notice Gets the destination contract address from the storage.
+     *
+     * If the offerIdWithEpoch is 0, returns the address of this contract.
+     * If not, the upper 128 bits are represents the epoch+1
+     * If epoch is -1, returns the address of the FermionFNFT contract.
+     * Otherwise, returns the address of the ERC20 clone for the specific epoch.
+     *
+     * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
+     * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
+     * associated with offerId and epoch.
+     */
+    function getContractAddress(uint256 _offerIdWithEpoch) internal view returns (address) {
+        if (_offerIdWithEpoch == 0) return address(this);
+
+        uint256 epoch = _offerIdWithEpoch >> 128;
+        uint256 offerId = _offerIdWithEpoch & type(uint128).max;
+
+        address FNFTAddress = FermionStorage.protocolLookups().offerLookups[offerId].fermionFNFTAddress;
+
+        if (epoch == 0) return FNFTAddress;
+
+        return IFermionFNFT(FNFTAddress).getERC20FractionsClone(epoch - 1);
     }
 
     /**
