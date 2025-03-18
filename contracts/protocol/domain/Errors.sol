@@ -14,6 +14,7 @@ interface FermionGeneralErrors {
     error UnexpectedDataReturned(bytes data);
     // Array elements that are not in ascending order (i.e arr[i-1] > arr[i])
     error NonAscendingOrder();
+    error InvalidTokenId(address fnftAddress, uint256 tokenId);
     error InvalidPeriod();
 }
 
@@ -60,7 +61,6 @@ interface OfferErrors {
     error InvalidRoyaltyRecipient(address recipient);
     error InvalidRoyaltyPercentage(uint256 percentage);
     error OfferWithoutRoyalties(uint256 offerId);
-    error InvalidTokenId(address fnftAddress, uint256 tokenId);
     error InvalidCustomItemPrice();
 }
 
@@ -75,6 +75,8 @@ interface VerificationErrors {
     error PhygitalsAlreadyVerified(uint256 tokenId);
     error PhygitalsDigestMismatch(uint256 tokenId, bytes32 expectedDigest, bytes32 actualDigest);
     error PhygitalsVerificationMissing(uint256 tokenId);
+    error InexistentVerificationStatus();
+    error InvalidVerificationStatus();
 }
 
 interface CustodyErrors {
