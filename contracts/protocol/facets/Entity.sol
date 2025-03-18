@@ -18,8 +18,6 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  * @notice Handles entity management.
  */
 contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
-    uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRole).max) + 1;
-    uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
     uint256 private constant WALLET_ROLE_MASK = (1 << (uint256(type(FermionTypes.AccountRole).max) + 1)) - 1;
     using FermionFNFTLib for address;
 
@@ -160,7 +158,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * Another entity with seller role can act as a facilitator for the seller.
      * This function enables the facilitator to act on behalf of the seller.
      *
-     * Emits an FacilitatorAdded for each facilitator event if successful.
+     * Emits an AssociatedEntityAdded event for each added facilitator if successful.
      *
      * Reverts if:
      * - Entity region is paused
@@ -169,33 +167,82 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Facilitator does not have a seller role
      * - Facilitator is already a facilitator for the seller
      *
-     * @dev Pausing modifier is enforced via `addOrRemoveFacilitators`
+     * @dev Pausing modifier is enforced via `addOrRemoveAssociatedEntities`
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
      */
     function addFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
-        addOrRemoveFacilitators(_sellerId, _facilitatorIds, true);
+        addOrRemoveAssociatedEntities(FermionTypes.AssociatedRole.Facilitator, _sellerId, _facilitatorIds, true);
     }
 
     /** Remove seller's facilitator.
      *
      * Removes the facilitator's ability to act on behalf of the seller.
      *
-     * Emits an FacilitatorRemoved event for each facilitator if successful.
+     * Emits an AssociatedEntityRemoved event for each facilitator if successful.
      *
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
      * - Caller is not the entity's admin
      *
-     * @dev Pausing modifier is enforced via `addOrRemoveFacilitators`
+     * @dev Pausing modifier is enforced via `addOrRemoveAssociatedEntities`
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorIds - the facilitator's entity IDs
      */
     function removeFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds) external {
-        addOrRemoveFacilitators(_sellerId, _facilitatorIds, false);
+        addOrRemoveAssociatedEntities(FermionTypes.AssociatedRole.Facilitator, _sellerId, _facilitatorIds, false);
+    }
+
+    /** Add seller's allowed royalty recipients.
+     *
+     * When creating an offer, only the allowed royalty recipients can be set as the recipients.
+     *
+     * Emits an AssociatedEntityAdded event for each added royalty recipient if successful.
+     *
+     * Reverts if:
+     * - Entity region is paused
+     * - Entity does not exist
+     * - Caller is not the entity's admin
+     * - Royalty recipient is already set as a royalty recipient for the seller
+     *
+     * @dev Pausing modifier is enforced via `addOrRemoveAssociatedEntities`
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _royaltyRecipientIds - the royalty recipient's entity IDs
+     */
+    function addRoyaltyRecipients(uint256 _sellerId, uint256[] calldata _royaltyRecipientIds) external {
+        addOrRemoveAssociatedEntities(
+            FermionTypes.AssociatedRole.RoyaltyRecipient,
+            _sellerId,
+            _royaltyRecipientIds,
+            true
+        );
+    }
+
+    /** Remove seller's allowed royalty recipients.
+     *
+     * Emits an AssociatedEntityRemoved event for each removed royalty recipient if successful.
+     *
+     * Reverts if:
+     * - Entity region is paused
+     * - Entity does not exist
+     * - Caller is not the entity's admin
+     *
+     * @dev Pausing modifier is enforced via `addOrRemoveAssociatedEntities`
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _royaltyRecipientIds - the royalty recipient's entity IDs
+     */
+    function removeRoyaltyRecipients(uint256 _sellerId, uint256[] calldata _royaltyRecipientIds) external {
+        addOrRemoveAssociatedEntities(
+            FermionTypes.AssociatedRole.RoyaltyRecipient,
+            _sellerId,
+            _royaltyRecipientIds,
+            false
+        );
     }
 
     /**
@@ -389,7 +436,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         FermionTypes.EntityData storage entityData;
         (entityId, entityData) = EntityLib.fetchEntityData(_adminAccount);
 
-        roles = compactRoleToRoles(entityData.roles);
+        roles = EntityLib.compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
     }
 
@@ -409,7 +456,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     ) external view returns (address adminAccount, FermionTypes.EntityRole[] memory roles, string memory metadataURI) {
         FermionTypes.EntityData storage entityData = EntityLib.fetchEntityData(_entityId);
         adminAccount = entityData.admin;
-        roles = compactRoleToRoles(entityData.roles);
+        roles = EntityLib.compactRoleToRoles(entityData.roles);
         metadataURI = entityData.metadataURI;
     }
 
@@ -426,13 +473,37 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorId - the facilitator's entity ID
-     * @return isSellersFcilitator - the facilitator's status
+     * @return isSellersFacilitator - the facilitator's status
      */
     function isSellersFacilitator(
         uint256 _sellerId,
         uint256 _facilitatorId
-    ) external view returns (bool isSellersFcilitator) {
+    ) external view returns (bool isSellersFacilitator) {
         return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersFacilitator[_facilitatorId];
+    }
+
+    /** Returns the list of seller's allowlisted royalty recipients.
+     *
+     * @param _sellerId - the seller's entity ID
+     * @return royaltyRecipientIds - the royalty recipient entity IDs
+     */
+    function getSellersRoyaltyRecipients(
+        uint256 _sellerId
+    ) external view returns (uint256[] memory royaltyRecipientIds) {
+        return FermionStorage.protocolLookups().sellerLookups[_sellerId].sellerRoyaltyRecipients;
+    }
+
+    /** Tells if the entity is seller's allowlisted royalty recipient.
+     *
+     * @param _sellerId - the seller's entity ID
+     * @param _royaltyRecipientId - the royalty recipient's entity ID
+     * @return isSellersRoyaltyRecipient - the royalty recipient's status
+     */
+    function isSellersRoyaltyRecipient(
+        uint256 _sellerId,
+        uint256 _royaltyRecipientId
+    ) external view returns (bool isSellersRoyaltyRecipient) {
+        return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersRoyaltyRecipient[_royaltyRecipientId];
     }
 
     /**
@@ -464,38 +535,6 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         uint256 compactEntityRoles = FermionStorage.protocolEntities().entityData[_entityId].roles;
 
         return EntityLib.checkEntityRole(compactEntityRoles, _entityRole);
-    }
-
-    /**
-     * @notice Converts compact role to array of Roles.
-     *
-     * @param _compactRole - the compact representation of roles
-     * @return roles - the array of roles
-     */
-    function compactRoleToRoles(uint256 _compactRole) internal pure returns (FermionTypes.EntityRole[] memory roles) {
-        // max number of roles an entity can have
-        roles = new FermionTypes.EntityRole[](TOTAL_ROLE_COUNT);
-
-        // Return the roles
-        if (_compactRole == ENTITY_ROLE_MASK) {
-            for (uint256 i = 0; i < TOTAL_ROLE_COUNT; i++) {
-                roles[i] = FermionTypes.EntityRole(i);
-            }
-        } else {
-            uint256 count = 0;
-            for (uint256 i = 0; i < TOTAL_ROLE_COUNT; i++) {
-                // Check if the entity has role by bitwise AND operation with shifted 1
-                if (_compactRole & (1 << i) != 0) {
-                    roles[count] = FermionTypes.EntityRole(i);
-                    count++;
-                }
-            }
-
-            // setting the correct number of roles
-            assembly {
-                mstore(roles, count)
-            }
-        }
     }
 
     /**
@@ -648,60 +687,92 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         EntityLib.emitManagerAccountAddedOrRemoved(_entityId, previousAdmin, false);
     }
 
-    /** Remove seller's facilitator.
-     *
-     * Removes the facilitator's ability to act on behalf of the seller.
+    /** Remove seller's associated roles (facilitators or royalty recipients).
      *
      * Reverts if:
      * - Entity region is paused
      * - Entity does not exist
      * - Caller is not the entity's admin
-     * - When adding, if the facilitator does not have a seller role
+     * - When adding a facilitator, if does not have a seller role
      *
      * @dev Pausing modifier is enforced via `validateAdmin`
      *
+     * @param _associatedRole - the associated role
      * @param _sellerId - the seller's entity ID
-     * @param _facilitatorIds - the facilitator's entity IDs
+     * @param _associatedEntitiesIds - the associated entities' IDs
      * @param _add - if true, the facilitator is added, if false, it is removed
      */
-    function addOrRemoveFacilitators(uint256 _sellerId, uint256[] calldata _facilitatorIds, bool _add) internal {
+    function addOrRemoveAssociatedEntities(
+        FermionTypes.AssociatedRole _associatedRole,
+        uint256 _sellerId,
+        uint256[] calldata _associatedEntitiesIds,
+        bool _add
+    ) internal {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         EntityLib.validateEntityId(_sellerId, pl);
         validateAdmin(_sellerId, pl);
 
-        FermionStorage.SellerLookups storage sellerLookups = pl.sellerLookups[_sellerId];
-        uint256[] storage facilitators = sellerLookups.sellerFacilitators;
-        mapping(uint256 => bool) storage isFacilitator = sellerLookups.isSellersFacilitator;
+        (
+            uint256[] storage associatedEntities,
+            mapping(uint256 => bool) storage isAssociatedRole
+        ) = getAssociatedLookups(_sellerId, _associatedRole, pl);
 
-        FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
-        for (uint256 i = 0; i < _facilitatorIds.length; i++) {
-            uint256 facilitatorId = _facilitatorIds[i];
+        mapping(uint256 => FermionTypes.EntityData) storage entityData = FermionStorage.protocolEntities().entityData;
+        for (uint256 i; i < _associatedEntitiesIds.length; ++i) {
+            uint256 associatedEntityId = _associatedEntitiesIds[i];
             if (_add) {
-                if (isFacilitator[facilitatorId]) revert FacilitatorAlreadyExists(_sellerId, facilitatorId);
+                if (isAssociatedRole[associatedEntityId])
+                    revert AssociatedEntityAlreadyExists(_associatedRole, _sellerId, associatedEntityId);
 
                 EntityLib.validateEntityRole(
-                    facilitatorId,
-                    pe.entityData[facilitatorId].roles,
-                    FermionTypes.EntityRole.Seller
+                    associatedEntityId,
+                    entityData[associatedEntityId].roles,
+                    _associatedRole == FermionTypes.AssociatedRole.Facilitator
+                        ? FermionTypes.EntityRole.Seller
+                        : FermionTypes.EntityRole.RoyaltyRecipient
                 );
 
-                facilitators.push(facilitatorId);
+                associatedEntities.push(associatedEntityId);
 
-                emit FacilitatorAdded(_sellerId, facilitatorId);
+                emit AssociatedEntityAdded(_associatedRole, _sellerId, associatedEntityId);
             } else {
-                uint256 facilitatorsLength = facilitators.length;
-                for (uint256 j = 0; j < facilitatorsLength; j++) {
-                    if (facilitators[j] == facilitatorId) {
-                        if (j != facilitatorsLength - 1) facilitators[j] = facilitators[facilitatorsLength - 1];
-                        facilitators.pop();
+                uint256 facilitatorsLength = associatedEntities.length;
+                for (uint256 j; j < facilitatorsLength; ++j) {
+                    if (associatedEntities[j] == associatedEntityId) {
+                        if (j != facilitatorsLength - 1)
+                            associatedEntities[j] = associatedEntities[facilitatorsLength - 1];
+                        associatedEntities.pop();
 
-                        emit FacilitatorRemoved(_sellerId, facilitatorId);
+                        emit AssociatedEntityRemoved(_associatedRole, _sellerId, associatedEntityId);
                         break;
                     }
                 }
             }
 
-            isFacilitator[facilitatorId] = _add;
+            isAssociatedRole[associatedEntityId] = _add;
+        }
+    }
+
+    /** Returns the storage pointers to associated entities and the mapping of the associated role.
+     *
+     * @param _associatedRole - the associated role
+     * @param _sellerId - the seller's entity ID
+     * @param pl - the protocol lookups
+     * @return associatedEntities - the associated entities
+     * @return isAssociatedRole - the mapping of the associated role
+     */
+    function getAssociatedLookups(
+        uint256 _sellerId,
+        FermionTypes.AssociatedRole _associatedRole,
+        FermionStorage.ProtocolLookups storage pl
+    ) internal view returns (uint256[] storage associatedEntities, mapping(uint256 => bool) storage isAssociatedRole) {
+        FermionStorage.SellerLookups storage sellerLookups = pl.sellerLookups[_sellerId];
+        if (_associatedRole == FermionTypes.AssociatedRole.Facilitator) {
+            associatedEntities = sellerLookups.sellerFacilitators;
+            isAssociatedRole = sellerLookups.isSellersFacilitator;
+        } else {
+            associatedEntities = sellerLookups.sellerRoyaltyRecipients;
+            isAssociatedRole = sellerLookups.isSellersRoyaltyRecipient;
         }
     }
 }

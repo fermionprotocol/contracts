@@ -32,6 +32,7 @@ describe("FermionFNFT", function () {
         seaport: wallets[10].address, // dummy address
         openSeaConduit: mockConduit.address,
         openSeaConduitKey: ZeroHash,
+        openSeaSignedZone: ZeroAddress,
         openSeaZoneHash: ZeroHash,
         openSeaRecipient: openSeaRecipient,
       },
@@ -54,6 +55,7 @@ describe("FermionFNFT", function () {
     const fermionFNFT = await FermionFNFT.deploy(
       mockBosonPriceDiscovery.address,
       await fermionSeaportWrapper.getAddress(),
+      ZeroAddress,
       wallets[10].address,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
@@ -118,6 +120,7 @@ describe("FermionFNFT", function () {
       const { interface: FermionWrapperInterface } = await ethers.getContractAt("IFermionWrapper", ZeroAddress);
       const { interface: FermionFractionsInterface } = await ethers.getContractAt("IFermionFractions", ZeroAddress);
       const { interface: FermionFNFTInterface } = await ethers.getContractAt("IFermionFNFT", ZeroAddress);
+      const { interface: ERC2981Interface } = await ethers.getContractAt("IERC2981", ZeroAddress);
 
       const ERC165InterfaceID = getInterfaceID(ERC165Interface);
       const ERC721InterfaceID = getInterfaceID(ERC721Interface, [ERC165InterfaceID]);
@@ -129,12 +132,14 @@ describe("FermionFNFT", function () {
         FermionWrapperInterfaceID,
         FermionFractionsInterfaceID,
       ]);
+      const ERC2981InterfaceID = getInterfaceID(ERC2981Interface, [ERC165InterfaceID]);
 
       expect(await fermionFNFT.supportsInterface(ERC165InterfaceID)).to.be.equal(true);
       expect(await fermionFNFT.supportsInterface(ERC721InterfaceID)).to.be.equal(true);
       expect(await fermionFNFT.supportsInterface(FermionWrapperInterfaceID)).to.be.equal(true);
       expect(await fermionFNFT.supportsInterface(FermionFractionsInterfaceID)).to.be.equal(true);
       expect(await fermionFNFT.supportsInterface(FermionFNFTInterfaceID)).to.be.equal(true);
+      expect(await fermionFNFT.supportsInterface(ERC2981InterfaceID)).to.be.equal(true);
     });
   });
 
