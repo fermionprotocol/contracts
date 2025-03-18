@@ -24,6 +24,7 @@
     "@nomicfoundation/hardhat-network-helpers": "^1.0.12",
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.13",
+    "@opensea/seaport-js": "^4.0.4",
     "@openzeppelin/contracts-upgradeable": "^5.2.0",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
@@ -40,6 +41,7 @@
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.8",
     "hardhat-preprocessor": "^0.1.5",
+    "opensea-js": "^7.1.14",
     "prettier": "^3.5.3",
     "prettier-plugin-solidity": "^1.4.2",
     "seaport": "git+https://github.com/ProjectOpenSea/seaport#1.6",
@@ -53,7 +55,6 @@
     "typescript-eslint": "^8.26.1"
   },
   "dependencies": {
-    "@opensea/seaport-js": "4.0.4",
     "@openzeppelin/contracts": "^5.2.0"
   }
 }
