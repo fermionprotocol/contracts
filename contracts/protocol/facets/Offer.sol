@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT, OS_FEE_PERCENTAGE } from "../domain/Constants.sol";
+import { BOSON_DR_ID_OFFSET, HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { OfferErrors, EntityErrors, FundsErrors, FermionGeneralErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
-import { Context } from "../libs/Context.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
+import { Context } from "../bases/mixins/Context.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
 import { IBosonProtocol, IBosonVoucher } from "../interfaces/IBosonProtocol.sol";
 import { IOfferEvents } from "../interfaces/events/IOfferEvents.sol";
@@ -27,14 +27,14 @@ import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
  *
  * @notice Handles offer listing.
  */
-contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
+contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
     address private immutable BOSON_TOKEN;
 
-    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {
+    constructor(address _bosonProtocol, bytes32 _fnftCodeHash) FundsManager(_fnftCodeHash) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
@@ -367,7 +367,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
 
     /** [unwrapNFTFunction] Handles the case where the seller unwraps the NFT to themselves.
      *
-     * `_data` encodes `uint256 exchangeAmount` - the exchange amount the seller is willing to pay in case of a self-sale.
+     * `_data` encodes `(uint256 exchangeAmount, uint256 customItemPrice)` - the exchange amount the seller is willing to pay in case of a self-sale,
+     * and the custom item price to be used for fractionalisation.
      *
      * Reverts if:
      * - The caller does not provide enough funds to cover the exchangeAmount
@@ -376,7 +377,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
      * @param _tokenId - the token ID
      * @param _priceDiscovery - the price discovery object
      * @param exchangeToken - the exchange token
-     * @param _data - abi encoded exchange amount (uint256)
+     * @param _data - abi encoded (exchangeAmount, customItemPrice) (uint256, uint256)
+     * @dev customItemPrice is not used in selfSale, but is used in forceful fractionalisation
      */
     function selfSale(
         uint256 _tokenId,
@@ -384,8 +386,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
         address exchangeToken,
         bytes memory _data
     ) internal {
-        uint256 exchangeAmount = abi.decode(_data, (uint256));
-
+        (uint256 exchangeAmount, uint256 customItemPrice) = abi.decode(_data, (uint256, uint256));
+        if (customItemPrice == 0) {
+            revert InvalidCustomItemPrice();
+        }
         if (exchangeAmount > 0) {
             validateIncomingPayment(exchangeToken, exchangeAmount);
             transferERC20FromProtocol(exchangeToken, payable(_priceDiscovery.priceDiscoveryContract), exchangeAmount);
@@ -396,6 +400,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             IFermionWrapper.unwrapToSelf,
             (_tokenId, exchangeToken, exchangeAmount)
         );
+
+        // Store the custom item price for later use in case of forceful fractionalisation
+        FermionStorage.protocolLookups().tokenLookups[_tokenId].selfSaleItemPrice = customItemPrice;
     }
 
     /** [unwrapNFTFunction] Handles the case where the seller unwraps the NFT via an OpenSea auction.
@@ -423,7 +430,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsLib, IOfferEvents {
             _buyerOrder.parameters.offer.length != 1 ||
             _buyerOrder.parameters.consideration.length > 2 ||
             _buyerOrder.parameters.consideration[1].startAmount >
-            (_buyerOrder.parameters.offer[0].startAmount * OS_FEE_PERCENTAGE) / HUNDRED_PERCENT + 1 || // allow +1 in case they round up; minimal exposure
+            (_buyerOrder.parameters.offer[0].startAmount * FermionStorage.protocolConfig().openSeaFeePercentage) /
+                HUNDRED_PERCENT +
+                1 || // allow +1 in case they round up; minimal exposure
             _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
         ) {
             revert InvalidOpenSeaOrder();

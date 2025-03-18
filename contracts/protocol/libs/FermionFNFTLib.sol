@@ -9,6 +9,7 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
@@ -59,7 +60,7 @@ library FermionFNFTLib {
     }
 
     /**
-     * @notice Transfers the ERC721 FNFT token or ERC20 FNFT fractions
+     * @notice Transfers the ERC721 FNFT token
      *
      * If _tokenIdOrValue is less than 2^128 the fractions are transferred, otherwise the token is transferred.
      *
@@ -82,19 +83,6 @@ library FermionFNFTLib {
         _fnft.functionCallWithAddress(
             abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", _from, _to, _tokenId)
         );
-    }
-
-    /**
-     * @notice Transfers the ERC20 FNFT fractions
-     *
-     * N.B. Although the Fermion FNFT returns a boolean, as per ERC20 standard, it is not decoded here
-     * since the the return value is not used in the protocol.
-     *
-     * @param _to The address to transfer to.
-     * @param _value The number of fractions to transfer.
-     */
-    function transfer(address _fnft, address _to, uint256 _value) internal {
-        _fnft.functionCallWithAddress(abi.encodeCall(IFermionFractions.transfer, (_to, _value)));
     }
 
     /**
@@ -212,6 +200,15 @@ library FermionFNFTLib {
      */
     function cancelFixedPriceOrders(address _fnft, SeaportTypes.OrderComponents[] calldata _orders) internal {
         _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.cancelFixedPriceOrders, (_orders)));
+    }
+
+    /**
+     * @notice Forcefully start the buyout auction.
+     *
+     * @param _tokenId The ID of the fractionalized token for which the auction is being started.
+     */
+    function startAuction(address _fnft, uint256 _tokenId) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionBuyoutAuction.startAuction, (_tokenId)));
     }
 
     /**

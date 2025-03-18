@@ -53,6 +53,8 @@ library FermionStorage {
         address payable treasury;
         // Default Protocol fee
         uint16 protocolFeePercentage;
+        // OpenSea fee percentage
+        uint16 openSeaFeePercentage;
         // Default verification timeout
         uint256 defaultVerificationTimeout;
         // Max verification timeout
@@ -154,6 +156,8 @@ library FermionStorage {
         FermionTypes.Phygital[] phygitals;
         // phygitals recipient
         uint256 phygitalsRecipient;
+        // custom item price used only in case of forceful fractionalisation
+        uint256 selfSaleItemPrice;
     }
 
     struct SellerLookups {

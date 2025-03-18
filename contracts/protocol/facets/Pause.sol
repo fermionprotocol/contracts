@@ -5,7 +5,7 @@ import { PAUSER } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { PauseErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { IPauseEvents } from "../interfaces/events/IPauseEvents.sol";
 
 /**

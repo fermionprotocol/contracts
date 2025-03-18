@@ -51,8 +51,13 @@ describe("FermionFNFT - wrapper tests", function () {
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy();
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
-    const fermionFractionsMint = await FermionFractionsMint.deploy(mockBosonPriceDiscovery.address);
+    const fermionFractionsMint = await FermionFractionsMint.deploy(
+      mockBosonPriceDiscovery.address,
+      await fermionFractionsERC20.getAddress(),
+    );
     const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
     const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(mockBosonPriceDiscovery.address);
 
@@ -753,7 +758,7 @@ describe("FermionFNFT - wrapper tests", function () {
       const balanceBefore = await mockERC20.balanceOf(fermionProtocolSigner.address);
       const wrapperBalanceBefore = await mockERC20.balanceOf(wrapperAddress);
       const bosonPriceDiscoveryBalance = await mockERC20.balanceOf(mockBosonPriceDiscovery.address);
-      const priceSubOSFee = prices[0] - (prices[0] * 2_50n) / 10_000n;
+      const priceSubOSFee = prices[0] - (prices[0] * 50n) / 10_000n;
 
       const tx = await fermionWrapperProxy
         .connect(mockBosonPriceDiscovery)

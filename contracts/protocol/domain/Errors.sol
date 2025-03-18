@@ -51,6 +51,7 @@ interface OfferErrors {
     error NoSuchOffer(uint256 offerId);
     error InvalidOpenSeaOrder();
     error NoPhygitalOffer(uint256 offerId);
+    error InvalidCustomItemPrice();
 }
 
 interface VerificationErrors {
@@ -179,6 +180,7 @@ interface WrapperErrors {
     error ZeroPriceNotAllowed();
     error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
     error InvalidOwner(uint256 tokenId, address expected, address actual);
+    error InvalidOpenSeaFee(uint256 actual, uint256 expected);
 }
 
 interface FermionErrors is

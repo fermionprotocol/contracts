@@ -13,4 +13,5 @@ interface IConfigEvents {
     event MaxVerificationTimeoutChanged(uint256 newMaxVerificationTimeout);
     event FermionFNFTImplementationChanged(address newFermionFNFTImplementation);
     event FeeTableUpdated(address indexed token, uint256[] priceRanges, uint16[] feePercentages);
+    event OpenSeaFeePercentageChanged(uint16 newOpenSeaFeePercentage);
 }

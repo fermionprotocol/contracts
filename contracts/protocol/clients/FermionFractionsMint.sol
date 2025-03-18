@@ -2,37 +2,47 @@
 pragma solidity 0.8.24;
 
 import { HUNDRED_PERCENT, MIN_FRACTIONS, MAX_FRACTIONS, TOP_BID_LOCK_TIME, AUCTION_DURATION, UNLOCK_THRESHOLD } from "../domain/Constants.sol";
-import { FermionErrors } from "../domain/Errors.sol";
+import { FermionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
+import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @dev Fractionalisation of NFTs
  */
-contract FermionFractionsMint is
-    FermionFractionsERC20Base,
-    FermionFNFTBase,
-    FermionErrors,
-    FundsLib,
-    IFermionFractionsEvents
-{
-    using Address for address;
+contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, IFermionFractionsEvents {
+    using Strings for uint256;
 
-    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsLib(bytes32(0)) {}
+    // @dev The address of the ERC20 implementation contract that is used for Minimal Clone Implementation
+    address private immutable erc20Implementation;
+
+    /**
+     * @notice Constructor
+     * @param _bosonPriceDiscovery The address of the Boson Price Discovery contract
+     * @param _erc20Implementation The address of the ERC20 implementation contract that will be cloned
+     */
+    constructor(
+        address _bosonPriceDiscovery,
+        address _erc20Implementation
+    ) FermionFNFTBase(_bosonPriceDiscovery) FundsManager(bytes32(0)) {
+        if (_erc20Implementation == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        erc20Implementation = _erc20Implementation;
+    }
 
     /**
      * @notice Locks the F-NFTs and mints the fractions. Sets the auction parameters and custodian vault parameters.
      * This function is called when the first NFT is fractionalised.
      * If some NFTs are already fractionalised, use `mintFractions(uint256 _firstTokenId, uint256 _length)` instead.
      *
+     * @dev New epoch is advanced only when this function is called.
      * Emits FractionsSetup and Fractionalised events if successful.
      *
      * Reverts if:
@@ -66,7 +76,10 @@ contract FermionFractionsMint is
             revert InvalidLength();
         }
 
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        uint256 currentEpoch = fractionStorage.currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
+
         if ($.nftCount > 0) {
             revert InitialFractionalisationOnly();
         }
@@ -96,6 +109,14 @@ contract FermionFractionsMint is
 
         if (_custodianVaultParameters.partialAuctionThreshold < _custodianVaultParameters.liquidationThreshold)
             revert InvalidPartialAuctionThreshold();
+
+        // if not the first epoch, we need to advance to the next epoch and set the exchange token
+        uint256 newEpoch = _advanceEpoch();
+        if (newEpoch != 0) {
+            address exchangeToken = $.exchangeToken;
+            $ = Common._getBuyoutAuctionStorage(newEpoch);
+            $.exchangeToken = exchangeToken;
+        }
 
         lockNFTsAndMintFractions(_firstTokenId, _length, _fractionsAmount, $);
 
@@ -146,13 +167,16 @@ contract FermionFractionsMint is
             revert InvalidLength();
         }
 
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        uint256 currentEpoch = fractionStorage.currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
+
         uint256 nftCount = $.nftCount;
         if (nftCount == 0) {
             revert MissingFractionalisation();
         }
 
-        uint256 fractionsAmount = liquidSupply() / nftCount;
+        uint256 fractionsAmount = Common.liquidSupply(currentEpoch) / nftCount;
 
         lockNFTsAndMintFractions(_firstTokenId, _length, fractionsAmount, $);
 
@@ -185,9 +209,12 @@ contract FermionFractionsMint is
             revert AccessDenied(_msgSender());
         }
 
-        _mintFractions(fermionProtocol, _amount);
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        uint256 currentEpoch = fractionStorage.currentEpoch;
 
-        emit AdditionalFractionsMinted(_amount, liquidSupply());
+        FermionFractionsERC20(fractionStorage.epochToClone[currentEpoch]).mint(fermionProtocol, _amount);
+
+        emit AdditionalFractionsMinted(_amount, Common.liquidSupply(currentEpoch));
     }
 
     /**
@@ -232,7 +259,12 @@ contract FermionFractionsMint is
             emit Fractionalised(tokenId, _fractionsAmount);
         }
 
-        _mintFractions(tokenOwner, _length * _fractionsAmount);
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+
+        FermionFractionsERC20(fractionStorage.epochToClone[fractionStorage.currentEpoch]).mint(
+            tokenOwner,
+            _length * _fractionsAmount
+        );
 
         $.nftCount += _length;
     }
@@ -264,27 +296,51 @@ contract FermionFractionsMint is
         return IPriceOracleRegistry(fermionProtocol).isPriceOracleApproved(_oracle);
     }
 
-    // Overrides
     /**
-     * @notice Returns the number of fractions. Represents the ERC20 balanceOf method
+     * @notice Creates a new ERC20 clone for the current epoch.
      *
-     * @param _owner The address to check
+     * @param _epoch The epoch to create the clone for
+     * @return cloneAddress The address of the created clone
      */
-    function balanceOf(
-        address _owner
-    ) public view virtual override(ERC721, FermionFractionsERC20Base) returns (uint256) {
-        return FermionFractionsERC20Base.balanceOf(_owner);
+    function _createERC20Clone(uint256 _epoch) internal returns (address cloneAddress) {
+        cloneAddress = Clones.clone(erc20Implementation);
+
+        // Get the ERC721 storage directly
+        ERC721.ERC721Storage storage erc721Storage = Common._getERC721Storage();
+
+        // Format: name = "<fnft_name>_<epoch_index>", symbol = "<fnft_symbol><epoch_index>"
+        // Only append epoch if it's not 0
+        string memory _name = erc721Storage._name;
+        string memory _symbol = erc721Storage._symbol;
+
+        if (_epoch != 0) {
+            string memory epochString = Strings.toString(_epoch);
+            _name = string.concat(_name, "_", epochString);
+            _symbol = string.concat(_symbol, epochString);
+        }
+
+        FermionFractionsERC20(cloneAddress).initialize(_name, _symbol, address(this));
+
+        return cloneAddress;
     }
 
     /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `value`.
+     * @dev Advances to the next epoch and creates a new ERC20 clone for the new epoch.
+     * This function should be called when transitioning to a new epoch.
+     * @return newEpoch The new epoch
      */
-    function transfer(address to, uint256 value) public virtual override(FermionFractionsERC20Base) returns (bool) {
-        return FermionFractionsERC20Base.transfer(to, value);
+    function _advanceEpoch() internal returns (uint256 newEpoch) {
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        uint256 currentEpoch = fractionStorage.currentEpoch;
+        uint256 arrayLength = fractionStorage.epochToClone.length;
+
+        if (currentEpoch != 0 || arrayLength != 0) {
+            newEpoch = currentEpoch + 1;
+        }
+
+        address cloneAddress = _createERC20Clone(newEpoch);
+        fractionStorage.epochToClone.push(cloneAddress);
+        fractionStorage.currentEpoch = newEpoch;
+        return newEpoch;
     }
 }

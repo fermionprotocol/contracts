@@ -4,28 +4,27 @@ pragma solidity 0.8.24;
 import { HUNDRED_PERCENT, MINIMAL_BID_INCREMENT } from "../domain/Constants.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
-import { FermionFractionsERC20Base } from "./FermionFractionsERC20Base.sol";
 import { Common } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-
+import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Buyout auction
  */
 contract FermionBuyoutAuction is
-    FermionFractionsERC20Base,
+    ContextUpgradeable,
     FermionFNFTBase,
     FermionErrors,
-    FundsLib,
+    FundsManager,
     IFermionFractionsEvents
 {
     using Address for address;
-
-    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsLib(bytes32(0)) {}
+    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) FundsManager(bytes32(0)) {}
 
     /**
      * @notice Starts the auction for a specific fractionalized token. Can be called by anyone.
@@ -41,10 +40,15 @@ contract FermionBuyoutAuction is
      * @param _tokenId The ID of the fractionalized token for which the auction is being started.
      */
     function startAuction(uint256 _tokenId) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
+            Common._getFermionFractionsStorage().currentEpoch
+        );
         FermionTypes.AuctionDetails storage auctionDetails = Common.getLastAuction(_tokenId, $).details;
 
+        bool isProtocolCaller = fermionProtocol == _msgSender();
+
         if (!$.tokenInfo[_tokenId].isFractionalised) {
+            if (isProtocolCaller) return; // if protocol tries to start an auction for a non-fractionalised token, just return
             revert TokenNotFractionalised(_tokenId);
         }
 
@@ -54,7 +58,8 @@ contract FermionBuyoutAuction is
 
         uint256 exitPrice = $.auctionParameters.exitPrice;
         uint256 maxBid = auctionDetails.maxBid;
-        if (maxBid < exitPrice) {
+        if (maxBid < exitPrice && !isProtocolCaller) {
+            // protocol can start the auction even if the highest bid is below the exit price
             revert BidBelowExitPrice(_tokenId, maxBid, exitPrice);
         }
 
@@ -76,7 +81,9 @@ contract FermionBuyoutAuction is
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
     function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
+            Common._getFermionFractionsStorage().currentEpoch
+        );
         if (!$.tokenInfo[_tokenId].isFractionalised) revert TokenNotFractionalised(_tokenId);
 
         FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
@@ -104,7 +111,7 @@ contract FermionBuyoutAuction is
 
                 fractionsPerToken = auctionDetails.totalFractions;
             } else {
-                fractionsPerToken = liquidSupply() / $.nftCount;
+                fractionsPerToken = Common.liquidSupply(Common._getFermionFractionsStorage().currentEpoch) / $.nftCount;
                 if (_price >= auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
                     // If price is above the exit price, the cutoff date is set
                     startAuctionInternal(_tokenId);
@@ -143,8 +150,17 @@ contract FermionBuyoutAuction is
         auctionDetails.lockedFractions = _fractions; // locked in addition to the votes. If outbid, this is released back to the bidder
         auctionDetails.maxBid = _price;
 
-        if (_fractions > 0) _transferFractions(msgSender, address(this), _fractions);
-        if (bidAmount > 0) validateIncomingPayment(exchangeToken, bidAmount);
+        if (_fractions > 0) {
+            Common._transferFractions(
+                msgSender,
+                address(this),
+                _fractions,
+                Common._getFermionFractionsStorage().currentEpoch
+            );
+        }
+        if (bidAmount > 0) {
+            validateIncomingPayment(exchangeToken, bidAmount);
+        }
 
         auctionDetails.lockedBidAmount = bidAmount;
         emit Bid(_tokenId, msgSender, _price, totalLockedFractions, bidAmount);
@@ -163,7 +179,9 @@ contract FermionBuyoutAuction is
      * @param _tokenId The token Id
      */
     function removeBid(uint256 _tokenId) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
+            Common._getFermionFractionsStorage().currentEpoch
+        );
         FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
@@ -227,7 +245,8 @@ contract FermionBuyoutAuction is
      * @param _additionalFractions Number of fractions to exchange for auction proceeds (in addition to the locked fractions)
      */
     function claimWithLockedFractions(uint256 _tokenId, uint256 _auctionIndex, uint256 _additionalFractions) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         FermionTypes.TokenAuctionInfo storage tokenInfo = $.tokenInfo[_tokenId];
         FermionTypes.Auction[] storage auctionList = tokenInfo.auctions;
         uint256 numberOfAuctions = auctionList.length; // it can be greater than one if the item was fractionalized multiple times
@@ -255,25 +274,26 @@ contract FermionBuyoutAuction is
             votes.total -= lockedIndividualVotes;
             $.lockedRedeemableSupply -= lockedIndividualVotes;
 
-            _burn(address(this), lockedIndividualVotes);
+            _burnFractions(address(this), lockedIndividualVotes, currentEpoch);
         }
 
         if (_additionalFractions > 0) {
             (uint256 additionalClaimAmount, uint256 burnedFractions) = burnUnrestrictedFractions(
                 msgSender,
                 _additionalFractions,
-                $
+                $,
+                currentEpoch
             );
             _additionalFractions = burnedFractions;
             claimAmount += additionalClaimAmount;
         }
 
         transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
-        emit Claimed(msgSender, lockedIndividualVotes + _additionalFractions, claimAmount);
+        emit Claimed(msgSender, lockedIndividualVotes + _additionalFractions, claimAmount, currentEpoch);
     }
 
     /**
-     * @notice Claim the auction proceeds of all finalized auctions.
+     * @notice Claim the auction proceeds of all finalized auctions for current epoch.
      * This withdraws only the proceeds of already finalized auctions.
      * To finalize an auction, one must call either `redeem`, `finalizeAndClaim` or `claimWithLockedFractions`.
      *
@@ -286,16 +306,48 @@ contract FermionBuyoutAuction is
      * @param _fractions Number of fractions to exchange for auction proceeds
      */
     function claim(uint256 _fractions) public {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         if (_fractions == 0) {
             revert InvalidAmount();
         }
 
         address msgSender = _msgSender();
-        (uint256 claimAmount, uint256 burnedFractions) = burnUnrestrictedFractions(msgSender, _fractions, $);
+        (uint256 claimAmount, uint256 burnedFractions) = burnUnrestrictedFractions(
+            msgSender,
+            _fractions,
+            $,
+            currentEpoch
+        );
 
         transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
-        emit Claimed(msgSender, burnedFractions, claimAmount);
+        emit Claimed(msgSender, burnedFractions, claimAmount, currentEpoch);
+    }
+
+    /**
+     * @notice Claim the auction proceeds of all finalized auctions from a specific epoch.
+     * This withdraws only the proceeds of already finalized auctions for a specific epoch.
+     * All auctions from previous epochs should have only finalised auctions.
+     *
+     * Emits a ClaimedFromEpoch event if successful.
+     *
+     * Reverts if:
+     * - The amount to claim is zero
+     * - The caller has less fractions available than the amount to claim
+     *
+     * @param _fractions Number of fractions to exchange for auction proceeds
+     * @param _epoch The epoch to claim from
+     */
+    function claimFromEpoch(uint256 _fractions, uint256 _epoch) public {
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(_epoch);
+        if (_fractions == 0) {
+            revert InvalidAmount();
+        }
+        address msgSender = _msgSender();
+        (uint256 claimAmount, uint256 burnedFractions) = burnUnrestrictedFractions(msgSender, _fractions, $, _epoch);
+
+        transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        emit Claimed(msgSender, burnedFractions, claimAmount, _epoch);
     }
 
     /**
@@ -321,7 +373,9 @@ contract FermionBuyoutAuction is
      * @param _tokenId The token ID
      */
     function startAuctionInternal(uint256 _tokenId) public virtual {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        // NOTE: a small possible optimisation would be making the function internal to avoid multiple same storage read (see  function startAuction)
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         FermionTypes.AuctionDetails storage auctionDetails = Common.getLastAuction(_tokenId, $).details;
 
         auctionDetails.state = FermionTypes.AuctionState.Ongoing;
@@ -333,7 +387,7 @@ contract FermionBuyoutAuction is
             auctionEnd
         );
 
-        uint256 fractionsPerToken = liquidSupply() / $.nftCount;
+        uint256 fractionsPerToken = Common.liquidSupply(currentEpoch) / $.nftCount;
         auctionDetails.totalFractions = fractionsPerToken;
 
         $.pendingRedeemableSupply += fractionsPerToken;
@@ -341,7 +395,7 @@ contract FermionBuyoutAuction is
 
         $.nftCount--;
 
-        emit AuctionStarted(_tokenId, auctionDetails.timer);
+        emit AuctionStarted(_tokenId, auctionDetails.timer, currentEpoch);
     }
 
     /**
@@ -354,7 +408,8 @@ contract FermionBuyoutAuction is
      * @return auctionDetails The auction details
      */
     function finalizeAuction(uint256 _tokenId) internal returns (FermionTypes.AuctionDetails storage auctionDetails) {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage();
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         auctionDetails = auction.details;
 
@@ -379,7 +434,7 @@ contract FermionBuyoutAuction is
 
             votes.individual[maxBidder] = 0;
             if (winnersLockedVotes > 0) votes.total -= winnersLockedVotes;
-            _burn(address(this), winnersLockedFractions);
+            _burnFractions(address(this), winnersLockedFractions, currentEpoch);
         }
 
         uint256 auctionProceeds = auctionDetails.lockedBidAmount;
@@ -425,7 +480,7 @@ contract FermionBuyoutAuction is
     }
 
     /**
-     * @notice Calculate the amount to claim and burn the fractions.
+     * @notice Calculate the amount to claim and burn the fractions in a specific epoch.
      *
      * Reverts if:
      * - The caller has less fractions available than the amount to claim
@@ -433,13 +488,15 @@ contract FermionBuyoutAuction is
      * @param _from The address to burn the fractions from
      * @param _fractions Number of fractions to exchange for auction proceeds
      * @param $ The storage
+     * @param _epoch The epoch to burn the fractions from
      * @return claimAmount The amount to claim
      * @return burnedFractions The number of burned fractions
      */
     function burnUnrestrictedFractions(
         address _from,
         uint256 _fractions,
-        FermionTypes.BuyoutAuctionStorage storage $
+        FermionTypes.BuyoutAuctionStorage storage $,
+        uint256 _epoch
     ) internal returns (uint256 claimAmount, uint256 burnedFractions) {
         uint256 availableSupply = $.unrestricedRedeemableSupply;
         if (availableSupply == 0) revert NoFractions();
@@ -455,7 +512,7 @@ contract FermionBuyoutAuction is
             $.unrestricedRedeemableAmount -= claimAmount;
         }
 
-        _burn(_from, burnedFractions);
+        _burnFractions(_from, burnedFractions, _epoch);
     }
 
     /**
@@ -472,31 +529,25 @@ contract FermionBuyoutAuction is
         uint256 lockedFractions = _auction.lockedFractions;
 
         // transfer to previus bidder if they used some of the fractions. Do not transfer the locked votes.
-        if (lockedFractions > 0) _transferFractions(address(this), bidder, lockedFractions);
+        if (lockedFractions > 0) {
+            Common._transferFractions(
+                address(this),
+                bidder,
+                lockedFractions,
+                Common._getFermionFractionsStorage().currentEpoch
+            );
+        }
         transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
     }
 
-    // Overrides
     /**
-     * @notice Returns the number of fractions. Represents the ERC20 balanceOf method
+     * @notice Burns a specific amount of fractions in a specific ERC20 Fractions clone.
      *
-     * @param _owner The address to check
+     * @param _from The address to burn the fractions from
+     * @param _amount The amount of fractions to burn
+     * @param _epoch The epoch to burn the fractions from
      */
-    function balanceOf(
-        address _owner
-    ) public view virtual override(ERC721, FermionFractionsERC20Base) returns (uint256) {
-        return FermionFractionsERC20Base.balanceOf(_owner);
-    }
-
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `value`.
-     */
-    function transfer(address to, uint256 value) public virtual override(FermionFractionsERC20Base) returns (bool) {
-        return FermionFractionsERC20Base.transfer(to, value);
+    function _burnFractions(address _from, uint256 _amount, uint256 _epoch) internal {
+        FermionFractionsERC20(Common._getFermionFractionsStorage().epochToClone[_epoch]).burn(_from, _amount);
     }
 }
