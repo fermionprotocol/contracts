@@ -122,6 +122,7 @@ describe("Verification", function () {
       withPhygital: false,
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
+      royaltyInfo: { recipients: [], bps: [] },
     };
 
     // Make three offers one for normal sale, one of self sale and one for self verification
@@ -654,7 +655,14 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
-        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
+        await expect(tx)
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(
+            sellerId,
+            defaultSigner.address,
+            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Verifier, EntityRole.Custodian],
+            "https://example.com/seller-metadata.json",
+          ); // buyer role is added
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
@@ -1263,7 +1271,14 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
-        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
+        await expect(tx)
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(
+            sellerId,
+            defaultSigner.address,
+            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Verifier, EntityRole.Custodian],
+            "https://example.com/seller-metadata.json",
+          ); // buyer role is added
         await expect(tx).to.emit(verificationFacet, "RevisedMetadataSubmitted").withArgs(exchangeSelfSale.tokenId, "");
 
         // Wrapper
@@ -2623,7 +2638,14 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(sellerId, exchangeToken, verifierFee);
-        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
+        await expect(tx)
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(
+            sellerId,
+            defaultSigner.address,
+            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Verifier, EntityRole.Custodian],
+            "https://example.com/seller-metadata.json",
+          ); // buyer role is added
 
         // Wrapper
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
@@ -2923,6 +2945,7 @@ describe("Verification", function () {
           withPhygital: true,
           metadataURI: "https://example.com/offer-metadata.json",
           metadataHash: ZeroHash,
+          royaltyInfo: { recipients: [], bps: [] },
         };
 
         await offerFacet.createOffer(fermionOffer);
