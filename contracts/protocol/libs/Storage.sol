@@ -158,6 +158,8 @@ library FermionStorage {
         FermionTypes.Phygital[] phygitals;
         // phygitals recipient
         uint256 phygitalsRecipient;
+        // verification metadata
+        FermionTypes.Metadata verificationMetadata;
         // custom item price used only in case of forceful fractionalisation
         uint256 selfSaleItemPrice;
     }
