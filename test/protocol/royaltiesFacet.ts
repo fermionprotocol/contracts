@@ -367,7 +367,7 @@ describe("Royalties", function () {
 
     beforeEach(async function () {
       await offerFacet.createOffer(fermionOffer);
-      await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity);
+      await offerFacet.mintAndWrapNFTs(bosonOfferId, quantity, { name: "test FNFT", symbol: "tFNFT" });
     });
 
     it("Get offer royalties", async function () {

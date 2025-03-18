@@ -84,6 +84,7 @@ describe("FermionFNFT", function () {
         await mockExchangeToken.getAddress(),
         offerId,
         metadataURI,
+        { name: "", symbol: "" },
       );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);
@@ -151,44 +152,59 @@ describe("FermionFNFT", function () {
     it("symbol", async function () {
       expect(await fermionFNFTProxy.symbol()).to.equal(`FFNFT_${offerId}`);
     });
-  });
 
-  context("Name and Symbol setters", function () {
-    const newName = "New FNFT Name";
-    const newSymbol = "NFNFT";
+    it("custom name and symbol", async function () {
+      const Proxy = await ethers.getContractFactory("MockProxy");
+      const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
 
-    it("should allow owner to set new name", async function () {
-      await fermionFNFTProxy.connect(wallets[2]).setName(newName);
-      expect(await fermionFNFTProxy.name()).to.equal(newName);
+      const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
+      const randomWallet = wallets[4].address;
+
+      const name = "customName";
+      const symbol = "customSymbol";
+      await fermionFNFTProxy.initialize(randomWallet, randomWallet, randomWallet, offerId, metadataURI, {
+        name,
+        symbol,
+      });
+
+      expect(await fermionFNFTProxy.name()).to.equal(name);
+      expect(await fermionFNFTProxy.symbol()).to.equal(symbol);
     });
 
-    it("should allow owner to set new symbol", async function () {
-      await fermionFNFTProxy.connect(wallets[2]).setSymbol(newSymbol);
-      expect(await fermionFNFTProxy.symbol()).to.equal(newSymbol);
+    it("custom name, default symbol", async function () {
+      const Proxy = await ethers.getContractFactory("MockProxy");
+      const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
+
+      const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
+      const randomWallet = wallets[4].address;
+
+      const name = "customName";
+      const symbol = "";
+      await fermionFNFTProxy.initialize(randomWallet, randomWallet, randomWallet, offerId, metadataURI, {
+        name,
+        symbol,
+      });
+
+      expect(await fermionFNFTProxy.name()).to.equal(name);
+      expect(await fermionFNFTProxy.symbol()).to.equal(`FFNFT_${offerId}`);
     });
 
-    it("should allow owner to set both name and symbol", async function () {
-      await fermionFNFTProxy.connect(wallets[2]).setNameAndSymbol(newName, newSymbol);
-      expect(await fermionFNFTProxy.name()).to.equal(newName);
-      expect(await fermionFNFTProxy.symbol()).to.equal(newSymbol);
-    });
+    it("default name, custom symbol", async function () {
+      const Proxy = await ethers.getContractFactory("MockProxy");
+      const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
 
-    it("should revert when non-owner tries to set name", async function () {
-      await expect(fermionFNFTProxy.connect(wallets[3]).setName(newName))
-        .to.be.revertedWithCustomError(fermionFNFTProxy, "OwnableUnauthorizedAccount")
-        .withArgs(wallets[3].address);
-    });
+      const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
+      const randomWallet = wallets[4].address;
 
-    it("should revert when non-owner tries to set symbol", async function () {
-      await expect(fermionFNFTProxy.connect(wallets[3]).setSymbol(newSymbol))
-        .to.be.revertedWithCustomError(fermionFNFTProxy, "OwnableUnauthorizedAccount")
-        .withArgs(wallets[3].address);
-    });
+      const name = "";
+      const symbol = "customSymbol";
+      await fermionFNFTProxy.initialize(randomWallet, randomWallet, randomWallet, offerId, metadataURI, {
+        name,
+        symbol,
+      });
 
-    it("should revert when non-owner tries to set both name and symbol", async function () {
-      await expect(fermionFNFTProxy.connect(wallets[3]).setNameAndSymbol(newName, newSymbol))
-        .to.be.revertedWithCustomError(fermionFNFTProxy, "OwnableUnauthorizedAccount")
-        .withArgs(wallets[3].address);
+      expect(await fermionFNFTProxy.name()).to.equal(`Fermion FNFT ${offerId}`);
+      expect(await fermionFNFTProxy.symbol()).to.equal(symbol);
     });
   });
 

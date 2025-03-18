@@ -107,6 +107,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await mockExchangeToken.getAddress(),
         offerId,
         metadataURI,
+        { name: "test FNFT", symbol: "tFNFT" },
       );
     await fermionMock.setDestinationOverride(await mockBoson.getAddress());
     await mockBoson.attach(fermionMock).setApprovalForAll(await fermionFNFTProxy.getAddress(), true);

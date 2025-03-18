@@ -150,10 +150,12 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
      *
      * @param _offerId - the offer ID
      * @param _quantity - the number of NFTs to mint
+     * @param _tokenMetadata - optional token metadata (name and symbol)
      */
     function mintAndWrapNFTs(
         uint256 _offerId,
-        uint256 _quantity
+        uint256 _quantity,
+        FermionTypes.TokenMetadata memory _tokenMetadata
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
         wrapNFTS(
@@ -162,7 +164,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             startingNFTId,
             _quantity,
             FermionTypes.WrapType.OS_AUCTION,
-            FermionStorage.protocolStatus()
+            FermionStorage.protocolStatus(),
+            _tokenMetadata
         );
     }
 
@@ -181,11 +184,18 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
      * @param _offerId - the offer ID
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
+     * @param _tokenMetadata - optional token metadata (name and symbol)
      */
-    function mintWrapAndListNFTs(uint256 _offerId, uint256[] calldata _prices, uint256[] calldata _endTimes) external {
+    function mintWrapAndListNFTs(
+        uint256 _offerId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        FermionTypes.TokenMetadata memory _tokenMetadata
+    ) external {
         (address wrapperAddress, address exchangeToken, uint256 startingNFTId) = mintWrapFixedPriced(
             _offerId,
-            _prices.length
+            _prices.length,
+            _tokenMetadata
         );
 
         listFixedPriceOrdersInternal(_offerId, _prices, _endTimes, wrapperAddress, startingNFTId);
@@ -204,10 +214,12 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
      *
      * @param _offerId - the offer ID
      * @param _quantity the number of NFTs to mint
+     * @param _tokenMetadata - optional token metadata (name and symbol)
      */
     function mintWrapFixedPriced(
         uint256 _offerId,
-        uint256 _quantity
+        uint256 _quantity,
+        FermionTypes.TokenMetadata memory _tokenMetadata
     )
         public
         notPaused(FermionTypes.PausableRegion.Offer)
@@ -222,7 +234,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             startingNFTId,
             _quantity,
             FermionTypes.WrapType.OS_FIXED_PRICE,
-            FermionStorage.protocolStatus()
+            FermionStorage.protocolStatus(),
+            _tokenMetadata
         );
     }
 
@@ -752,6 +765,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
      * @param _quantity - the number of NFTs to wrap
      * @param _wrapType - the wrap type
      * @param ps - the protocol status storage pointer
+     * @param _tokenMetadata - optional token metadata (name and symbol)
      */
     function wrapNFTS(
         uint256 _offerId,
@@ -759,7 +773,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         uint256 _startingNFTId,
         uint256 _quantity,
         FermionTypes.WrapType _wrapType,
-        FermionStorage.ProtocolStatus storage ps
+        FermionStorage.ProtocolStatus storage ps,
+        FermionTypes.TokenMetadata memory _tokenMetadata
     ) internal returns (address wrapperAddress, address _exchangeToken) {
         address msgSender = _msgSender();
         FermionStorage.OfferLookups storage offerLookup = FermionStorage.protocolLookups().offerLookups[_offerId];
@@ -775,7 +790,14 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
 
             FermionTypes.Offer storage offer = FermionStorage.protocolEntities().offer[_offerId];
             _exchangeToken = offer.exchangeToken;
-            wrapperAddress.initialize(address(_bosonVoucher), msgSender, _exchangeToken, _offerId, offer.metadata.URI);
+            wrapperAddress.initialize(
+                address(_bosonVoucher),
+                msgSender,
+                _exchangeToken,
+                _offerId,
+                offer.metadata.URI,
+                _tokenMetadata
+            );
         }
 
         // wrap NFTs

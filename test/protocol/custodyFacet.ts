@@ -127,10 +127,11 @@ describe("Custody", function () {
 
     // Mint and wrap some NFTs
     const quantity = "1";
-    await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity); // offerId = 2; exchangeId = 1
-    await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
-    await offerFacet.mintAndWrapNFTs(offerIdSelfCustody, "2"); // offerId = 3; exchangeId = 3
-    await offerFacet.mintAndWrapNFTs(offerIdCustodianSwitch, "3"); // offerId = 4; exchangeId = 5
+    const tokenMetadata = { name: "test FNFT", symbol: "tFNFT" };
+    await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity, tokenMetadata); // offerId = 2; exchangeId = 1
+    await offerFacet.mintAndWrapNFTs(offerId, quantity, tokenMetadata); // offerId = 1; exchangeId = 2
+    await offerFacet.mintAndWrapNFTs(offerIdSelfCustody, "2", tokenMetadata); // offerId = 3; exchangeId = 3
+    await offerFacet.mintAndWrapNFTs(offerIdCustodianSwitch, "3", tokenMetadata); // offerId = 4; exchangeId = 5
 
     const exchangeIdSelf = "1";
     const exchangeId = "2";
