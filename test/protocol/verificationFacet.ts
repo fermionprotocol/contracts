@@ -78,6 +78,7 @@ describe("Verification", function () {
     offerId: "",
     exchangeId: "",
   };
+  const tokenMetadata = { name: "test FNFT", symbol: "tFNFT" };
   const verificationMetadata = {
     URI: "https://example.com/verification-metadata.json",
     hash: id("metadata"),
@@ -150,10 +151,10 @@ describe("Verification", function () {
 
     // Mint and wrap some NFTs
     const quantity = "1";
-    await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity); // offerId = 2; exchangeId = 1
-    await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
-    await offerFacet.mintAndWrapNFTs(offerIdSelfVerification, "2"); // offerId = 3; exchangeId = 3
-    await offerFacet.mintAndWrapNFTs(offerIdSelfSaleSelfVerification, quantity); // offerId = 4; exchangeId = 5
+    await offerFacet.mintAndWrapNFTs(offerIdSelfSale, quantity, tokenMetadata); // offerId = 2; exchangeId = 1
+    await offerFacet.mintAndWrapNFTs(offerId, quantity, tokenMetadata); // offerId = 1; exchangeId = 2
+    await offerFacet.mintAndWrapNFTs(offerIdSelfVerification, "2", tokenMetadata); // offerId = 3; exchangeId = 3
+    await offerFacet.mintAndWrapNFTs(offerIdSelfSaleSelfVerification, quantity, tokenMetadata); // offerId = 4; exchangeId = 5
     const exchangeIdSelf = "1";
     const exchangeId = "2";
     const exchangeIdSelfVerification = "3";
@@ -3322,7 +3323,7 @@ describe("Verification", function () {
         };
 
         await offerFacet.createOffer(fermionOffer);
-        await offerFacet.mintAndWrapNFTs(offerId, 1n);
+        await offerFacet.mintAndWrapNFTs(offerId, 1n, tokenMetadata);
 
         // Inexistent FNFT
         await expect(verificationFacet.connect(verifier).verifyPhygitals(tokenId + 1n, digest))
@@ -3456,14 +3457,12 @@ describe("Verification", function () {
       };
 
       await offerFacet.createOffer(fermionOffer);
-      await offerFacet.mintAndWrapNFTs(offerId, 1n);
+      await offerFacet.mintAndWrapNFTs(offerId, 1n, tokenMetadata);
 
       await expect(verificationFacet.getVerificationDetails(tokenId)).to.be.revertedWithCustomError(
         verificationFacet,
         "InexistentVerificationStatus",
       );
-
-      // await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, toBeHex(minimalPrice, 32));
     });
   });
 });

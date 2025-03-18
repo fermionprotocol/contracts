@@ -55,13 +55,15 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
      * @param _exchangeToken The address of the exchange token
      * @param _offerId The offer id
      * @param _metadataUri The metadata URI, used for all tokens and contract URI
+     * @param _tokenMetadata - optional token metadata (name and symbol)
      */
     function initialize(
         address _voucherAddress,
         address _owner,
         address _exchangeToken,
         uint256 _offerId,
-        string memory _metadataUri
+        string calldata _metadataUri,
+        FermionTypes.TokenMetadata memory _tokenMetadata
     ) external initializer {
         if (address(this) == THIS_CONTRACT) {
             revert InvalidInitialization();
@@ -73,38 +75,16 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         initializeWrapper(_owner, _metadataUri);
         intializeFractions(_exchangeToken);
 
-        string memory _offerIdString = Strings.toString(_offerId);
-        __ERC721_init(string.concat("Fermion FNFT ", _offerIdString), string.concat("FFNFT_", _offerIdString));
-    }
+        bool useDefaultName = bytes(_tokenMetadata.name).length == 0;
+        bool useDefaultSymbol = bytes(_tokenMetadata.symbol).length == 0;
 
-    /**
-     * @notice Updates the name of the token
-     * @dev Only callable by the contract owner
-     * @param _name The new name for the token
-     */
-    function setName(string memory _name) external onlyOwner {
-        Common._getERC721Storage()._name = _name;
-    }
+        if (useDefaultName || useDefaultSymbol) {
+            string memory _offerIdString = Strings.toString(_offerId);
+            if (useDefaultName) _tokenMetadata.name = string.concat("Fermion FNFT ", _offerIdString);
+            if (useDefaultSymbol) _tokenMetadata.symbol = string.concat("FFNFT_", _offerIdString);
+        }
 
-    /**
-     * @notice Updates the symbol of the token
-     * @dev Only callable by the contract owner
-     * @param _symbol The new symbol for the token
-     */
-    function setSymbol(string memory _symbol) external onlyOwner {
-        Common._getERC721Storage()._symbol = _symbol;
-    }
-
-    /**
-     * @notice Updates both the name and symbol of the token in a single transaction
-     * @dev Only callable by the contract owner
-     * @param _name The new name for the token
-     * @param _symbol The new symbol for the token
-     */
-    function setNameAndSymbol(string memory _name, string memory _symbol) external onlyOwner {
-        ERC721Storage storage $ = Common._getERC721Storage();
-        $._name = _name;
-        $._symbol = _symbol;
+        __ERC721_init(_tokenMetadata.name, _tokenMetadata.symbol);
     }
 
     /**

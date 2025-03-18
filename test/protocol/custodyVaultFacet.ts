@@ -101,7 +101,7 @@ describe("CustodyVault", function () {
 
     // Mint and wrap some NFTs
     const quantity = 3n;
-    await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
+    await offerFacet.mintAndWrapNFTs(offerId, quantity, { name: "test FNFT", symbol: "tFNFT" }); // offerId = 1; exchangeId = 2
 
     // Unwrap some NFTs - normal sale and sale with self-custody
     buyer = wallets[6];

@@ -109,13 +109,14 @@ describe("Funds", function () {
       royaltyInfo: { recipients: [], bps: [] },
     };
 
+    const tokenMetadata = { name: "test FNFT", symbol: "tFNFT" };
     await offerFacet.createOffer(fermionOffer);
-    await offerFacet.mintAndWrapNFTs(offerId, quantity);
+    await offerFacet.mintAndWrapNFTs(offerId, quantity, tokenMetadata);
 
     // Create 2 offers with phygitals
     for (let i = 0; i < 2; i++) {
       await offerFacet.createOffer({ ...fermionOffer, verifierFee: 0, withPhygital: true });
-      await offerFacet.mintAndWrapNFTs(++offerId, quantity);
+      await offerFacet.mintAndWrapNFTs(++offerId, quantity, tokenMetadata);
     }
 
     minimalPrice = calculateMinimalPrice(

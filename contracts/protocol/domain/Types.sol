@@ -234,6 +234,11 @@ contract FermionTypes {
         uint256 tokenId;
     }
 
+    struct TokenMetadata {
+        string name;
+        string symbol;
+    }
+
     struct RoyaltyInfo {
         address payable[] recipients;
         uint256[] bps;
