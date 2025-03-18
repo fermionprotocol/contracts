@@ -14,7 +14,7 @@ interface FermionGeneralErrors {
     error UnexpectedDataReturned(bytes data);
     // Array elements that are not in ascending order (i.e arr[i-1] > arr[i])
     error NonAscendingOrder();
-    error InvalidTokenId(uint256 tokenId);
+    error InvalidTokenId(address fnftAddress, uint256 tokenId);
 }
 
 interface InitializationErrors {
@@ -41,7 +41,11 @@ interface EntityErrors {
     );
     error ChangeNotAllowed();
     error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
-    error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
+    error AssociatedEntityAlreadyExists(
+        FermionTypes.AssociatedRole associatedRole,
+        uint256 sellerId,
+        uint256 facilitatorId
+    );
     error AccountAlreadyExists(address account);
     error NewAccountSameAsOld();
 }
@@ -52,6 +56,10 @@ interface OfferErrors {
     error NoSuchOffer(uint256 offerId);
     error InvalidOpenSeaOrder();
     error NoPhygitalOffer(uint256 offerId);
+    error InvalidRoyaltyInfo();
+    error InvalidRoyaltyRecipient(address recipient);
+    error InvalidRoyaltyPercentage(uint256 percentage);
+    error OfferWithoutRoyalties(uint256 offerId);
     error InvalidCustomItemPrice();
 }
 
@@ -183,6 +191,7 @@ interface WrapperErrors {
     error ZeroPriceNotAllowed();
     error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
     error InvalidOwner(uint256 tokenId, address expected, address actual);
+    error InvalidUnwrap();
     error InvalidOpenSeaFee(uint256 actual, uint256 expected);
 }
 

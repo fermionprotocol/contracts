@@ -377,7 +377,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
         address fermionFNFTAddress = pl.offerLookups[offerId].fermionFNFTAddress;
 
         if (fermionFNFTAddress == address(0)) {
-            revert FermionGeneralErrors.InvalidTokenId(_tokenId);
+            revert FermionGeneralErrors.InvalidTokenId(fermionFNFTAddress, _tokenId);
         }
 
         FermionTypes.TokenState tokenState = IFermionFNFT(fermionFNFTAddress).tokenState(_tokenId);
@@ -504,7 +504,11 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
 
                     remainder -= buyerRevisedPayout;
 
-                    uint256 buyerId = EntityLib.getOrCreateBuyerId(tokenLookups.initialBuyer, pl);
+                    uint256 buyerId = EntityLib.getOrCreateEntityId(
+                        tokenLookups.initialBuyer,
+                        FermionTypes.EntityRole.Buyer,
+                        pl
+                    );
                     increaseAvailableFunds(buyerId, exchangeToken, buyerRevisedPayout);
 
                     uint256 facilitatorFeeAmount;
@@ -540,7 +544,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
             } else {
                 address buyerAddress = pl.offerLookups[offerId].fermionFNFTAddress.burn(tokenId);
 
-                uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
+                uint256 buyerId = EntityLib.getOrCreateEntityId(buyerAddress, FermionTypes.EntityRole.Buyer, pl);
 
                 if (_afterTimeout) {
                     remainder += offer.verifierFee;

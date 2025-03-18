@@ -1,5 +1,5 @@
 import { loadFixture, setCode } from "@nomicfoundation/hardhat-toolbox/network-helpers";
-import { deployMockTokens } from "../utils/common";
+import { applyPercentage, deployMockTokens } from "../utils/common";
 import { expect } from "chai";
 import hre, { ethers } from "hardhat";
 import { Contract, MaxUint256 } from "ethers";
@@ -25,10 +25,12 @@ describe("FermionFNFT - wrapper tests", function () {
   let wrapperContractOwner: HardhatEthersSigner;
   let mockBosonPriceDiscovery: HardhatEthersSigner;
   let mockBoson: Contract, mockERC20: Contract, mockFermion: Contract;
+  let transferValidator: Contract;
   let seaportAddress: string;
   let seaport: Seaport;
   const metadataURI = "https://example.com";
   const { seaportConfig } = fermionConfig.externalContracts["hardhat"];
+  const royaltyInfo = { recipients: [], bps: [] };
 
   async function setupFermionWrapperTest() {
     wallets = await ethers.getSigners();
@@ -39,6 +41,7 @@ describe("FermionFNFT - wrapper tests", function () {
 
     ({ seaportAddress } = await initSeaportFixture());
 
+    seaportConfig.openSeaSignedZone = seaportAddress;
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
       {
@@ -48,10 +51,17 @@ describe("FermionFNFT - wrapper tests", function () {
     ];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+    const TransferValidator = await ethers.getContractFactory("MockTransferValidator");
+    transferValidator = await TransferValidator.deploy();
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy();
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
-    const fermionFractionsMint = await FermionFractionsMint.deploy(mockBosonPriceDiscovery.address);
+    const fermionFractionsMint = await FermionFractionsMint.deploy(
+      mockBosonPriceDiscovery.address,
+      await fermionFractionsERC20.getAddress(),
+    );
     const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
     const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(mockBosonPriceDiscovery.address);
 
@@ -59,6 +69,7 @@ describe("FermionFNFT - wrapper tests", function () {
     const fermionWrapper = await FermionFNFT.deploy(
       mockBosonPriceDiscovery.address,
       await fermionSeaportWrapper.getAddress(),
+      await transferValidator.getAddress(),
       wallets[10].address,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
@@ -100,6 +111,7 @@ describe("FermionFNFT - wrapper tests", function () {
     // make the account "normal" again
     // `setCode` helper from the toolbox does not accept empty code, so we use the provider directly
     await ethers.provider.send("hardhat_setCode", [await fermionProtocolSigner.getAddress(), "0x"]);
+    seaportConfig.openSeaSignedZone = ZeroAddress;
   });
 
   context("initialize", function () {
@@ -274,14 +286,20 @@ describe("FermionFNFT - wrapper tests", function () {
       tokenId: string,
       exchangeToken: string,
       fullPrice: bigint,
+      startTime: string,
       endTime: string,
+      royalties?: { recipients: string[]; bps: bigint[] },
+      validatorEnabled?: boolean,
     ) => Promise<OrderComponents>;
     let getOrderStatus: (order: OrderComponents) => Promise<{ isCancelled: boolean; isValidated: boolean }>;
     let getOrderParametersAndStatus: (
       tokenId: string,
       exchangeToken: string,
       fullPrice: bigint,
+      startTime: string,
       endTime: string,
+      royalties?: { recipients: string[]; bps: bigint[] },
+      validatorEnabled?: boolean,
     ) => Promise<{ orderComponents: OrderComponents; orderStatus: { isCancelled: boolean; isValidated: boolean } }>;
 
     before(async function () {
@@ -313,16 +331,19 @@ describe("FermionFNFT - wrapper tests", function () {
 
     context("listFixedPriceOrders", function () {
       it("Protocol can list fixed price offer", async function () {
-        await fermionProtocolSigner.sendTransaction({
+        const tx = await fermionProtocolSigner.sendTransaction({
           to: await fermionWrapperProxy.getAddress(),
           data:
             fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrders", [
               startTokenId,
               prices,
               endTimes,
+              royaltyInfo,
               await mockERC20.getAddress(),
             ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
         });
+
+        const startTime = (await tx.getBlock()).timestamp - 60;
 
         const exchangeToken = await mockERC20.getAddress();
 
@@ -334,7 +355,81 @@ describe("FermionFNFT - wrapper tests", function () {
             tokenId.toString(),
             exchangeToken,
             prices[Number(i)],
+            startTime.toString(),
             endTimes[Number(i)].toString(),
+          );
+          expect(orderStatus.isValidated).to.equal(true);
+        }
+      });
+
+      it("Protocol can list fixed price offer with royalties", async function () {
+        const royaltyInfo = {
+          recipients: [wallets[4].address, wallets[5].address],
+          bps: [10_00n, 5_00n],
+        };
+        const tx = await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrders", [
+              startTokenId,
+              prices,
+              endTimes,
+              royaltyInfo,
+              await mockERC20.getAddress(),
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        const startTime = (await tx.getBlock()).timestamp - 60;
+
+        const exchangeToken = await mockERC20.getAddress();
+
+        for (let i = 0n; i < quantity; i++) {
+          const tokenId = startTokenId + i;
+          expect(await fermionWrapperProxy.ownerOf(tokenId)).to.equal(wrapperAddress);
+
+          const { orderStatus } = await getOrderParametersAndStatus(
+            tokenId.toString(),
+            exchangeToken,
+            prices[Number(i)],
+            startTime.toString(),
+            endTimes[Number(i)].toString(),
+            royaltyInfo,
+          );
+          expect(orderStatus.isValidated).to.equal(true);
+        }
+      });
+
+      it("Protocol can list fixed price offer with transfer validator disabled", async function () {
+        await fermionWrapperProxy.connect(wrapperContractOwner).setTransferValidator(ZeroAddress);
+
+        const tx = await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("listFixedPriceOrders", [
+              startTokenId,
+              prices,
+              endTimes,
+              royaltyInfo,
+              await mockERC20.getAddress(),
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        const startTime = (await tx.getBlock()).timestamp - 60;
+
+        const exchangeToken = await mockERC20.getAddress();
+
+        for (let i = 0n; i < quantity; i++) {
+          const tokenId = startTokenId + i;
+          expect(await fermionWrapperProxy.ownerOf(tokenId)).to.equal(wrapperAddress);
+
+          const { orderStatus } = await getOrderParametersAndStatus(
+            tokenId.toString(),
+            exchangeToken,
+            prices[Number(i)],
+            startTime.toString(),
+            endTimes[Number(i)].toString(),
+            undefined,
+            false,
           );
           expect(orderStatus.isValidated).to.equal(true);
         }
@@ -346,7 +441,7 @@ describe("FermionFNFT - wrapper tests", function () {
           await expect(
             fermionWrapperProxy
               .connect(randomWallet)
-              .listFixedPriceOrders(startTokenId, prices, endTimes, await mockBoson.getAddress()),
+              .listFixedPriceOrders(startTokenId, prices, endTimes, royaltyInfo, await mockBoson.getAddress()),
           )
             .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidStateOrCaller")
             .withArgs(startTokenId, randomWallet.address, TokenState.Wrapped);
@@ -362,6 +457,7 @@ describe("FermionFNFT - wrapper tests", function () {
                   startTokenId,
                   zeroPrices,
                   endTimes,
+                  royaltyInfo,
                   await mockERC20.getAddress(),
                 ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
             }),
@@ -586,6 +682,7 @@ describe("FermionFNFT - wrapper tests", function () {
               startTokenId,
               prices,
               endTimes,
+              royaltyInfo,
               await mockERC20.getAddress(),
             ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
         });
@@ -696,6 +793,7 @@ describe("FermionFNFT - wrapper tests", function () {
             startTokenId,
             prices,
             endTimes,
+            royaltyInfo,
             await mockERC20.getAddress(),
           ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
       });
@@ -838,6 +936,23 @@ describe("FermionFNFT - wrapper tests", function () {
           .to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidOwner")
           .withArgs(tokenId, anyValue, wrapperAddress);
       });
+
+      it("FNFTs cannot be unwrapped using `unwrapToSelf` after the item has been sold", async function () {
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [
+              startTokenId,
+              TokenState.Unwrapping,
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await expect(
+          fermionWrapperProxy
+            .connect(mockBosonPriceDiscovery)
+            .unwrapToSelf(startTokenId, await mockERC20.getAddress(), 0),
+        ).to.be.revertedWithCustomError(fermionWrapperProxy, "InvalidUnwrap");
+      });
     });
   });
 
@@ -921,6 +1036,245 @@ describe("FermionFNFT - wrapper tests", function () {
           fermionWrapper,
           "ERC721NonexistentToken",
         );
+      });
+    });
+  });
+
+  context("royaltyInfo", function () {
+    const startTokenId = 2n ** 128n + 1n;
+    const quantity = 10n;
+    const offerId = 1n;
+    const royaltyPercentage = 2500; // 25%
+    let royaltyRecipient: string;
+
+    before(async function () {
+      royaltyRecipient = wallets[4].address;
+    });
+
+    beforeEach(async function () {
+      await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
+
+      await fermionWrapperProxy.initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerId,
+        metadataURI,
+      );
+
+      const seller = wallets[3];
+      await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
+      await fermionProtocolSigner.sendTransaction({
+        to: await fermionWrapperProxy.getAddress(),
+        data:
+          fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity, seller.address]) +
+          fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+      });
+
+      await mockFermion.setRoyaltyInfo(royaltyPercentage, royaltyRecipient);
+    });
+
+    it("Royalty info returns correct recipient and royalty amount", async function () {
+      let salePrice = parseEther("1");
+
+      const [receiver, royaltyAmount] = await fermionWrapperProxy.royaltyInfo(startTokenId, salePrice);
+      expect(receiver).to.equal(royaltyRecipient);
+      expect(royaltyAmount).to.equal(applyPercentage(salePrice, royaltyPercentage));
+
+      salePrice = parseEther("1.2345");
+      const [, newRoyaltyAmount] = await fermionWrapperProxy.royaltyInfo(startTokenId, salePrice);
+      expect(newRoyaltyAmount).to.equal(applyPercentage(salePrice, royaltyPercentage));
+    });
+
+    context("Revert reasons", function () {
+      it("Non existent", async function () {
+        let tokenId = 0n;
+        await expect(fermionWrapperProxy.royaltyInfo(tokenId, "1"))
+          .to.be.revertedWithCustomError(fermionWrapper, "ERC721NonexistentToken")
+          .withArgs(tokenId);
+
+        tokenId = startTokenId + quantity;
+        await expect(fermionWrapperProxy.royaltyInfo(tokenId, "1")).to.be.revertedWithCustomError(
+          fermionWrapper,
+          "ERC721NonexistentToken",
+        );
+      });
+    });
+  });
+
+  context("transfer validator", function () {
+    const offerId = 1n;
+
+    beforeEach(async function () {
+      await fermionWrapperProxy.initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerId,
+        metadataURI,
+      );
+    });
+
+    context("setTransferValidator", function () {
+      it("Set a new transfer validator", async function () {
+        const newTransferValidator = wallets[4];
+        await expect(
+          fermionWrapperProxy.connect(wrapperContractOwner).setTransferValidator(newTransferValidator.address),
+        )
+          .to.emit(fermionWrapperProxy, "TransferValidatorUpdated")
+          .withArgs(await transferValidator.getAddress(), newTransferValidator.address);
+
+        expect(await fermionWrapperProxy.getTransferValidator()).to.equal(newTransferValidator.address);
+      });
+
+      it("Unset the transfer validator", async function () {
+        await expect(fermionWrapperProxy.connect(wrapperContractOwner).setTransferValidator(ZeroAddress))
+          .to.emit(fermionWrapperProxy, "TransferValidatorUpdated")
+          .withArgs(await transferValidator.getAddress(), ZeroAddress);
+
+        expect(await fermionWrapperProxy.getTransferValidator()).to.equal(ZeroAddress);
+      });
+
+      context("Revert reasons", function () {
+        it("The caller is not the owner", async function () {
+          const randomWallet = wallets[4];
+          await expect(fermionWrapperProxy.connect(randomWallet).setTransferValidator(randomWallet.address))
+            .to.be.revertedWithCustomError(fermionWrapperProxy, "OwnableUnauthorizedAccount")
+            .withArgs(randomWallet.address);
+        });
+
+        it("New transfer validator is the same as the current on", async function () {
+          await expect(
+            fermionWrapperProxy
+              .connect(wrapperContractOwner)
+              .setTransferValidator(await transferValidator.getAddress()),
+          ).to.be.revertedWithCustomError(fermionWrapperProxy, "SameTransferValidator");
+        });
+      });
+    });
+
+    context("getTransferValidator", function () {
+      it("Get the current transfer validator", async function () {
+        expect(await fermionWrapperProxy.getTransferValidator()).to.equal(await transferValidator.getAddress());
+      });
+    });
+
+    context("getTransferValidationFunction", function () {
+      it("Get the transfer validation function", async function () {
+        const expectedFunctionSignature = ethers.id("validateTransfer(address,address,address,uint256)").slice(0, 10);
+        const [functionSignature, isViewFunction] = await fermionWrapperProxy.getTransferValidationFunction();
+        expect(functionSignature).to.equal(expectedFunctionSignature);
+        expect(isViewFunction).to.equal(false);
+      });
+    });
+
+    context("transferFrom", function () {
+      let seller: HardhatEthersSigner;
+      const startTokenId = 2n ** 128n + 1n;
+      const quantity = 10n;
+
+      beforeEach(async function () {
+        seller = wallets[3];
+
+        await mockBoson.mint(fermionProtocolSigner, startTokenId, quantity);
+        await mockBoson.connect(fermionProtocolSigner).setApprovalForAll(await fermionWrapperProxy.getAddress(), true);
+
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("wrap", [startTokenId, quantity - 1n, seller.address]) +
+            fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [
+              startTokenId,
+              TokenState.Unwrapping,
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(startTokenId, ZeroAddress, 0);
+
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [
+              startTokenId,
+              TokenState.Verified,
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await transferValidator.enableRevert(true);
+      });
+
+      it("Transfer validator prevents transfer", async function () {
+        const newOwner = wallets[4];
+        await fermionWrapperProxy.connect(seller).approve(newOwner.address, startTokenId);
+
+        await expect(
+          fermionWrapperProxy.connect(newOwner).transferFrom(seller.address, newOwner.address, startTokenId),
+        ).to.be.revertedWithCustomError(transferValidator, "InvalidTransfer");
+      });
+
+      it("Transfer validator does not prevent mint and burn", async function () {
+        const tokenId = startTokenId + quantity - 1n;
+        // mint
+        const tx = await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("wrap", [tokenId, 1n, seller.address]) +
+            fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await expect(tx).to.emit(fermionWrapperProxy, "Transfer").withArgs(ZeroAddress, seller.address, tokenId);
+
+        // burn
+        await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("pushToNextTokenState", [tokenId, TokenState.Unwrapping]) +
+            fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await fermionWrapperProxy.connect(mockBosonPriceDiscovery).unwrapToSelf(tokenId, ZeroAddress, 0);
+
+        const tx2 = await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("burn", [tokenId]) +
+            fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await expect(tx2).to.emit(fermionWrapperProxy, "Transfer").withArgs(seller.address, ZeroAddress, tokenId);
+      });
+
+      it("Transfer validator does not prevent if the caller is the token owner", async function () {
+        const newOwner = wallets[4];
+
+        await expect(fermionWrapperProxy.connect(seller).transferFrom(seller.address, newOwner.address, startTokenId))
+          .to.emit(fermionWrapperProxy, "Transfer")
+          .withArgs(seller.address, newOwner.address, startTokenId);
+      });
+
+      it("Transfer validator does not prevent if the caller is the protocol", async function () {
+        const newOwner = wallets[4];
+        await fermionWrapperProxy.connect(seller).approve(fermionProtocolSigner.address, startTokenId);
+
+        const tx = await fermionProtocolSigner.sendTransaction({
+          to: await fermionWrapperProxy.getAddress(),
+          data:
+            fermionWrapperProxy.interface.encodeFunctionData("transferFrom", [
+              seller.address,
+              newOwner.address,
+              startTokenId,
+            ]) + fermionProtocolSigner.address.slice(2), // append the address to mimic the fermion protocol behavior
+        });
+
+        await expect(tx)
+          .to.emit(fermionWrapperProxy, "Transfer")
+          .withArgs(seller.address, newOwner.address, startTokenId);
       });
     });
   });

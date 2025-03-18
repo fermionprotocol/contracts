@@ -114,6 +114,7 @@ describe("Custody", function () {
       exchangeToken: await mockToken.getAddress(),
       withPhygital: false,
       metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
+      royaltyInfo: { recipients: [], bps: [] },
     };
 
     // Make four offers one for normal sale, one of self sale, one for self custody and one for custodian switch

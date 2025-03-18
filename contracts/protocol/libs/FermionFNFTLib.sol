@@ -55,7 +55,7 @@ library FermionFNFTLib {
     }
 
     /**
-     * @notice Transfers the ERC721 FNFT token or ERC20 FNFT fractions
+     * @notice Transfers the ERC721 FNFT token
      *
      * If _tokenIdOrValue is less than 2^128 the fractions are transferred, otherwise the token is transferred.
      *
@@ -78,19 +78,6 @@ library FermionFNFTLib {
         _fnft.functionCallWithAddress(
             abi.encodeWithSignature("safeTransferFrom(address,address,uint256)", _from, _to, _tokenId)
         );
-    }
-
-    /**
-     * @notice Transfers the ERC20 FNFT fractions
-     *
-     * N.B. Although the Fermion FNFT returns a boolean, as per ERC20 standard, it is not decoded here
-     * since the the return value is not used in the protocol.
-     *
-     * @param _to The address to transfer to.
-     * @param _value The number of fractions to transfer.
-     */
-    function transfer(address _fnft, address _to, uint256 _value) internal {
-        _fnft.functionCallWithAddress(abi.encodeCall(IFermionFractions.transfer, (_to, _value)));
     }
 
     /**
@@ -187,6 +174,7 @@ library FermionFNFTLib {
      * @param _firstTokenId The first token id.
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
+     * @param _royaltyInfo The royalty info.
      * @param _exchangeToken The token to be used for the exchange.
      */
     function listFixedPriceOrders(
@@ -194,10 +182,14 @@ library FermionFNFTLib {
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
+        FermionTypes.RoyaltyInfo memory _royaltyInfo,
         address _exchangeToken
     ) internal {
         _fnft.functionCallWithAddress(
-            abi.encodeCall(IFermionWrapper.listFixedPriceOrders, (_firstTokenId, _prices, _endTimes, _exchangeToken))
+            abi.encodeCall(
+                IFermionWrapper.listFixedPriceOrders,
+                (_firstTokenId, _prices, _endTimes, _royaltyInfo, _exchangeToken)
+            )
         );
     }
 

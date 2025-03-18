@@ -7,6 +7,12 @@ export enum EntityRole {
   Buyer,
   Verifier,
   Custodian,
+  RoyaltyRecipient,
+}
+
+export enum AssociatedRole {
+  Facilitator,
+  RoyaltyRecipient,
 }
 
 export enum TokenState {

@@ -9,6 +9,7 @@ import { IFermionConfig } from "../interfaces/IFermionConfig.sol";
 
 import { SeaportInterface } from "seaport-types/src/interfaces/SeaportInterface.sol";
 import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
+import { FermionTypes } from "../domain/Types.sol";
 
 /**
  * @title SeaportWrapper
@@ -24,6 +25,7 @@ contract SeaportWrapper is FermionFNFTBase {
         address seaport;
         address openSeaConduit;
         bytes32 openSeaConduitKey;
+        address openSeaSignedZone;
         bytes32 openSeaZoneHash;
         address payable openSeaRecipient;
     }
@@ -33,6 +35,7 @@ contract SeaportWrapper is FermionFNFTBase {
     // OpenSea Conduit
     address private immutable OS_CONDUIT;
     bytes32 private immutable OS_CONDUIT_KEY;
+    address private immutable OS_SIGNED_ZONE;
     bytes32 private immutable OS_ZONE_HASH;
     address payable private immutable OS_RECIPIENT;
 
@@ -51,6 +54,7 @@ contract SeaportWrapper is FermionFNFTBase {
             ? _seaportConfig.seaport
             : _seaportConfig.openSeaConduit;
         OS_CONDUIT_KEY = _seaportConfig.openSeaConduitKey;
+        OS_SIGNED_ZONE = _seaportConfig.openSeaSignedZone;
         OS_ZONE_HASH = _seaportConfig.openSeaZoneHash;
         OS_RECIPIENT = _seaportConfig.openSeaRecipient;
     }
@@ -75,6 +79,11 @@ contract SeaportWrapper is FermionFNFTBase {
         uint256 _openSeaFee = _buyerOrder.parameters.consideration[1].startAmount;
 
         uint256 reducedPrice = _price - _openSeaFee;
+
+        // reduce the price by the royalties
+        for (uint256 i = 2; i < _buyerOrder.parameters.consideration.length; i++) {
+            reducedPrice -= _buyerOrder.parameters.consideration[i].startAmount;
+        }
 
         address exchangeToken = _buyerOrder.parameters.offer[0].token;
 
@@ -123,9 +132,11 @@ contract SeaportWrapper is FermionFNFTBase {
         orders[0] = _buyerOrder;
         orders[1] = wrapperOrder;
 
-        SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](3);
+        SeaportTypes.Fulfillment[] memory fulfillments = new SeaportTypes.Fulfillment[](
+            _buyerOrder.parameters.consideration.length + 1
+        );
 
-        // NFT from buyer, to NFT from seller
+        // NFT from seller to buyer
         fulfillments[0] = SeaportTypes.Fulfillment({
             offerComponents: new SeaportTypes.FulfillmentComponent[](1),
             considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
@@ -141,13 +152,19 @@ contract SeaportWrapper is FermionFNFTBase {
         fulfillments[1].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
         fulfillments[1].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 1, itemIndex: 0 });
 
-        // Payment from buyer to OpenSea
-        fulfillments[2] = SeaportTypes.Fulfillment({
-            offerComponents: new SeaportTypes.FulfillmentComponent[](1),
-            considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
-        });
-        fulfillments[2].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
-        fulfillments[2].considerationComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 1 });
+        uint256 orderParamsConsiderationLength = _buyerOrder.parameters.consideration.length;
+        // Payment from buyer to OpenSea and royalty recipients
+        for (uint256 i = 1; i < orderParamsConsiderationLength; ++i) {
+            fulfillments[i + 1] = SeaportTypes.Fulfillment({
+                offerComponents: new SeaportTypes.FulfillmentComponent[](1),
+                considerationComponents: new SeaportTypes.FulfillmentComponent[](1)
+            });
+            fulfillments[i + 1].offerComponents[0] = SeaportTypes.FulfillmentComponent({ orderIndex: 0, itemIndex: 0 });
+            fulfillments[i + 1].considerationComponents[0] = SeaportTypes.FulfillmentComponent({
+                orderIndex: 0,
+                itemIndex: i
+            });
+        }
 
         // transfer to itself to finalize the auction
         _transfer(wrappedVoucherOwner, address(this), _tokenId);
@@ -169,40 +186,77 @@ contract SeaportWrapper is FermionFNFTBase {
      * @param _firstTokenId The first token id.
      * @param _prices The prices for each token.
      * @param _endTimes The end times for each token.
+     * @param _royaltyInfo The royalty info.
      * @param _exchangeToken The token to be used for the exchange.
      */
     function listFixedPriceOrders(
         uint256 _firstTokenId,
         uint256[] calldata _prices,
         uint256[] calldata _endTimes,
+        FermionTypes.RoyaltyInfo calldata _royaltyInfo,
         address _exchangeToken
     ) external {
         SeaportTypes.Order[] memory orders = new SeaportTypes.Order[](_prices.length);
 
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
 
-        uint16 openSeaFeePercentage = IFermionConfig(fermionProtocol).getOpenSeaFeePercentage();
-
+        SeaportTypes.ItemType itemType = _exchangeToken == address(0)
+            ? SeaportTypes.ItemType.NATIVE
+            : SeaportTypes.ItemType.ERC20;
         for (uint256 i; i < _prices.length; ++i) {
-            uint256 tokenId = _firstTokenId + i;
-            uint256 tokenPrice = _prices[i];
-            if (tokenPrice == 0) revert WrapperErrors.ZeroPriceNotAllowed(); // although it is possible to validate zero price offer, it's impossible to fulfill it
-            uint256 reducedPrice = tokenPrice - (tokenPrice * openSeaFeePercentage) / HUNDRED_PERCENT;
-            fixedPrice[tokenId] = reducedPrice;
-
-            // Create order
+            SeaportTypes.ConsiderationItem[] memory consideration = new SeaportTypes.ConsiderationItem[](
+                2 + _royaltyInfo.recipients.length
+            );
+            uint256 reducedPrice;
             SeaportTypes.OfferItem[] memory offer = new SeaportTypes.OfferItem[](1);
-            offer[0] = SeaportTypes.OfferItem({
-                itemType: SeaportTypes.ItemType.ERC721,
-                token: address(this),
-                identifierOrCriteria: tokenId,
-                startAmount: 1,
-                endAmount: 1
-            });
 
-            SeaportTypes.ConsiderationItem[] memory consideration = new SeaportTypes.ConsiderationItem[](2);
+            {
+                uint256 tokenId = _firstTokenId + i;
+                uint256 tokenPrice = _prices[i];
+                if (tokenPrice == 0) revert WrapperErrors.ZeroPriceNotAllowed(); // although it is possible to validate zero price offer, it's impossible to fulfill it
+
+                // Create order
+                offer[0] = SeaportTypes.OfferItem({
+                    itemType: SeaportTypes.ItemType.ERC721,
+                    token: address(this),
+                    identifierOrCriteria: tokenId,
+                    startAmount: 1,
+                    endAmount: 1
+                });
+
+                {
+                    uint256 openSeaFee = (tokenPrice * IFermionConfig(fermionProtocol).getOpenSeaFeePercentage()) /
+                        HUNDRED_PERCENT;
+                    reducedPrice = tokenPrice - openSeaFee;
+
+                    consideration[1] = SeaportTypes.ConsiderationItem({
+                        itemType: itemType,
+                        token: _exchangeToken,
+                        identifierOrCriteria: 0,
+                        startAmount: openSeaFee, // If this is too small, OS won't show the order. This can happen if the price is too low.
+                        endAmount: openSeaFee,
+                        recipient: OS_RECIPIENT
+                    });
+                }
+
+                for (uint256 j = 0; j < _royaltyInfo.recipients.length; j++) {
+                    uint256 royaltyAmount = (_royaltyInfo.bps[j] * tokenPrice) / HUNDRED_PERCENT;
+                    consideration[j + 2] = SeaportTypes.ConsiderationItem({
+                        itemType: itemType,
+                        token: _exchangeToken,
+                        identifierOrCriteria: 0,
+                        startAmount: royaltyAmount,
+                        endAmount: royaltyAmount,
+                        recipient: payable(_royaltyInfo.recipients[j])
+                    });
+
+                    reducedPrice -= royaltyAmount;
+                }
+                fixedPrice[tokenId] = reducedPrice;
+            }
+
             consideration[0] = SeaportTypes.ConsiderationItem({
-                itemType: _exchangeToken == address(0) ? SeaportTypes.ItemType.NATIVE : SeaportTypes.ItemType.ERC20,
+                itemType: itemType,
                 token: _exchangeToken,
                 identifierOrCriteria: 0,
                 startAmount: reducedPrice,
@@ -210,28 +264,23 @@ contract SeaportWrapper is FermionFNFTBase {
                 recipient: payable(address(this))
             });
 
-            consideration[1] = SeaportTypes.ConsiderationItem({
-                itemType: _exchangeToken == address(0) ? SeaportTypes.ItemType.NATIVE : SeaportTypes.ItemType.ERC20,
-                token: _exchangeToken,
-                identifierOrCriteria: 0,
-                startAmount: tokenPrice - reducedPrice, // If this is too small, OS won't show the order. This can happen if the price is too low.
-                endAmount: tokenPrice - reducedPrice,
-                recipient: OS_RECIPIENT
-            });
+            bool transferValidatorDisabled = Common._getFermionCommonStorage().transferValidator == address(0);
 
             orders[i] = SeaportTypes.Order({
                 parameters: SeaportTypes.OrderParameters({
                     offerer: address(this),
-                    zone: OS_CONDUIT,
+                    zone: transferValidatorDisabled ? address(0) : OS_SIGNED_ZONE,
                     offer: offer,
                     consideration: consideration,
-                    orderType: SeaportTypes.OrderType.FULL_OPEN,
-                    startTime: 0,
+                    orderType: (transferValidatorDisabled || OS_SIGNED_ZONE == address(0))
+                        ? SeaportTypes.OrderType.FULL_OPEN
+                        : SeaportTypes.OrderType.FULL_RESTRICTED,
+                    startTime: block.timestamp - 1 minutes,
                     endTime: _endTimes[i],
-                    zoneHash: OS_ZONE_HASH,
+                    zoneHash: transferValidatorDisabled ? bytes32(0) : OS_ZONE_HASH,
                     salt: 0,
                     conduitKey: OS_CONDUIT_KEY,
-                    totalOriginalConsiderationItems: 2
+                    totalOriginalConsiderationItems: 2 + _royaltyInfo.recipients.length
                 }),
                 signature: ""
             });

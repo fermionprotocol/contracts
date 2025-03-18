@@ -12,7 +12,8 @@ contract FermionTypes {
         Seller,
         Buyer,
         Verifier,
-        Custodian
+        Custodian,
+        RoyaltyRecipient
     }
 
     // Make at most 8 roles so they can be compacted into a byte
@@ -20,6 +21,11 @@ contract FermionTypes {
         Manager,
         Assistant,
         Treasury
+    }
+
+    enum AssociatedRole {
+        Facilitator,
+        RoyaltyRecipient
     }
 
     enum VerificationStatus {
@@ -110,6 +116,7 @@ contract FermionTypes {
         address exchangeToken;
         bool withPhygital;
         Metadata metadata;
+        RoyaltyInfo royaltyInfo;
     }
 
     struct CustodianFee {
@@ -186,6 +193,13 @@ contract FermionTypes {
         uint256 topBidLockTime; // in seconds; if zero, the default value is used
     }
 
+    /// @custom:storage-location erc7201:fermion.fractions.storage
+    struct FermionFractionsStorage {
+        // Array of ERC20 clone addresses, index is the epoch
+        address[] epochToClone;
+        uint256 currentEpoch;
+    }
+
     struct PriceUpdateProposal {
         uint256 proposalId; // Tracks the ID of the current proposal
         uint256 newExitPrice;
@@ -217,5 +231,15 @@ contract FermionTypes {
     struct Phygital {
         address contractAddress;
         uint256 tokenId;
+    }
+
+    struct RoyaltyInfo {
+        address payable[] recipients;
+        uint256[] bps;
+    }
+
+    struct RoyaltyRecipientInfo {
+        address payable wallet;
+        uint256 minRoyaltyPercentage;
     }
 }

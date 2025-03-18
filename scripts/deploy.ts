@@ -39,7 +39,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let wrappedNativeAddress: string;
   const isForking = hre.config.networks["hardhat"].forking;
   const networkName = isForking ? isForking.originalChain.name : network.name;
-  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[networkName];
+  const { seaportConfig, wrappedNative, strictAuthorizedTransferSecurityRegistry } =
+    fermionConfig.externalContracts[networkName];
   if ((network.name === "hardhat" && !isForking) || network.name === "localhost") {
     let weth: BaseContract;
     ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress, weth } =
@@ -110,8 +111,13 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy();
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
-    const fermionFractionsMint = await FermionFractionsMint.deploy(bosonPriceDiscoveryAddress);
+    const fermionFractionsMint = await FermionFractionsMint.deploy(
+      bosonPriceDiscoveryAddress,
+      await fermionFractionsERC20.getAddress(),
+    );
     const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
     const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(bosonPriceDiscoveryAddress);
 
@@ -133,6 +139,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
       await fermionSeaportWrapper.getAddress(),
+      strictAuthorizedTransferSecurityRegistry,
       wrappedNativeAddress,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
@@ -192,6 +199,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     "PauseFacet",
     "CustodyVaultFacet",
     "PriceOracleRegistryFacet",
+    "RoyaltiesFacet",
   ];
   let facets = {};
 
@@ -253,6 +261,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       ConfigFacet: [
         fermionConfig.protocolParameters.treasury,
         fermionConfig.protocolParameters.protocolFeePercentage,
+        fermionConfig.protocolParameters.maxRoyaltyPercentage,
         fermionConfig.protocolParameters.maxVerificationTimeout,
         fermionConfig.protocolParameters.defaultVerificationTimeout,
         fermionConfig.protocolParameters.openSeaFeePercentage,

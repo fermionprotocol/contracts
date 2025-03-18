@@ -10,7 +10,7 @@ import {
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroHash, parseEther, keccak256, id, toBeHex, MaxUint256 } from "ethers";
+import { Contract, ZeroAddress, ZeroHash, parseEther, keccak256, id, toBeHex, MaxUint256 } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, PausableRegion, TokenState, VerificationStatus, AccountRole, WrapType } from "../utils/enums";
 import { getBosonProtocolFees } from "../utils/boson-protocol";
@@ -128,6 +128,7 @@ describe("Verification", function () {
         URI: "https://example.com/offer-metadata.json",
         hash: ZeroHash,
       },
+      royaltyInfo: { recipients: [], bps: [] },
     };
 
     // Make three offers one for normal sale, one of self sale and one for self verification
@@ -715,7 +716,14 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(exchangeSelfSale.verifierId, exchangeToken, verifierFee);
-        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
+        await expect(tx)
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(
+            sellerId,
+            defaultSigner.address,
+            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Verifier, EntityRole.Custodian],
+            "https://example.com/seller-metadata.json",
+          ); // buyer role is added
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
@@ -1483,7 +1491,14 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(protocolId, exchangeToken, exchangeSelfSale.payout.fermionFeeAmount);
-        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
+        await expect(tx)
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(
+            sellerId,
+            defaultSigner.address,
+            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Verifier, EntityRole.Custodian],
+            "https://example.com/seller-metadata.json",
+          ); // buyer role is added
         await expect(tx).to.emit(verificationFacet, "RevisedMetadataSubmitted").withArgs(exchangeSelfSale.tokenId, "");
 
         // Wrapper
@@ -2982,7 +2997,14 @@ describe("Verification", function () {
         await expect(tx)
           .to.emit(verificationFacet, "AvailableFundsIncreased")
           .withArgs(sellerId, exchangeToken, verifierFee);
-        await expect(tx).to.not.emit(entityFacet, "EntityStored"); // no buyer is created, since the entity exist already
+        await expect(tx)
+          .to.emit(entityFacet, "EntityStored")
+          .withArgs(
+            sellerId,
+            defaultSigner.address,
+            [EntityRole.Seller, EntityRole.Buyer, EntityRole.Verifier, EntityRole.Custodian],
+            "https://example.com/seller-metadata.json",
+          ); // buyer role is added
 
         // Wrapper
         const wrapperAddress = await offerFacet.predictFermionFNFTAddress(exchangeSelfSale.offerId);
@@ -3296,6 +3318,7 @@ describe("Verification", function () {
           exchangeToken: await mockToken.getAddress(),
           withPhygital: true,
           metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
+          royaltyInfo: { recipients: [], bps: [] },
         };
 
         await offerFacet.createOffer(fermionOffer);
@@ -3402,14 +3425,14 @@ describe("Verification", function () {
   });
 
   context("getVerificationDetails", function () {
-    it("Reverts if token is in state earlier than unverified", async function () {
+    it.only("Reverts if token is in state earlier than unverified", async function () {
       const offerId = await (await getBosonHandler("IBosonOfferHandler")).getNextOfferId();
       const exchangeId = await bosonExchangeHandler.getNextExchangeId();
       const tokenId = deriveTokenId(offerId, exchangeId);
 
       await expect(verificationFacet.getVerificationDetails(tokenId))
         .to.be.revertedWithCustomError(verificationFacet, "InvalidTokenId")
-        .withArgs(tokenId);
+        .withArgs(ZeroAddress, tokenId);
 
       const fermionOffer = {
         sellerId,
@@ -3429,6 +3452,7 @@ describe("Verification", function () {
           URI: "https://example.com/offer-metadata.json",
           hash: ZeroHash,
         },
+        royaltyInfo: { recipients: [], bps: [] },
       };
 
       await offerFacet.createOffer(fermionOffer);

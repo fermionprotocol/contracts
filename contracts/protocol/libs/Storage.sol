@@ -53,6 +53,8 @@ library FermionStorage {
         address payable treasury;
         // Default Protocol fee
         uint16 protocolFeePercentage;
+        // Max royalty percentage
+        uint16 maxRoyaltyPercentage;
         // OpenSea fee percentage
         uint16 openSeaFeePercentage;
         // Default verification timeout
@@ -167,6 +169,10 @@ library FermionStorage {
         mapping(uint256 => bool) isSellersFacilitator;
         // list of facilitators
         uint256[] sellerFacilitators;
+        // facilitator id => status
+        mapping(uint256 => bool) isSellersRoyaltyRecipient;
+        // list of facilitators
+        uint256[] sellerRoyaltyRecipients;
     }
 
     // Storage related to Meta Transactions
