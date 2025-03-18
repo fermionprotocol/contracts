@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { deployFermionProtocolFixture, deployMockTokens, setNextBlockTimestamp } from "../utils/common";
 import { assert, expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroHash } from "ethers";
+import { Contract, ZeroHash, id } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole, PausableRegion, VerificationStatus, WrapType } from "../utils/enums";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
@@ -89,8 +89,10 @@ describe("CustodyVault", function () {
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
       withPhygital: false,
-      metadataURI: "https://example.com/offer-metadata.json",
-      metadataHash: ZeroHash,
+      metadata: {
+        URI: "https://example.com/offer-metadata.json",
+        hash: ZeroHash,
+      },
       royaltyInfo: { recipients: [], bps: [] },
     };
 
@@ -105,6 +107,10 @@ describe("CustodyVault", function () {
     buyer = wallets[6];
     await mockToken.mint(buyer.address, parseEther("1000"));
     await mockToken.approve(fermionProtocolAddress, quantity * sellerDeposit);
+    const verificationMetadata = {
+      URI: "https://example.com/verification-metadata.json",
+      hash: id("metadata"),
+    };
     for (let i = 0n; i < quantity; i++) {
       const exchangeId = i + 1n;
       const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
@@ -116,7 +122,9 @@ describe("CustodyVault", function () {
       await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
       // Submit verdicts
-      await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
+      await verificationFacet
+        .connect(verifier)
+        .submitVerdict(tokenId, VerificationStatus.Verified, verificationMetadata);
 
       if (i == 0n) {
         exchange.tokenId = tokenId;

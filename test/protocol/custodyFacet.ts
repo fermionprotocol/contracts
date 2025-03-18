@@ -9,7 +9,7 @@ import {
 } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroAddress, ZeroHash, parseEther } from "ethers";
+import { Contract, ZeroAddress, ZeroHash, parseEther, id } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import {
   EntityRole,
@@ -64,6 +64,11 @@ describe("Custody", function () {
   const exchange = { tokenId: "", custodianId: "", price: parseEther("1.0") };
   const exchangeSelfSale = { tokenId: "", custodianId: "" };
   const exchangeSelfCustody = { tokenId: "", custodianId: "" };
+  const verificationMetadata = {
+    URI: "https://example.com/verification-metadata.json",
+    hash: id("metadata"),
+  };
+
   const exchangeCustodianSwitch = { tokenId1: "", tokenId2: "", tokenId3: "", custodianId: "" };
   let verifySellerAssistantRole: ReturnType<typeof verifySellerAssistantRoleClosure>;
   let minimalPriceSelfSale: bigint;
@@ -108,8 +113,7 @@ describe("Custody", function () {
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
       withPhygital: false,
-      metadataURI: "https://example.com/offer-metadata.json",
-      metadataHash: ZeroHash,
+      metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
       royaltyInfo: { recipients: [], bps: [] },
     };
 
@@ -194,12 +198,20 @@ describe("Custody", function () {
     exchangeCustodianSwitch.custodianId = custodianId;
 
     // Submit verdicts
-    await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
-    await verificationFacet.connect(verifier).submitVerdict(tokenIdSelf, VerificationStatus.Verified);
-    await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified);
-    await verificationFacet.connect(verifier).submitVerdict(tokenIdCustodianSwitch, VerificationStatus.Verified);
-    await verificationFacet.connect(verifier).submitVerdict(tokenIdCustodianSwitch2, VerificationStatus.Verified);
-    await verificationFacet.connect(verifier).submitVerdict(tokenIdCustodianSwitch3, VerificationStatus.Verified);
+    await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified, verificationMetadata);
+    await verificationFacet
+      .connect(verifier)
+      .submitVerdict(tokenIdSelf, VerificationStatus.Verified, verificationMetadata);
+    await verificationFacet.submitVerdict(tokenIdSelfCustody, VerificationStatus.Verified, verificationMetadata);
+    await verificationFacet
+      .connect(verifier)
+      .submitVerdict(tokenIdCustodianSwitch, VerificationStatus.Verified, verificationMetadata);
+    await verificationFacet
+      .connect(verifier)
+      .submitVerdict(tokenIdCustodianSwitch2, VerificationStatus.Verified, verificationMetadata);
+    await verificationFacet
+      .connect(verifier)
+      .submitVerdict(tokenIdCustodianSwitch3, VerificationStatus.Verified, verificationMetadata);
 
     const wrapperAddress = await offerFacet.predictFermionFNFTAddress(offerId);
     wrapper = await ethers.getContractAt("FermionFNFT", wrapperAddress);
@@ -371,7 +383,7 @@ describe("Custody", function () {
             .to.be.revertedWithCustomError(wrapper, "InvalidStateOrCaller")
             .withArgs(tokenId, fermionProtocolAddress, TokenState.Unverified);
 
-          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
           // Unwrapped and rejected
           await expect(custodyFacet.checkIn(tokenId))
@@ -544,7 +556,7 @@ describe("Custody", function () {
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
             .withArgs(tokenId, CheckoutRequestStatus.CheckedIn, CheckoutRequestStatus.None);
 
-          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
           // Unwrapped and rejected
           await expect(custodyFacet.requestCheckOut(tokenId))
@@ -718,7 +730,7 @@ describe("Custody", function () {
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
             .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
 
-          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
           // Unwrapped and rejected
           await expect(custodyFacet.submitTaxAmount(tokenId, taxAmount))
@@ -948,7 +960,7 @@ describe("Custody", function () {
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
 
-            await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+            await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
             // Unwrapped and rejected
             await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
@@ -1124,7 +1136,7 @@ describe("Custody", function () {
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
 
-            await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+            await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
             // Unwrapped and rejected
             await expect(custodyFacet.clearCheckoutRequest(tokenId))
@@ -1307,7 +1319,7 @@ describe("Custody", function () {
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
             .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequestCleared, CheckoutRequestStatus.None);
 
-          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected);
+          await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
           // Unwrapped and rejected
           await expect(custodyFacet.checkOut(tokenId))

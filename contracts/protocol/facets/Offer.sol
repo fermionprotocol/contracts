@@ -106,8 +106,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
         bosonOffer.priceType = IBosonProtocol.PriceType.Discovery;
-        bosonOffer.metadataUri = _offer.metadataURI;
-        bosonOffer.metadataHash = _offer.metadataHash;
+        bosonOffer.metadataUri = _offer.metadata.URI;
+        bosonOffer.metadataHash = _offer.metadata.hash;
         bosonOffer.royaltyInfo = new IBosonProtocol.RoyaltyInfo[](1);
         // bosonOffer.voided and bosonOffer.collectionIndex are not set, the defaults are fine
 
@@ -795,7 +795,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
                 msgSender,
                 _exchangeToken,
                 _offerId,
-                offer.metadataURI,
+                offer.metadata.URI,
                 _tokenMetadata
             );
         }

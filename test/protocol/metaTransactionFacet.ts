@@ -59,8 +59,7 @@ describe("MetaTransactions", function () {
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
       withPhygital: false,
-      metadataURI: "https://example.com/offer-metadata.json",
-      metadataHash: ZeroHash,
+      metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
       royaltyInfo: { recipients: [], bps: [] },
     };
 

@@ -56,9 +56,15 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
-    function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
+    function submitVerdict(
+        uint256 _tokenId,
+        FermionTypes.VerificationStatus _verificationStatus,
+        FermionTypes.Metadata calldata _verificationMetadata
+    ) external {
         getFundsAndPayVerifier(_tokenId, true);
+        FermionStorage.protocolLookups().tokenLookups[_tokenId].verificationMetadata = _verificationMetadata;
         submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
@@ -74,10 +80,12 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
      *
      * @param _tokenId - the token ID
      * @param _newMetadata - the uri of the new metadata
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
     function submitRevisedMetadata(
         uint256 _tokenId,
-        string memory _newMetadata
+        string memory _newMetadata,
+        FermionTypes.Metadata calldata _verificationMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         if (bytes(_newMetadata).length == 0) revert EmptyMetadata();
 
@@ -95,6 +103,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
             );
         }
 
+        tokenLookups.verificationMetadata = _verificationMetadata;
         updateMetadataAndResetProposals(tokenLookups, _newMetadata, _tokenId);
     }
 
@@ -110,10 +119,12 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
     function removeRevisedMetadataAndSubmitVerdict(
         uint256 _tokenId,
-        FermionTypes.VerificationStatus _verificationStatus
+        FermionTypes.VerificationStatus _verificationStatus,
+        FermionTypes.Metadata calldata _verificationMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
 
@@ -129,6 +140,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
 
         updateMetadataAndResetProposals(tokenLookups, "", _tokenId);
 
+        tokenLookups.verificationMetadata = _verificationMetadata;
         submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
@@ -274,6 +286,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
         }
         submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, inactiveVerifier);
         delete tokenLookups.revisedMetadata;
+        delete tokenLookups.verificationMetadata;
     }
 
     /**
@@ -341,6 +354,47 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
         FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
         buyer = tokenLookups.buyerSplitProposal;
         seller = tokenLookups.sellerSplitProposal;
+    }
+
+    /**
+     * @notice Get the verification status and metadata for a specific token
+     *
+     * @param _tokenId - the token ID
+     *
+     * @return verificationStatus - the verification status
+     * @return verificationMetadata - optional verification metadata, with more information about the verification
+     */
+    function getVerificationDetails(
+        uint256 _tokenId
+    )
+        external
+        view
+        returns (FermionTypes.VerificationStatus verificationStatus, FermionTypes.Metadata memory verificationMetadata)
+    {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        (uint256 offerId, ) = FermionStorage.getOfferFromTokenId(_tokenId);
+
+        address fermionFNFTAddress = pl.offerLookups[offerId].fermionFNFTAddress;
+
+        if (fermionFNFTAddress == address(0)) {
+            revert FermionGeneralErrors.InvalidTokenId(fermionFNFTAddress, _tokenId);
+        }
+
+        FermionTypes.TokenState tokenState = IFermionFNFT(fermionFNFTAddress).tokenState(_tokenId);
+
+        if (tokenState < FermionTypes.TokenState.Unverified) {
+            revert InexistentVerificationStatus();
+        }
+
+        if (tokenState == FermionTypes.TokenState.Unverified) {
+            verificationStatus = FermionTypes.VerificationStatus.Pending;
+        } else if (tokenState == FermionTypes.TokenState.Burned) {
+            verificationStatus = FermionTypes.VerificationStatus.Rejected;
+        } else {
+            verificationStatus = FermionTypes.VerificationStatus.Verified;
+        }
+
+        verificationMetadata = pl.tokenLookups[_tokenId].verificationMetadata;
     }
 
     /**
@@ -421,6 +475,8 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
         FermionTypes.VerificationStatus _verificationStatus,
         bool _afterTimeout
     ) internal {
+        if (_verificationStatus == FermionTypes.VerificationStatus.Pending) revert InvalidVerificationStatus();
+
         uint256 tokenId = _tokenId;
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
         uint256 verifierId = offer.verifierId;
@@ -498,11 +554,11 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
                 increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
 
                 if (hasPhygitals) {
-                    pl.tokenLookups[tokenId].phygitalsRecipient = 0; // reset phygitals verification status, so the seller can withdraw them
+                    tokenLookups.phygitalsRecipient = 0; // reset phygitals verification status, so the seller can withdraw them
                 }
             }
 
-            emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
+            emit VerdictSubmitted(verifierId, tokenId, _verificationStatus, tokenLookups.verificationMetadata);
         }
     }
 

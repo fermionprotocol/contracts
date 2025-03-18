@@ -30,7 +30,8 @@ contract FermionTypes {
 
     enum VerificationStatus {
         Verified,
-        Rejected
+        Rejected,
+        Pending
     }
 
     enum CheckoutRequestStatus {
@@ -70,6 +71,7 @@ contract FermionTypes {
         CheckedOut,
         Burned
     }
+
     enum PriceUpdateProposalState {
         NotInit, // Explicitly represents an uninitialized state
         Active,
@@ -97,6 +99,11 @@ contract FermionTypes {
         bytes functionSignature;
     }
 
+    struct Metadata {
+        string URI;
+        string hash;
+    }
+
     struct Offer {
         uint256 sellerId;
         uint256 sellerDeposit;
@@ -108,8 +115,7 @@ contract FermionTypes {
         uint256 facilitatorFeePercent;
         address exchangeToken;
         bool withPhygital;
-        string metadataURI;
-        string metadataHash;
+        Metadata metadata;
         RoyaltyInfo royaltyInfo;
     }
 
@@ -192,6 +198,7 @@ contract FermionTypes {
         // Array of ERC20 clone addresses, index is the epoch
         address[] epochToClone;
         uint256 currentEpoch;
+        mapping(address => bool) migrated;
     }
 
     struct PriceUpdateProposal {

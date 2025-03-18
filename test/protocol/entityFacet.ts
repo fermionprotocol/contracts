@@ -1563,8 +1563,10 @@ describe("Entity", function () {
           facilitatorFeePercent: "0",
           exchangeToken: ZeroAddress,
           withPhygital: false,
-          metadataURI: "https://example.com/offer-metadata.json",
-          metadataHash: "",
+          metadata: {
+            URI: "https://example.com/offer-metadata.json",
+            hash: "",
+          },
           royaltyInfo: { recipients: [], bps: [] },
         };
 
