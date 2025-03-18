@@ -170,6 +170,42 @@ describe("FermionFNFT", function () {
       expect(await fermionFNFTProxy.name()).to.equal(name);
       expect(await fermionFNFTProxy.symbol()).to.equal(symbol);
     });
+
+    it("custom name, default symbol", async function () {
+      const Proxy = await ethers.getContractFactory("MockProxy");
+      const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
+
+      const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
+      const randomWallet = wallets[4].address;
+
+      const name = "customName";
+      const symbol = "";
+      await fermionFNFTProxy.initialize(randomWallet, randomWallet, randomWallet, offerId, metadataURI, {
+        name,
+        symbol,
+      });
+
+      expect(await fermionFNFTProxy.name()).to.equal(name);
+      expect(await fermionFNFTProxy.symbol()).to.equal(`FFNFT_${offerId}`);
+    });
+
+    it("default name, custom symbol", async function () {
+      const Proxy = await ethers.getContractFactory("MockProxy");
+      const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
+
+      const fermionFNFTProxy = await ethers.getContractAt("FermionFNFT", await proxy.getAddress());
+      const randomWallet = wallets[4].address;
+
+      const name = "";
+      const symbol = "customSymbol";
+      await fermionFNFTProxy.initialize(randomWallet, randomWallet, randomWallet, offerId, metadataURI, {
+        name,
+        symbol,
+      });
+
+      expect(await fermionFNFTProxy.name()).to.equal(`Fermion FNFT ${offerId}`);
+      expect(await fermionFNFTProxy.symbol()).to.equal(symbol);
+    });
   });
 
   context("ERC20 methods", function () {

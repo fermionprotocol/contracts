@@ -75,12 +75,13 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         initializeWrapper(_owner, _metadataUri);
         intializeFractions(_exchangeToken);
 
-        if (bytes(_tokenMetadata.name).length == 0) {
-            _tokenMetadata.name = "Fermion FNFT";
+        bool useDefaultName = bytes(_tokenMetadata.name).length == 0;
+        bool useDefaultSymbol = bytes(_tokenMetadata.symbol).length == 0;
 
+        if (useDefaultName || useDefaultSymbol) {
             string memory _offerIdString = Strings.toString(_offerId);
-            _tokenMetadata.name = string.concat("Fermion FNFT ", _offerIdString);
-            _tokenMetadata.symbol = string.concat("FFNFT_", _offerIdString);
+            if (useDefaultName) _tokenMetadata.name = string.concat("Fermion FNFT ", _offerIdString);
+            if (useDefaultSymbol) _tokenMetadata.symbol = string.concat("FFNFT_", _offerIdString);
         }
 
         __ERC721_init(_tokenMetadata.name, _tokenMetadata.symbol);
