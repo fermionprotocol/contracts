@@ -16,6 +16,7 @@ contract MetaTxTest is FermionFNFT {
     constructor(
         address _bosonPriceDiscovery,
         address _seaportWrapper,
+        address _strictAuthorizedTransferSecurityRegistry,
         address _wrappedNative,
         address _fnftFractionMint,
         address _fermionFNFTPriceManager,
@@ -24,6 +25,7 @@ contract MetaTxTest is FermionFNFT {
         FermionFNFT(
             _bosonPriceDiscovery,
             _seaportWrapper,
+            _strictAuthorizedTransferSecurityRegistry,
             _wrappedNative,
             _fnftFractionMint,
             _fermionFNFTPriceManager,

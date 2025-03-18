@@ -12,7 +12,8 @@ contract FermionTypes {
         Seller,
         Buyer,
         Verifier,
-        Custodian
+        Custodian,
+        RoyaltyRecipient
     }
 
     // Make at most 8 roles so they can be compacted into a byte
@@ -20,6 +21,11 @@ contract FermionTypes {
         Manager,
         Assistant,
         Treasury
+    }
+
+    enum AssociatedRole {
+        Facilitator,
+        RoyaltyRecipient
     }
 
     enum VerificationStatus {
@@ -104,6 +110,7 @@ contract FermionTypes {
         bool withPhygital;
         string metadataURI;
         string metadataHash;
+        RoyaltyInfo royaltyInfo;
     }
 
     struct CustodianFee {
@@ -218,5 +225,15 @@ contract FermionTypes {
     struct Phygital {
         address contractAddress;
         uint256 tokenId;
+    }
+
+    struct RoyaltyInfo {
+        address payable[] recipients;
+        uint256[] bps;
+    }
+
+    struct RoyaltyRecipientInfo {
+        address payable wallet;
+        uint256 minRoyaltyPercentage;
     }
 }

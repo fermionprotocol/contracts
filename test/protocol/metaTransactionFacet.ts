@@ -66,6 +66,7 @@ describe("MetaTransactions", function () {
       withPhygital: false,
       metadataURI: "https://example.com/offer-metadata.json",
       metadataHash: ZeroHash,
+      royaltyInfo: { recipients: [], bps: [] },
     };
 
     await offerFacet.createOffer(fermionOffer);
@@ -1139,6 +1140,7 @@ describe("MetaTransactions", function () {
               seaport: wallets[10].address, // dummy address
               openSeaConduit: mockConduit.address,
               openSeaConduitKey: ZeroHash,
+              openSeaSignedZone: ZeroAddress,
               openSeaZoneHash: ZeroHash,
               openSeaRecipient: ZeroAddress,
             },
@@ -1157,6 +1159,7 @@ describe("MetaTransactions", function () {
           const metaTxTest = await MetaTxTestFactory.deploy(
             dummyAddress,
             await fermionSeaportWrapper.getAddress(),
+            ZeroAddress,
             dummyAddress,
             dummyAddress,
             dummyAddress,

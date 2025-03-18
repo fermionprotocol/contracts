@@ -39,7 +39,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let wrappedNativeAddress: string;
   const isForking = hre.config.networks["hardhat"].forking;
   const networkName = isForking ? isForking.originalChain.name : network.name;
-  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[networkName];
+  const { seaportConfig, wrappedNative, strictAuthorizedTransferSecurityRegistry } =
+    fermionConfig.externalContracts[networkName];
   if ((network.name === "hardhat" && !isForking) || network.name === "localhost") {
     let weth: BaseContract;
     ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress, weth } =
@@ -139,6 +140,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
       await fermionSeaportWrapper.getAddress(),
+      strictAuthorizedTransferSecurityRegistry,
       wrappedNativeAddress,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
@@ -198,6 +200,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     "PauseFacet",
     "CustodyVaultFacet",
     "PriceOracleRegistryFacet",
+    "RoyaltiesFacet",
   ];
   let facets = {};
 
@@ -238,6 +241,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       ConfigFacet: [
         fermionConfig.protocolParameters.treasury,
         fermionConfig.protocolParameters.protocolFeePercentage,
+        fermionConfig.protocolParameters.maxRoyaltyPercentage,
         fermionConfig.protocolParameters.maxVerificationTimeout,
         fermionConfig.protocolParameters.defaultVerificationTimeout,
         fermionConfig.protocolParameters.openSeaFeePercentage,
