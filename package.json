@@ -41,7 +41,7 @@
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.8",
     "hardhat-preprocessor": "^0.1.5",
-    "opensea-js": "^7.1.14",
+    "opensea-js": "^7.1.18",
     "prettier": "^3.5.3",
     "prettier-plugin-solidity": "^1.4.2",
     "seaport": "git+https://github.com/ProjectOpenSea/seaport#1.6",
