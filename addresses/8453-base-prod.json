@@ -5,8 +5,6 @@
   "protocolVersion": "1.0.1",
   "contracts": [
     {
-<<<<<<< HEAD
-=======
       "name": "SeaportWrapper",
       "address": "0x8baa62dc3d748fc466a36229451703560d854c6f",
       "args": [
@@ -19,7 +17,6 @@
       ]
     },
     {
->>>>>>> main
       "name": "FermionFNFT",
       "address": "0xE462F8bb985Df0CE5a5439a964F4E827d3aA70C3",
       "args": [
