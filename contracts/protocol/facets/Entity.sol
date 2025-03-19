@@ -43,7 +43,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         entityId = pl.entityId[msgSender];
         if (entityId != 0) revert EntityAlreadyExists();
 
-        return EntityLib.createEntity(msgSender, _roles, _metadata, pl);
+        entityId = EntityLib.createEntity(msgSender, _roles, _metadata, pl);
     }
 
     /**
