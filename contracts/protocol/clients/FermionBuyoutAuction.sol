@@ -25,7 +25,10 @@ contract FermionBuyoutAuction is
     IFermionFractionsEvents
 {
     using Address for address;
-    constructor(address _bosonPriceDiscovery) FermionFNFTBase(_bosonPriceDiscovery) {}
+    constructor(
+        address _bosonPriceDiscovery,
+        address _fermionProtocol
+    ) FermionFNFTBase(_bosonPriceDiscovery, _fermionProtocol) {}
 
     /**
      * @notice Starts the auction for a specific fractionalized token. Can be called by anyone.
@@ -46,7 +49,7 @@ contract FermionBuyoutAuction is
         );
         FermionTypes.AuctionDetails storage auctionDetails = Common.getLastAuction(_tokenId, $).details;
 
-        bool isProtocolCaller = fermionProtocol == _msgSender();
+        bool isProtocolCaller = FERMION_PROTOCOL == _msgSender();
 
         if (!$.tokenInfo[_tokenId].isFractionalised) {
             if (isProtocolCaller) return; // if protocol tries to start an auction for a non-fractionalised token, just return
@@ -383,7 +386,7 @@ contract FermionBuyoutAuction is
         uint256 auctionEnd = block.timestamp + $.auctionParameters.duration;
         auctionDetails.timer = auctionEnd;
 
-        int256 releasedFromCustodianVault = IFermionCustodyVault(fermionProtocol).removeItemFromCustodianOfferVault(
+        int256 releasedFromCustodianVault = IFermionCustodyVault(FERMION_PROTOCOL).removeItemFromCustodianOfferVault(
             _tokenId,
             auctionEnd
         );
@@ -450,8 +453,8 @@ contract FermionBuyoutAuction is
                 // the debt in the protocol is higher than the auction proceeds
                 debtFromVault = auctionProceeds;
             }
-            transferERC20FromProtocol($.exchangeToken, payable(fermionProtocol), debtFromVault);
-            IFermionCustodyVault(fermionProtocol).repayDebt(_tokenId, debtFromVault);
+            transferERC20FromProtocol($.exchangeToken, payable(FERMION_PROTOCOL), debtFromVault);
+            IFermionCustodyVault(FERMION_PROTOCOL).repayDebt(_tokenId, debtFromVault);
             auctionProceeds -= debtFromVault;
         } else {
             // something was returned from the custodian vault
@@ -464,9 +467,9 @@ contract FermionBuyoutAuction is
         }
 
         if (auctionProceeds > 0) {
-            FundsManager.transferERC20FromProtocol($.exchangeToken, payable(fermionProtocol), auctionProceeds);
+            FundsManager.transferERC20FromProtocol($.exchangeToken, payable(FERMION_PROTOCOL), auctionProceeds);
             unchecked {
-                auctionProceeds -= FundsFacet(fermionProtocol).collectRoyalties(_tokenId, auctionProceeds);
+                auctionProceeds -= FundsFacet(FERMION_PROTOCOL).collectRoyalties(_tokenId, auctionProceeds);
             }
         }
 

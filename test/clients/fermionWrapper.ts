@@ -42,9 +42,11 @@ describe("FermionFNFT - wrapper tests", function () {
 
     ({ seaportAddress } = await initSeaportFixture());
 
+    const predictedFermionDiamondAddress = fermionProtocolSigner.address;
     seaportConfig.openSeaSignedZone = seaportAddress;
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddress,
       {
         ...seaportConfig,
         seaport: seaportAddress,
@@ -57,18 +59,23 @@ describe("FermionFNFT - wrapper tests", function () {
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
-    const fermionFractionsERC20 = await FermionFractionsERC20.deploy(ZeroAddress);
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
     const fermionFractionsMint = await FermionFractionsMint.deploy(
       mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddress,
       await fermionFractionsERC20.getAddress(),
     );
     const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
-    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(mockBosonPriceDiscovery.address);
+    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(
+      mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddress,
+    );
 
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(
       mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddress,
       await fermionSeaportWrapper.getAddress(),
       await transferValidator.getAddress(),
       wallets[10].address,

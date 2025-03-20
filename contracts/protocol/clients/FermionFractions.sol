@@ -362,7 +362,7 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
         FNFT_PRICE_MANAGER.functionDelegateCall(
             abi.encodeCall(
                 IFermionFNFTPriceManager.updateExitPrice,
-                (_newPrice, _quorumPercent, _voteDuration, fermionProtocol)
+                (_newPrice, _quorumPercent, _voteDuration, FERMION_PROTOCOL)
             )
         );
     }

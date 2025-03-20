@@ -42,10 +42,11 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      */
     constructor(
         address _bosonPriceDiscovery,
+        address _fermionProtocol,
         address _seaportWrapper,
         address _strictAuthorizedTransferSecurityRegistry,
         address _wrappedNative
-    ) FermionFNFTBase(_bosonPriceDiscovery) {
+    ) FermionFNFTBase(_bosonPriceDiscovery, _fermionProtocol) {
         if (_wrappedNative == address(0)) revert FermionGeneralErrors.InvalidAddress();
         WRAPPED_NATIVE = IWrappedNative(_wrappedNative);
         SEAPORT_WRAPPER = _seaportWrapper;
@@ -80,7 +81,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      * @param _newOwner The address of the new owner
      */
     function transferOwnership(address _newOwner) public virtual override(Ownable, IFermionWrapper) {
-        if (fermionProtocol != _msgSender()) {
+        if (FERMION_PROTOCOL != _msgSender()) {
             revert OwnableUnauthorizedAccount(_msgSender());
         }
         _transferOwnership(_newOwner);
@@ -132,7 +133,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
         FermionTypes.RoyaltyInfo calldata _royaltyInfo,
         address _exchangeToken
     ) external {
-        Common.checkStateAndCaller(_firstTokenId, FermionTypes.TokenState.Wrapped, _msgSender(), fermionProtocol);
+        Common.checkStateAndCaller(_firstTokenId, FermionTypes.TokenState.Wrapped, _msgSender(), FERMION_PROTOCOL);
 
         SEAPORT_WRAPPER.functionDelegateCall(
             abi.encodeCall(
@@ -153,7 +154,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      * @param _orders The orders to cancel.
      */
     function cancelFixedPriceOrders(SeaportTypes.OrderComponents[] calldata _orders) external {
-        if (fermionProtocol != _msgSender()) {
+        if (FERMION_PROTOCOL != _msgSender()) {
             revert FermionGeneralErrors.AccessDenied(_msgSender());
         }
 
@@ -218,7 +219,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
     function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         _requireOwned(_tokenId);
 
-        string memory revisedMetadata = VerificationFacet(fermionProtocol).getRevisedMetadata(_tokenId);
+        string memory revisedMetadata = VerificationFacet(FERMION_PROTOCOL).getRevisedMetadata(_tokenId);
         if (bytes(revisedMetadata).length > 0) {
             return revisedMetadata;
         }
@@ -252,7 +253,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
         _requireOwned(_tokenId);
 
         uint256 royaltyPercentage;
-        (receiver, royaltyPercentage) = RoyaltiesFacet(fermionProtocol).getEIP2981Royalties(_tokenId);
+        (receiver, royaltyPercentage) = RoyaltiesFacet(FERMION_PROTOCOL).getEIP2981Royalties(_tokenId);
 
         royaltyAmount = (_salePrice * royaltyPercentage) / HUNDRED_PERCENT;
     }
@@ -266,7 +267,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
         Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unwrapping, msg.sender, BP_PRICE_DISCOVERY); // No need to use _msgSender(). BP_PRICE_DISCOVERY does not use meta transactions
 
         // transfer Boson Voucher to Fermion protocol. Not using safeTransferFrom since we are sure Fermion Protocol can handle the voucher
-        IERC721(voucherAddress).transferFrom(address(this), fermionProtocol, _tokenId);
+        IERC721(voucherAddress).transferFrom(address(this), FERMION_PROTOCOL, _tokenId);
     }
 
     /**
@@ -315,7 +316,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
         }
 
         address from = super._update(_to, _tokenId, _auth);
-        if (from != msgSender && msgSender != fermionProtocol) {
+        if (from != msgSender && msgSender != FERMION_PROTOCOL) {
             // Call the transfer validator if one is set.
             // If transfer is initiated by the protocol, no need to call the validator (mint/burn/checkout)
             address transferValidator = Common._getFermionCommonStorage().transferValidator;

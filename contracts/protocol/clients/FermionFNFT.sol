@@ -28,10 +28,11 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     /**
      * @notice Constructor
      *
-     * @dev construct ERC2771Context with address 0 and override `trustedForwarder` to return the fermionProtocol address
+     * @dev construct ERC2771Context with address 0 and override `trustedForwarder` to return the FERMION_PROTOCOL address
      */
     constructor(
         address _bosonPriceDiscovery,
+        address _fermionProtocol,
         address _seaportWrapper,
         address _strictAuthorizedTransferSecurityRegistry,
         address _wrappedNative,
@@ -39,7 +40,13 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address _fermionFNFTPriceManager,
         address _fnftBuyoutAuction
     )
-        FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _strictAuthorizedTransferSecurityRegistry, _wrappedNative)
+        FermionWrapper(
+            _bosonPriceDiscovery,
+            _fermionProtocol,
+            _seaportWrapper,
+            _strictAuthorizedTransferSecurityRegistry,
+            _wrappedNative
+        )
         ERC2771Context(address(0))
         FermionFractions(_fnftFractionMint, _fermionFNFTPriceManager, _fnftBuyoutAuction)
     {}
@@ -69,7 +76,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
             revert InvalidInitialization();
         }
 
-        fermionProtocol = msg.sender;
+        // FERMION_PROTOCOL = msg.sender;
         voucherAddress = _voucherAddress;
 
         initializeWrapper(_owner, _metadataUri);
@@ -112,7 +119,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
      * @param _tokenId The token id.
      */
     function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner) {
-        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unverified, _msgSender(), fermionProtocol);
+        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unverified, _msgSender(), FERMION_PROTOCOL);
 
         wrappedVoucherOwner = ownerOf(_tokenId);
 
@@ -137,7 +144,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
             _tokenId,
             FermionTypes.TokenState(uint8(_newState) - 1),
             _msgSender(),
-            fermionProtocol
+            FERMION_PROTOCOL
         );
         Common.changeTokenState(_tokenId, _newState);
         if (_newState == FermionTypes.TokenState.CheckedOut) {
@@ -199,7 +206,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
     }
 
     function trustedForwarder() public view virtual override returns (address) {
-        return fermionProtocol;
+        return FERMION_PROTOCOL;
     }
 
     function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address) {

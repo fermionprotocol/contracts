@@ -15,6 +15,7 @@ contract MetaTxTest is FermionFNFT {
 
     constructor(
         address _bosonPriceDiscovery,
+        address _fermionProtocol,
         address _seaportWrapper,
         address _strictAuthorizedTransferSecurityRegistry,
         address _wrappedNative,
@@ -24,6 +25,7 @@ contract MetaTxTest is FermionFNFT {
     )
         FermionFNFT(
             _bosonPriceDiscovery,
+            _fermionProtocol,
             _seaportWrapper,
             _strictAuthorizedTransferSecurityRegistry,
             _wrappedNative,
@@ -45,9 +47,10 @@ contract MetaTxTestSeaport is SeaportWrapper {
 
     constructor(
         address _bosonPriceDiscovery,
+        address _fermionProtocol,
         SeaportConfig memory _seaportConfig,
         address _trustedForwarder
-    ) SeaportWrapper(_bosonPriceDiscovery, _seaportConfig) {
+    ) SeaportWrapper(_bosonPriceDiscovery, _fermionProtocol, _seaportConfig) {
         fermionProtocol = _trustedForwarder;
     }
 

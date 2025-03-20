@@ -106,39 +106,44 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("fnft")) {
-    const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
+    const predictedFermionDiamondAddress = await predictFermionDiamondAddress(create3, 10); // Diamond will be deployed 10 tx from now
+    const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, predictedFermionDiamondAddress, seaportConfig];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
     const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
-    const predictedFermionDiamondAddress = await predictFermionDiamondAddress(create3, 8); // Diamond will be deployed 8 tx from now
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
     const fermionFractionsERC20 = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
     const fermionFractionsMint = await FermionFractionsMint.deploy(
       bosonPriceDiscoveryAddress,
+      predictedFermionDiamondAddress,
       await fermionFractionsERC20.getAddress(),
     );
     const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
-    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(bosonPriceDiscoveryAddress);
+    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(
+      bosonPriceDiscoveryAddress,
+      predictedFermionDiamondAddress,
+    );
 
     deploymentComplete("SeaportWrapper", await fermionSeaportWrapper.getAddress(), seaportWrapperConstructorArgs, true);
     deploymentComplete("FermionFNFTPriceManager", await fermionFNFTPriceManager.getAddress(), [], true);
     deploymentComplete(
       "FermionFractionsMint",
       await fermionFractionsMint.getAddress(),
-      [bosonPriceDiscoveryAddress],
+      [bosonPriceDiscoveryAddress, predictedFermionDiamondAddress],
       true,
     );
     deploymentComplete(
       "FermionBuyoutAuction",
       await fermionBuyoutAuction.getAddress(),
-      [bosonPriceDiscoveryAddress],
+      [bosonPriceDiscoveryAddress, predictedFermionDiamondAddress],
       true,
     );
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
+      predictedFermionDiamondAddress,
       await fermionSeaportWrapper.getAddress(),
       strictAuthorizedTransferSecurityRegistry,
       wrappedNativeAddress,
@@ -391,7 +396,7 @@ async function getDeploymentData(env: string) {
   return deploymentData;
 }
 
-async function predictFermionDiamondAddress(create3: boolean, transactionOffset: number = 0) {
+export async function predictFermionDiamondAddress(create3: boolean, transactionOffset: number = 0) {
   if (create3) {
     throw Error(`Create3 address calculation is not supported yet.`);
   }
