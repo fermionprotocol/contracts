@@ -195,6 +195,7 @@ interface WrapperErrors {
     error InvalidOwner(uint256 tokenId, address expected, address actual);
     error InvalidUnwrap();
     error InvalidOpenSeaFee(uint256 actual, uint256 expected);
+    error UnsuccessfulExternalCall();
 }
 
 interface FermionErrors is
