@@ -4,7 +4,7 @@ import hre from "hardhat";
 import fetch from "node-fetch";
 
 const { ethers } = hre;
-const GRAPHQL_URL = "https://api.studio.thegraph.com/query/19713/fermion-testing-amoy/version/latest";
+const GRAPHQL_URL = "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-amoy/latest/gn";
 const VERSION = "1.1.0";
 
 const abiCoder = new AbiCoder();
@@ -176,7 +176,7 @@ export async function prepareFeeBackfillData(): Promise<FeeData[]> {
 }
 
 /**
- * Perform pre-upgrade tasks, including deploying the BackfillingFacet contract,
+ * Perform pre-upgrade tasks, including deploying the BackfillingV1_1_0 contract,
  * preparing initialization data, and making the diamond cut.
  */
 export async function preUpgrade(protocolAddress: string) {
@@ -184,11 +184,11 @@ export async function preUpgrade(protocolAddress: string) {
   const feeDataList = await prepareFeeBackfillData();
   const offerDataList = await prepareOfferBackfillData();
 
-  console.log("Deploying BackfillingFacet...");
-  const BackfillingFacetFactory = await ethers.getContractFactory("BackfillingFacet");
-  const backfillingFacet = await BackfillingFacetFactory.deploy();
+  console.log("Deploying BackfillingV1_1_0...");
+  const BackfillingV1_1_0 = await ethers.getContractFactory("BackfillingV1_1_0");
+  const backfillingFacet = await BackfillingV1_1_0.deploy();
   await backfillingFacet.deployed();
-  console.log(`BackfillingFacet deployed at: ${backfillingFacet.address}`);
+  console.log(`BackfillingV1_1_0 deployed at: ${backfillingFacet.address}`);
 
   console.log("Preparing initialization calldata...");
   const backFillFeesCalldata = backfillingFacet.interface.encodeFunctionData("backFillTokenFees", [feeDataList]);
@@ -213,4 +213,4 @@ export async function preUpgrade(protocolAddress: string) {
   await tx.wait();
 
   console.log("Diamond cut and backfilling initialization completed successfully.");
-}
+} 

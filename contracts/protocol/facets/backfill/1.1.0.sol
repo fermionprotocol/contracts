@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionStorage } from "../libs/Storage.sol";
+import { FermionStorage } from "../../libs/Storage.sol";
 
 /**
- * @title Backfilling
+ * @title BackfillingV1_1_0
  * @notice Handles backfilling of data during the v1.1.0 upgrade.
  *         This facet should only be active during the upgrade process.
  */
-contract Backfilling {
+contract BackfillingV1_1_0 {
     event FeesBackfilled(
         uint256 indexed tokenId,
         uint256 bosonProtocolFee,
@@ -97,4 +97,4 @@ contract Backfilling {
             }
         }
     }
-}
+} 
