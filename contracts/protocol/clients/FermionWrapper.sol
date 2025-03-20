@@ -64,9 +64,9 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
     function initializeWrapper(address _owner, string memory _metadataUri) internal virtual {
         Common._getFermionCommonStorage().metadataUri = _metadataUri;
         __Ownable_init(_owner);
-        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
         if (STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY != address(0))
             _setTransferValidator(STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY);
+        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
     }
 
     /**
