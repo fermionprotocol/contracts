@@ -27,6 +27,7 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
     /**
      * @notice Constructor
      *
+     * @param _fnftFractionMint The address of the FNFT fraction mint contract
      * @param _fnftPriceManager The address of FNFT price manager holding buyout auction exit price update
      * @param _fnftBuyoutAuction The address of the buyout auction contract
      */

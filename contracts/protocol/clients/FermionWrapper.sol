@@ -29,7 +29,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapper, IFermionWrapperEvents {
+abstract contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapper, IFermionWrapperEvents {
     using SafeERC20 for IERC20;
     using Address for address;
     IWrappedNative private immutable WRAPPED_NATIVE;
@@ -40,13 +40,7 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
      * @notice Constructor
      *
      */
-    constructor(
-        address _bosonPriceDiscovery,
-        address _fermionProtocol,
-        address _seaportWrapper,
-        address _strictAuthorizedTransferSecurityRegistry,
-        address _wrappedNative
-    ) FermionFNFTBase(_bosonPriceDiscovery, _fermionProtocol) {
+    constructor(address _seaportWrapper, address _strictAuthorizedTransferSecurityRegistry, address _wrappedNative) {
         if (_wrappedNative == address(0)) revert FermionGeneralErrors.InvalidAddress();
         WRAPPED_NATIVE = IWrappedNative(_wrappedNative);
         SEAPORT_WRAPPER = _seaportWrapper;

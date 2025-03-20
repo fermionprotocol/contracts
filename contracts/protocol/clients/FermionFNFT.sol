@@ -6,6 +6,7 @@ import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
+import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { Common } from "./Common.sol";
@@ -13,7 +14,6 @@ import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable
 import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC2981 } from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -27,8 +27,6 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
 
     /**
      * @notice Constructor
-     *
-     * @dev construct ERC2771Context with address 0 and override `trustedForwarder` to return the FERMION_PROTOCOL address
      */
     constructor(
         address _bosonPriceDiscovery,
@@ -40,15 +38,10 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address _fermionFNFTPriceManager,
         address _fnftBuyoutAuction
     )
-        FermionWrapper(
-            _bosonPriceDiscovery,
-            _fermionProtocol,
-            _seaportWrapper,
-            _strictAuthorizedTransferSecurityRegistry,
-            _wrappedNative
-        )
-        ERC2771Context(address(0))
+        FermionFNFTBase(_bosonPriceDiscovery, _fermionProtocol)
+        FermionWrapper(_seaportWrapper, _strictAuthorizedTransferSecurityRegistry, _wrappedNative)
         FermionFractions(_fnftFractionMint, _fermionFNFTPriceManager, _fnftBuyoutAuction)
+        ERC2771Context(_fermionProtocol)
     {}
 
     /**
@@ -76,7 +69,6 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
             revert InvalidInitialization();
         }
 
-        // FERMION_PROTOCOL = msg.sender;
         voucherAddress = _voucherAddress;
 
         initializeWrapper(_owner, _metadataUri);
@@ -203,10 +195,6 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         if (from == address(0)) Common.changeTokenState(_tokenId, FermionTypes.TokenState.Wrapped);
 
         return from;
-    }
-
-    function trustedForwarder() public view virtual override returns (address) {
-        return FERMION_PROTOCOL;
     }
 
     function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address) {

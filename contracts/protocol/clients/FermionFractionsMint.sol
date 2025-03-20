@@ -27,6 +27,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
     /**
      * @notice Constructor
      * @param _bosonPriceDiscovery The address of the Boson Price Discovery contract
+     * @param _fermionProtocol The address of the Fermion Protocol contract
      * @param _erc20Implementation The address of the ERC20 implementation contract that will be cloned
      */
     constructor(
