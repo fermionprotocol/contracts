@@ -7,7 +7,6 @@ import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
 import { IFermionConfig } from "../interfaces/IFermionConfig.sol";
-import { IConfigEvents } from "../interfaces/events/IConfigEvents.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 
@@ -16,7 +15,7 @@ import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/Upgradea
  *
  * @notice Handles management of protocol-wide configuration parameters.
  */
-contract ConfigFacet is Access, FermionGeneralErrors, IFermionConfig, IConfigEvents {
+contract ConfigFacet is Access, FermionGeneralErrors, IFermionConfig {
     /**
      * @notice Initializes facet.
      * This function is callable only once.

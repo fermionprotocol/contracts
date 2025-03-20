@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
+import { IConfigEvents } from "./events/IConfigEvents.sol";
+
 /**
  * @title IFermionConfig
  * @notice Interface for the ConfigFacet
  */
-interface IFermionConfig {
+interface IFermionConfig is IConfigEvents {
     /**
      * @notice Gets the Fermion Protocol multi-sig account address.
      *
