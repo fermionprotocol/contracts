@@ -30,7 +30,8 @@ interface IFermionFractions {
      * @param _fractionsAmount The number of fractions to mint for each NFT
      * @param _buyoutAuctionParameters The buyout auction parameters
      * @param _custodianVaultParameters The custodian vault parameters
-     * @param _depositAmount - the amount to deposit
+     * @param _depositAmount The amount to deposit
+     * @param _priceOracle The address of the price oracle
      */
     function mintFractions(
         uint256 _firstTokenId,
@@ -38,7 +39,8 @@ interface IFermionFractions {
         uint256 _fractionsAmount,
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
         FermionTypes.CustodianVaultParameters calldata _custodianVaultParameters,
-        uint256 _depositAmount
+        uint256 _depositAmount,
+        address _priceOracle
     ) external;
 
     /**
@@ -69,14 +71,4 @@ interface IFermionFractions {
      * @param _amount The number of fractions to mint
      */
     function mintAdditionalFractions(uint256 _amount) external;
-
-    /**
-     * @dev See {IERC20-transfer}.
-     *
-     * Requirements:
-     *
-     * - `to` cannot be the zero address.
-     * - the caller must have a balance of at least `value`.
-     */
-    function transfer(address to, uint256 value) external returns (bool);
 }

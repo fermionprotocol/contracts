@@ -12,7 +12,8 @@ contract FermionTypes {
         Seller,
         Buyer,
         Verifier,
-        Custodian
+        Custodian,
+        RoyaltyRecipient
     }
 
     // Make at most 8 roles so they can be compacted into a byte
@@ -22,9 +23,15 @@ contract FermionTypes {
         Treasury
     }
 
+    enum AssociatedRole {
+        Facilitator,
+        RoyaltyRecipient
+    }
+
     enum VerificationStatus {
         Verified,
-        Rejected
+        Rejected,
+        Pending
     }
 
     enum CheckoutRequestStatus {
@@ -65,6 +72,19 @@ contract FermionTypes {
         Burned
     }
 
+    enum PriceUpdateProposalState {
+        NotInit, // Explicitly represents an uninitialized state
+        Active,
+        Executed,
+        Failed
+    }
+
+    enum WrapType {
+        SELF_SALE,
+        OS_AUCTION,
+        OS_FIXED_PRICE
+    }
+
     struct EntityData {
         address admin;
         uint256 roles;
@@ -79,6 +99,11 @@ contract FermionTypes {
         bytes functionSignature;
     }
 
+    struct Metadata {
+        string URI;
+        string hash;
+    }
+
     struct Offer {
         uint256 sellerId;
         uint256 sellerDeposit;
@@ -90,8 +115,8 @@ contract FermionTypes {
         uint256 facilitatorFeePercent;
         address exchangeToken;
         bool withPhygital;
-        string metadataURI;
-        string metadataHash;
+        Metadata metadata;
+        RoyaltyInfo royaltyInfo;
     }
 
     struct CustodianFee {
@@ -103,6 +128,13 @@ contract FermionTypes {
         CheckoutRequestStatus status;
         address buyer;
         uint256 taxAmount;
+    }
+
+    struct CustodianUpdateRequest {
+        uint256 newCustodianId;
+        CustodianFee custodianFee;
+        CustodianVaultParameters custodianVaultParameters;
+        uint256 requestTimestamp;
     }
 
     struct CustodianVaultParameters {
@@ -144,6 +176,8 @@ contract FermionTypes {
         uint256 unrestricedRedeemableAmount;
         uint256 lockedRedeemableSupply;
         mapping(uint256 => TokenAuctionInfo) tokenInfo;
+        address priceOracle;
+        PriceUpdateProposal currentProposal; // Stores the single active proposal
     }
 
     struct TokenAuctionInfo {
@@ -157,6 +191,31 @@ contract FermionTypes {
         uint256 duration; // in seconds; if zero, the default value is used
         uint256 unlockThreshold; // in percents; if zero, the default value is used
         uint256 topBidLockTime; // in seconds; if zero, the default value is used
+    }
+
+    /// @custom:storage-location erc7201:fermion.fractions.storage
+    struct FermionFractionsStorage {
+        // Array of ERC20 clone addresses, index is the epoch
+        address[] epochToClone;
+        uint256 currentEpoch;
+        mapping(address => bool) migrated;
+    }
+
+    struct PriceUpdateProposal {
+        uint256 proposalId; // Tracks the ID of the current proposal
+        uint256 newExitPrice;
+        uint256 votingDeadline;
+        uint256 quorumPercent; // in bps (e.g. 2000 is 20%)
+        uint256 yesVotes;
+        uint256 noVotes;
+        PriceUpdateProposalState state;
+        mapping(address => PriceUpdateVoter) voters;
+    }
+
+    struct PriceUpdateVoter {
+        uint256 proposalId; // Tracks the ID of the proposal the voter last voted on
+        bool votedYes;
+        uint256 voteCount;
     }
 
     struct Auction {
@@ -173,5 +232,20 @@ contract FermionTypes {
     struct Phygital {
         address contractAddress;
         uint256 tokenId;
+    }
+
+    struct TokenMetadata {
+        string name;
+        string symbol;
+    }
+
+    struct RoyaltyInfo {
+        address payable[] recipients;
+        uint256[] bps;
+    }
+
+    struct RoyaltyRecipientInfo {
+        address payable wallet;
+        uint256 minRoyaltyPercentage;
     }
 }

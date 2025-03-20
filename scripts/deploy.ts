@@ -10,7 +10,7 @@ import { initSeaportFixture } from "./../test/utils/seaport";
 import { BaseContract, Contract, ZeroAddress } from "ethers";
 import fermionConfig from "./../fermion.config";
 
-const version = "0.0.1";
+const version = "1.0.1";
 let deploymentData: any[] = [];
 
 export async function deploySuite(env: string = "", modules: string[] = [], create3: boolean = false) {
@@ -37,29 +37,33 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let bosonProtocolAddress: string, bosonPriceDiscoveryAddress: string, bosonTokenAddress: string;
   let seaportAddress: string, seaportContract: Contract;
   let wrappedNativeAddress: string;
-  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[network.name];
-  if (network.name === "hardhat" || network.name === "localhost") {
-    const isForking = hre.config.networks["hardhat"].forking;
-    const deployerBalance = isForking ? await ethers.provider.getBalance(deployerAddress) : 0n;
-
+  const isForking = hre.config.networks["hardhat"].forking;
+  const networkName = isForking ? isForking.originalChain.name : network.name;
+  const { seaportConfig, wrappedNative, strictAuthorizedTransferSecurityRegistry } =
+    fermionConfig.externalContracts[networkName];
+  if ((network.name === "hardhat" && !isForking) || network.name === "localhost") {
     let weth: BaseContract;
     ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress, weth } =
       await initBosonProtocolFixture(false));
     ({ seaportAddress, seaportContract } = await initSeaportFixture());
     seaportConfig.seaport = seaportAddress;
     wrappedNativeAddress = await weth.getAddress();
-
-    if (isForking) {
-      await network.provider.send("hardhat_setBalance", [deployerAddress, "0x" + deployerBalance.toString(16)]);
-    }
   } else {
+    if (isForking) {
+      // At least one tx is needed for fork to work properly
+      const [deployer] = await ethers.getSigners();
+      await deployer.sendTransaction({ to: deployer.address });
+    }
+
     checkDeployerAddress(network.name);
 
     // Get boson protocol address
-    const { chainId } = await ethers.provider.getNetwork();
+    const { chainId } = isForking ? isForking.originalChain : await ethers.provider.getNetwork();
+
+    const bosonNetworkName = networkName == "ethereum" ? "mainnet" : networkName.toLowerCase();
     const { contracts: bosonContracts } = JSON.parse(
       fs.readFileSync(
-        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${network.name.toLowerCase()}-${env}.json`,
+        `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/${chainId}-${bosonNetworkName}-${env.replace("-dry-run", "")}.json`,
         "utf8",
       ),
     );
@@ -70,6 +74,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       (contract) => contract.name === "BosonPriceDiscoveryClient",
     )?.address;
     const bosonConfigHandler = await getBosonHandler("IBosonConfigHandler", bosonProtocolAddress);
+
     bosonTokenAddress = await bosonConfigHandler.getTokenAddress();
 
     if (!bosonProtocolAddress || !bosonPriceDiscoveryAddress || !bosonTokenAddress) {
@@ -90,17 +95,56 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   console.log(`Boson Protocol address: ${bosonProtocolAddress}`);
   console.log(`Seaport address: ${seaportAddress}`);
 
+  const externalContracts = {
+    bosonProtocolAddress,
+    bosonPriceDiscoveryAddress,
+    bosonTokenAddress,
+    seaportConfig,
+    wrappedNativeAddress,
+  };
+
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("fnft")) {
     const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+    const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
+    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const predictedFermionDiamondAddress = await predictFermionDiamondAddress(create3, 8); // Diamond will be deployed 8 tx from now
+    const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
+    const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
+    const fermionFractionsMint = await FermionFractionsMint.deploy(
+      bosonPriceDiscoveryAddress,
+      await fermionFractionsERC20.getAddress(),
+    );
+    const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
+    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(bosonPriceDiscoveryAddress);
+
+    deploymentComplete("SeaportWrapper", await fermionSeaportWrapper.getAddress(), seaportWrapperConstructorArgs, true);
+    deploymentComplete("FermionFNFTPriceManager", await fermionFNFTPriceManager.getAddress(), [], true);
+    deploymentComplete(
+      "FermionFractionsMint",
+      await fermionFractionsMint.getAddress(),
+      [bosonPriceDiscoveryAddress],
+      true,
+    );
+    deploymentComplete(
+      "FermionBuyoutAuction",
+      await fermionBuyoutAuction.getAddress(),
+      [bosonPriceDiscoveryAddress],
+      true,
+    );
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
       await fermionSeaportWrapper.getAddress(),
+      strictAuthorizedTransferSecurityRegistry,
       wrappedNativeAddress,
+      await fermionFractionsMint.getAddress(),
+      await fermionFNFTPriceManager.getAddress(),
+      await fermionBuyoutAuction.getAddress(),
     ];
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(...fermionFNFTConstructorArgs);
@@ -108,6 +152,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     wrapperImplementationAddress = await fermionWrapper.getAddress();
 
     deploymentComplete("FermionFNFT", wrapperImplementationAddress, fermionFNFTConstructorArgs, true);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else {
     deploymentData = await getDeploymentData(env);
     wrapperImplementationAddress = deploymentData.find((contract) => contract.name === "FermionFNFT")?.address;
@@ -125,7 +170,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       wrapperImplementationAddress,
       create3,
     ));
-    await writeContracts(deploymentData, env, version);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else {
     // get the diamond address and initialization from contracts file
     deploymentData = await getDeploymentData(env);
@@ -154,40 +199,19 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     "FundsFacet",
     "PauseFacet",
     "CustodyVaultFacet",
+    "PriceOracleRegistryFacet",
+    "RoyaltiesFacet",
   ];
   let facets = {};
 
   if (allModules || modules.includes("facets")) {
-    const nonce = 1n;
-    const nonceHex = ethers.toBeArray(nonce);
-    const input_arr = [diamondAddress, nonceHex];
-    const rlp_encoded = ethers.encodeRlp(input_arr);
-    const contract_address_long = ethers.keccak256(rlp_encoded);
-    const fermionFNFTBeaconAdress = "0x" + contract_address_long.substring(26); //Trim the first 24 characters.
-    const { chainId } = await ethers.provider.getNetwork();
-    const { bytecode: beaconProxyBytecode } = await ethers.getContractFactory("BeaconProxy");
-    const abiCoder = new ethers.AbiCoder();
-    const expectedfermionFNFTBeaconProxy = ethers.getCreate2Address(
-      diamondAddress,
-      ethers.solidityPackedKeccak256(["uint256"], [chainId]),
-      ethers.solidityPackedKeccak256(
-        ["bytes", "bytes"],
-        [beaconProxyBytecode, abiCoder.encode(["address", "bytes"], [fermionFNFTBeaconAdress, "0x"])],
-      ),
-    );
-    const cloneCode = `0x363d3d373d3d3d363d73${expectedfermionFNFTBeaconProxy.slice(2)}5af43d82803e903d91602b57fd5bf3`; // https://eips.ethereum.org/EIPS/eip-1167
-    const fnftCodeHash = ethers.keccak256(cloneCode);
-
     const constructorArgs = {
       MetaTransactionFacet: [diamondAddress],
-      OfferFacet: [bosonProtocolAddress, fnftCodeHash],
-      VerificationFacet: [bosonProtocolAddress, fnftCodeHash, diamondAddress],
-      CustodyFacet: [fnftCodeHash],
-      CustodyVaultFacet: [fnftCodeHash],
-      FundsFacet: [fnftCodeHash],
+      OfferFacet: [bosonProtocolAddress],
+      VerificationFacet: [bosonProtocolAddress, diamondAddress],
     };
     facets = await deployFacets(facetNames, constructorArgs, true);
-    await writeContracts(deploymentData, env, version);
+    await writeContracts(deploymentData, env, version, externalContracts);
   } else if (modules.includes("initialize")) {
     // get the facets from from contracts file
     deploymentData = await getDeploymentData(env);
@@ -211,13 +235,18 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // Init other facets, using the initialization facet
     // Prepare init call
     const init = {
-      MetaTransactionFacet: [await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT"])],
+      MetaTransactionFacet: [
+        await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT", "FermionFractionsERC20"]),
+      ],
       ConfigFacet: [
         fermionConfig.protocolParameters.treasury,
         fermionConfig.protocolParameters.protocolFeePercentage,
+        fermionConfig.protocolParameters.maxRoyaltyPercentage,
         fermionConfig.protocolParameters.maxVerificationTimeout,
         fermionConfig.protocolParameters.defaultVerificationTimeout,
+        fermionConfig.protocolParameters.openSeaFeePercentage,
       ],
+      OfferFacet: [],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
     const initCalldatas = Object.keys(init).map((facetName) =>
@@ -237,6 +266,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
       await initializationFacet.getAddress(),
       functionCall,
     );
+
+    await accessController.renounceRole(ethers.id("UPGRADER"), deployerAddress);
 
     facets["InitializationFacet"] = initializationFacet;
     facets["AccessController"] = accessController;
@@ -347,6 +378,7 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
 }
 
 function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
+  // ToDo: calculate interfaceId?
   if (save) deploymentData.push({ name, address, args });
   console.log(`✅ ${name} deployed to: ${address}`);
 }
@@ -357,4 +389,18 @@ async function getDeploymentData(env: string) {
     deploymentData = contractsFile.contracts;
   }
   return deploymentData;
+}
+
+async function predictFermionDiamondAddress(create3: boolean, transactionOffset: number = 0) {
+  if (create3) {
+    throw Error(`Create3 address calculation is not supported yet.`);
+  }
+
+  const accounts = await ethers.getSigners();
+  const deployer = accounts[0];
+
+  const currentNonce = await ethers.provider.getTransactionCount(deployer.address, "latest");
+  const diamondDeployNonce = currentNonce + transactionOffset;
+
+  return ethers.getCreateAddress({ from: deployer.address, nonce: diamondDeployNonce });
 }

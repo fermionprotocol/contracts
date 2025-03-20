@@ -30,12 +30,20 @@ describe("Entity", function () {
       expect(await configFacet.getProtocolFeePercentage()).to.equal(
         fermionConfig.protocolParameters.protocolFeePercentage,
       );
+      expect(await configFacet.getMaxRoyaltyPercentage()).to.equal(
+        fermionConfig.protocolParameters.maxRoyaltyPercentage,
+      );
       expect(await configFacet.getDefaultVerificationTimeout()).to.equal(
         fermionConfig.protocolParameters.defaultVerificationTimeout,
       );
       expect(await configFacet.getMaxVerificationTimeout()).to.equal(
         fermionConfig.protocolParameters.maxVerificationTimeout,
       );
+      if ("openSeaFeePercentage" in fermionConfig.protocolParameters) {
+        expect(await configFacet.getOpenSeaFeePercentage()).to.equal(
+          fermionConfig.protocolParameters.openSeaFeePercentage,
+        );
+      }
     });
 
     it("Set the treasury address", async function () {
@@ -52,6 +60,14 @@ describe("Entity", function () {
       await expect(tx).to.emit(configFacet, "ProtocolFeePercentageChanged").withArgs(newPercentage);
 
       expect(await configFacet.getProtocolFeePercentage()).to.equal(newPercentage);
+    });
+
+    it("Set the max royalty percentage", async function () {
+      const newPercentage = 80_00;
+      const tx = await configFacet.setMaxRoyaltyPercentage(newPercentage);
+      await expect(tx).to.emit(configFacet, "MaxRoyaltyPercentageChanged").withArgs(newPercentage);
+
+      expect(await configFacet.getMaxRoyaltyPercentage()).to.equal(newPercentage);
     });
 
     it("Set the protocol fee table", async function () {
@@ -129,6 +145,14 @@ describe("Entity", function () {
       expect(await configFacet.getFNFTImplementationAddress()).to.equal(newAddress);
     });
 
+    it("Set the OpenSea fee percentage", async function () {
+      const newPercentage = 300; // 3%
+      const tx = await configFacet.setOpenSeaFeePercentage(newPercentage);
+      await expect(tx).to.emit(configFacet, "OpenSeaFeePercentageChanged").withArgs(newPercentage);
+
+      expect(await configFacet.getOpenSeaFeePercentage()).to.equal(newPercentage);
+    });
+
     context("Revert reasons", function () {
       it("Caller is not the admin", async function () {
         const accessControl = await ethers.getContractAt("IAccessControl", ethers.ZeroAddress);
@@ -141,6 +165,10 @@ describe("Entity", function () {
           .withArgs(randomWallet, adminRole);
 
         await expect(configFacet.connect(randomWallet).setProtocolFeePercentage(1000))
+          .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomWallet, adminRole);
+
+        await expect(configFacet.connect(randomWallet).setMaxRoyaltyPercentage(1000))
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
 
@@ -163,6 +191,10 @@ describe("Entity", function () {
         )
           .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
           .withArgs(randomWallet, adminRole);
+
+        await expect(configFacet.connect(randomWallet).setOpenSeaFeePercentage(300))
+          .to.be.revertedWithCustomError(accessControl, "AccessControlUnauthorizedAccount")
+          .withArgs(randomWallet, adminRole);
       });
 
       it("Region is paused", async function () {
@@ -176,6 +208,10 @@ describe("Entity", function () {
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
 
+        await expect(configFacet.setMaxRoyaltyPercentage(1000))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Config);
+
         await expect(configFacet.setDefaultVerificationTimeout(24n * 60n * 60n * 14n))
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
@@ -185,6 +221,10 @@ describe("Entity", function () {
           .withArgs(PausableRegion.Config);
 
         await expect(configFacet.setFNFTImplementationAddress(wallets[10].address))
+          .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+          .withArgs(PausableRegion.Config);
+
+        await expect(configFacet.setOpenSeaFeePercentage(300))
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Config);
       });
@@ -203,6 +243,13 @@ describe("Entity", function () {
           .withArgs(percentage);
 
         await expect(configFacet.setProtocolFeeTable(wallets[10].address, [1000, 2000, 3000], [500, 1000, percentage]))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
+          .withArgs(percentage);
+      });
+
+      it("Invalid max royalty percentage", async function () {
+        const percentage = 10001n;
+        await expect(configFacet.setMaxRoyaltyPercentage(percentage))
           .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
           .withArgs(percentage);
       });
@@ -263,6 +310,13 @@ describe("Entity", function () {
           beacon,
           "BeaconInvalidImplementation",
         );
+      });
+
+      it("Invalid OpenSea fee percentage", async function () {
+        const percentage = 10001n;
+        await expect(configFacet.setOpenSeaFeePercentage(percentage))
+          .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
+          .withArgs(percentage);
       });
     });
   });

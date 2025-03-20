@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "./Types.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 interface FermionGeneralErrors {
     // General errors
@@ -13,6 +14,8 @@ interface FermionGeneralErrors {
     error UnexpectedDataReturned(bytes data);
     // Array elements that are not in ascending order (i.e arr[i-1] > arr[i])
     error NonAscendingOrder();
+    error InvalidTokenId(address fnftAddress, uint256 tokenId);
+    error InvalidPeriod();
 }
 
 interface InitializationErrors {
@@ -39,7 +42,11 @@ interface EntityErrors {
     );
     error ChangeNotAllowed();
     error NotSellersFacilitator(uint256 sellerId, uint256 facilitatorId);
-    error FacilitatorAlreadyExists(uint256 sellerId, uint256 facilitatorId);
+    error AssociatedEntityAlreadyExists(
+        FermionTypes.AssociatedRole associatedRole,
+        uint256 sellerId,
+        uint256 facilitatorId
+    );
     error AccountAlreadyExists(address account);
     error NewAccountSameAsOld();
 }
@@ -50,6 +57,11 @@ interface OfferErrors {
     error NoSuchOffer(uint256 offerId);
     error InvalidOpenSeaOrder();
     error NoPhygitalOffer(uint256 offerId);
+    error InvalidRoyaltyInfo();
+    error InvalidRoyaltyRecipient(address recipient);
+    error InvalidRoyaltyPercentage(uint256 percentage);
+    error OfferWithoutRoyalties(uint256 offerId);
+    error InvalidCustomItemPrice();
 }
 
 interface VerificationErrors {
@@ -63,6 +75,8 @@ interface VerificationErrors {
     error PhygitalsAlreadyVerified(uint256 tokenId);
     error PhygitalsDigestMismatch(uint256 tokenId, bytes32 expectedDigest, bytes32 actualDigest);
     error PhygitalsVerificationMissing(uint256 tokenId);
+    error InexistentVerificationStatus();
+    error InvalidVerificationStatus();
 }
 
 interface CustodyErrors {
@@ -70,10 +84,15 @@ interface CustodyErrors {
     error NotTokenBuyer(uint256 tokenId, address owner, address caller);
     error InvalidTaxAmount();
     error InvalidCheckoutRequestStatus(
-        uint256 tokenId,
+        uint256 offerId,
         FermionTypes.CheckoutRequestStatus expectedStatus,
         FermionTypes.CheckoutRequestStatus actualStatus
     );
+    error InsufficientVaultBalance(uint256 tokenId, uint256 required, uint256 available);
+    error UpdateRequestExpired(uint256 tokenId);
+    error UpdateRequestTooRecent(uint256 tokenId, uint256 waitTime);
+    error NoTokensInCustody(uint256 offerId);
+    error InvalidCustodianFeePeriod();
 }
 
 interface AuctionErrors {
@@ -84,6 +103,7 @@ interface AuctionErrors {
     error AuctionFinalized(uint256 tokenId);
     error NoFractionsAvailable(uint256 tokenId);
     error NoBids(uint256 tokenId);
+    error BidBelowExitPrice(uint256 tokenId, uint256 bid, uint256 exitPrice);
 }
 
 interface CustodianVaultErrors is AuctionErrors {
@@ -134,6 +154,7 @@ interface FractionalisationErrors is AuctionErrors {
     error InvalidFractionsAmount(uint256 amount, uint256 min, uint256 max);
     error InvalidExitPrice(uint256 amount);
     error AlreadyFractionalized(uint256 tokenId);
+    error PriceOracleNotWhitelisted(address oracleAddress);
 
     error NotMaxBidder(uint256 tokenId, address caller, address winner);
     error AlreadyRedeemed(uint256 tokenId);
@@ -148,6 +169,32 @@ interface FractionalisationErrors is AuctionErrors {
     error TokenNotFractionalised(uint256 tokenId);
     error InvalidAuctionIndex(uint256 auctionIndex, uint256 numberOfAuctions); // auctionIndex should be less than numberOfAuctions
     error AuctionReserved(uint256 tokenId);
+    error ProposalNotActive(uint256 proposalId);
+    error AlreadyVoted();
+    error NoVotingPower(address voter);
+    error OnlyFractionOwner();
+    error InvalidVoteDuration(uint256 voteDuration);
+    error OngoingProposalExists();
+    error ConflictingVote();
+    error OracleInternalError();
+    error AlreadyMigrated(address owner);
+}
+
+interface PriceOracleRegistryErrors {
+    error InvalidOracleAddress();
+    error InvalidIdentifier();
+    error OracleAlreadyApproved();
+    error OracleNotApproved();
+    error OracleValidationFailed();
+    error OracleReturnedInvalidPrice();
+}
+
+interface WrapperErrors {
+    error ZeroPriceNotAllowed();
+    error InvalidOrder(uint256 tokenId, SeaportTypes.OrderComponents order);
+    error InvalidOwner(uint256 tokenId, address expected, address actual);
+    error InvalidUnwrap();
+    error InvalidOpenSeaFee(uint256 actual, uint256 expected);
 }
 
 interface FermionErrors is
@@ -162,5 +209,7 @@ interface FermionErrors is
     PauseErrors,
     MetaTransactionErrors,
     FractionalisationErrors,
-    SignatureErrors
+    SignatureErrors,
+    PriceOracleRegistryErrors,
+    WrapperErrors
 {}

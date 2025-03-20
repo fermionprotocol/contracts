@@ -4,13 +4,13 @@ pragma solidity 0.8.24;
 import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { VerificationErrors, FermionGeneralErrors, OfferErrors, SignatureErrors } from "../domain/Errors.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
+import { Context } from "../bases/mixins/Context.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
 import { FeeLib } from "../libs/FeeLib.sol";
 import { MathLib } from "../libs/MathLib.sol";
-import { Context } from "../libs/Context.sol";
 import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 import { IVerificationEvents } from "../interfaces/events/IVerificationEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
@@ -22,7 +22,7 @@ import { EIP712 } from "../libs/EIP712.sol";
  *
  * @notice Handles RWA verification.
  */
-contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErrors, IVerificationEvents {
+contract VerificationFacet is Context, Access, FundsManager, EIP712, VerificationErrors, IVerificationEvents {
     using FermionFNFTLib for address;
 
     bytes32 private constant SIGNED_PROPOSAL_TYPEHASH =
@@ -30,11 +30,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
 
     IBosonProtocol private immutable BOSON_PROTOCOL;
 
-    constructor(
-        address _bosonProtocol,
-        bytes32 _fnftCodeHash,
-        address _fermionProtocolAddress
-    ) FundsLib(_fnftCodeHash) EIP712(_fermionProtocolAddress) {
+    constructor(address _bosonProtocol, address _fermionProtocolAddress) EIP712(_fermionProtocolAddress) {
         if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
     }
@@ -56,9 +52,15 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
-    function submitVerdict(uint256 _tokenId, FermionTypes.VerificationStatus _verificationStatus) external {
+    function submitVerdict(
+        uint256 _tokenId,
+        FermionTypes.VerificationStatus _verificationStatus,
+        FermionTypes.Metadata calldata _verificationMetadata
+    ) external {
         getFundsAndPayVerifier(_tokenId, true);
+        FermionStorage.protocolLookups().tokenLookups[_tokenId].verificationMetadata = _verificationMetadata;
         submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
@@ -74,10 +76,12 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
      *
      * @param _tokenId - the token ID
      * @param _newMetadata - the uri of the new metadata
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
     function submitRevisedMetadata(
         uint256 _tokenId,
-        string memory _newMetadata
+        string memory _newMetadata,
+        FermionTypes.Metadata calldata _verificationMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         if (bytes(_newMetadata).length == 0) revert EmptyMetadata();
 
@@ -95,6 +99,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
             );
         }
 
+        tokenLookups.verificationMetadata = _verificationMetadata;
         updateMetadataAndResetProposals(tokenLookups, _newMetadata, _tokenId);
     }
 
@@ -110,10 +115,12 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
      *
      * @param _tokenId - the token ID
      * @param _verificationStatus - the verification status
+     * @param _verificationMetadata - optional verification metadata, with more information about the verification
      */
     function removeRevisedMetadataAndSubmitVerdict(
         uint256 _tokenId,
-        FermionTypes.VerificationStatus _verificationStatus
+        FermionTypes.VerificationStatus _verificationStatus,
+        FermionTypes.Metadata calldata _verificationMetadata
     ) external notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
 
@@ -129,6 +136,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
 
         updateMetadataAndResetProposals(tokenLookups, "", _tokenId);
 
+        tokenLookups.verificationMetadata = _verificationMetadata;
         submitVerdictInternal(_tokenId, _verificationStatus, false);
     }
 
@@ -274,6 +282,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
         }
         submitVerdictInternal(_tokenId, FermionTypes.VerificationStatus.Rejected, inactiveVerifier);
         delete tokenLookups.revisedMetadata;
+        delete tokenLookups.verificationMetadata;
     }
 
     /**
@@ -341,6 +350,47 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
         FermionStorage.TokenLookups storage tokenLookups = FermionStorage.protocolLookups().tokenLookups[_tokenId];
         buyer = tokenLookups.buyerSplitProposal;
         seller = tokenLookups.sellerSplitProposal;
+    }
+
+    /**
+     * @notice Get the verification status and metadata for a specific token
+     *
+     * @param _tokenId - the token ID
+     *
+     * @return verificationStatus - the verification status
+     * @return verificationMetadata - optional verification metadata, with more information about the verification
+     */
+    function getVerificationDetails(
+        uint256 _tokenId
+    )
+        external
+        view
+        returns (FermionTypes.VerificationStatus verificationStatus, FermionTypes.Metadata memory verificationMetadata)
+    {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        (uint256 offerId, ) = FermionStorage.getOfferFromTokenId(_tokenId);
+
+        address fermionFNFTAddress = pl.offerLookups[offerId].fermionFNFTAddress;
+
+        if (fermionFNFTAddress == address(0)) {
+            revert FermionGeneralErrors.InvalidTokenId(fermionFNFTAddress, _tokenId);
+        }
+
+        FermionTypes.TokenState tokenState = IFermionFNFT(fermionFNFTAddress).tokenState(_tokenId);
+
+        if (tokenState < FermionTypes.TokenState.Unverified) {
+            revert InexistentVerificationStatus();
+        }
+
+        if (tokenState == FermionTypes.TokenState.Unverified) {
+            verificationStatus = FermionTypes.VerificationStatus.Pending;
+        } else if (tokenState == FermionTypes.TokenState.Burned) {
+            verificationStatus = FermionTypes.VerificationStatus.Rejected;
+        } else {
+            verificationStatus = FermionTypes.VerificationStatus.Verified;
+        }
+
+        verificationMetadata = pl.tokenLookups[_tokenId].verificationMetadata;
     }
 
     /**
@@ -421,6 +471,8 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
         FermionTypes.VerificationStatus _verificationStatus,
         bool _afterTimeout
     ) internal {
+        if (_verificationStatus == FermionTypes.VerificationStatus.Pending) revert InvalidVerificationStatus();
+
         uint256 tokenId = _tokenId;
         (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(tokenId);
         uint256 verifierId = offer.verifierId;
@@ -448,7 +500,11 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
 
                     remainder -= buyerRevisedPayout;
 
-                    uint256 buyerId = EntityLib.getOrCreateBuyerId(tokenLookups.initialBuyer, pl);
+                    uint256 buyerId = EntityLib.getOrCreateEntityId(
+                        tokenLookups.initialBuyer,
+                        FermionTypes.EntityRole.Buyer,
+                        pl
+                    );
                     increaseAvailableFunds(buyerId, exchangeToken, buyerRevisedPayout);
 
                     uint256 facilitatorFeeAmount;
@@ -484,7 +540,7 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
             } else {
                 address buyerAddress = pl.offerLookups[offerId].fermionFNFTAddress.burn(tokenId);
 
-                uint256 buyerId = EntityLib.getOrCreateBuyerId(buyerAddress, pl);
+                uint256 buyerId = EntityLib.getOrCreateEntityId(buyerAddress, FermionTypes.EntityRole.Buyer, pl);
 
                 if (_afterTimeout) {
                     remainder += offer.verifierFee;
@@ -494,11 +550,11 @@ contract VerificationFacet is Context, Access, FundsLib, EIP712, VerificationErr
                 increaseAvailableFunds(buyerId, exchangeToken, remainder + sellerDeposit);
 
                 if (hasPhygitals) {
-                    pl.tokenLookups[tokenId].phygitalsRecipient = 0; // reset phygitals verification status, so the seller can withdraw them
+                    tokenLookups.phygitalsRecipient = 0; // reset phygitals verification status, so the seller can withdraw them
                 }
             }
 
-            emit VerdictSubmitted(verifierId, tokenId, _verificationStatus);
+            emit VerdictSubmitted(verifierId, tokenId, _verificationStatus, tokenLookups.verificationMetadata);
         }
     }
 

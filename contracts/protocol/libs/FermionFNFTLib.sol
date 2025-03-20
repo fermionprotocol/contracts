@@ -9,7 +9,10 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
+import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
 
 /**
  * @title FermionFNFTLib
@@ -28,6 +31,7 @@ library FermionFNFTLib {
      * @param _exchangeToken The address of the exchange token
      * @param _offerId The offer id
      * @param _metadataUri The metadata URI, used for all tokens and contract URI
+     * @param _tokenMetadata - optional token metadata (name and symbol)
      */
     function initialize(
         address _fnft,
@@ -35,10 +39,14 @@ library FermionFNFTLib {
         address _owner,
         address _exchangeToken,
         uint256 _offerId,
-        string memory _metadataUri
+        string memory _metadataUri,
+        FermionTypes.TokenMetadata memory _tokenMetadata
     ) internal {
         _fnft.functionCallWithAddress(
-            abi.encodeCall(IFermionFNFT.initialize, (_voucherAddress, _owner, _exchangeToken, _offerId, _metadataUri))
+            abi.encodeCall(
+                IFermionFNFT.initialize,
+                (_voucherAddress, _owner, _exchangeToken, _offerId, _metadataUri, _tokenMetadata)
+            )
         );
     }
 
@@ -53,7 +61,7 @@ library FermionFNFTLib {
     }
 
     /**
-     * @notice Transfers the ERC721 FNFT token or ERC20 FNFT fractions
+     * @notice Transfers the ERC721 FNFT token
      *
      * If _tokenIdOrValue is less than 2^128 the fractions are transferred, otherwise the token is transferred.
      *
@@ -88,7 +96,7 @@ library FermionFNFTLib {
      * @param _value The number of fractions to transfer.
      */
     function transfer(address _fnft, address _to, uint256 _value) internal {
-        _fnft.functionCallWithAddress(abi.encodeCall(IFermionFractions.transfer, (_to, _value)));
+        _fnft.functionCallWithAddress(abi.encodeCall(ERC20.transfer, (_to, _value)));
     }
 
     /**
@@ -121,17 +129,19 @@ library FermionFNFTLib {
         uint256 _fractionsAmount,
         FermionTypes.BuyoutAuctionParameters memory _buyoutAuctionParameters,
         FermionTypes.CustodianVaultParameters memory _custodianVaultParameters,
-        uint256 _depositAmount
+        uint256 _depositAmount,
+        address _priceOracle
     ) internal {
         _fnft.functionCallWithAddress(
             abi.encodeWithSignature(
-                "mintFractions(uint256,uint256,uint256,(uint256,uint256,uint256,uint256),(uint256,uint256,uint256,uint256),uint256)",
+                "mintFractions(uint256,uint256,uint256,(uint256,uint256,uint256,uint256),(uint256,uint256,uint256,uint256),uint256,address)",
                 _firstTokenId,
                 _length,
                 _fractionsAmount,
                 _buyoutAuctionParameters,
                 _custodianVaultParameters,
-                _depositAmount
+                _depositAmount,
+                _priceOracle
             )
         );
     }
@@ -161,8 +171,8 @@ library FermionFNFTLib {
      * @param _length The number of tokens to wrap.
      * @param _to The address to mint the wrapped tokens to.
      */
-    function wrapForAuction(address _fnft, uint256 _firstTokenId, uint256 _length, address _to) internal {
-        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.wrapForAuction, (_firstTokenId, _length, _to)));
+    function wrap(address _fnft, uint256 _firstTokenId, uint256 _length, address _to) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.wrap, (_firstTokenId, _length, _to)));
     }
 
     /**
@@ -175,6 +185,49 @@ library FermionFNFTLib {
 
         if (returndata.length != SLOT_SIZE) revert FermionGeneralErrors.UnexpectedDataReturned(returndata);
         wrappedVoucherOwner = abi.decode(returndata, (address));
+    }
+
+    /**
+     * @notice List fixed order on Seaport
+     *
+     * @param _firstTokenId The first token id.
+     * @param _prices The prices for each token.
+     * @param _endTimes The end times for each token.
+     * @param _royaltyInfo The royalty info.
+     * @param _exchangeToken The token to be used for the exchange.
+     */
+    function listFixedPriceOrders(
+        address _fnft,
+        uint256 _firstTokenId,
+        uint256[] calldata _prices,
+        uint256[] calldata _endTimes,
+        FermionTypes.RoyaltyInfo memory _royaltyInfo,
+        address _exchangeToken
+    ) internal {
+        _fnft.functionCallWithAddress(
+            abi.encodeCall(
+                IFermionWrapper.listFixedPriceOrders,
+                (_firstTokenId, _prices, _endTimes, _royaltyInfo, _exchangeToken)
+            )
+        );
+    }
+
+    /**
+     * @notice Cancel fixed price orders on OpenSea.
+     *
+     * @param _orders The orders to cancel.
+     */
+    function cancelFixedPriceOrders(address _fnft, SeaportTypes.OrderComponents[] calldata _orders) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionWrapper.cancelFixedPriceOrders, (_orders)));
+    }
+
+    /**
+     * @notice Forcefully start the buyout auction.
+     *
+     * @param _tokenId The ID of the fractionalized token for which the auction is being started.
+     */
+    function startAuction(address _fnft, uint256 _tokenId) internal {
+        _fnft.functionCallWithAddress(abi.encodeCall(IFermionBuyoutAuction.startAuction, (_tokenId)));
     }
 
     /**

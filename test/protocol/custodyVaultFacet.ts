@@ -1,10 +1,10 @@
 import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { deployFermionProtocolFixture, deployMockTokens, setNextBlockTimestamp } from "../utils/common";
-import { expect } from "chai";
+import { assert, expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, ZeroHash } from "ethers";
+import { Contract, ZeroHash, id } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { EntityRole, PausableRegion, VerificationStatus } from "../utils/enums";
+import { EntityRole, PausableRegion, VerificationStatus, WrapType } from "../utils/enums";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import {
   AUCTION_END_BUFFER,
@@ -17,7 +17,7 @@ import {
   TOP_BID_LOCK_TIME,
 } from "../utils/constants";
 
-const { parseEther } = ethers;
+const { parseEther, ZeroAddress } = ethers;
 
 describe("CustodyVault", function () {
   let offerFacet: Contract,
@@ -89,8 +89,11 @@ describe("CustodyVault", function () {
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
       withPhygital: false,
-      metadataURI: "https://example.com/offer-metadata.json",
-      metadataHash: ZeroHash,
+      metadata: {
+        URI: "https://example.com/offer-metadata.json",
+        hash: ZeroHash,
+      },
+      royaltyInfo: { recipients: [], bps: [] },
     };
 
     // Make three offers one for normal sale, one of self sale and one for self custody
@@ -98,12 +101,16 @@ describe("CustodyVault", function () {
 
     // Mint and wrap some NFTs
     const quantity = 3n;
-    await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
+    await offerFacet.mintAndWrapNFTs(offerId, quantity, { name: "test FNFT", symbol: "tFNFT" }); // offerId = 1; exchangeId = 2
 
     // Unwrap some NFTs - normal sale and sale with self-custody
     buyer = wallets[6];
     await mockToken.mint(buyer.address, parseEther("1000"));
     await mockToken.approve(fermionProtocolAddress, quantity * sellerDeposit);
+    const verificationMetadata = {
+      URI: "https://example.com/verification-metadata.json",
+      hash: id("metadata"),
+    };
     for (let i = 0n; i < quantity; i++) {
       const exchangeId = i + 1n;
       const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
@@ -111,12 +118,13 @@ describe("CustodyVault", function () {
         buyer,
         offerId,
         exchangeId,
-        exchange.tokenId,
       );
-      await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+      await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
 
       // Submit verdicts
-      await verificationFacet.connect(verifier).submitVerdict(tokenId, VerificationStatus.Verified);
+      await verificationFacet
+        .connect(verifier)
+        .submitVerdict(tokenId, VerificationStatus.Verified, verificationMetadata);
 
       if (i == 0n) {
         exchange.tokenId = tokenId;
@@ -448,7 +456,7 @@ describe("CustodyVault", function () {
             // offer vault is created
             const expectedOfferVault = {
               amount: 0n,
-              period: offerVaultCreationTimestamp,
+              period: expectedCustodianVault.period,
             };
 
             expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
@@ -507,7 +515,7 @@ describe("CustodyVault", function () {
             // offer vault is created
             const expectedOfferVault = {
               amount: 0n,
-              period: offerVaultCreationTimestamp,
+              period: vaultCreationTimestamp + payoutPeriods * custodianFee.period, // matches the last payout from item vault
             };
             let itemCount = 1n;
 
@@ -576,7 +584,7 @@ describe("CustodyVault", function () {
             // offer vault is created
             const expectedOfferVault = {
               amount: 0n,
-              period: offerVaultCreationTimestamp,
+              period: vaultCreationTimestamp + payoutPeriods * custodianFee.period, // matches the last payout from item vault
             };
             let itemCount = 1n;
 
@@ -638,6 +646,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
           });
@@ -878,15 +887,16 @@ describe("CustodyVault", function () {
             const tx = await custodyVaultFacet.releaseFundsFromVault(exchange.tokenId);
             await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted");
 
-            const offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
+            const auctionStart = BigInt((await tx.getBlock()).timestamp);
+            const auctionEnd = auctionStart + custodianFee.period / PARTIAL_AUCTION_DURATION_DIVISOR;
 
             await expect(custodyVaultFacet.releaseFundsFromVault(exchange.tokenId))
               .to.be.revertedWithCustomError(fermionErrors, "InactiveVault")
               .withArgs(exchange.tokenId);
 
             await expect(custodyVaultFacet.releaseFundsFromVault(offerId))
-              .to.be.revertedWithCustomError(fermionErrors, "PeriodNotOver")
-              .withArgs(offerId, offerVaultCreationTimestamp + custodianFee.period);
+              .to.be.revertedWithCustomError(fermionErrors, "AuctionOngoing")
+              .withArgs(offerId, auctionEnd);
           });
 
           it("Existing fractionalised F-NFT in collection", async function () {
@@ -917,6 +927,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             const offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
@@ -988,6 +999,7 @@ describe("CustodyVault", function () {
               auctionParameters,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress,
             );
           offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
@@ -1051,6 +1063,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
             await expect(tx)
@@ -1103,6 +1116,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
@@ -1182,6 +1196,7 @@ describe("CustodyVault", function () {
               auctionParameters,
               custodianVaultParameters,
               additionalDeposit,
+              ZeroAddress,
             );
           offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
@@ -1272,6 +1287,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
             await expect(tx)
@@ -1340,6 +1356,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               );
             offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
             const custodianPayoff =
@@ -1420,6 +1437,7 @@ describe("CustodyVault", function () {
                 auctionParameters,
                 custodianVaultParameters,
                 additionalDeposit,
+                ZeroAddress,
               ),
           )
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
@@ -1430,7 +1448,15 @@ describe("CustodyVault", function () {
           await expect(
             wrapper
               .connect(buyer)
-              .mintFractions(exchange.tokenId, 1, fractionsPerToken, auctionParameters, custodianVaultParameters, 0n),
+              .mintFractions(
+                exchange.tokenId,
+                1,
+                fractionsPerToken,
+                auctionParameters,
+                custodianVaultParameters,
+                0n,
+                ZeroAddress,
+              ),
           ).to.be.revertedWithCustomError(fermionErrors, "InsufficientBalanceToFractionalise");
         });
 
@@ -1450,6 +1476,7 @@ describe("CustodyVault", function () {
                 liquidationThreshold: custodianFee.amount - 2n,
               },
               additionalDeposit,
+              ZeroAddress,
             ),
           ).to.be.revertedWithCustomError(fermionErrors, "InvalidPartialAuctionThreshold");
         });
@@ -1477,7 +1504,15 @@ describe("CustodyVault", function () {
         await mockToken.connect(buyer).approve(await wrapper.getAddress(), additionalDeposit);
         const tx = await wrapper
           .connect(buyer)
-          .mintFractions(tokenId, 1, fractionsPerToken, auctionParameters, custodianVaultParameters, additionalDeposit);
+          .mintFractions(
+            tokenId,
+            1,
+            fractionsPerToken,
+            auctionParameters,
+            custodianVaultParameters,
+            additionalDeposit,
+            ZeroAddress,
+          );
         offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
 
         await mockToken.approve(fermionProtocolAddress, offerVaultInitialAmount - custodianFee.amount); // custodianFee.amount already in the vault from fracionalisation
@@ -1904,6 +1939,7 @@ describe("CustodyVault", function () {
             auctionParameters,
             custodianVaultParameters,
             additionalDeposit,
+            ZeroAddress,
           );
         offerVaultCreationTimestamp = BigInt((await tx.getBlock()).timestamp);
       });
@@ -2349,7 +2385,12 @@ describe("CustodyVault", function () {
           it("bid does not cover the debt", async function () {
             const bidAmount = (-deficit * 3n) / 4n;
             await wrapper.connect(bidder).bid(exchange.tokenId, bidAmount, usedFractions);
-            const sellerFractions = await wrapper.balanceOfERC20(buyer.address);
+            const fermionFractionsERC20Address = await wrapper.getERC20FractionsClone();
+            const fermionFractionsERC20 = await ethers.getContractAt(
+              "FermionFractionsERC20",
+              fermionFractionsERC20Address,
+            );
+            const sellerFractions = await fermionFractionsERC20.balanceOf(buyer.address);
             const tx = await wrapper.connect(buyer).voteToStartAuction(exchange.tokenId, sellerFractions); // bid is below exit price, original buyer votes to start auction
             const voteTime = BigInt((await tx.getBlock()).timestamp);
             const auctionEnd = voteTime + auctionParameters.duration + 1n;
@@ -2947,7 +2988,7 @@ describe("CustodyVault", function () {
 
       context("endAuction", function () {
         let auctionEnd: bigint;
-        const bidAmount = custodianFee.amount;
+        const bidAmount = custodianVaultParameters.liquidationThreshold * tokenCount + 1n; // above liquidation, but below threshold
 
         beforeEach(async function () {
           await setNextBlockTimestamp(String(offerVaultCreationTimestamp + custodianFee.period + 200n));
@@ -2957,32 +2998,141 @@ describe("CustodyVault", function () {
           auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
 
           await mockToken.connect(bidder).approve(fermionProtocolAddress, bidAmount);
-          await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
         });
 
-        it("End the auction", async function () {
+        context("Above the liquidation threshold", function () {
+          beforeEach(async function () {
+            await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
+          });
+
+          it("End the auction", async function () {
+            const [custodianVault] = await custodyVaultFacet.getCustodianVault(offerId);
+            const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
+
+            await setNextBlockTimestamp(String(auctionEnd + 1n));
+            const tx = await custodyVaultFacet.endAuction(offerId);
+
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "AuctionFinished")
+              .withArgs(
+                offerId,
+                bidder.address,
+                custodianVaultParameters.newFractionsPerAuction * tokenCount,
+                bidAmount,
+              );
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
+              .withArgs(offerId, custodianVault.amount + bidAmount);
+            await expect(tx).to.not.emit(wrapper, "AuctionStarted"); // buyout auction should not start
+
+            expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance);
+            const expectedCustodianVault = {
+              amount: custodianVault.amount + bidAmount,
+              period: custodianVault.period,
+            };
+            expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
+              Object.values(expectedCustodianVault),
+              tokenCount,
+            ]); // placing a bid does not change the vault
+
+            const expectedAuctionDetails = {
+              endTime: 0n,
+              availableFractions: 0n,
+              maxBid: 0n,
+              bidderId: 0n,
+            };
+            expect(await custodyVaultFacet.getPartialAuctionDetails(offerId)).to.eql(
+              Object.values(expectedAuctionDetails),
+            );
+          });
+
+          it("After it's finished, a new auction can be started next period", async function () {
+            await setNextBlockTimestamp(String(auctionEnd + 1n));
+            await custodyVaultFacet.endAuction(offerId);
+
+            await setNextBlockTimestamp(String(offerVaultCreationTimestamp + 2n * custodianFee.period + 200n));
+            const tx = await custodyVaultFacet.releaseFundsFromVault(offerId);
+            await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted"); // new partial auction started
+
+            const timestamp = BigInt((await tx.getBlock()).timestamp);
+            auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
+
+            const expectedAuctionDetails = {
+              endTime: auctionEnd,
+              availableFractions: custodianVaultParameters.newFractionsPerAuction * tokenCount,
+              maxBid: 0n,
+              bidderId: 0n,
+            };
+            expect(await custodyVaultFacet.getPartialAuctionDetails(offerId)).to.eql(
+              Object.values(expectedAuctionDetails),
+            );
+          });
+
+          it("remove items from vault while auction is ongoing", async function () {
+            const usedFractions = 0n;
+            const buyoutAuctionBid = auctionParameters.exitPrice + parseEther("0.1");
+            const partialAuctionBid = bidAmount;
+            await mockToken.mint(bidder.address, buyoutAuctionBid * 3n);
+            await mockToken.connect(bidder).approve(await wrapper.getAddress(), buyoutAuctionBid * 3n);
+            await wrapper.connect(bidder).bid(exchange.tokenId, buyoutAuctionBid, usedFractions);
+            await wrapper.connect(bidder).bid(BigInt(exchange.tokenId) + 1n, buyoutAuctionBid, usedFractions);
+            await wrapper.connect(bidder).bid(BigInt(exchange.tokenId) + 2n, buyoutAuctionBid, usedFractions);
+
+            await setNextBlockTimestamp(String(auctionEnd + 1n));
+            const tx = await custodyVaultFacet.endAuction(offerId);
+
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "AuctionFinished")
+              .withArgs(
+                offerId,
+                bidder.address,
+                custodianVaultParameters.newFractionsPerAuction * tokenCount,
+                partialAuctionBid,
+              );
+            await expect(tx).to.not.emit(custodyVaultFacet, "VaultBalanceUpdated");
+            await expect(tx)
+              .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
+              .withArgs(custodianId, mockTokenAddress, partialAuctionBid);
+            await expect(tx).to.not.emit(wrapper, "AuctionStarted"); // buyout auction should not start
+          });
+        });
+
+        it("The amount below the liquidation threshold starts the buyout auction", async function () {
+          const bidAmount = 1n;
+          await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
+
           const [custodianVault] = await custodyVaultFacet.getCustodianVault(offerId);
           const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
 
           await setNextBlockTimestamp(String(auctionEnd + 1n));
           const tx = await custodyVaultFacet.endAuction(offerId);
+          const timestamp = BigInt((await tx.getBlock()).timestamp);
+          const buyoutAuctionEnd = timestamp + auctionParameters.duration;
 
+          // partial auction
           await expect(tx)
             .to.emit(custodyVaultFacet, "AuctionFinished")
             .withArgs(offerId, bidder.address, custodianVaultParameters.newFractionsPerAuction * tokenCount, bidAmount);
           await expect(tx)
             .to.emit(custodyVaultFacet, "VaultBalanceUpdated")
-            .withArgs(offerId, custodianVault.amount + bidAmount);
+            .withArgs(offerId, custodianVault.amount + bidAmount); // event representing the end of the partial auction
+          await expect(tx).to.emit(custodyVaultFacet, "VaultBalanceUpdated").withArgs(offerId, 0n); // event representing the closing of the offer vault
+          // buyout auction
+          for (let i = 0n; i < tokenCount; i++) {
+            await expect(tx)
+              .to.emit(wrapper, "AuctionStarted")
+              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd, 0);
+          }
 
           expect(await mockToken.balanceOf(fermionProtocolAddress)).to.equal(protocolBalance);
           const expectedCustodianVault = {
-            amount: custodianVault.amount + bidAmount,
-            period: custodianVault.period,
+            amount: 0n, // should be closed
+            period: 0n,
           };
           expect(await custodyVaultFacet.getCustodianVault(offerId)).to.eql([
             Object.values(expectedCustodianVault),
-            tokenCount,
-          ]); // placing a bid does not change the vault
+            0n,
+          ]);
 
           const expectedAuctionDetails = {
             endTime: 0n,
@@ -2995,52 +3145,43 @@ describe("CustodyVault", function () {
           );
         });
 
-        it("After it's finished, a new auction can be started next period", async function () {
-          await setNextBlockTimestamp(String(auctionEnd + 1n));
-          await custodyVaultFacet.endAuction(offerId);
+        it("Buyout auction starts only for fractionalized item", async function () {
+          // recombine one fnft
+          const buyoutBidAmount = auctionParameters.exitPrice + 1n;
+          await mockToken.mint(bidder.address, buyoutBidAmount);
+          await mockToken.connect(bidder).approve(await wrapper.getAddress(), buyoutBidAmount);
+          const tx0 = await wrapper.connect(bidder).bid(exchange.tokenId, buyoutBidAmount, 0n);
+          const timestamp0 = BigInt((await tx0.getBlock()).timestamp);
+          const buyoutAuctionEnd0 = timestamp0 + auctionParameters.duration;
+          await setNextBlockTimestamp(String(buyoutAuctionEnd0 + 1n));
+          await wrapper.connect(bidder).redeem(exchange.tokenId);
 
-          await setNextBlockTimestamp(String(offerVaultCreationTimestamp + 2n * custodianFee.period + 200n));
-          const tx = await custodyVaultFacet.releaseFundsFromVault(offerId);
-          await expect(tx).to.emit(custodyVaultFacet, "AuctionStarted");
-          const timestamp = BigInt((await tx.getBlock()).timestamp);
-          auctionEnd = timestamp + custodianVaultParameters.partialAuctionDuration;
-
-          const expectedAuctionDetails = {
-            endTime: auctionEnd,
-            availableFractions: custodianVaultParameters.newFractionsPerAuction * tokenCount,
-            maxBid: 0n,
-            bidderId: 0n,
-          };
-          expect(await custodyVaultFacet.getPartialAuctionDetails(offerId)).to.eql(
-            Object.values(expectedAuctionDetails),
-          );
-        });
-
-        it("remove items from vault while auction is ongoing", async function () {
-          const usedFractions = 0n;
-          const buyoutAuctionBid = auctionParameters.exitPrice + parseEther("0.1");
-          const partialAuctionBid = bidAmount;
-          await mockToken.mint(bidder.address, buyoutAuctionBid * 3n);
-          await mockToken.connect(bidder).approve(await wrapper.getAddress(), buyoutAuctionBid * 3n);
-          await wrapper.connect(bidder).bid(exchange.tokenId, buyoutAuctionBid, usedFractions);
-          await wrapper.connect(bidder).bid(BigInt(exchange.tokenId) + 1n, buyoutAuctionBid, usedFractions);
-          await wrapper.connect(bidder).bid(BigInt(exchange.tokenId) + 2n, buyoutAuctionBid, usedFractions);
+          // fractional auction
+          const bidAmount = 1n;
+          await custodyVaultFacet.connect(bidder).bid(offerId, bidAmount);
 
           await setNextBlockTimestamp(String(auctionEnd + 1n));
           const tx = await custodyVaultFacet.endAuction(offerId);
+          const timestamp = BigInt((await tx.getBlock()).timestamp);
+          const buyoutAuctionEnd = timestamp + auctionParameters.duration;
 
-          await expect(tx)
-            .to.emit(custodyVaultFacet, "AuctionFinished")
-            .withArgs(
-              offerId,
-              bidder.address,
-              custodianVaultParameters.newFractionsPerAuction * tokenCount,
-              partialAuctionBid,
-            );
-          await expect(tx).to.not.emit(custodyVaultFacet, "VaultBalanceUpdated");
-          await expect(tx)
-            .to.emit(custodyVaultFacet, "AvailableFundsIncreased")
-            .withArgs(custodianId, mockTokenAddress, partialAuctionBid);
+          // buyout auctions
+          // No auction for the first token
+          try {
+            await expect(tx).to.emit(wrapper, "AuctionStarted").withArgs(exchange.tokenId, buyoutAuctionEnd, 0);
+            assert(false, "Should not find the event");
+          } catch (error) {
+            expect(
+              error.message.includes("The specified arguments") &&
+                error.message.includes("were not included in any of"),
+            ).to.equal(true);
+          }
+
+          for (let i = 1n; i < tokenCount; i++) {
+            await expect(tx)
+              .to.emit(wrapper, "AuctionStarted")
+              .withArgs(BigInt(exchange.tokenId) + i, buyoutAuctionEnd, 0);
+          }
         });
 
         context("Revert reasons", function () {

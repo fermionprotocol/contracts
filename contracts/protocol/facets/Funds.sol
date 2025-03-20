@@ -5,20 +5,19 @@ import { FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FundsErrors, EntityErrors, FermionGeneralErrors, OfferErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { Access } from "../libs/Access.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
-import { Context } from "../libs/Context.sol";
+import { MathLib } from "../libs/MathLib.sol";
+import { Context } from "../bases/mixins/Context.sol";
 import { IFundsEvents } from "../interfaces/events/IFundsEvents.sol";
+import { FundsManager } from "../bases/mixins/FundsManager.sol";
 
 /**
  * @title FundsFacet
  *
  * @notice Handles entity funds.
  */
-contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
-    constructor(bytes32 _fnftCodeHash) FundsLib(_fnftCodeHash) {}
-
+contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents {
     /**
      * @notice Receives funds from the caller, maps funds to the entity id and stores them so they can be used during unwrapping.
      *
@@ -232,6 +231,53 @@ contract FundsFacet is Context, FundsErrors, Access, FundsLib, IFundsEvents {
 
             emit PhygitalsWithdrawn(_tokenIds[i], phygitals);
         }
+    }
+
+    /**
+     * @notice Collects the royalties after the buyout auction.
+     *
+     * Emits AvailableFundsIncreased events for every royalty recipient.
+     *
+     * Reverts if:
+     * - Funds region is paused
+     * - Caller is not the F-NFT contract owning the token
+     *
+     * @param _tokenId - the token id
+     * @param _saleProceeds - the amount collected from the sale
+     * @return royalties - the total amount of royalties collected
+     */
+    function collectRoyalties(
+        uint256 _tokenId,
+        uint256 _saleProceeds
+    ) external notPaused(FermionTypes.PausableRegion.Funds) returns (uint256 royalties) {
+        FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
+        (uint256 offerId, FermionTypes.Offer storage offer) = FermionStorage.getOfferFromTokenId(_tokenId);
+        verifyFermionFNFTCaller(offerId, pl);
+
+        FermionTypes.RoyaltyInfo memory royaltyInfo = offer.royaltyInfo;
+
+        address tokenAddress = offer.exchangeToken;
+        uint256 recipientsLength = royaltyInfo.recipients.length;
+        for (uint256 i; i < recipientsLength; i++) {
+            uint256 _entityId;
+            if (royaltyInfo.recipients[i] == address(0)) {
+                _entityId = offer.sellerId;
+            } else {
+                _entityId = EntityLib.getOrCreateEntityId(
+                    royaltyInfo.recipients[i],
+                    FermionTypes.EntityRole.RoyaltyRecipient,
+                    pl
+                );
+            }
+
+            uint256 amount = MathLib.applyPercentage(_saleProceeds, royaltyInfo.bps[i]);
+            royalties += amount;
+
+            FundsManager.increaseAvailableFunds(_entityId, tokenAddress, amount);
+        }
+
+        // return the remainder
+        FundsManager.transferERC20FromProtocol(tokenAddress, payable(msg.sender), _saleProceeds - royalties);
     }
 
     /**

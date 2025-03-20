@@ -2,6 +2,7 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
+import { IBosonProtocol } from "../interfaces/IBosonProtocol.sol";
 
 /**
  * @title FermionStorage
@@ -24,6 +25,9 @@ library FermionStorage {
     // keccak256(abi.encode(uint256(keccak256("fermion.meta.transaction")) - 1)) & ~bytes32(uint256(0xff));
     bytes32 private constant META_TRANSACTION_POSITION =
         0x1b00ae0f5ca50b57738405440d11dc84d7b23d830f08bc0a651be8df02efae00;
+    // keccak256(abi.encode(uint256(keccak256("fermion.price.oracle.registry")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant PRICE_ORACLE_REGISTRY_STORAGE_POSITION =
+        0xf3e4b6e521454dd4d56ea49cf25ff76edb944d588972b9362ced848f4db54500;
 
     // Protocol status storage
     /// @custom:storage-location erc7201:fermion.protocol.status
@@ -49,6 +53,10 @@ library FermionStorage {
         address payable treasury;
         // Default Protocol fee
         uint16 protocolFeePercentage;
+        // Max royalty percentage
+        uint16 maxRoyaltyPercentage;
+        // OpenSea fee percentage
+        uint16 openSeaFeePercentage;
         // Default verification timeout
         uint256 defaultVerificationTimeout;
         // Max verification timeout
@@ -90,6 +98,13 @@ library FermionStorage {
         mapping(uint256 => TokenLookups) tokenLookups;
         // entity id => seller lookups
         mapping(uint256 => SellerLookups) sellerLookups;
+        // unwraping function storage slot
+        mapping(FermionTypes.WrapType => function(
+            uint256,
+            IBosonProtocol.PriceDiscovery memory,
+            address,
+            bytes memory
+        )) deriveAndValidatePriceDiscoveryData;
     }
 
     struct EntityLookups {
@@ -110,6 +125,10 @@ library FermionStorage {
         FermionTypes.CustodianVaultParameters custodianVaultParameters;
         // number of items in custodian vault
         uint256 custodianVaultItems;
+        uint256 itemQuantity;
+        uint256 firstTokenId;
+        // custodian update request
+        FermionTypes.CustodianUpdateRequest custodianUpdateRequest;
     }
 
     struct TokenLookups {
@@ -139,6 +158,10 @@ library FermionStorage {
         FermionTypes.Phygital[] phygitals;
         // phygitals recipient
         uint256 phygitalsRecipient;
+        // verification metadata
+        FermionTypes.Metadata verificationMetadata;
+        // custom item price used only in case of forceful fractionalisation
+        uint256 selfSaleItemPrice;
     }
 
     struct SellerLookups {
@@ -146,6 +169,10 @@ library FermionStorage {
         mapping(uint256 => bool) isSellersFacilitator;
         // list of facilitators
         uint256[] sellerFacilitators;
+        // facilitator id => status
+        mapping(uint256 => bool) isSellersRoyaltyRecipient;
+        // list of facilitators
+        uint256[] sellerRoyaltyRecipients;
     }
 
     // Storage related to Meta Transactions
@@ -157,6 +184,13 @@ library FermionStorage {
         mapping(address => mapping(uint256 => bool)) usedNonce;
         // Can function be executed using meta transactions
         mapping(bytes32 => bool) isAllowlisted;
+    }
+
+    // Storage related to Price Oracle Registry
+    /// @custom:storage-location erc7201:fermion.price.oracle.registry
+    struct PriceOracleRegistryStorage {
+        // oracle address => identifier (e.g GOLD, REAL_ESTATE, ROLEX_REF214325)
+        mapping(address => bytes32) priceOracles;
     }
 
     /**
@@ -226,5 +260,16 @@ library FermionStorage {
     ) internal view returns (uint256 offerId, FermionTypes.Offer storage offer) {
         offerId = _tokenId >> 128;
         offer = protocolEntities().offer[offerId];
+    }
+
+    /**
+     * @notice Gets the price oracle registry storage slot.
+     *
+     * @return storageRef - the price oracle registry storage
+     */
+    function priceOracleRegistryStorage() internal pure returns (PriceOracleRegistryStorage storage storageRef) {
+        assembly {
+            storageRef.slot := PRICE_ORACLE_REGISTRY_STORAGE_POSITION
+        }
     }
 }

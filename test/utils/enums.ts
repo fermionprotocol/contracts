@@ -7,6 +7,12 @@ export enum EntityRole {
   Buyer,
   Verifier,
   Custodian,
+  RoyaltyRecipient,
+}
+
+export enum AssociatedRole {
+  Facilitator,
+  RoyaltyRecipient,
 }
 
 export enum TokenState {
@@ -29,6 +35,7 @@ export enum AccountRole {
 export enum VerificationStatus {
   Verified,
   Rejected,
+  Pending,
 }
 
 export enum CheckoutRequestStatus {
@@ -56,6 +63,19 @@ export enum AuctionState {
   Reserved,
   Finalized,
   Redeemed,
+}
+
+export const enum PriceUpdateProposalState {
+  NotInit = 0, // Explicitly represents an uninitialized state
+  Active = 1,
+  Executed = 2,
+  Failed = 3,
+}
+
+export enum WrapType {
+  SELF_SALE,
+  OS_AUCTION,
+  OS_FIXED_PRICE,
 }
 
 export function enumIterator(enumObject: any) {

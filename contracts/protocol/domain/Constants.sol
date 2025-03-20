@@ -18,16 +18,21 @@ uint256 constant MINIMAL_BID_INCREMENT = 10_00; // 10%
 uint256 constant MIN_FRACTIONS = 1e18;
 uint256 constant MAX_FRACTIONS = 1 << 127;
 
+// buyout exit price governance update
+uint256 constant MIN_QUORUM_PERCENT = 20_00; // 20% is the minumum quorum percent for DAO exit price update
+uint256 constant MIN_GOV_VOTE_DURATION = 1 days;
+uint256 constant MAX_GOV_VOTE_DURATION = 7 days;
+uint256 constant DEFAULT_GOV_VOTE_DURATION = 3 days;
+
 // Default parameters
 uint256 constant TOP_BID_LOCK_TIME = 3 days;
 uint256 constant AUCTION_DURATION = 5 days;
 uint256 constant UNLOCK_THRESHOLD = 50_00; // 50%
 
 // Forceful fractionalisation
-uint256 constant DEFAULT_FRACTION_AMOUNT = 1e6 * MIN_FRACTIONS;
+uint256 constant DEFAULT_FRACTION_AMOUNT = 1e5 * MIN_FRACTIONS;
 uint256 constant PARTIAL_THRESHOLD_MULTIPLIER = 12;
-uint256 constant LIQUIDATION_THRESHOLD_MULTIPLIER = 3;
+uint256 constant LIQUIDATION_THRESHOLD_MULTIPLIER = 2;
 uint256 constant PARTIAL_AUCTION_DURATION_DIVISOR = 4;
 
 // OpenSea
-uint256 constant OS_FEE_PERCENTAGE = 2_50; // 2.5%
