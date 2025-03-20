@@ -19,14 +19,8 @@ interface IFermionFNFTPriceManager {
      * @param newPrice The proposed new exit price.
      * @param quorumPercent The required quorum percentage for the governance proposal (in basis points).
      * @param voteDuration The duration of the governance proposal in seconds.
-     * @param fermionProtocol Fermion diamond address containing the Oracle Registry Facet.
      */
-    function updateExitPrice(
-        uint256 newPrice,
-        uint256 quorumPercent,
-        uint256 voteDuration,
-        address fermionProtocol
-    ) external;
+    function updateExitPrice(uint256 newPrice, uint256 quorumPercent, uint256 voteDuration) external;
 
     /**
      * @notice Allows a fraction owner to vote on the current active proposal.

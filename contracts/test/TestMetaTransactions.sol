@@ -50,9 +50,7 @@ contract MetaTxTestSeaport is SeaportWrapper {
         address _fermionProtocol,
         SeaportConfig memory _seaportConfig,
         address _trustedForwarder
-    ) SeaportWrapper(_bosonPriceDiscovery, _fermionProtocol, _seaportConfig) {
-        fermionProtocol = _trustedForwarder;
-    }
+    ) SeaportWrapper(_bosonPriceDiscovery, _fermionProtocol, _seaportConfig) {}
 
     function testMsgData(bytes calldata) external {
         data = msg.data;

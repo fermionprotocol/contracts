@@ -66,7 +66,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
     const fermionFractionsERC20Implementation = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
-    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy(predictedFermionDiamondAddress);
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
     const fermionFractionsMint = await FermionFractionsMint.deploy(
       mockBosonPriceDiscovery.address,

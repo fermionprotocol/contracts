@@ -57,7 +57,7 @@ describe("FermionFNFT - wrapper tests", function () {
     const TransferValidator = await ethers.getContractFactory("MockTransferValidator");
     transferValidator = await TransferValidator.deploy();
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
-    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy(predictedFermionDiamondAddress);
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
     const fermionFractionsERC20 = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");

@@ -12,18 +12,11 @@ import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsE
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FundsFacet } from "../facets/Funds.sol";
-import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Buyout auction
  */
-contract FermionBuyoutAuction is
-    ContextUpgradeable,
-    FermionFNFTBase,
-    FermionErrors,
-    FundsManager,
-    IFermionFractionsEvents
-{
+contract FermionBuyoutAuction is FermionFNFTBase, FermionErrors, FundsManager, IFermionFractionsEvents {
     using Address for address;
     constructor(
         address _bosonPriceDiscovery,

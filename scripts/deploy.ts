@@ -111,7 +111,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
-    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy(predictedFermionDiamondAddress);
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
     const fermionFractionsERC20 = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");

@@ -12,6 +12,7 @@ import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { CreatorToken, ITransferValidator721 } from "./CreatorToken.sol";
 import { RoyaltiesFacet } from "../facets/Royalties.sol";
 import { VerificationFacet } from "../facets/Verification.sol";
+import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -29,7 +30,7 @@ import "seaport-types/src/lib/ConsiderationStructs.sol" as SeaportTypes;
  * It makes delegatecalls to marketplace specific wrapper implementations
  *
  */
-abstract contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapper, IFermionWrapperEvents {
+abstract contract FermionWrapper is FermionFNFTBase, CreatorToken, IFermionWrapper, IFermionWrapperEvents {
     using SafeERC20 for IERC20;
     using Address for address;
     IWrappedNative private immutable WRAPPED_NATIVE;
@@ -318,6 +319,9 @@ abstract contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFer
                 ITransferValidator721(transferValidator).validateTransfer(msgSender, from, _to, _tokenId);
             }
         }
+
+        if (from == address(0)) Common.changeTokenState(_tokenId, FermionTypes.TokenState.Wrapped);
+
         return from;
     }
 
@@ -366,6 +370,18 @@ abstract contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFer
                 IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _value);
             }
         }
+    }
+
+    function _msgSender() internal view virtual override(Context, FermionFNFTBase) returns (address) {
+        return FermionFNFTBase._msgSender();
+    }
+
+    function _msgData() internal view virtual override(Context, FermionFNFTBase) returns (bytes calldata) {
+        return FermionFNFTBase._msgData();
+    }
+
+    function _contextSuffixLength() internal view virtual override(Context, FermionFNFTBase) returns (uint256) {
+        return FermionFNFTBase._contextSuffixLength();
     }
 
     receive() external payable {}

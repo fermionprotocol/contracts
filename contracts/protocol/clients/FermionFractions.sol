@@ -5,11 +5,8 @@ import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Common } from "./Common.sol";
-import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
-import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FermionBuyoutAuction } from "./FermionBuyoutAuction.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
@@ -17,7 +14,7 @@ import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Fractionalisation and buyout auction
  */
-abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFractionsEvents, IFermionFractions {
+abstract contract FermionFractions is FermionErrors, IFermionFractionsEvents, IFermionFractions {
     using Address for address;
 
     address private immutable FNFT_FRACTION_MINT;
@@ -360,12 +357,7 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
      * @param _voteDuration The duration of the governance proposal in seconds.
      */
     function updateExitPrice(uint256 _newPrice, uint256 _quorumPercent, uint256 _voteDuration) external {
-        FNFT_PRICE_MANAGER.functionDelegateCall(
-            abi.encodeCall(
-                IFermionFNFTPriceManager.updateExitPrice,
-                (_newPrice, _quorumPercent, _voteDuration, FERMION_PROTOCOL)
-            )
-        );
+        forwardCall(FNFT_PRICE_MANAGER);
     }
 
     /**
@@ -602,6 +594,6 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
      * @param _target The implementation address of the voter.
      */
     function forwardCall(address _target) internal returns (bytes memory) {
-        return _target.functionDelegateCall(_msgData());
+        return _target.functionDelegateCall(msg.data); // not using _msgData() since the target contract must handle context properly
     }
 }
