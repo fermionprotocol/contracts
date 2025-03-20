@@ -37,6 +37,8 @@ abstract contract FermionWrapper is FermionFNFTBase, CreatorToken, IFermionWrapp
     address private immutable SEAPORT_WRAPPER;
     address private immutable STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY;
 
+    address internal voucherAddress; // slot: 1
+
     /**
      * @notice Constructor
      *

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { SLOT_SIZE } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
