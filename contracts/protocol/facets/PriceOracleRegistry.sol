@@ -5,6 +5,7 @@ import { FermionStorage } from "../libs/Storage.sol";
 import { Access } from "../bases/mixins/Access.sol";
 import { FermionErrors } from "../domain/Errors.sol";
 import { IPriceOracle } from "../interfaces/IPriceOracle.sol";
+import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
 import { IPriceOracleRegistryEvents } from "../interfaces/events/IPriceOracleRegistryEvents.sol";
 import { ADMIN } from "../domain/Constants.sol";
 
@@ -12,7 +13,7 @@ import { ADMIN } from "../domain/Constants.sol";
  * @title PriceOracleRegistryFacet
  * @dev Manages a registry of approved price oracles for RWAs within the protocol, with admin restrictions.
  */
-contract PriceOracleRegistryFacet is Access, FermionErrors, IPriceOracleRegistryEvents {
+contract PriceOracleRegistryFacet is Access, FermionErrors, IPriceOracleRegistry, IPriceOracleRegistryEvents {
     /**
      * @notice Adds a new Price Oracle to the registry.
      *

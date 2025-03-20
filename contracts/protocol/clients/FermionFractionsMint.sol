@@ -8,6 +8,7 @@ import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { FundsManager } from "../bases/mixins/FundsManager.sol";
+import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
@@ -18,7 +19,13 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 /**
  * @dev Fractionalisation of NFTs
  */
-contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, IFermionFractionsEvents {
+contract FermionFractionsMint is
+    FermionFNFTBase,
+    FermionErrors,
+    FundsManager,
+    IFermionFractions,
+    IFermionFractionsEvents
+{
     using Strings for uint256;
 
     // @dev The address of the ERC20 implementation contract that is used for Minimal Clone Implementation

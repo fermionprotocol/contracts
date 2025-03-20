@@ -10,6 +10,7 @@ import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable
 import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
+import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FundsFacet } from "../facets/Funds.sol";
 import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
@@ -22,6 +23,7 @@ contract FermionBuyoutAuction is
     FermionFNFTBase,
     FermionErrors,
     FundsManager,
+    IFermionBuyoutAuction,
     IFermionFractionsEvents
 {
     using Address for address;
