@@ -292,7 +292,7 @@ contract SeaportWrapper is FermionFNFTBase {
             });
         }
 
-        SeaportInterface(SEAPORT).validate(orders);
+        if (!SeaportInterface(SEAPORT).validate(orders)) revert WrapperErrors.UnsuccessfulExternalCall();
     }
 
     /**
@@ -315,6 +315,6 @@ contract SeaportWrapper is FermionFNFTBase {
             fixedPrice[tokenId] = 0;
         }
 
-        SeaportInterface(SEAPORT).cancel(_orders);
+        if (!SeaportInterface(SEAPORT).cancel(_orders)) revert WrapperErrors.UnsuccessfulExternalCall();
     }
 }
