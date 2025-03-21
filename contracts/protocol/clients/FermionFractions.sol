@@ -25,11 +25,13 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
     /**
      * @notice Constructor
      *
+     * @param _fnftFractionMint The address of the FNFT fraction mint contract
      * @param _fnftPriceManager The address of FNFT price manager holding buyout auction exit price update
      * @param _fnftBuyoutAuction The address of the buyout auction contract
      */
     constructor(address _fnftFractionMint, address _fnftPriceManager, address _fnftBuyoutAuction) {
-        if (_fnftPriceManager == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        if (_fnftFractionMint == address(0) || _fnftBuyoutAuction == address(0) || _fnftPriceManager == address(0))
+            revert FermionGeneralErrors.InvalidAddress();
         FNFT_FRACTION_MINT = _fnftFractionMint;
         FNFT_PRICE_MANAGER = _fnftPriceManager;
         FNFT_BUYOUT_AUCTION = _fnftBuyoutAuction;
