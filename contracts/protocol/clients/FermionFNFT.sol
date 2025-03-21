@@ -1,19 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { SLOT_SIZE } from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
+import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { FermionFractions } from "./FermionFractions.sol";
 import { FermionWrapper } from "./FermionWrapper.sol";
 import { Common } from "./Common.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
-import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { IERC2981 } from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -22,16 +19,15 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
  * @notice Wrapping, unwrapping, fractionalisation, buyout auction and claiming of Boson Vouchers
  *
  */
-contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermionFNFT {
+contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
     address private immutable THIS_CONTRACT = address(this);
 
     /**
      * @notice Constructor
-     *
-     * @dev construct ERC2771Context with address 0 and override `trustedForwarder` to return the fermionProtocol address
      */
     constructor(
         address _bosonPriceDiscovery,
+        address _fermionProtocol,
         address _seaportWrapper,
         address _strictAuthorizedTransferSecurityRegistry,
         address _wrappedNative,
@@ -39,8 +35,8 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
         address _fermionFNFTPriceManager,
         address _fnftBuyoutAuction
     )
-        FermionWrapper(_bosonPriceDiscovery, _seaportWrapper, _strictAuthorizedTransferSecurityRegistry, _wrappedNative)
-        ERC2771Context(address(0))
+        FermionFNFTBase(_bosonPriceDiscovery, _fermionProtocol)
+        FermionWrapper(_seaportWrapper, _strictAuthorizedTransferSecurityRegistry, _wrappedNative)
         FermionFractions(_fnftFractionMint, _fermionFNFTPriceManager, _fnftBuyoutAuction)
     {}
 
@@ -69,7 +65,6 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
             revert InvalidInitialization();
         }
 
-        fermionProtocol = msg.sender;
         voucherAddress = _voucherAddress;
 
         initializeWrapper(_owner, _metadataUri);
@@ -112,7 +107,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
      * @param _tokenId The token id.
      */
     function burn(uint256 _tokenId) external returns (address wrappedVoucherOwner) {
-        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unverified, _msgSender(), fermionProtocol);
+        Common.checkStateAndCaller(_tokenId, FermionTypes.TokenState.Unverified, _msgSender(), FERMION_PROTOCOL);
 
         wrappedVoucherOwner = ownerOf(_tokenId);
 
@@ -137,7 +132,7 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
             _tokenId,
             FermionTypes.TokenState(uint8(_newState) - 1),
             _msgSender(),
-            fermionProtocol
+            FERMION_PROTOCOL
         );
         Common.changeTokenState(_tokenId, _newState);
         if (_newState == FermionTypes.TokenState.CheckedOut) {
@@ -178,40 +173,6 @@ contract FermionFNFT is FermionFractions, FermionWrapper, ERC2771Context, IFermi
 
     function currentEpoch() external view returns (uint256) {
         return Common._getFermionFractionsStorage().currentEpoch;
-    }
-
-    /**
-     * @dev See {IERC721Metadata-tokenURI}.
-     */
-    function tokenURI(uint256 tokenId) public view virtual override(FermionWrapper, ERC721) returns (string memory) {
-        return FermionWrapper.tokenURI(tokenId);
-    }
-
-    function _update(
-        address _to,
-        uint256 _tokenId,
-        address _auth
-    ) internal override(ERC721, FermionWrapper) returns (address) {
-        address from = FermionWrapper._update(_to, _tokenId, _auth);
-        if (from == address(0)) Common.changeTokenState(_tokenId, FermionTypes.TokenState.Wrapped);
-
-        return from;
-    }
-
-    function trustedForwarder() public view virtual override returns (address) {
-        return fermionProtocol;
-    }
-
-    function _msgSender() internal view virtual override(Context, ERC2771Context) returns (address) {
-        return ERC2771Context._msgSender();
-    }
-
-    function _msgData() internal view virtual override(Context, ERC2771Context) returns (bytes calldata) {
-        return ERC2771Context._msgData();
-    }
-
-    function _contextSuffixLength() internal view virtual override(Context, ERC2771Context) returns (uint256) {
-        return ERC2771Context._contextSuffixLength();
     }
 
     function transferOwnership(address _newOwner) public override(FermionWrapper, IFermionWrapper) {
