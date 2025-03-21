@@ -64,9 +64,9 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
     function initializeWrapper(address _owner, string memory _metadataUri) internal virtual {
         Common._getFermionCommonStorage().metadataUri = _metadataUri;
         __Ownable_init(_owner);
-        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
         if (STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY != address(0))
             _setTransferValidator(STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY);
+        SEAPORT_WRAPPER.functionDelegateCall(abi.encodeCall(SeaportWrapper.wrapOpenSea, ()));
     }
 
     /**
@@ -366,10 +366,10 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
         if (_value > 0) {
             if (_exchangeToken == address(0)) {
                 WRAPPED_NATIVE.deposit{ value: _value }();
-                WRAPPED_NATIVE.transfer(BP_PRICE_DISCOVERY, _value);
-            } else {
-                IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _value);
+                _exchangeToken = address(WRAPPED_NATIVE);
             }
+
+            IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _value);
         }
     }
 
