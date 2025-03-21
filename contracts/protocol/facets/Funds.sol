@@ -46,7 +46,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
 
         // Check that entity exists. Funds to protocol entity (0) are allowed too.
         if (_entityId > 0) {
-            EntityLib.fetchEntityData(_entityId);
+            EntityLib.validateEntityId(_entityId, FermionStorage.protocolLookups());
         }
 
         validateIncomingPayment(_tokenAddress, _amount);

@@ -366,10 +366,10 @@ contract FermionWrapper is FermionFNFTBase, Ownable, CreatorToken, IFermionWrapp
         if (_value > 0) {
             if (_exchangeToken == address(0)) {
                 WRAPPED_NATIVE.deposit{ value: _value }();
-                WRAPPED_NATIVE.transfer(BP_PRICE_DISCOVERY, _value);
-            } else {
-                IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _value);
+                _exchangeToken = address(WRAPPED_NATIVE);
             }
+
+            IERC20(_exchangeToken).safeTransfer(BP_PRICE_DISCOVERY, _value);
         }
     }
 
