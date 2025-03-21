@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+import { IPriceOracleRegistryEvents } from "./events/IPriceOracleRegistryEvents.sol";
+
 /**
  * @title IPriceOracleRegistry
  * @dev Interface for the PriceOracleRegistry contract.
  */
-interface IPriceOracleRegistry {
+interface IPriceOracleRegistry is IPriceOracleRegistryEvents {
     /**
      * @notice Adds a new Price Oracle to the registry.
      * @param oracleAddress The address of the oracle to add.

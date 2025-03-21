@@ -2,13 +2,14 @@
 pragma solidity 0.8.24;
 
 import { FermionTypes } from "../domain/Types.sol";
+import { IFermionFractionsEvents } from "./events/IFermionFractionsEvents.sol";
 
 /**
  * @title FermionWrapper interface
  *
  * A set of methods to interact with the FermionWrapper contract.
  */
-interface IFermionFractions {
+interface IFermionFractions is IFermionFractionsEvents {
     /**
      * @notice Locks the F-NFTs and mints the fractions. Sets the auction parameters and custodian vault parameters.
      * This function is called when the first NFT is fractionalised.
