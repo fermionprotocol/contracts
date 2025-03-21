@@ -573,14 +573,14 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
      * @param _tokenId - the token ID
      * @param _buyerPercent - the percentage the buyer will receive
      * @param _metadataURIDigest - keccak256 of the revised metadata URI
-     * @param _msgSender - the caller
+     * @param _caller - the caller
      * @param _otherSigner - the other party's address (0 if not present)
      */
     function submitProposalInternal(
         uint256 _tokenId,
         uint16 _buyerPercent,
         bytes32 _metadataURIDigest,
-        address _msgSender,
+        address _caller,
         address _otherSigner
     ) internal notPaused(FermionTypes.PausableRegion.Verification) nonReentrant {
         if (_buyerPercent > HUNDRED_PERCENT) revert FermionGeneralErrors.InvalidPercentage(_buyerPercent);
@@ -605,7 +605,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
                 initialBuyer = IFermionFNFT(pl.offerLookups[offerId].fermionFNFTAddress).ownerOf(_tokenId);
                 tokenLookups.initialBuyer = initialBuyer;
             }
-            if (_msgSender == initialBuyer) {
+            if (_caller == initialBuyer) {
                 tokenLookups.buyerSplitProposal = _buyerPercent;
 
                 splitProposal.buyer = _buyerPercent;
@@ -621,7 +621,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
                 }
             } else {
                 // check the caller is the seller
-                EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId, _msgSender);
+                EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId, _caller);
 
                 tokenLookups.sellerSplitProposal = _buyerPercent;
                 splitProposal.seller = _buyerPercent;
