@@ -32,17 +32,18 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
+     * @return entityId - the entity ID
      */
     function createEntity(
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
-    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant returns (uint256 entityId) {
         address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        uint256 entityId = pl.entityId[msgSender];
+        entityId = pl.entityId[msgSender];
         if (entityId != 0) revert EntityAlreadyExists();
 
-        EntityLib.createEntity(msgSender, _roles, _metadata, pl);
+        entityId = EntityLib.createEntity(msgSender, _roles, _metadata, pl);
     }
 
     /**
