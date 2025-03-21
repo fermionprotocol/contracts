@@ -383,18 +383,18 @@ contract FermionBuyoutAuction is
         uint256 auctionEnd = block.timestamp + $.auctionParameters.duration;
         auctionDetails.timer = auctionEnd;
 
+        uint256 fractionsPerToken = Common.liquidSupply(currentEpoch) / $.nftCount;
+        auctionDetails.totalFractions = fractionsPerToken;
+
+        $.pendingRedeemableSupply += fractionsPerToken;
+        $.nftCount--;
+
         int256 releasedFromCustodianVault = IFermionCustodyVault(fermionProtocol).removeItemFromCustodianOfferVault(
             _tokenId,
             auctionEnd
         );
 
-        uint256 fractionsPerToken = Common.liquidSupply(currentEpoch) / $.nftCount;
-        auctionDetails.totalFractions = fractionsPerToken;
-
-        $.pendingRedeemableSupply += fractionsPerToken;
         $.tokenInfo[_tokenId].lockedProceeds.push(releasedFromCustodianVault);
-
-        $.nftCount--;
 
         emit AuctionStarted(_tokenId, auctionDetails.timer, currentEpoch);
     }
