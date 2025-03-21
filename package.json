@@ -55,6 +55,9 @@
     "typescript-eslint": "^8.26.1"
   },
   "dependencies": {
-    "@openzeppelin/contracts": "^5.2.0"
+    "@openzeppelin/contracts": "^5.2.0",
+    "graphql": "^16.10.0",
+    "node-fetch": "2",
+    "urql": "^4.2.1"
   }
 }
