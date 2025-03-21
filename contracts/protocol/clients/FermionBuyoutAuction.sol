@@ -10,13 +10,20 @@ import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable
 import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
+import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FundsFacet } from "../facets/Funds.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Buyout auction
  */
-contract FermionBuyoutAuction is FermionFNFTBase, FermionErrors, FundsManager, IFermionFractionsEvents {
+contract FermionBuyoutAuction is
+    FermionFNFTBase,
+    FermionErrors,
+    FundsManager,
+    IFermionBuyoutAuction,
+    IFermionFractionsEvents
+{
     using Address for address;
     constructor(
         address _bosonPriceDiscovery,
@@ -379,18 +386,18 @@ contract FermionBuyoutAuction is FermionFNFTBase, FermionErrors, FundsManager, I
         uint256 auctionEnd = block.timestamp + $.auctionParameters.duration;
         auctionDetails.timer = auctionEnd;
 
+        uint256 fractionsPerToken = Common.liquidSupply(currentEpoch) / $.nftCount;
+        auctionDetails.totalFractions = fractionsPerToken;
+
+        $.pendingRedeemableSupply += fractionsPerToken;
+        $.nftCount--;
+
         int256 releasedFromCustodianVault = IFermionCustodyVault(FERMION_PROTOCOL).removeItemFromCustodianOfferVault(
             _tokenId,
             auctionEnd
         );
 
-        uint256 fractionsPerToken = Common.liquidSupply(currentEpoch) / $.nftCount;
-        auctionDetails.totalFractions = fractionsPerToken;
-
-        $.pendingRedeemableSupply += fractionsPerToken;
         $.tokenInfo[_tokenId].lockedProceeds.push(releasedFromCustodianVault);
-
-        $.nftCount--;
 
         emit AuctionStarted(_tokenId, auctionDetails.timer, currentEpoch);
     }

@@ -85,8 +85,6 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
 
         if (_fractionAmount > availableFractions) _fractionAmount = availableFractions;
 
-        Common._transferFractions(msgSender, address(this), _fractionAmount, currentEpoch);
-
         votes.individual[msgSender] += _fractionAmount;
         votes.total += _fractionAmount;
 
@@ -100,6 +98,8 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
                 startAuctionInternal = true;
             }
         }
+
+        Common._transferFractions(msgSender, address(this), _fractionAmount, currentEpoch);
 
         emit IFermionFractionsEvents.Voted(_tokenId, msgSender, _fractionAmount);
     }
@@ -134,17 +134,18 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         if (_fractionAmount > votes.individual[msgSender]) {
             revert NotEnoughLockedVotes(_tokenId, _fractionAmount, votes.individual[msgSender]);
         }
+
+        unchecked {
+            votes.individual[msgSender] -= _fractionAmount;
+            votes.total -= _fractionAmount;
+        }
+
         Common._transferFractions(
             address(this),
             msgSender,
             _fractionAmount,
             Common._getFermionFractionsStorage().currentEpoch
         );
-
-        unchecked {
-            votes.individual[msgSender] -= _fractionAmount;
-            votes.total -= _fractionAmount;
-        }
 
         emit IFermionFractionsEvents.VoteRemoved(_tokenId, msgSender, _fractionAmount);
     }

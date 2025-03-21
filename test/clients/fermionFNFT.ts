@@ -2,7 +2,7 @@ import { loadFixture } from "@nomicfoundation/hardhat-toolbox/network-helpers";
 import { getInterfaceID, deployMockTokens } from "../utils/common";
 import { expect } from "chai";
 import { ethers } from "hardhat";
-import { Contract, MaxUint256, ZeroHash } from "ethers";
+import { Contract, MaxUint256, ZeroHash, ContractFactory } from "ethers";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { TokenState } from "../utils/enums";
 import { predictFermionDiamondAddress } from "../../scripts/deploy";
@@ -14,6 +14,8 @@ describe("FermionFNFT", function () {
   let wallets: HardhatEthersSigner[];
   let seller: HardhatEthersSigner;
   let fermionMock: Contract;
+  let fnftConstructorArgs: any[];
+
   const startTokenId = 2n ** 128n + 1n;
   const quantity = 10n;
   const additionalDeposit = 0n;
@@ -58,8 +60,7 @@ describe("FermionFNFT", function () {
       predictedFermionDiamondAddress,
     );
 
-    const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
-    const fermionFNFT = await FermionFNFT.deploy(
+    fnftConstructorArgs = [
       mockBosonPriceDiscovery.address,
       predictedFermionDiamondAddress,
       await fermionSeaportWrapper.getAddress(),
@@ -68,7 +69,9 @@ describe("FermionFNFT", function () {
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
       await fermionBuyoutAuction.getAddress(),
-    ); // dummy address
+    ];
+    const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
+    const fermionFNFT = await FermionFNFT.deploy(...fnftConstructorArgs); // dummy address
 
     const Proxy = await ethers.getContractFactory("MockProxy");
     const proxy = await Proxy.deploy(await fermionFNFT.getAddress());
@@ -117,6 +120,77 @@ describe("FermionFNFT", function () {
 
   afterEach(async function () {
     await loadFixture(setupFermionFNFTTest);
+  });
+
+  context("constructor", function () {
+    let FermionFNFT: ContractFactory;
+
+    before(async function () {
+      FermionFNFT = await ethers.getContractFactory("FermionFNFT");
+    });
+
+    it("_bosonPriceDiscovery is zero", async function () {
+      const invalidConstructorArgs = [...fnftConstructorArgs];
+      invalidConstructorArgs[0] = ZeroAddress;
+      await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
+        fermionFNFT,
+        "InvalidAddress",
+      );
+    });
+
+    it("_fermionProtocol is zero", async function () {
+      const invalidConstructorArgs = [...fnftConstructorArgs];
+      invalidConstructorArgs[1] = ZeroAddress;
+      await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
+        fermionFNFT,
+        "InvalidAddress",
+      );
+    });
+
+    it("_seaportWrapper is zero", async function () {
+      const invalidConstructorArgs = [...fnftConstructorArgs];
+      invalidConstructorArgs[2] = ZeroAddress;
+      await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
+        fermionFNFT,
+        "InvalidAddress",
+      );
+    });
+
+    it("_wrappedNative is zero", async function () {
+      const invalidConstructorArgs = [...fnftConstructorArgs];
+      invalidConstructorArgs[4] = ZeroAddress;
+      await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
+        fermionFNFT,
+        "InvalidAddress",
+      );
+    });
+
+    it("_fnftFractionMint is zero", async function () {
+      const invalidConstructorArgs = [...fnftConstructorArgs];
+      invalidConstructorArgs[5] = ZeroAddress;
+      await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
+        fermionFNFT,
+        "InvalidAddress",
+      );
+    });
+
+    it("_fermionFNFTPriceManager is zero", async function () {
+      const invalidConstructorArgs = [...fnftConstructorArgs];
+      invalidConstructorArgs[6] = ZeroAddress;
+      await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
+        fermionFNFT,
+        "InvalidAddress",
+      );
+    });
+
+    it("_fnftBuyoutAuction is zero", async function () {
+      const invalidConstructorArgs = [...fnftConstructorArgs];
+      invalidConstructorArgs[7] = ZeroAddress;
+      await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
+        fermionFNFT,
+        "InvalidAddress",
+      );
+    });
   });
 
   context("supportsInterface", function () {
