@@ -6,7 +6,7 @@ import { FermionStorage } from "../../libs/Storage.sol";
 /**
  * @title BackfillingV1_1_0
  * @notice Handles backfilling of data during the v1.1.0 upgrade.
- *         This facet should only be active during the upgrade process.
+ *
  */
 contract BackfillingV1_1_0 {
     event FeesBackfilled(
@@ -97,4 +97,4 @@ contract BackfillingV1_1_0 {
             }
         }
     }
-} 
+}

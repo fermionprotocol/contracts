@@ -1,10 +1,11 @@
 import { createClient, fetchExchange } from "@urql/core";
-import { AbiCoder } from "ethers";
+import { AbiCoder, encodeBytes32String } from "ethers";
 import hre from "hardhat";
 import fetch from "node-fetch";
 
 const { ethers } = hre;
-const GRAPHQL_URL = "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-amoy/latest/gn";
+const GRAPHQL_URL =
+  "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-amoy/latest/gn";
 const VERSION = "1.1.0";
 
 const abiCoder = new AbiCoder();
@@ -194,7 +195,7 @@ export async function preUpgrade(protocolAddress: string) {
   const backFillFeesCalldata = backfillingFacet.interface.encodeFunctionData("backFillTokenFees", [feeDataList]);
   const backFillOfferCalldata = backfillingFacet.interface.encodeFunctionData("backFillOfferData", [offerDataList]);
 
-  const version = ethers.toUtf8Bytes(VERSION);
+  const version = encodeBytes32String(VERSION);
   const addresses = [backfillingFacet.address];
   const calldata = [backFillFeesCalldata, backFillOfferCalldata];
   const interfacesToAdd: string[] = [];
@@ -213,4 +214,4 @@ export async function preUpgrade(protocolAddress: string) {
   await tx.wait();
 
   console.log("Diamond cut and backfilling initialization completed successfully.");
-} 
+}
