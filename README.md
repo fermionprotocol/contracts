@@ -194,6 +194,10 @@ All PRs must pass all tests before being merged.
 
 By being in this community, you agree to the [Code of Conduct](/code-of-conduct.md). Take a look at it, if you haven't already.
 
+## License
+
+Licensed under [GPL-v3](LICENSE).
+
 ## Audit reports
 
 All minor versions of the protocol are thoroughly audited before they are released. Find the information about the audits in the table below.
