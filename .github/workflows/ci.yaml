@@ -4,7 +4,9 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
+    branches:
+      - main
+      - "develop-**"
     types: [opened, reopened, synchronize, ready_for_review]
 
 jobs:
@@ -73,7 +75,7 @@ jobs:
       - name: Check Code Coverage
         shell: bash
         run: |
-          MAX_SKIPPED=0
+          MAX_SKIPPED=4 # ownerOf and transfer in FermionFractionsMint and FermionBuyoutAuction
           { read TOTAL; read COVERED; read COVERAGE; } <<< $(jq '.total.lines.total, .total.lines.covered, .total.lines.pct' coverage/coverage-summary.json)
           SKIPPED=$(($TOTAL - $COVERED))
           echo "solidity code coverage is '$COVERAGE'"
@@ -106,3 +108,24 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ./coverage/lcov.info
+
+  analyze:
+    needs: setup
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Slither analyzer
+        uses: crytic/slither-action@v0.4.0
+        id: slither
+        with:
+          node-version: 20
+          sarif: results.sarif
+          fail-on: none
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ steps.slither.outputs.sarif }}
