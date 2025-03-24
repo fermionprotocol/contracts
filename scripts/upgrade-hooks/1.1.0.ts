@@ -4,6 +4,7 @@ import hre from "hardhat";
 import fetch from "node-fetch";
 import fs from "fs";
 import path from "path";
+import { readContracts } from "../libraries/utils";
 
 const { ethers } = hre;
 const VERSION = "1.1.0";
@@ -27,11 +28,8 @@ function getGraphQLUrl(chainId: number, env: string): string {
 }
 
 // Function to get the InitializationFacet address based on chainId and env
-function getInitializationFacetAddress(chainId: number, env: string): string {
-  const addressesDir = path.join(__dirname, "..", "..", "addresses");
-  const addressFile = fs.readFileSync(path.join(addressesDir, `${chainId}-${env}.json`), "utf8");
-  const addressData = JSON.parse(addressFile);
-
+async function getInitializationFacetAddress(chainId: number, env: string): Promise<string> {
+  const addressData = await readContracts(env);
   const initializationFacet = addressData.contracts.find((contract: any) => contract.name === "InitializationFacet");
 
   if (!initializationFacet) {
@@ -117,7 +115,7 @@ async function fetchFNFTRangeData(client: any): Promise<FNFTRange[]> {
 }
 
 /**
- * Prepare backfill data for offers.
+ * Prepare backfill firstTokenId and itemQuantity data for offers.
  */
 export async function prepareOfferBackfillData(client: any): Promise<OfferData[]> {
   const fnftRanges = await fetchFNFTRangeData(client);
@@ -137,9 +135,9 @@ export async function prepareOfferBackfillData(client: any): Promise<OfferData[]
 }
 
 /**
- * Fetch GraphQL data for offers and tokens in specific states.
+ * Fetch GraphQL data for nft tokens in offers that are in a specific state.
  */
-async function fetchGraphQLData(client: any): Promise<Offer[]> {
+async function fetchOfferData(client: any): Promise<Offer[]> {
   const result = await client.query(OFFER_QUERY, {}).toPromise();
 
   if (result.error) {
@@ -162,7 +160,7 @@ function calculateFees(verifierFee: bigint, facilitatorFeePercentBps: bigint, to
   const bosonProtocolFee = (price * BOSON_PROTOCOL_FEE_BPS) / HUNDRED_PERCENT_BPS;
   const fermionFeeAmount = 0n;
   const remainder = price - bosonProtocolFee - fermionFeeAmount - verifierFee;
-  const facilitatorFeeAmount = remainder > 0n ? (remainder * facilitatorFeePercentBps) / HUNDRED_PERCENT_BPS : 0n;
+  const facilitatorFeeAmount = (remainder * facilitatorFeePercentBps) / HUNDRED_PERCENT_BPS;
 
   return {
     tokenId,
@@ -174,10 +172,10 @@ function calculateFees(verifierFee: bigint, facilitatorFeePercentBps: bigint, to
 }
 
 /**
- * Prepare backfill data from fetched offers.
+ * Prepare backfill fee data from fetched offers.
  */
-export async function prepareFeeBackfillData(client: any): Promise<FeeData[]> {
-  const offers = await fetchGraphQLData(client);
+export async function prepareTokenFeeBackfillData(client: any): Promise<FeeData[]> {
+  const offers = await fetchOfferData(client);
   const feeDataList: FeeData[] = [];
 
   for (const offer of offers) {
@@ -185,7 +183,7 @@ export async function prepareFeeBackfillData(client: any): Promise<FeeData[]> {
     const facilitatorFeePercentBps = BigInt(offer.facilitatorFeePercent);
 
     for (const token of offer.fNFTs) {
-      const price = token.priceLog?.amount ? BigInt(token.priceLog.amount) : 0n;
+      const price = token.priceLog?.amount ? BigInt(token.priceLog.amount) : 0n; // full item price
       const tokenId = token.id.split("-")[1];
       const feeData = calculateFees(verifierFee, facilitatorFeePercentBps, tokenId, price);
       feeDataList.push(feeData);
@@ -214,7 +212,7 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
   });
 
   console.log("Fetching and preparing backfill data...");
-  const feeDataList = await prepareFeeBackfillData(client);
+  const feeDataList = await prepareTokenFeeBackfillData(client);
   const offerDataList = await prepareOfferBackfillData(client);
 
   console.log("Deploying BackfillingV1_1_0...");
@@ -238,7 +236,7 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
     [version, addresses, calldata, interfacesToAdd, interfacesToRemove],
   );
 
-  const initializationFacetAddress = getInitializationFacetAddress(chainId, env);
+  const initializationFacetAddress = await getInitializationFacetAddress(chainId, env);
 
   console.log("Calling DiamondCutFacet.diamondCut...");
   const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", protocolAddress);

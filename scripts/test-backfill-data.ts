@@ -1,11 +1,11 @@
-import { prepareFeeBackfillData, prepareOfferBackfillData } from "./upgrade-hooks/1.1.0";
+import { prepareTokenFeeBackfillData, prepareOfferBackfillData } from "./upgrade-hooks/1.1.0";
 
 // TODO: DELETE THIS FILE BEFORE MERGING THE PR
 (async () => {
   try {
     console.log("Testing backfill data preparation...");
     console.log("\n=== Fee Data ===");
-    await prepareFeeBackfillData();
+    await prepareTokenFeeBackfillData();
 
     console.log("\n=== Offer Data ===");
     await prepareOfferBackfillData();

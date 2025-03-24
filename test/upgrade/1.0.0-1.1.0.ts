@@ -75,11 +75,11 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
   // Storage slots
   let offerItemQuantitySlot: bigint;
   let offerFirstTokenIdSlot: bigint;
+  let itemPriceTokenLocation: bigint;
   let bosonProtocolFeeTokenLocation: bigint;
   let fermionFeeAmountTokenLocation: bigint;
   let verifierFeeTokenLocation: bigint;
   let facilitatorFeeAmountTokenLocation: bigint;
-
   beforeEach(async function () {
     // Load the fixture and assign all variables using destructuring
     ({
@@ -152,6 +152,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
     offerFirstTokenIdSlot = BigInt(offerStorageSlot) + 11n;
 
     tokenIdStorageSlot = BigInt(getMappingStorageSlot(tokenLookupsSlot, tokenId));
+    itemPriceTokenLocation = tokenIdStorageSlot;
     bosonProtocolFeeTokenLocation = tokenIdStorageSlot + 7n;
     fermionFeeAmountTokenLocation = tokenIdStorageSlot + 8n;
     verifierFeeTokenLocation = tokenIdStorageSlot + 9n;
@@ -160,6 +161,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
 
   context("Backfilling", function () {
     it("should backfill token fees and offer data during upgrade", async function () {
+      const itemPriceBeforeBackfill = await getStorageAt(fermionProtocolAddress, itemPriceTokenLocation);
       // make sure token fees are not 0
       expect(await getStorageAt(fermionProtocolAddress, bosonProtocolFeeTokenLocation)).to.not.equal(0n);
       expect(await getStorageAt(fermionProtocolAddress, fermionFeeAmountTokenLocation)).to.not.equal(0n);
@@ -195,7 +197,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
           tokenId: tokenId,
           bosonProtocolFee: 10,
           fermionFeeAmount: 20,
-          verifierFee: 10,
+          verifierFee: 50,
           facilitatorFeeAmount: 10,
         },
       ];
@@ -209,7 +211,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
         initializationFacetImplementationAddress,
         initializationFacet,
       );
-
+      const itemPriceAfterBackfill = await getStorageAt(fermionProtocolAddress, itemPriceTokenLocation);
       // Verify token fee values have been set correctly
       expect(await getStorageAt(fermionProtocolAddress, bosonProtocolFeeTokenLocation)).to.equal(
         toBeHex(tokenFeesData[0].bosonProtocolFee, 32),
@@ -229,6 +231,9 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
         toBeHex(offerData[0].itemQuantity, 32),
       );
       expect(await getStorageAt(fermionProtocolAddress, offerFirstTokenIdSlot)).to.equal(offerData[0].firstTokenId);
+      expect(BigInt(itemPriceAfterBackfill)).to.equal(
+        BigInt(itemPriceBeforeBackfill) + BigInt(tokenFeesData[0].bosonProtocolFee),
+      );
     });
   });
 });
