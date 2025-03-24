@@ -2,20 +2,44 @@ import { createClient, fetchExchange } from "@urql/core";
 import { AbiCoder, encodeBytes32String } from "ethers";
 import hre from "hardhat";
 import fetch from "node-fetch";
+import fs from "fs";
+import path from "path";
 
 const { ethers } = hre;
-const GRAPHQL_URL =
-  "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-amoy/latest/gn";
 const VERSION = "1.1.0";
 
 const abiCoder = new AbiCoder();
 
-// Create a urql client with just fetchExchange since we don't need caching
-const client = createClient({
-  url: GRAPHQL_URL,
-  exchanges: [fetchExchange],
-  fetch: fetch as any,
-});
+// Function to get the correct GRAPHQL_URL based on chainId and env
+function getGraphQLUrl(chainId: number, env: string): string {
+  const subgraphConfig = JSON.parse(fs.readFileSync(path.join(__dirname, "subgraph_config.json"), "utf8"));
+
+  if (!subgraphConfig[env] || !subgraphConfig[env][chainId.toString()]) {
+    throw new Error(`No subgraph configuration found for chainId ${chainId} and env ${env}`);
+  }
+
+  const url = subgraphConfig[env][chainId.toString()].subgraphUrl;
+  if (url === "TBD") {
+    throw new Error(`Subgraph URL is TBD for chainId ${chainId} and env ${env}`);
+  }
+
+  return url;
+}
+
+// Function to get the InitializationFacet address based on chainId and env
+function getInitializationFacetAddress(chainId: number, env: string): string {
+  const addressesDir = path.join(__dirname, "..", "..", "addresses");
+  const addressFile = fs.readFileSync(path.join(addressesDir, `${chainId}-${env}.json`), "utf8");
+  const addressData = JSON.parse(addressFile);
+
+  const initializationFacet = addressData.contracts.find((contract: any) => contract.name === "InitializationFacet");
+
+  if (!initializationFacet) {
+    throw new Error(`InitializationFacet not found in addresses file for chainId ${chainId} and env ${env}`);
+  }
+
+  return initializationFacet.address;
+}
 
 interface Token {
   id: string;
@@ -78,7 +102,7 @@ export interface OfferData {
 /**
  * Fetch GraphQL data for FNFT ranges.
  */
-async function fetchFNFTRangeData(): Promise<FNFTRange[]> {
+async function fetchFNFTRangeData(client: any): Promise<FNFTRange[]> {
   const result = await client.query(FNFT_RANGE_QUERY, {}).toPromise();
 
   if (result.error) {
@@ -95,8 +119,8 @@ async function fetchFNFTRangeData(): Promise<FNFTRange[]> {
 /**
  * Prepare backfill data for offers.
  */
-export async function prepareOfferBackfillData(): Promise<OfferData[]> {
-  const fnftRanges = await fetchFNFTRangeData();
+export async function prepareOfferBackfillData(client: any): Promise<OfferData[]> {
+  const fnftRanges = await fetchFNFTRangeData(client);
   const offerDataList: OfferData[] = [];
 
   for (const range of fnftRanges) {
@@ -115,7 +139,7 @@ export async function prepareOfferBackfillData(): Promise<OfferData[]> {
 /**
  * Fetch GraphQL data for offers and tokens in specific states.
  */
-async function fetchGraphQLData(): Promise<Offer[]> {
+async function fetchGraphQLData(client: any): Promise<Offer[]> {
   const result = await client.query(OFFER_QUERY, {}).toPromise();
 
   if (result.error) {
@@ -152,8 +176,8 @@ function calculateFees(verifierFee: bigint, facilitatorFeePercentBps: bigint, to
 /**
  * Prepare backfill data from fetched offers.
  */
-export async function prepareFeeBackfillData(): Promise<FeeData[]> {
-  const offers = await fetchGraphQLData();
+export async function prepareFeeBackfillData(client: any): Promise<FeeData[]> {
+  const offers = await fetchGraphQLData(client);
   const feeDataList: FeeData[] = [];
 
   for (const offer of offers) {
@@ -180,10 +204,18 @@ export async function prepareFeeBackfillData(): Promise<FeeData[]> {
  * Perform pre-upgrade tasks, including deploying the BackfillingV1_1_0 contract,
  * preparing initialization data, and making the diamond cut.
  */
-export async function preUpgrade(protocolAddress: string) {
+export async function preUpgrade(protocolAddress: string, chainId: number, env: string) {
+  // Set the correct GRAPHQL_URL based on chainId and env
+  const graphQLUrl = getGraphQLUrl(chainId, env);
+  const client = createClient({
+    url: graphQLUrl,
+    exchanges: [fetchExchange],
+    fetch: fetch as any,
+  });
+
   console.log("Fetching and preparing backfill data...");
-  const feeDataList = await prepareFeeBackfillData();
-  const offerDataList = await prepareOfferBackfillData();
+  const feeDataList = await prepareFeeBackfillData(client);
+  const offerDataList = await prepareOfferBackfillData(client);
 
   console.log("Deploying BackfillingV1_1_0...");
   const BackfillingV1_1_0 = await ethers.getContractFactory("BackfillingV1_1_0");
@@ -206,9 +238,11 @@ export async function preUpgrade(protocolAddress: string) {
     [version, addresses, calldata, interfacesToAdd, interfacesToRemove],
   );
 
+  const initializationFacetAddress = getInitializationFacetAddress(chainId, env);
+
   console.log("Calling DiamondCutFacet.diamondCut...");
   const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", protocolAddress);
-  const tx = await diamondCutFacet.diamondCut([], backfillingFacet.address, backfillingCalldata);
+  const tx = await diamondCutFacet.diamondCut([], initializationFacetAddress, backfillingCalldata);
 
   console.log("Transaction sent. Waiting for confirmation...");
   await tx.wait();
