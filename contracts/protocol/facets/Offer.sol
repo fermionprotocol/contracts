@@ -732,8 +732,13 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         // Check the caller is the the seller's assistant or facilitator
         EntityLib.validateSellerAssistantOrFacilitator(offer.sellerId, offer.facilitatorId);
 
+        offerLookup.itemQuantity += _quantity;
+
         uint256 nextExchangeId = BOSON_PROTOCOL.getNextExchangeId();
         startingNFTId = nextExchangeId | (_offerId << 128);
+        if (offerLookup.firstTokenId == 0) {
+            offerLookup.firstTokenId = startingNFTId;
+        }
 
         // Reserve range in Boson
         BOSON_PROTOCOL.reserveRange(_offerId, _quantity, address(this)); // The recipient is this contract, so the NFTs can be wrapped later on
@@ -741,12 +746,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         // Premint NFTs on boson voucher
         bosonVoucher = IBosonVoucher(FermionStorage.protocolStatus().bosonNftCollection);
         bosonVoucher.preMint(_offerId, _quantity);
-
-        if (offerLookup.firstTokenId == 0) {
-            offerLookup.firstTokenId = startingNFTId;
-        }
-
-        offerLookup.itemQuantity += _quantity;
 
         // emit event
         emit NFTsMinted(_offerId, startingNFTId, _quantity);

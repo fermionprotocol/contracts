@@ -6,8 +6,6 @@ import { FermionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Common } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -17,7 +15,7 @@ import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Fractionalisation and buyout auction
  */
-abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFractionsEvents, IFermionFractions {
+abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFractions {
     using Address for address;
 
     address private immutable FNFT_FRACTION_MINT;
@@ -27,11 +25,13 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
     /**
      * @notice Constructor
      *
+     * @param _fnftFractionMint The address of the FNFT fraction mint contract
      * @param _fnftPriceManager The address of FNFT price manager holding buyout auction exit price update
      * @param _fnftBuyoutAuction The address of the buyout auction contract
      */
     constructor(address _fnftFractionMint, address _fnftPriceManager, address _fnftBuyoutAuction) {
-        if (_fnftPriceManager == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        if (_fnftFractionMint == address(0) || _fnftBuyoutAuction == address(0) || _fnftPriceManager == address(0))
+            revert FermionGeneralErrors.InvalidAddress();
         FNFT_FRACTION_MINT = _fnftFractionMint;
         FNFT_PRICE_MANAGER = _fnftPriceManager;
         FNFT_BUYOUT_AUCTION = _fnftBuyoutAuction;

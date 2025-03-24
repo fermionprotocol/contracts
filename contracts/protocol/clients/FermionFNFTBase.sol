@@ -9,7 +9,7 @@ import { FermionGeneralErrors } from "../../protocol/domain/Errors.sol";
  * @notice Base erc721 upgradeable contract for Fermion FNFTs
  *
  */
-contract FermionFNFTBase is ERC721 {
+abstract contract FermionFNFTBase is ERC721 {
     // Contract addresses
     address internal fermionProtocol;
     address internal voucherAddress;

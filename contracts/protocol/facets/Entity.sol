@@ -474,12 +474,9 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorId - the facilitator's entity ID
-     * @return isSellersFacilitator - the facilitator's status
+     * @return status - the facilitator's status
      */
-    function isSellersFacilitator(
-        uint256 _sellerId,
-        uint256 _facilitatorId
-    ) external view returns (bool isSellersFacilitator) {
+    function isSellersFacilitator(uint256 _sellerId, uint256 _facilitatorId) external view returns (bool status) {
         return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersFacilitator[_facilitatorId];
     }
 
@@ -498,12 +495,12 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _sellerId - the seller's entity ID
      * @param _royaltyRecipientId - the royalty recipient's entity ID
-     * @return isSellersRoyaltyRecipient - the royalty recipient's status
+     * @return status - the royalty recipient's status
      */
     function isSellersRoyaltyRecipient(
         uint256 _sellerId,
         uint256 _royaltyRecipientId
-    ) external view returns (bool isSellersRoyaltyRecipient) {
+    ) external view returns (bool status) {
         return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersRoyaltyRecipient[_royaltyRecipientId];
     }
 
