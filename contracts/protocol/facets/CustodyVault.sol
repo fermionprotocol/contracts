@@ -7,19 +7,19 @@ import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../bases/mixins/Access.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { Custody } from "../bases/mixins/Custody.sol";
-import { FundsManager } from "../bases/mixins/FundsManager.sol";
 import { EntityLib } from "../libs/EntityLib.sol";
 import { Context } from "../bases/mixins/Context.sol";
 import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
 import { FermionFNFTLib } from "../libs/FermionFNFTLib.sol";
 import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
+import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 
 /**
  * @title CustodyVaultFacet
  *
  * @notice Handles Custody Vaults and partial auctions.
  */
-contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, ICustodyEvents {
+contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IFermionCustodyVault, ICustodyEvents {
     using FermionFNFTLib for address;
 
     /**
