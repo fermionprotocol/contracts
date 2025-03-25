@@ -1,5 +1,5 @@
 {
-  "testing": {
+  "test": {
     "80002": {
       "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-amoy/latest/gn"
     },
@@ -27,7 +27,7 @@
       "subgraphUrl": "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-optimism/latest/gn"
     }
   },
-  "production": {
+  "prod": {
     "1": {
       "subgraphUrl": "TBD"
     },
