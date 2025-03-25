@@ -40,7 +40,7 @@ async function getInitializationFacetAddress(chainId: number, env: string): Prom
 }
 
 interface Token {
-  id: string;
+  tokenId: string;
   status: number;
   priceLog: { amount: string | null };
 }
@@ -61,7 +61,7 @@ export interface FeeData {
 
 const OFFER_QUERY = `
   query {
-    offers(where: { fNFTs_: { status_in: [3, 4, 5, 6, 7] } }) {
+    offers(first: 1000, where: { fNFTs_: { status_in: [3, 4, 5, 6, 7] } }) {
       verifierFee
       facilitatorFeePercent
       fNFTs {
@@ -77,7 +77,7 @@ const OFFER_QUERY = `
 
 const FNFT_RANGE_QUERY = `
   query {
-    fnftranges {
+    fnftranges (first: 1000) {
       bosonOfferId
       startingId
       quantity
@@ -184,7 +184,7 @@ export async function prepareTokenFeeBackfillData(client: any): Promise<FeeData[
 
     for (const token of offer.fNFTs) {
       const price = token.priceLog?.amount ? BigInt(token.priceLog.amount) : 0n; // full item price
-      const tokenId = token.id.split("-")[1];
+      const tokenId = token.tokenId;
       const feeData = calculateFees(verifierFee, facilitatorFeePercentBps, tokenId, price);
       feeDataList.push(feeData);
     }
