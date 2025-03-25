@@ -226,7 +226,7 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
   const backFillOfferCalldata = backfillingFacet.interface.encodeFunctionData("backFillOfferData", [offerDataList]);
 
   const version = encodeBytes32String(VERSION);
-  const addresses = [backfillingFacet.address];
+  const addresses = [backfillingFacet.address, backfillingFacet.address];
   const calldata = [backFillFeesCalldata, backFillOfferCalldata];
   const interfacesToAdd: string[] = [];
   const interfacesToRemove: string[] = [];
