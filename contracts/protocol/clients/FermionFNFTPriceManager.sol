@@ -10,7 +10,7 @@ import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
+import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 
 /**
  * @title FermionFNFTPriceManager
@@ -27,7 +27,14 @@ import { ContextUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/Co
  *           Any direct call to its external methods will have no impact on the protocol state, as they
  *           rely on the context and storage of the calling contract.
  */
-contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, ContextUpgradeable {
+contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTPriceManager {
+    address internal immutable FERMION_PROTOCOL;
+
+    constructor(address _fermionProtocol) ERC2771Context(_fermionProtocol) {
+        if (_fermionProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        FERMION_PROTOCOL = _fermionProtocol;
+    }
+
     /**
      * @notice Fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.
      * They need to lock their fractions to vote. The fractions can be unlocked before the auction starts.
@@ -160,14 +167,8 @@ contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, Con
      * @param _newPrice The proposed new exit price.
      * @param _quorumPercent The required quorum percentage for the governance proposal (in basis points).
      * @param _voteDuration The duration of the governance proposal in seconds.
-     * @param _fermionProtocol Fermion diamond address containing the Oracle Registry Facet.
      */
-    function updateExitPrice(
-        uint256 _newPrice,
-        uint256 _quorumPercent,
-        uint256 _voteDuration,
-        address _fermionProtocol
-    ) external {
+    function updateExitPrice(uint256 _newPrice, uint256 _quorumPercent, uint256 _voteDuration) external {
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
             Common._getFermionFractionsStorage().currentEpoch
         );
@@ -179,7 +180,7 @@ contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, Con
 
         address oracle = $.priceOracle;
         if (oracle != address(0)) {
-            if (_isOracleApproved(oracle, _fermionProtocol)) {
+            if (_isOracleApproved(oracle)) {
                 try IPriceOracle(oracle).getPrice() returns (uint256 oraclePrice) {
                     $.auctionParameters.exitPrice = oraclePrice;
                     emit IFermionFractionsEvents.ExitPriceUpdated(oraclePrice, true);
@@ -366,11 +367,10 @@ contract FermionFNFTPriceManager is FermionErrors, IFermionFNFTPriceManager, Con
      * @notice Checks if the given oracle is approved in the oracle registry.
      *
      * @param _oracle The address of the price oracle to check.
-     * @param _fermionProtocol The address of the Fermion diamond.
      * @return isApproved True if the oracle is approved, otherwise false.
      */
-    function _isOracleApproved(address _oracle, address _fermionProtocol) internal view returns (bool) {
-        return IPriceOracleRegistry(_fermionProtocol).isPriceOracleApproved(_oracle);
+    function _isOracleApproved(address _oracle) internal view returns (bool) {
+        return IPriceOracleRegistry(FERMION_PROTOCOL).isPriceOracleApproved(_oracle);
     }
 
     /**

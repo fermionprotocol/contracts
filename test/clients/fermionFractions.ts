@@ -23,6 +23,7 @@ import {
 } from "../utils/constants";
 import { balanceOfERC20, totalSupplyERC20, getERC20Clone, impersonateAccount } from "../utils/common";
 import { setStorageAt } from "@nomicfoundation/hardhat-network-helpers";
+import { predictFermionDiamondAddress } from "../../scripts/deploy";
 
 const { ZeroAddress, keccak256, toBeHex } = ethers;
 
@@ -47,8 +48,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
     const [mockConduit, mockBosonPriceDiscovery, openSeaRecipient] = wallets.slice(9, 12);
 
+    const predictedFermionDiamondAddress = await predictFermionDiamondAddress(false, 9); // Diamond will be deployed 10 tx from now
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddress,
       {
         seaport: wallets[10].address, // dummy address
         openSeaConduit: mockConduit.address,
@@ -61,20 +64,25 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
     const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
-    const fermionFractionsERC20Implementation = await FermionFractionsERC20.deploy(ZeroAddress);
+    const fermionFractionsERC20Implementation = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
     const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
-    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy();
+    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy(predictedFermionDiamondAddress);
     const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
     const fermionFractionsMint = await FermionFractionsMint.deploy(
       mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddress,
       await fermionFractionsERC20Implementation.getAddress(),
     );
     const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
-    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(mockBosonPriceDiscovery.address);
+    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(
+      mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddress,
+    );
 
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionFNFT = await FermionFNFT.deploy(
       mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddress,
       await fermionSeaportWrapper.getAddress(),
       ZeroAddress,
       wallets[10].address,

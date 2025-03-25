@@ -50,8 +50,9 @@ contract SeaportWrapper is FermionFNFTBase {
      */
     constructor(
         address _bosonPriceDiscovery,
+        address _fermionProtocol,
         SeaportConfig memory _seaportConfig
-    ) FermionFNFTBase(_bosonPriceDiscovery) {
+    ) FermionFNFTBase(_bosonPriceDiscovery, _fermionProtocol) {
         if (_seaportConfig.seaport == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         SEAPORT = _seaportConfig.seaport;
@@ -206,7 +207,7 @@ contract SeaportWrapper is FermionFNFTBase {
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
 
         FixedPriceParams memory params = FixedPriceParams({
-            openSeaFeePercentage: IFermionConfig(fermionProtocol).getOpenSeaFeePercentage(),
+            openSeaFeePercentage: IFermionConfig(FERMION_PROTOCOL).getOpenSeaFeePercentage(),
             itemType: _exchangeToken == address(0) ? SeaportTypes.ItemType.NATIVE : SeaportTypes.ItemType.ERC20
         });
 
