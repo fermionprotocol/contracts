@@ -65,7 +65,7 @@ const OFFER_QUERY = `
       verifierFee
       facilitatorFeePercent
       fNFTs {
-        id
+        tokenId
         status
         priceLog {
           amount
