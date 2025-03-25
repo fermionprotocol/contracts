@@ -1132,9 +1132,11 @@ describe("MetaTransactions", function () {
 
         beforeEach(async function () {
           const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
+          trustedForwarder = wallets[1];
 
           seaportWrapperConstructorArgs = [
             mockBosonPriceDiscovery.address,
+            trustedForwarder,
             {
               seaport: wallets[10].address, // dummy address
               openSeaConduit: mockConduit.address,
@@ -1144,8 +1146,6 @@ describe("MetaTransactions", function () {
               openSeaRecipient: ZeroAddress,
             },
           ];
-
-          trustedForwarder = wallets[1];
         });
 
         it("msg.data includes the sender, _msgData() does not - fermion FNFT", async function () {
@@ -1157,6 +1157,7 @@ describe("MetaTransactions", function () {
 
           const metaTxTest = await MetaTxTestFactory.deploy(
             dummyAddress,
+            trustedForwarder.address,
             await fermionSeaportWrapper.getAddress(),
             ZeroAddress,
             dummyAddress,

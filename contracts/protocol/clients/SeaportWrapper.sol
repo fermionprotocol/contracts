@@ -30,6 +30,11 @@ contract SeaportWrapper is FermionFNFTBase {
         address payable openSeaRecipient;
     }
 
+    struct FixedPriceParams {
+        uint16 openSeaFeePercentage;
+        SeaportTypes.ItemType itemType;
+    }
+
     address private immutable SEAPORT;
 
     // OpenSea Conduit
@@ -45,8 +50,9 @@ contract SeaportWrapper is FermionFNFTBase {
      */
     constructor(
         address _bosonPriceDiscovery,
+        address _fermionProtocol,
         SeaportConfig memory _seaportConfig
-    ) FermionFNFTBase(_bosonPriceDiscovery) {
+    ) FermionFNFTBase(_bosonPriceDiscovery, _fermionProtocol) {
         if (_seaportConfig.seaport == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         SEAPORT = _seaportConfig.seaport;
@@ -200,9 +206,11 @@ contract SeaportWrapper is FermionFNFTBase {
 
         mapping(uint256 => uint256) storage fixedPrice = Common._getFermionCommonStorage().fixedPrice;
 
-        SeaportTypes.ItemType itemType = _exchangeToken == address(0)
-            ? SeaportTypes.ItemType.NATIVE
-            : SeaportTypes.ItemType.ERC20;
+        FixedPriceParams memory params = FixedPriceParams({
+            openSeaFeePercentage: IFermionConfig(FERMION_PROTOCOL).getOpenSeaFeePercentage(),
+            itemType: _exchangeToken == address(0) ? SeaportTypes.ItemType.NATIVE : SeaportTypes.ItemType.ERC20
+        });
+
         for (uint256 i; i < _prices.length; ++i) {
             SeaportTypes.ConsiderationItem[] memory consideration = new SeaportTypes.ConsiderationItem[](
                 2 + _royaltyInfo.recipients.length
@@ -225,12 +233,11 @@ contract SeaportWrapper is FermionFNFTBase {
                 });
 
                 {
-                    uint256 openSeaFee = (tokenPrice * IFermionConfig(fermionProtocol).getOpenSeaFeePercentage()) /
-                        HUNDRED_PERCENT;
+                    uint256 openSeaFee = (tokenPrice * params.openSeaFeePercentage) / HUNDRED_PERCENT;
                     reducedPrice = tokenPrice - openSeaFee;
 
                     consideration[1] = SeaportTypes.ConsiderationItem({
-                        itemType: itemType,
+                        itemType: params.itemType,
                         token: _exchangeToken,
                         identifierOrCriteria: 0,
                         startAmount: openSeaFee, // If this is too small, OS won't show the order. This can happen if the price is too low.
@@ -242,7 +249,7 @@ contract SeaportWrapper is FermionFNFTBase {
                 for (uint256 j = 0; j < _royaltyInfo.recipients.length; j++) {
                     uint256 royaltyAmount = (_royaltyInfo.bps[j] * tokenPrice) / HUNDRED_PERCENT;
                     consideration[j + 2] = SeaportTypes.ConsiderationItem({
-                        itemType: itemType,
+                        itemType: params.itemType,
                         token: _exchangeToken,
                         identifierOrCriteria: 0,
                         startAmount: royaltyAmount,
@@ -256,7 +263,7 @@ contract SeaportWrapper is FermionFNFTBase {
             }
 
             consideration[0] = SeaportTypes.ConsiderationItem({
-                itemType: itemType,
+                itemType: params.itemType,
                 token: _exchangeToken,
                 identifierOrCriteria: 0,
                 startAmount: reducedPrice,
@@ -286,7 +293,7 @@ contract SeaportWrapper is FermionFNFTBase {
             });
         }
 
-        SeaportInterface(SEAPORT).validate(orders);
+        if (!SeaportInterface(SEAPORT).validate(orders)) revert WrapperErrors.UnsuccessfulExternalCall();
     }
 
     /**
@@ -309,6 +316,6 @@ contract SeaportWrapper is FermionFNFTBase {
             fixedPrice[tokenId] = 0;
         }
 
-        SeaportInterface(SEAPORT).cancel(_orders);
+        if (!SeaportInterface(SEAPORT).cancel(_orders)) revert WrapperErrors.UnsuccessfulExternalCall();
     }
 }

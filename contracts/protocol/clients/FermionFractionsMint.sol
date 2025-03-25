@@ -8,7 +8,7 @@ import { Common, InvalidStateOrCaller } from "./Common.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { FundsManager } from "../bases/mixins/FundsManager.sol";
-import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
+import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { IFermionCustodyVault } from "../interfaces/IFermionCustodyVault.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
 import { Clones } from "@openzeppelin/contracts/proxy/Clones.sol";
@@ -18,7 +18,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 /**
  * @dev Fractionalisation of NFTs
  */
-contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, IFermionFractionsEvents {
+contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, IFermionFractions {
     using Strings for uint256;
 
     // @dev The address of the ERC20 implementation contract that is used for Minimal Clone Implementation
@@ -27,9 +27,14 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
     /**
      * @notice Constructor
      * @param _bosonPriceDiscovery The address of the Boson Price Discovery contract
+     * @param _fermionProtocol The address of the Fermion Protocol contract
      * @param _erc20Implementation The address of the ERC20 implementation contract that will be cloned
      */
-    constructor(address _bosonPriceDiscovery, address _erc20Implementation) FermionFNFTBase(_bosonPriceDiscovery) {
+    constructor(
+        address _bosonPriceDiscovery,
+        address _fermionProtocol,
+        address _erc20Implementation
+    ) FermionFNFTBase(_bosonPriceDiscovery, _fermionProtocol) {
         if (_erc20Implementation == address(0)) revert FermionGeneralErrors.InvalidAddress();
         erc20Implementation = _erc20Implementation;
     }
@@ -133,9 +138,9 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
         emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters);
 
         address msgSender = _msgSender();
-        if (msgSender != fermionProtocol) {
+        if (msgSender != FERMION_PROTOCOL) {
             moveDepositToFermionProtocol(_depositAmount, $);
-            uint256 returnedAmount = IFermionCustodyVault(fermionProtocol).setupCustodianOfferVault(
+            uint256 returnedAmount = IFermionCustodyVault(FERMION_PROTOCOL).setupCustodianOfferVault(
                 _firstTokenId,
                 _length,
                 _custodianVaultParameters,
@@ -180,9 +185,9 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
         lockNFTsAndMintFractions(_firstTokenId, _length, fractionsAmount, $);
 
         address msgSender = _msgSender();
-        if (msgSender != fermionProtocol) {
+        if (msgSender != FERMION_PROTOCOL) {
             moveDepositToFermionProtocol(_depositAmount, $);
-            uint256 returnedAmount = IFermionCustodyVault(fermionProtocol).addItemToCustodianOfferVault(
+            uint256 returnedAmount = IFermionCustodyVault(FERMION_PROTOCOL).addItemToCustodianOfferVault(
                 _firstTokenId,
                 _length,
                 _depositAmount
@@ -205,14 +210,14 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
      * @param _amount The number of fractions to mint
      */
     function mintAdditionalFractions(uint256 _amount) external {
-        if (_msgSender() != fermionProtocol) {
+        if (_msgSender() != FERMION_PROTOCOL) {
             revert AccessDenied(_msgSender());
         }
 
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
         uint256 currentEpoch = fractionStorage.currentEpoch;
 
-        FermionFractionsERC20(fractionStorage.epochToClone[currentEpoch]).mint(fermionProtocol, _amount);
+        FermionFractionsERC20(fractionStorage.epochToClone[currentEpoch]).mint(FERMION_PROTOCOL, _amount);
 
         emit AdditionalFractionsMinted(_amount, Common.liquidSupply(currentEpoch));
     }
@@ -300,10 +305,10 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
             if (tokenState != FermionTypes.TokenState.CheckedIn)
                 revert InvalidStateOrCaller(tokenId, _msgSender(), tokenState);
 
-            if (_msgSender() == fermionProtocol) {
+            if (_msgSender() == FERMION_PROTOCOL) {
                 // forceful fractionalisation
                 // not caching Common._getERC721Storage(), since protocol will fractionalize 1 by 1
-                Common._getERC721Storage()._tokenApprovals[tokenId] = fermionProtocol;
+                Common._getERC721Storage()._tokenApprovals[tokenId] = FERMION_PROTOCOL;
             }
 
             ERC721.transferFrom(tokenOwner, address(this), tokenId);
@@ -337,7 +342,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
         if (_depositAmount > 0) {
             address exchangeToken = $.exchangeToken;
             validateIncomingPayment(exchangeToken, _depositAmount);
-            transferERC20FromProtocol(exchangeToken, payable(fermionProtocol), _depositAmount);
+            transferERC20FromProtocol(exchangeToken, payable(FERMION_PROTOCOL), _depositAmount);
         }
     }
 
@@ -348,7 +353,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
      * @return isApproved True if the oracle is approved, otherwise false.
      */
     function _isOracleApproved(address _oracle) internal view returns (bool) {
-        return IPriceOracleRegistry(fermionProtocol).isPriceOracleApproved(_oracle);
+        return IPriceOracleRegistry(FERMION_PROTOCOL).isPriceOracleApproved(_oracle);
     }
 
     /**

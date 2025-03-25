@@ -5,11 +5,7 @@ import { HUNDRED_PERCENT } from "../domain/Constants.sol";
 import { FermionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Common } from "./Common.sol";
-import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
-import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
-import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FermionBuyoutAuction } from "./FermionBuyoutAuction.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
@@ -17,7 +13,7 @@ import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 /**
  * @dev Fractionalisation and buyout auction
  */
-abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFractionsEvents, IFermionFractions {
+abstract contract FermionFractions is FermionErrors, IFermionFractions {
     using Address for address;
 
     address private immutable FNFT_FRACTION_MINT;
@@ -27,11 +23,13 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
     /**
      * @notice Constructor
      *
+     * @param _fnftFractionMint The address of the FNFT fraction mint contract
      * @param _fnftPriceManager The address of FNFT price manager holding buyout auction exit price update
      * @param _fnftBuyoutAuction The address of the buyout auction contract
      */
     constructor(address _fnftFractionMint, address _fnftPriceManager, address _fnftBuyoutAuction) {
-        if (_fnftPriceManager == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        if (_fnftFractionMint == address(0) || _fnftBuyoutAuction == address(0) || _fnftPriceManager == address(0))
+            revert FermionGeneralErrors.InvalidAddress();
         FNFT_FRACTION_MINT = _fnftFractionMint;
         FNFT_PRICE_MANAGER = _fnftPriceManager;
         FNFT_BUYOUT_AUCTION = _fnftBuyoutAuction;
@@ -359,12 +357,7 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
      * @param _voteDuration The duration of the governance proposal in seconds.
      */
     function updateExitPrice(uint256 _newPrice, uint256 _quorumPercent, uint256 _voteDuration) external {
-        FNFT_PRICE_MANAGER.functionDelegateCall(
-            abi.encodeCall(
-                IFermionFNFTPriceManager.updateExitPrice,
-                (_newPrice, _quorumPercent, _voteDuration, fermionProtocol)
-            )
-        );
+        forwardCall(FNFT_PRICE_MANAGER);
     }
 
     /**
@@ -601,6 +594,6 @@ abstract contract FermionFractions is FermionFNFTBase, FermionErrors, IFermionFr
      * @param _target The implementation address of the voter.
      */
     function forwardCall(address _target) internal returns (bytes memory) {
-        return _target.functionDelegateCall(_msgData());
+        return _target.functionDelegateCall(msg.data); // not using _msgData() since the target contract must handle context properly
     }
 }

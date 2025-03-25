@@ -32,17 +32,18 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _roles - the roles the entity will have
      * @param _metadata - the metadata URI for the entity
+     * @return entityId - the entity ID
      */
     function createEntity(
         FermionTypes.EntityRole[] calldata _roles,
         string calldata _metadata
-    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
+    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant returns (uint256 entityId) {
         address msgSender = _msgSender();
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
-        uint256 entityId = pl.entityId[msgSender];
+        entityId = pl.entityId[msgSender];
         if (entityId != 0) revert EntityAlreadyExists();
 
-        EntityLib.createEntity(msgSender, _roles, _metadata, pl);
+        entityId = EntityLib.createEntity(msgSender, _roles, _metadata, pl);
     }
 
     /**
@@ -473,12 +474,9 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _sellerId - the seller's entity ID
      * @param _facilitatorId - the facilitator's entity ID
-     * @return isSellersFacilitator - the facilitator's status
+     * @return status - the facilitator's status
      */
-    function isSellersFacilitator(
-        uint256 _sellerId,
-        uint256 _facilitatorId
-    ) external view returns (bool isSellersFacilitator) {
+    function isSellersFacilitator(uint256 _sellerId, uint256 _facilitatorId) external view returns (bool status) {
         return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersFacilitator[_facilitatorId];
     }
 
@@ -497,12 +495,12 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      *
      * @param _sellerId - the seller's entity ID
      * @param _royaltyRecipientId - the royalty recipient's entity ID
-     * @return isSellersRoyaltyRecipient - the royalty recipient's status
+     * @return status - the royalty recipient's status
      */
     function isSellersRoyaltyRecipient(
         uint256 _sellerId,
         uint256 _royaltyRecipientId
-    ) external view returns (bool isSellersRoyaltyRecipient) {
+    ) external view returns (bool status) {
         return FermionStorage.protocolLookups().sellerLookups[_sellerId].isSellersRoyaltyRecipient[_royaltyRecipientId];
     }
 
