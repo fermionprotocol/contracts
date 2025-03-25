@@ -82,6 +82,10 @@ const config: HardhatUserConfig = {
       url: vars.get("RPC_PROVIDER_OPTIMISM", "https://optimism.llamarpc.com"),
       accounts: [vars.get("DEPLOYER_KEY_OPTIMISM", DEFAULT_DEPLOYER_KEY)],
     },
+    arbitrumSepolia: {
+      url: vars.get("RPC_PROVIDER_ARBITRUM_SEPOLIA", "https://arbitrum-sepolia.drpc.org"),
+      accounts: [vars.get("DEPLOYER_KEY_ARBITRUM_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
+    },
   },
   solidity: {
     compilers: [
