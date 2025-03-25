@@ -150,6 +150,7 @@ const config: HardhatUserConfig = {
       baseSepolia: vars.get("BASESCAN_API_KEY", ""),
       optimism: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
       optimismSepolia: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
+      arbitrumSepolia: vars.get("ARBITRUM_SEPOLIA_ETHERSCAN_API_KEY", ""),
     },
     customChains: [
       {
@@ -166,6 +167,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api-sepolia-optimistic.etherscan.io/api",
           browserURL: "https://sepolia-optimism.etherscan.io",
+        },
+      },
+      {
+        network: "arbitrumSepolia",
+        chainId: 421614,
+        urls: {
+          apiURL: "https://api-sepolia.arbiscan.io/api",
+          browserURL: "https://sepolia.arbiscan.io",
         },
       },
     ],
