@@ -236,11 +236,11 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
     [version, addresses, calldata, interfacesToAdd, interfacesToRemove],
   );
 
-  const initializationFacetAddress = await getInitializationFacetAddress(chainId, env);
+  const initializationFacetImplAddress = await getInitializationFacetAddress(chainId, env);
 
   console.log("Calling DiamondCutFacet.diamondCut...");
   const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", protocolAddress);
-  const tx = await diamondCutFacet.diamondCut([], initializationFacetAddress, backfillingCalldata);
+  const tx = await diamondCutFacet.diamondCut([], initializationFacetImplAddress, backfillingCalldata);
 
   console.log("Transaction sent. Waiting for confirmation...");
   await tx.wait();
