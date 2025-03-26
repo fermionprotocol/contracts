@@ -1,15 +1,13 @@
 import { createClient, fetchExchange } from "@urql/core";
-import { AbiCoder, encodeBytes32String } from "ethers";
+import { encodeBytes32String } from "ethers";
 import hre from "hardhat";
 import fetch from "node-fetch";
 import fs from "fs";
 import path from "path";
 import { readContracts } from "../libraries/utils";
-
 const { ethers } = hre;
 const VERSION = "1.1.0";
 
-const abiCoder = new AbiCoder();
 
 // Function to get the correct GRAPHQL_URL based on chainId and env
 function getGraphQLUrl(chainId: number, env: string): string {
@@ -199,6 +197,40 @@ export async function prepareTokenFeeBackfillData(client: any): Promise<FeeData[
 }
 
 /**
+ * Execute a diamond cut with backfilling initialization data
+ */
+export async function executeBackfillingDiamondCut(
+  protocolAddress: string,
+  backfillingFacet: any,
+  offerBackfillCalldata: string,
+  tokenBackfillCalldata: string,
+  initializationFacetImplAddress: string,
+  version: string
+) {
+  const backfillingFacetAddress = await backfillingFacet.getAddress();
+  const addresses = [backfillingFacetAddress, backfillingFacetAddress];
+  const calldata = [offerBackfillCalldata, tokenBackfillCalldata];
+  const interfacesToAdd: string[] = [];
+  const interfacesToRemove: string[] = [];
+
+  // Get the initialization facet to encode the calldata properly
+  const initializationFacet = await ethers.getContractAt("InitializationFacet", protocolAddress);
+  const initCalldata = initializationFacet.interface.encodeFunctionData("initialize", [
+    version,
+    addresses,
+    calldata,
+    interfacesToAdd,
+    interfacesToRemove,
+  ]);
+
+  console.log("Calling DiamondCutFacet.diamondCut...");
+  const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", protocolAddress);
+  const tx = await diamondCutFacet.diamondCut([], initializationFacetImplAddress, initCalldata);
+  await tx.wait();
+  console.log("Diamond cut completed successfully");
+}
+
+/**
  * Perform pre-upgrade tasks, including deploying the BackfillingV1_1_0 contract,
  * preparing initialization data, and making the diamond cut.
  */
@@ -226,24 +258,14 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
   const backFillOfferCalldata = backfillingFacet.interface.encodeFunctionData("backFillOfferData", [offerDataList]);
 
   const version = encodeBytes32String(VERSION);
-  const addresses = [backfillingFacet.address, backfillingFacet.address];
-  const calldata = [backFillFeesCalldata, backFillOfferCalldata];
-  const interfacesToAdd: string[] = [];
-  const interfacesToRemove: string[] = [];
-
-  const backfillingCalldata = abiCoder.encode(
-    ["bytes32", "address[]", "bytes[]", "bytes4[]", "bytes4[]"],
-    [version, addresses, calldata, interfacesToAdd, interfacesToRemove],
-  );
-
   const initializationFacetImplAddress = await getInitializationFacetAddress(chainId, env);
 
-  console.log("Calling DiamondCutFacet.diamondCut...");
-  const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", protocolAddress);
-  const tx = await diamondCutFacet.diamondCut([], initializationFacetImplAddress, backfillingCalldata);
-
-  console.log("Transaction sent. Waiting for confirmation...");
-  await tx.wait();
-
-  console.log("Diamond cut and backfilling initialization completed successfully.");
+  await executeBackfillingDiamondCut(
+    protocolAddress,
+    backfillingFacet,
+    backFillOfferCalldata,
+    backFillFeesCalldata,
+    initializationFacetImplAddress,
+    version
+  );
 }

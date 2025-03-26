@@ -6,6 +6,7 @@ import { Contract, parseEther, keccak256, toBeHex, concat, encodeBytes32String }
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole } from "../utils/enums";
 import { setStorageAt, getStorageAt } from "@nomicfoundation/hardhat-network-helpers";
+import { executeBackfillingDiamondCut } from "../../scripts/upgrade-hooks/1.1.0";
 
 const version = encodeBytes32String("v1.1.0");
 const protocolLookupsSlot = "0x769aa294c8d03dc2ae011ff448d15e722e87cfb823b4b4d6339267d1c690d900";
@@ -17,26 +18,6 @@ function getMappingStorageSlot(mappingSlot: string | bigint, key: string | bigin
   const paddedMappingSlot = toBeHex(BigInt(mappingSlot), 32);
   const concatenated = concat([paddedKey, paddedMappingSlot]);
   return keccak256(concatenated);
-}
-
-async function executeBackfillingDiamondCut(
-  fermionProtocolAddress: string,
-  backfillingFacet: Contract,
-  offerBackfillCalldata: string,
-  tokenBackfillCalldata: string,
-  initializationFacetImplementationAddress: string,
-  initializationFacet: Contract,
-) {
-  const backfillingFacetAddress = await backfillingFacet.getAddress();
-  const initCalldata = initializationFacet.interface.encodeFunctionData("initialize", [
-    version,
-    [backfillingFacetAddress, backfillingFacetAddress],
-    [offerBackfillCalldata, tokenBackfillCalldata],
-    [],
-    [],
-  ]);
-  const diamondCutFacet = await ethers.getContractAt("DiamondCutFacet", fermionProtocolAddress);
-  await diamondCutFacet.diamondCut([], initializationFacetImplementationAddress, initCalldata);
 }
 
 /**
@@ -209,7 +190,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
         backFillOfferCalldata,
         backFillTokenCalldata,
         initializationFacetImplementationAddress,
-        initializationFacet,
+        version
       );
       const itemPriceAfterBackfill = await getStorageAt(fermionProtocolAddress, itemPriceTokenLocation);
       // Verify token fee values have been set correctly
