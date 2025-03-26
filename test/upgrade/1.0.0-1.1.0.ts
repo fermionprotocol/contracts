@@ -64,7 +64,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
     // Load the fixture and assign all variables using destructuring
     ({
       diamondAddress: fermionProtocolAddress,
-      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet, InitializationFacet: initializationFacet },
+      facets: { EntityFacet: entityFacet, OfferFacet: offerFacet },
       implementationAddresses: { InitializationFacet: initializationFacetImplementationAddress },
       wallets,
       defaultSigner,
