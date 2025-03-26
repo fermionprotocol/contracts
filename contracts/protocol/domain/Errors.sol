@@ -45,7 +45,7 @@ interface EntityErrors {
     error AssociatedEntityAlreadyExists(
         FermionTypes.AssociatedRole associatedRole,
         uint256 sellerId,
-        uint256 facilitatorId
+        uint256 associatedEntityId
     );
     error AccountAlreadyExists(address account);
     error NewAccountSameAsOld();
@@ -84,7 +84,7 @@ interface CustodyErrors {
     error NotTokenBuyer(uint256 tokenId, address owner, address caller);
     error InvalidTaxAmount();
     error InvalidCheckoutRequestStatus(
-        uint256 offerId,
+        uint256 tokenId,
         FermionTypes.CheckoutRequestStatus expectedStatus,
         FermionTypes.CheckoutRequestStatus actualStatus
     );
