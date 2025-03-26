@@ -1,0 +1,49 @@
+{
+  "test": {
+    "80002": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-amoy/latest/gn"
+    },
+    "84532": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-base/latest/gn"
+    },
+    "11155111": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-sepolia/latest/gn"
+    },
+    "11155420": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-optimism/latest/gn"
+    }
+  },
+  "staging": {
+    "80002": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-amoy/latest/gn"
+    },
+    "84532": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-base/latest/gn"
+    },
+    "11155111": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-sepolia/latest/gn"
+    },
+    "11155420": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-optimism/latest/gn"
+    }
+  },
+  "prod": {
+    "1": {
+      "subgraphUrl": "TBD"
+    },
+    "10": {
+      "subgraphUrl": "TBD"
+    },
+    "137": {
+      "subgraphUrl": "TBD"
+    },
+    "8453": {
+      "subgraphUrl": "TBD"
+    }
+  },
+  "local": {
+    "31337": {
+      "subgraphUrl": "http://127.0.0.1:8000/subgraphs/name/fermion/corecomponents"
+    }
+  }
+}
