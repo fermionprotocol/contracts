@@ -41,7 +41,6 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
   // Contract instances
   let offerFacet: Contract;
   let entityFacet: Contract;
-  let initializationFacet: Contract;
   let initializationFacetImplementationAddress: string;
   let mockToken: Contract;
   let fermionProtocolAddress: string;
@@ -190,7 +189,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
         backFillOfferCalldata,
         backFillTokenCalldata,
         initializationFacetImplementationAddress,
-        version
+        version,
       );
       const itemPriceAfterBackfill = await getStorageAt(fermionProtocolAddress, itemPriceTokenLocation);
       // Verify token fee values have been set correctly

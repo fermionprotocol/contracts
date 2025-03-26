@@ -8,7 +8,6 @@ import { readContracts } from "../libraries/utils";
 const { ethers } = hre;
 const VERSION = "1.1.0";
 
-
 // Function to get the correct GRAPHQL_URL based on chainId and env
 function getGraphQLUrl(chainId: number, env: string): string {
   const subgraphConfig = JSON.parse(fs.readFileSync(path.join(__dirname, "subgraph_config.json"), "utf8"));
@@ -205,7 +204,7 @@ export async function executeBackfillingDiamondCut(
   offerBackfillCalldata: string,
   tokenBackfillCalldata: string,
   initializationFacetImplAddress: string,
-  version: string
+  version: string,
 ) {
   const backfillingFacetAddress = await backfillingFacet.getAddress();
   const addresses = [backfillingFacetAddress, backfillingFacetAddress];
@@ -266,6 +265,6 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
     backFillOfferCalldata,
     backFillFeesCalldata,
     initializationFacetImplAddress,
-    version
+    version,
   );
 }
