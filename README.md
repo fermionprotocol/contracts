@@ -121,6 +121,52 @@ For example, to run seaport integration test on ethereum, call `npx hardhat test
 
 NB: Normal tests and coverage reports skip integration reports.
 
+### Upgrades
+
+The protocol can be upgraded using the upgrade suite. The upgrade process includes:
+
+- Executing pre-upgrade hooks (if available)
+- Deploying new facets and removing old ones (if configured)
+- Executing initialization data (if configured)
+- Executing post-upgrade hooks (if available)
+
+Each version can have its own configuration in `scripts/upgrade/config/upgrades/{version}.json` and hooks in `scripts/upgrade/upgrade-hooks/{version}.ts`.
+
+To run an upgrade:
+
+```shell
+npx hardhat upgrade-suite --env <environment> --target-version <version> [--dry-run] [--network <network>]
+```
+
+- `environment`: name of the environment to upgrade (e.g., test, staging, production)
+- `version`: target version to upgrade to (e.g., 1.1.0)
+- `dry-run`: optional flag to simulate the upgrade without actually executing it. This is useful to verify that all transactions will pass and estimate gas costs
+- `network`: network to run the upgrade on (must be defined in `hardhat.config.ts`)
+
+Example:
+
+```shell
+npx hardhat upgrade-suite --env test --target-version 1.1.0 --dry-run --network sepolia
+```
+
+### Fork Tests
+
+Fork tests are used to simulate upgrades and other operations on a forked version of a network. They are located in the `fork-tests` directory.
+
+To run a fork test:
+
+```shell
+npx hardhat test <testFile> --network <network>
+```
+
+Example:
+
+```shell
+npx hardhat test fork-tests/upgrade/1.0.0-1.1.0.ts --network sepolia
+```
+
+The fork tests use the same configuration and hooks as the actual upgrade process, making them perfect for testing upgrades before executing them on the mainnet.
+
 ## Deployment
 
 To deploy the Fermion protocol on a public blockchain:
