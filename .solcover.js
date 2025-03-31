@@ -5,6 +5,8 @@ module.exports = {
     "external",
     "protocol/clients/FermionFractionsERC20Base.sol",
     "protocol/clients/oracle/ChainlinkPriceOracle.sol",
+    "test/upgrade",
+    "fork-tests",
   ],
   modifierWhitelist: ["nonReentrant"],
   istanbulReporter: ["html", "json-summary", "lcov", "text"],
