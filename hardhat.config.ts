@@ -86,6 +86,10 @@ const config: HardhatUserConfig = {
       url: vars.get("RPC_PROVIDER_ARBITRUM_SEPOLIA", "https://arbitrum-sepolia.drpc.org"),
       accounts: [vars.get("DEPLOYER_KEY_ARBITRUM_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
     },
+    arbitrum: {
+      url: vars.get("RPC_PROVIDER_ARBITRUM", "https://arb1.arbitrum.io/rpc"),
+      accounts: [vars.get("DEPLOYER_KEY_ARBITRUM", DEFAULT_DEPLOYER_KEY)],
+    },
   },
   solidity: {
     compilers: [
@@ -175,6 +179,14 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api-sepolia.arbiscan.io/api",
           browserURL: "https://sepolia.arbiscan.io",
+        },
+      },
+      {
+        network: "arbitrum",
+        chainId: 42161,
+        urls: {
+          apiURL: "https://api.arbiscan.io/api",
+          browserURL: "https://arbiscan.io",
         },
       },
     ],
