@@ -1,0 +1,26 @@
+{
+  "description": "Upgrade to version 1.1.0",
+  "facets": {
+    "add": ["PriceOracleRegistryFacet", "RoyaltiesFacet"],
+    "replace": [
+      "ConfigFacet",
+      "CustodyFacet",
+      "CustodyVaultFacet",
+      "EntityFacet",
+      "FundsFacet",
+      "MetaTransactionFacet",
+      "OfferFacet",
+      "VerificationFacet"
+    ],
+    "remove": [],
+    "skipSelectors": {},
+    "constructorArgs": {
+      "MetaTransactionFacet": ["$FERMION_PROTOCOL_ADDRESS"],
+      "OfferFacet": ["$BOSON_PROTOCOL_ADDRESS"],
+      "VerificationFacet": [
+        "$BOSON_PROTOCOL_ADDRESS",
+        "$FERMION_PROTOCOL_ADDRESS"
+      ]
+    }
+  }
+}

@@ -39,7 +39,7 @@ task("upgrade-suite", "Upgrade suite performs protocol upgrade including pre-upg
   .addParam("targetVersion", "The version to upgrade to")
   .addFlag("dryRun", "Test the upgrade without actually upgrading")
   .setAction(async ({ env, targetVersion, dryRun }) => {
-    const { upgradeFacets } = await import("./scripts/upgrade-facets");
+    const { upgradeFacets } = await import("./scripts/upgrade/upgrade-facets");
     await upgradeFacets(env, targetVersion, dryRun);
   });
 
