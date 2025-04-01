@@ -125,14 +125,50 @@ NB: Normal tests and coverage reports skip integration reports.
 
 The protocol can be upgraded using the upgrade suite. The upgrade process includes:
 
-- Executing pre-upgrade hooks (if available)
-- Deploying new facets and removing old ones (if configured)
-- Executing initialization data (if configured)
-- Executing post-upgrade hooks (if available)
+1. Generating an upgrade configuration by comparing contract changes between versions
+2. Executing pre-upgrade hooks (if available)
+3. Deploying new facets and removing old ones (if configured)
+4. Executing initialization data (if configured)
+5. Executing post-upgrade hooks (if available)
 
 Each version can have its own configuration in `scripts/upgrade/config/upgrades/{version}.json` and hooks in `scripts/upgrade/upgrade-hooks/{version}.ts`.
 
-To run an upgrade:
+#### Step 1: Generate Upgrade Configuration
+
+First, generate an upgrade config by comparing contract changes between versions:
+
+```shell
+npx hardhat generate-upgrade-config --current-version <current-version> [--new-version <new-version>] --version <version>
+```
+
+- `current-version`: branch/tag/commit of the current version (e.g., v1.0.0)
+- `new-version`: optional branch/tag/commit of the new version (e.g., v1.1.0). If not provided, current branch will be used
+- `version`: version number for the upgrade config (e.g., 1.1.0)
+
+The script will:
+
+- Compare contract bytecodes between versions
+- Detect constructor arguments for facets
+- Identify selector collisions and suggest handling
+- Generate a configuration file with:
+  - Facets to add, replace, or remove
+  - Constructor arguments for new facets
+  - Selectors to skip in case of collisions
+  - Initialization data for facets
+
+Example:
+
+```shell
+# Compare two specific versions
+npx hardhat generate-upgrade-config --current-version v1.0.0 --new-version v1.1.0 --version 1.1.0
+
+# Compare current branch with a specific version
+npx hardhat generate-upgrade-config --current-version v1.0.0 --version 1.1.0
+```
+
+#### Step 2: Execute Upgrade
+
+After generating and reviewing the upgrade configuration, run the upgrade:
 
 ```shell
 npx hardhat upgrade-suite --env <environment> --target-version <version> [--dry-run] [--network <network>]
@@ -142,6 +178,17 @@ npx hardhat upgrade-suite --env <environment> --target-version <version> [--dry-
 - `version`: target version to upgrade to (e.g., 1.1.0)
 - `dry-run`: optional flag to simulate the upgrade without actually executing it. This is useful to verify that all transactions will pass and estimate gas costs
 - `network`: network to run the upgrade on (must be defined in `hardhat.config.ts`)
+
+The upgrade process will:
+
+1. Execute pre-upgrade hooks if available
+2. Deploy new facets with their constructor arguments
+3. Handle selector collisions interactively
+4. Execute diamond cuts to add/replace/remove facets
+5. Execute initialization data if configured
+6. Execute post-upgrade hooks if available
+7. Update the protocol version
+8. Save the new contract addresses
 
 Example:
 

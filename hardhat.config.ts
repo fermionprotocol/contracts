@@ -39,7 +39,7 @@ task("upgrade-suite", "Upgrade suite performs protocol upgrade including pre-upg
   .addParam("targetVersion", "The version to upgrade to")
   .addFlag("dryRun", "Test the upgrade without actually upgrading")
   .setAction(async ({ env, targetVersion, dryRun }) => {
-    const { upgradeFacets } = await import("./scripts/upgrade-facets");
+    const { upgradeFacets } = await import("./scripts/upgrade/upgrade-facets");
     await upgradeFacets(env, targetVersion, dryRun);
   });
 
@@ -50,6 +50,20 @@ task("verify-suite", "Verify contracts on the block explorer")
     const { verifySuite } = await import("./scripts/verify");
 
     await verifySuite(env, contracts && contracts.split(","));
+  });
+
+task("generate-upgrade-config", "Generate upgrade config by comparing contract changes between versions")
+  .addParam("currentVersion", "Branch/tag/commit of the current version")
+  .addOptionalParam("newVersion", "Branch/tag/commit of the new version. If not provided, current branch will be used")
+  .addParam("targetVersion", "Version number for the upgrade config (e.g., 1.1.0)")
+  .setAction(async (args, hre) => {
+    console.log("Starting generate-upgrade-config task...");
+    console.log(`Current version: ${args.currentVersion}`);
+    console.log(`New version: ${args.newVersion || "HEAD"}`);
+    console.log(`Target version: ${args.targetVersion}`);
+
+    const { generateUpgradeConfig } = await import("./scripts/upgrade/generate-upgrade-config");
+    await generateUpgradeConfig(hre, args.currentVersion, args.newVersion || "HEAD", args.targetVersion);
   });
 
 const config: HardhatUserConfig = {
