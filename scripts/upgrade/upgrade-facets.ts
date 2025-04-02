@@ -254,6 +254,10 @@ async function resolveSelectorCollision(
     return { shouldReplace: true, shouldSkip: false, skipAll: false, replaceAll: true };
   }
 
+  if (isForkTest) {
+    return { shouldReplace: true, shouldSkip: false, skipAll: false, replaceAll: true };
+  }
+
   const newFacetAddress = await newFacet.contract.getAddress();
   let prompt = `⚠️  Selector collision for ${functionName} (${selectorToAdd}) in ${newFacet.name} facet:
    Existing implementation: ${existingFacetAddress}
