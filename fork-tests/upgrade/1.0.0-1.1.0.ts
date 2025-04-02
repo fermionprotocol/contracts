@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { ethers } from "hardhat";
 import { keccak256, toBeHex, concat } from "ethers";
 import { getStorageAt } from "@nomicfoundation/hardhat-network-helpers";
-import { upgradeFacets } from "../../scripts/upgrade-facets";
+import { upgradeFacets } from "../../scripts/upgrade/upgrade-facets";
 import { createClient, fetchExchange } from "@urql/core";
 import fetch from "node-fetch";
 import fs from "fs";
@@ -63,7 +63,7 @@ describe("Fork Upgrade from 1.0.1 to 1.1.0", function () {
       const offerDataList = await prepareOfferBackfillData(graphQLClient);
 
       // Execute upgrade
-      await upgradeFacets(env, "1.1.0", true);
+      await upgradeFacets(env, "1.1.0", true, true);
 
       // Get final storage values
       const finalValues = await Promise.all(

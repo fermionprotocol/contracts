@@ -40,7 +40,12 @@ const rl = readline.createInterface({
   output: process.stdout,
 });
 
-export async function upgradeFacets(env: string, version: string, dryRun: boolean = false) {
+export async function upgradeFacets(
+  env: string,
+  version: string,
+  dryRun: boolean = false,
+  isForkTest: boolean = false,
+) {
   const { ethers } = hre;
 
   console.log(`🚀 Starting Protocol Upgrade to Version ${version}`);
@@ -88,7 +93,7 @@ export async function upgradeFacets(env: string, version: string, dryRun: boolea
     await executePreUpgradeHook(version, protocolAddress, originalChainId, originalEnv, dryRun);
 
     if (config) {
-      await executeFacetUpdates(config, protocolAddress, contracts, contractsFile);
+      await executeFacetUpdates(config, protocolAddress, contracts, contractsFile, isForkTest);
     }
 
     await executePostUpgradeHook(version, protocolAddress);
@@ -239,8 +244,13 @@ async function handleSelectorCollision(
   newFacet: DeployedFacet,
   skipAll: boolean,
   replaceAll: boolean,
+  isForkTest: boolean = false,
 ): Promise<{ shouldReplace: boolean; shouldSkip: boolean; skipAll: boolean; replaceAll: boolean }> {
   const functionName = newFacet.contract.interface.getFunction(selectorToAdd)?.format() || "Unknown function";
+
+  if (isForkTest) {
+    return { shouldReplace: true, shouldSkip: false, skipAll: false, replaceAll: true };
+  }
 
   console.log(`⚠️  Selector ${selectorToAdd} (${functionName}) is already registered:`);
   console.log(`   Existing facet: ${existingFacetAddress}`);
@@ -346,7 +356,13 @@ async function executePostUpgradeHook(version: string, protocolAddress: string) 
   }
 }
 
-async function executeFacetUpdates(config: FacetConfig, protocolAddress: string, contracts: any[], contractsFile: any) {
+async function executeFacetUpdates(
+  config: FacetConfig,
+  protocolAddress: string,
+  contracts: any[],
+  contractsFile: any,
+  isForkTest: boolean = false,
+) {
   const diamondCutFacet = await hre.ethers.getContractAt("DiamondCutFacet", protocolAddress);
   const initializationFacet = await hre.ethers.getContractAt("InitializationFacet", protocolAddress);
   const initFacetAddress = await initializationFacet.getAddress();
@@ -424,7 +440,14 @@ async function executeFacetUpdates(config: FacetConfig, protocolAddress: string,
           shouldSkip,
           skipAll: newSkipAll,
           replaceAll: newReplaceAll,
-        } = await handleSelectorCollision(selectorToAdd, existingFacetAddress, newFacet, skipAll, replaceAll);
+        } = await handleSelectorCollision(
+          selectorToAdd,
+          existingFacetAddress,
+          newFacet,
+          skipAll,
+          replaceAll,
+          isForkTest,
+        );
 
         skipAll = newSkipAll;
         replaceAll = newReplaceAll;
