@@ -9,7 +9,7 @@ import { SeaportWrapper } from "./SeaportWrapper.sol";
 import { IFermionWrapper } from "../interfaces/IFermionWrapper.sol";
 import { IFermionWrapperEvents } from "../interfaces/events/IFermionWrapperEvents.sol";
 import { FermionFNFTBase } from "./FermionFNFTBase.sol";
-import { CreatorToken, ITransferValidator721 } from "./ICreatorToken.sol";
+import { CreatorToken, ITransferValidator721 } from "./CreatorToken.sol";
 import { RoyaltiesFacet } from "../facets/Royalties.sol";
 import { VerificationFacet } from "../facets/Verification.sol";
 import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
