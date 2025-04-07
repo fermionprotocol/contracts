@@ -131,88 +131,22 @@ async function generateUpgradeConfig(
             return "0x0000000000000000000000000000000000000000"; // Default to zero address for other address types
           });
           constructorArgs[facet] = args;
-          console.log(`\nDetected constructor arguments for ${facet}:`);
-          console.log(`  Arguments: ${args.join(", ")}`);
         }
       } catch (error) {
         console.warn(`Warning: Could not get constructor arguments for ${facet}:`, error);
       }
     }
 
-    // Detect selector collisions
-    const selectorCollisions: Record<string, string[]> = {};
-    const selectorToFacet: Record<string, string> = {};
-
-    // First pass: build selector to facet mapping
-    for (const [facet, selectors] of Object.entries(facetSelectors)) {
-      for (const selector of Object.keys(selectors)) {
-        if (selector in selectorToFacet) {
-          if (!selectorCollisions[selector]) {
-            selectorCollisions[selector] = [selectorToFacet[selector]];
-          }
-          selectorCollisions[selector].push(facet);
-        } else {
-          selectorToFacet[selector] = facet;
-        }
-      }
-    }
-
-    // Generate skipSelectors configuration
-    const skipSelectors: Record<string, string[]> = {};
-    for (const [selector, facets] of Object.entries(selectorCollisions)) {
-      // Keep the selector in the first facet, skip in others
-      const [keepFacet, ...skipFacets] = facets;
-      for (const facet of skipFacets) {
-        if (!skipSelectors[facet]) {
-          skipSelectors[facet] = [];
-        }
-        skipSelectors[facet].push(selector);
-      }
-      console.log(`\nSelector collision detected for ${selector}:`);
-      console.log(`  Keeping in: ${keepFacet}`);
-      console.log(`  Skipping in: ${skipFacets.join(", ")}`);
-    }
-
-    // Check if any selectors from new facets already exist in the diamond
-    const existingSelectors = new Set<string>();
-    for (const [facet, selectors] of Object.entries(facetSelectors)) {
-      // Only consider non-test facets that exist in the current version
-      if (facet in referenceBytecodes && !facet.includes("/test/") && !facet.includes("Mock")) {
-        Object.keys(selectors).forEach((selector) => existingSelectors.add(selector));
-      }
-    }
-
-    // Move facets from 'add' to 'replace' if they have existing selectors
-    const addFacets = newContracts.filter(
-      (contract) => contract.endsWith("Facet") && !contract.includes("/test/") && !contract.includes("Mock"),
-    );
-    const replaceFacets = changedContracts.filter(
-      (contract) => contract.endsWith("Facet") && !contract.includes("/test/") && !contract.includes("Mock"),
-    );
-
-    for (const facet of [...addFacets]) {
-      if (facetSelectors[facet]) {
-        const hasExistingSelectors = Object.keys(facetSelectors[facet]).some((selector) =>
-          existingSelectors.has(selector),
-        );
-        if (hasExistingSelectors) {
-          // Move facet from add to replace
-          addFacets.splice(addFacets.indexOf(facet), 1);
-          if (!replaceFacets.includes(facet)) {
-            replaceFacets.push(facet);
-          }
-          console.log(`\nMoving ${facet} from 'add' to 'replace' as it has existing selectors`);
-        }
-      }
-    }
-
     const upgradeConfig = {
       description: `Upgrade to version ${version}`,
       facets: {
-        add: addFacets,
-        replace: replaceFacets,
+        add: newContracts.filter(
+          (contract) => contract.endsWith("Facet") && !contract.includes("/test/") && !contract.includes("Mock"),
+        ),
+        replace: changedContracts.filter(
+          (contract) => contract.endsWith("Facet") && !contract.includes("/test/") && !contract.includes("Mock"),
+        ),
         remove: removedContracts.filter((contract) => contract.endsWith("Facet")),
-        skipSelectors,
         constructorArgs,
       },
       clients: {
@@ -249,16 +183,6 @@ async function generateUpgradeConfig(
     if (newContracts.length > 0) console.log("New contracts:", newContracts);
     if (changedContracts.length === 0 && removedContracts.length === 0 && newContracts.length === 0) {
       console.log("No contract changes detected");
-    }
-
-    if (Object.keys(selectorCollisions).length > 0) {
-      console.log("\nSelector Collisions Summary:");
-      console.log("The following selectors have been automatically handled in the upgrade config:");
-      for (const [selector, facets] of Object.entries(selectorCollisions)) {
-        console.log(`\n${selector}:`);
-        console.log(`  Keeping in: ${facets[0]}`);
-        console.log(`  Skipping in: ${facets.slice(1).join(", ")}`);
-      }
     }
   } catch (error) {
     console.error("Error generating upgrade config:", error);

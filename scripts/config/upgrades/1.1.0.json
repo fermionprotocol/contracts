@@ -13,7 +13,6 @@
       "VerificationFacet"
     ],
     "remove": [],
-    "skipSelectors": {},
     "constructorArgs": {
       "MetaTransactionFacet": ["$FERMION_PROTOCOL_ADDRESS"],
       "OfferFacet": ["$BOSON_PROTOCOL_ADDRESS"],

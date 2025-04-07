@@ -238,7 +238,7 @@ async function prepareFacetRemoval(
   return [hre.ethers.ZeroAddress, FacetCutAction.Remove, filteredSelectors];
 }
 
-async function handleSelectorCollision(
+async function resolveSelectorCollision(
   selectorToAdd: string,
   existingFacetAddress: string,
   newFacet: DeployedFacet,
@@ -356,21 +356,23 @@ async function executePostUpgradeHook(version: string, protocolAddress: string) 
   }
 }
 
-async function executeFacetUpdates(
+async function prepareFacetCuts(
   config: FacetConfig,
   protocolAddress: string,
   contracts: any[],
   contractsFile: any,
   isForkTest: boolean = false,
-) {
-  const diamondCutFacet = await hre.ethers.getContractAt("DiamondCutFacet", protocolAddress);
+): Promise<{
+  cuts: [string, FacetCutAction, string[]][];
+  facetContracts: Map<string, any>;
+  initFacetAddress: string;
+}> {
   const initializationFacet = await hre.ethers.getContractAt("InitializationFacet", protocolAddress);
   const initFacetAddress = await initializationFacet.getAddress();
 
   if (!initFacetAddress) {
-    throw new Error("InitializationFacet address is null");
+    throw new Error("InitializationFacet address not found in protocol");
   }
-  console.log(`📝 InitializationFacet address: ${initFacetAddress}`);
 
   const allFacetsToDeploy = [...config.facets.add, ...config.facets.replace];
   const deployedFacets = await Promise.all(
@@ -391,13 +393,13 @@ async function executeFacetUpdates(
   const removedSelectors: string[][] = [];
   let mutableContracts = [...contracts];
 
-  // Create a map of facet addresses to their contracts
   const facetContracts = new Map<string, any>();
   for (const facet of validDeployedFacets) {
     const address = await facet.contract.getAddress();
     facetContracts.set(address.toLowerCase(), facet.contract);
   }
 
+  // Process facet removals
   for (const facetToRemove of config.facets.remove) {
     const oldFacet = mutableContracts.find((c: any) => c.name === facetToRemove);
     if (!oldFacet) continue;
@@ -410,6 +412,7 @@ async function executeFacetUpdates(
     validFacetCuts.push([hre.ethers.ZeroAddress, FacetCutAction.Remove, registeredSelectors]);
   }
 
+  // Process facet updates
   for (const [index, newFacet] of validDeployedFacets.entries()) {
     const oldFacet = mutableContracts.find((c: any) => c.name === newFacet.name);
     const registeredSelectors = oldFacet ? [...(await diamondLoupe.facetFunctionSelectors(oldFacet.address))] : [];
@@ -440,7 +443,7 @@ async function executeFacetUpdates(
           shouldSkip,
           skipAll: newSkipAll,
           replaceAll: newReplaceAll,
-        } = await handleSelectorCollision(
+        } = await resolveSelectorCollision(
           selectorToAdd,
           existingFacetAddress,
           newFacet,
@@ -488,12 +491,32 @@ async function executeFacetUpdates(
     }
   }
 
-  const finalCuts = Array.from(consolidatedCuts.values());
+  return {
+    cuts: Array.from(consolidatedCuts.values()),
+    facetContracts,
+    initFacetAddress,
+  };
+}
 
-  if (finalCuts.length > 0) {
+async function executeFacetUpdates(
+  config: FacetConfig,
+  protocolAddress: string,
+  contracts: any[],
+  contractsFile: any,
+  isForkTest: boolean = false,
+) {
+  const { cuts, facetContracts, initFacetAddress } = await prepareFacetCuts(
+    config,
+    protocolAddress,
+    contracts,
+    contractsFile,
+    isForkTest,
+  );
+
+  if (cuts.length > 0) {
     await executeDiamondCut(
-      diamondCutFacet,
-      finalCuts,
+      await hre.ethers.getContractAt("DiamondCutFacet", protocolAddress),
+      cuts,
       initFacetAddress,
       config.initializationData || "0x",
       facetContracts,

@@ -123,15 +123,12 @@ NB: Normal tests and coverage reports skip integration reports.
 
 ### Upgrades
 
-The protocol can be upgraded using the upgrade suite. The upgrade process includes:
+The protocol can be upgraded using the upgrade suite. The upgrade process includes two main steps:
 
 1. Generating an upgrade configuration by comparing contract changes between versions
-2. Executing pre-upgrade hooks (if available)
-3. Deploying new facets and removing old ones (if configured)
-4. Executing initialization data (if configured)
-5. Executing post-upgrade hooks (if available)
-
-Each version can have its own configuration in `scripts/upgrade/config/upgrades/{version}.json` and hooks in `scripts/upgrade/upgrade-hooks/{version}.ts`.
+2. Executing the required upgrades based on your needs:
+   - Protocol facets upgrade
+   - Client contracts upgrade
 
 #### Step 1: Generate Upgrade Configuration
 
@@ -149,11 +146,9 @@ The script will:
 
 - Compare contract bytecodes between versions
 - Detect constructor arguments for facets
-- Identify selector collisions and suggest handling
 - Generate a configuration file with:
   - Facets to add, replace, or remove
   - Constructor arguments for new facets
-  - Selectors to skip in case of collisions
   - Initialization data for facets
 
 Example:
@@ -166,34 +161,60 @@ npx hardhat generate-upgrade-config --current-version v1.0.0 --new-version v1.1.
 npx hardhat generate-upgrade-config --current-version v1.0.0 --version 1.1.0
 ```
 
-#### Step 2: Execute Upgrade
+#### Step 2: Execute Required Upgrades
 
-After generating and reviewing the upgrade configuration, run the upgrade:
+After generating and reviewing the upgrade configuration, you should execute the upgrades based on your needs:
+
+##### Protocol Facets Upgrade
+
+Use this command when you need to upgrade the protocol facets (add, remove, replace) and execute pre/post-upgrade hooks:
 
 ```shell
-npx hardhat upgrade-suite --env <environment> --target-version <version> [--dry-run] [--network <network>]
+npx hardhat upgrade-facets --env <environment> --target-version <version> [--dry-run] [--network <network>]
 ```
 
 - `environment`: name of the environment to upgrade (e.g., test, staging, production)
 - `version`: target version to upgrade to (e.g., 1.1.0)
-- `dry-run`: optional flag to simulate the upgrade without actually executing it. This is useful to verify that all transactions will pass and estimate gas costs
+- `dry-run`: optional flag to simulate the upgrade without actually executing it
 - `network`: network to run the upgrade on (must be defined in `hardhat.config.ts`)
 
 The upgrade process will:
 
 1. Execute pre-upgrade hooks if available
 2. Deploy new facets with their constructor arguments
-3. Handle selector collisions interactively
-4. Execute diamond cuts to add/replace/remove facets
-5. Execute initialization data if configured
-6. Execute post-upgrade hooks if available
-7. Update the protocol version
-8. Save the new contract addresses
+3. Execute diamond cuts to add/replace/remove facets
+4. Execute initialization data if configured
+5. Execute post-upgrade hooks if available
+6. Update the protocol version
+7. Save the new contract addresses
+
+##### Client Contracts Upgrade
+
+Use this command when you need to upgrade the FermionFNFT contract and its dependencies:
+
+```shell
+npx hardhat upgrade-clients --env <environment> --target-version <version> [--dry-run] [--network <network>]
+```
+
+- `environment`: name of the environment to upgrade (e.g., test, staging, production)
+- `version`: target version to upgrade to (e.g., 1.1.0)
+- `dry-run`: optional flag to simulate the upgrade without actually executing it
+- `network`: network to run the upgrade on (must be defined in `hardhat.config.ts`)
+
+The upgrade process will:
+
+1. Deploy new FermionFNFT contract and its dependencies
+2. Update the FermionFNFT implementation in the diamond through `ConfigFacet.setFNFTImplementationAddress`
+3. Save the new contract addresses
 
 Example:
 
 ```shell
-npx hardhat upgrade-suite --env test --target-version 1.1.0 --dry-run --network sepolia
+# Upgrade only protocol facets on test environment
+npx hardhat upgrade-facets --env test --target-version 1.1.0 --dry-run --network sepolia
+
+# Upgrade only clients on test environment
+npx hardhat upgrade-clients --env test --target-version 1.1.0 --dry-run --network sepolia
 ```
 
 ### Fork Tests
