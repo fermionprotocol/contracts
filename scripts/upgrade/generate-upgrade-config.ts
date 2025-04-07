@@ -215,6 +215,26 @@ async function generateUpgradeConfig(
         skipSelectors,
         constructorArgs,
       },
+      clients: {
+        fermionFNFT: [
+          ...changedContracts.filter((contract) => {
+            const artifact = hre.artifacts.readArtifactSync(contract);
+            return (
+              artifact.sourceName.includes("/protocol/clients/") &&
+              !artifact.sourceName.includes("/protocol/clients/oracle/") &&
+              artifact.bytecode !== "0x"
+            );
+          }),
+          ...newContracts.filter((contract) => {
+            const artifact = hre.artifacts.readArtifactSync(contract);
+            return (
+              artifact.sourceName.includes("/protocol/clients/") &&
+              !artifact.sourceName.includes("/protocol/clients/oracle/") &&
+              artifact.bytecode !== "0x"
+            );
+          }),
+        ],
+      },
     };
 
     const configDir = path.join(process.cwd(), "scripts", "config", "upgrades");

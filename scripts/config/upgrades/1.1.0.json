@@ -22,5 +22,16 @@
         "$FERMION_PROTOCOL_ADDRESS"
       ]
     }
+  },
+  "clients": {
+    "fermionFNFT": [
+      "FermionFNFT",
+      "SeaportWrapper",
+      "CreatorToken",
+      "FermionBuyoutAuction",
+      "FermionFNFTPriceManager",
+      "FermionFractionsERC20",
+      "FermionFractionsMint"
+    ]
   }
 }
