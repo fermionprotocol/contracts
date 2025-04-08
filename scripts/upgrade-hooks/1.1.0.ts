@@ -234,6 +234,10 @@ export async function executeBackfillingDiamondCut(
  * preparing initialization data, and making the diamond cut.
  */
 export async function preUpgrade(protocolAddress: string, chainId: number, env: string, isDryRun: boolean = false) {
+  const pauseFacet = await ethers.getContractAt("PauseFacet", protocolAddress);
+  console.log("Pausing protocol before backfill...");
+  await pauseFacet.pause([]);
+
   // Set the correct GRAPHQL_URL based on chainId and env
   const graphQLUrl = getGraphQLUrl(chainId, env);
   const client = createClient({
@@ -279,4 +283,7 @@ export async function postUpgrade(protocolAddress: string) {
   const initializationFacet = await ethers.getContractAt("InitializationFacet", protocolAddress);
   const version = await initializationFacet.getVersion();
   console.log(`Verified version: ${version.replace(/\0/g, "")}`);
+  const pauseFacet = await ethers.getContractAt("PauseFacet", protocolAddress);
+  console.log("Unpausing protocol after upgrade...");
+  await pauseFacet.unpause([]);
 }

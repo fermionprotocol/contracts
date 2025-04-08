@@ -326,7 +326,7 @@ async function executePreUpgradeHook(
   dryRun: boolean,
 ) {
   try {
-    const hookPath = path.join(__dirname, "upgrade-hooks", `${version}.ts`);
+    const hookPath = path.join(__dirname, "..", "upgrade-hooks", `${version}.ts`);
     if (fs.existsSync(hookPath)) {
       const { preUpgrade } = await import(hookPath);
       if (preUpgrade) {
@@ -342,7 +342,7 @@ async function executePreUpgradeHook(
 
 async function executePostUpgradeHook(version: string, protocolAddress: string) {
   try {
-    const hookPath = path.join(__dirname, "upgrade-hooks", `${version}.ts`);
+    const hookPath = path.join(__dirname, "..", "upgrade-hooks", `${version}.ts`);
     if (fs.existsSync(hookPath)) {
       const { postUpgrade } = await import(hookPath);
       if (postUpgrade) {
