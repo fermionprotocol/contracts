@@ -327,32 +327,46 @@ async function executePreUpgradeHook(
 ) {
   try {
     const hookPath = path.join(__dirname, "..", "upgrade-hooks", `${version}.ts`);
-    if (fs.existsSync(hookPath)) {
-      const { preUpgrade } = await import(hookPath);
-      if (preUpgrade) {
-        console.log("\n⚙️  Executing pre-upgrade hook...");
-        await preUpgrade(protocolAddress, Number(originalChainId), originalEnv, dryRun);
-        console.log("✅ Pre-upgrade hook completed");
-      }
+    if (!fs.existsSync(hookPath)) {
+      console.log("ℹ️  No pre-upgrade hook file found");
+      return;
     }
-  } catch {
-    console.log("ℹ️  No upgrade hooks found or error executing them");
+
+    const { preUpgrade } = await import(hookPath);
+    if (!preUpgrade) {
+      console.log("ℹ️  No pre-upgrade hook function found in hook file");
+      return;
+    }
+
+    console.log("\n⚙️  Executing pre-upgrade hook...");
+    await preUpgrade(protocolAddress, Number(originalChainId), originalEnv, dryRun);
+    console.log("✅ Pre-upgrade hook completed");
+  } catch (error: any) {
+    console.error("❌ Pre-upgrade hook execution failed:", error);
+    throw error;
   }
 }
 
 async function executePostUpgradeHook(version: string, protocolAddress: string) {
   try {
     const hookPath = path.join(__dirname, "..", "upgrade-hooks", `${version}.ts`);
-    if (fs.existsSync(hookPath)) {
-      const { postUpgrade } = await import(hookPath);
-      if (postUpgrade) {
-        console.log("\n⚙️  Executing post-upgrade hook...");
-        await postUpgrade(protocolAddress);
-        console.log("✅ Post-upgrade hook completed");
-      }
+    if (!fs.existsSync(hookPath)) {
+      console.log("ℹ️  No post-upgrade hook file found");
+      return;
     }
-  } catch {
-    console.log("ℹ️  No upgrade hooks found or error executing them");
+
+    const { postUpgrade } = await import(hookPath);
+    if (!postUpgrade) {
+      console.log("ℹ️  No post-upgrade hook function found in hook file");
+      return;
+    }
+
+    console.log("\n⚙️  Executing post-upgrade hook...");
+    await postUpgrade(protocolAddress);
+    console.log("✅ Post-upgrade hook completed");
+  } catch (error: any) {
+    console.error("❌ Post-upgrade hook execution failed:", error);
+    throw error;
   }
 }
 
