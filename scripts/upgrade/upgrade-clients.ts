@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import hre from "hardhat";
 import fermionConfig from "../../fermion.config";
+import { deploymentComplete } from "../deploy";
 
 interface ClientConfig {
   version: string;
@@ -21,13 +22,18 @@ async function deployDependencies(protocolAddress: string, bosonPriceDiscoveryAd
   const seaportWrapper = await SeaportWrapper.deploy(bosonPriceDiscoveryAddress, protocolAddress, seaportConfig);
   await seaportWrapper.waitForDeployment();
   const seaportWrapperAddress = await seaportWrapper.getAddress();
-  console.log(`✅ SeaportWrapper deployed at: ${seaportWrapperAddress}`);
+  deploymentComplete(
+    "SeaportWrapper",
+    seaportWrapperAddress,
+    [bosonPriceDiscoveryAddress, protocolAddress, seaportConfig],
+    true,
+  );
 
   const FermionFractionsERC20 = await hre.ethers.getContractFactory("FermionFractionsERC20");
   const fermionFractionsERC20 = await FermionFractionsERC20.deploy(protocolAddress);
   await fermionFractionsERC20.waitForDeployment();
   const fermionFractionsERC20Address = await fermionFractionsERC20.getAddress();
-  console.log(`✅ FermionFractionsERC20 deployed at: ${fermionFractionsERC20Address}`);
+  deploymentComplete("FermionFractionsERC20", fermionFractionsERC20Address, [protocolAddress], true);
 
   const FermionFractionsMint = await hre.ethers.getContractFactory("FermionFractionsMint");
   const fermionFractionsMint = await FermionFractionsMint.deploy(
@@ -37,19 +43,29 @@ async function deployDependencies(protocolAddress: string, bosonPriceDiscoveryAd
   );
   await fermionFractionsMint.waitForDeployment();
   const fermionFractionsMintAddress = await fermionFractionsMint.getAddress();
-  console.log(`✅ FermionFractionsMint deployed at: ${fermionFractionsMintAddress}`);
+  deploymentComplete(
+    "FermionFractionsMint",
+    fermionFractionsMintAddress,
+    [bosonPriceDiscoveryAddress, protocolAddress, fermionFractionsERC20Address],
+    true,
+  );
 
   const FermionFNFTPriceManager = await hre.ethers.getContractFactory("FermionFNFTPriceManager");
   const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy(protocolAddress);
   await fermionFNFTPriceManager.waitForDeployment();
   const fermionFNFTPriceManagerAddress = await fermionFNFTPriceManager.getAddress();
-  console.log(`✅ FermionFNFTPriceManager deployed at: ${fermionFNFTPriceManagerAddress}`);
+  deploymentComplete("FermionFNFTPriceManager", fermionFNFTPriceManagerAddress, [protocolAddress], true);
 
   const FermionBuyoutAuction = await hre.ethers.getContractFactory("FermionBuyoutAuction");
   const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(bosonPriceDiscoveryAddress, protocolAddress);
   await fermionBuyoutAuction.waitForDeployment();
   const fermionBuyoutAuctionAddress = await fermionBuyoutAuction.getAddress();
-  console.log(`✅ FermionBuyoutAuction deployed at: ${fermionBuyoutAuctionAddress}`);
+  deploymentComplete(
+    "FermionBuyoutAuction",
+    fermionBuyoutAuctionAddress,
+    [bosonPriceDiscoveryAddress, protocolAddress],
+    true,
+  );
 
   return {
     seaportWrapperAddress,

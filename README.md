@@ -135,7 +135,7 @@ The protocol can be upgraded using the upgrade suite. The upgrade process includ
 First, generate an upgrade config by comparing contract changes between versions:
 
 ```shell
-npx hardhat generate-upgrade-config --current-version <current-version> [--new-version <new-version>] --version <version>
+npx hardhat generate-upgrade-config --current-version <current-version> [--new-version <new-version>] --target-version <version>
 ```
 
 - `current-version`: branch/tag/commit of the current version (e.g., v1.0.0)
@@ -155,10 +155,10 @@ Example:
 
 ```shell
 # Compare two specific versions
-npx hardhat generate-upgrade-config --current-version v1.0.0 --new-version v1.1.0 --version 1.1.0
+npx hardhat generate-upgrade-config --current-version v1.0.0 --new-version v1.1.0 --target-version 1.1.0
 
 # Compare current branch with a specific version
-npx hardhat generate-upgrade-config --current-version v1.0.0 --version 1.1.0
+npx hardhat generate-upgrade-config --current-version v1.0.0 --target-version 1.1.0
 ```
 
 #### Step 2: Execute Required Upgrades

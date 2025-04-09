@@ -382,7 +382,7 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
   return tx;
 }
 
-function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
+export function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
   // ToDo: calculate interfaceId?
   if (save) deploymentData.push({ name, address, args });
   console.log(`✅ ${name} deployed to: ${address}`);

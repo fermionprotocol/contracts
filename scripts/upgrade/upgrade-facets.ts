@@ -140,7 +140,7 @@ async function deployAndPrepareNewFacet(
 ): Promise<DeployedFacet | null> {
   console.log(`\n📦 Deploying ${facetName}...`);
   const Facet = await hre.ethers.getContractFactory(facetName);
-  const functionSelectors = await getSelectors(Facet);
+  const functionSelectors = getSelectors(Facet);
 
   if (functionSelectors.length === 0) {
     console.log(`⚠️  Skipping ${facetName} as it has no function selectors`);
@@ -210,7 +210,7 @@ async function prepareInitializeData(facetContract: any, config: FacetConfig, fa
     return "0x";
   }
   const initArgs = config.facets.initializeData[facetName];
-  return facetContract.interface.encodeFunctionData("initialize", initArgs);
+  return facetContract.interface.encodeFunctionData("init", initArgs);
 }
 
 async function prepareFacetRemoval(
@@ -220,7 +220,7 @@ async function prepareFacetRemoval(
 ): Promise<[string, FacetCutAction, string[]] | null> {
   console.log(`\n📦 Preparing removal of ${facetName}...`);
   const oldFacetContract = await hre.ethers.getContractAt(facetName, oldAddress);
-  const functionSelectors = await getSelectors(oldFacetContract);
+  const functionSelectors = getSelectors(oldFacetContract);
 
   if (functionSelectors.length === 0) {
     console.log(`⚠️  Skipping ${facetName} removal as it has no function selectors`);
@@ -245,6 +245,7 @@ async function resolveSelectorCollision(
   skipAll: boolean,
   replaceAll: boolean,
   isForkTest: boolean = false,
+  remainingSelectors: string[] = [],
 ): Promise<{ shouldReplace: boolean; shouldSkip: boolean; skipAll: boolean; replaceAll: boolean }> {
   const functionName = newFacet.contract.interface.getFunction(selectorToAdd)?.format() || "Unknown function";
 
@@ -252,26 +253,39 @@ async function resolveSelectorCollision(
     return { shouldReplace: true, shouldSkip: false, skipAll: false, replaceAll: true };
   }
 
-  console.log(`⚠️  Selector ${selectorToAdd} (${functionName}) is already registered:`);
-  console.log(`   Existing facet: ${existingFacetAddress}`);
-  console.log(`   New facet: ${await newFacet.contract.getAddress()}`);
+  const newFacetAddress = await newFacet.contract.getAddress();
+  let prompt = `⚠️  Selector collision for ${functionName} (${selectorToAdd}) in ${newFacet.name} facet:
+   Existing implementation: ${existingFacetAddress}
+   New implementation: ${newFacetAddress}`;
 
-  if (skipAll || replaceAll) {
-    return { shouldReplace: replaceAll, shouldSkip: skipAll, skipAll, replaceAll };
+  const remainingSelectorsList = remainingSelectors
+    .filter((s) => s !== selectorToAdd)
+    .map((s) => {
+      const fn = newFacet.contract.interface.getFunction(s)?.format() || "Unknown function";
+      return `   - ${fn} (${s})`;
+    })
+    .join("\n");
+
+  if (remainingSelectorsList) {
+    prompt += `\n\nThe following selectors will be affected by if you choose R or S for all collisions within ${newFacet.name}:\n${remainingSelectorsList}`;
   }
 
-  const prompt = `Do you want to (r)eplace or (s)kip it?\nUse (r)eplace or (s)kip for current selector, (R)eplace or (S)kip for all remaining selectors in this facet. `;
+  prompt += `\n\nDo you want to (r)eplace or (s)kip it?
+Use (r)eplace or (s)kip for current selector, (R)eplace or (S)kip for all remaining selectors in ${newFacet.name} facet. `;
+
   const answer = await getUserResponse(prompt, ["r", "s", "R", "S"]);
 
   if (answer === "R") {
     replaceAll = true;
+    return { shouldReplace: true, shouldSkip: false, skipAll: false, replaceAll: true };
   } else if (answer === "S") {
     skipAll = true;
+    return { shouldReplace: false, shouldSkip: true, skipAll: true, replaceAll: false };
   }
 
   return {
-    shouldReplace: answer === "R" || answer === "r",
-    shouldSkip: answer === "S" || answer === "s",
+    shouldReplace: answer === "r",
+    shouldSkip: answer === "s",
     skipAll,
     replaceAll,
   };
@@ -294,7 +308,7 @@ async function executeDiamondCut(
           // Try to get function name from the facet contract
           const facetContract = facetContracts.get(address.toLowerCase());
           if (facetContract) {
-            const functionName = facetContract.interface.getFunction(selector)?.format();
+            const functionName = facetContract.contract.interface.getFunction(selector)?.format();
             if (functionName) return functionName;
           }
           return "Unknown function";
@@ -304,8 +318,9 @@ async function executeDiamondCut(
       }),
     );
 
+    const contractName = facetContracts.get(address.toLowerCase())?.name || "Unknown contract";
     console.log(
-      `  ${action === FacetCutAction.Add ? "Add" : action === FacetCutAction.Remove ? "Remove" : "Replace"} ${selectors.length} selectors ${action === FacetCutAction.Remove ? "from" : "to"} ${address}`,
+      `  ${action === FacetCutAction.Add ? "Add" : action === FacetCutAction.Remove ? "Remove" : "Replace"} ${selectors.length} selectors ${action === FacetCutAction.Remove ? "from" : "to"} ${contractName} (${address})`,
     );
     console.log("    Functions:");
     functionNames.forEach((name, i) => {
@@ -410,7 +425,7 @@ async function prepareFacetCuts(
   const facetContracts = new Map<string, any>();
   for (const facet of validDeployedFacets) {
     const address = await facet.contract.getAddress();
-    facetContracts.set(address.toLowerCase(), facet.contract);
+    facetContracts.set(address.toLowerCase(), facet);
   }
 
   // Process facet removals
@@ -452,6 +467,17 @@ async function prepareFacetCuts(
 
       const existingFacetAddress = await diamondLoupe.facetAddress(selectorToAdd);
       if (existingFacetAddress !== hre.ethers.ZeroAddress) {
+        if (replaceAll) {
+          selectorsToReplace = [...selectorsToReplace, selectorToAdd];
+          selectorsToAdd = selectorsToAdd.filter((s) => s !== selectorToAdd);
+          continue;
+        }
+        if (skipAll) {
+          selectorsToSkip = [...selectorsToSkip, selectorToAdd];
+          selectorsToAdd = selectorsToAdd.filter((s) => s !== selectorToAdd);
+          continue;
+        }
+
         const {
           shouldReplace,
           shouldSkip,
@@ -464,6 +490,7 @@ async function prepareFacetCuts(
           skipAll,
           replaceAll,
           isForkTest,
+          selectorsToAdd,
         );
 
         skipAll = newSkipAll;

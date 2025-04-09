@@ -21,7 +21,7 @@ export function getSelectors(contract: Contract | ContractFactory<any[], BaseCon
       }),
   ) as FunctionFragment[];
   const selectors = signatures.reduce<string[]>((acc, val) => {
-    if (val.format("sighash") !== "init(bytes)") {
+    if (!val.format("sighash").startsWith("init")) {
       acc.push(val.selector);
     }
     return acc;

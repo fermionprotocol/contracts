@@ -35,7 +35,10 @@ async function getBytecodes(version: string): Promise<Record<string, string>> {
 
     // Checkout the version's contracts
     shell.exec(`rm -rf contracts`);
-    shell.exec(`git checkout ${version} contracts`);
+    const checkoutResult = shell.exec(`git checkout ${version} contracts`, { silent: true });
+    if (checkoutResult.code !== 0) {
+      throw new Error(`Version ${version} does not exist in the repository`);
+    }
 
     // Install dependencies and compile
     shell.exec("yarn install");

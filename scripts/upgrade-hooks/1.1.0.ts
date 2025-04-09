@@ -4,7 +4,8 @@ import hre from "hardhat";
 import fetch from "node-fetch";
 import fs from "fs";
 import path from "path";
-import { readContracts } from "../libraries/utils";
+import { readContracts, checkRole } from "../libraries/utils";
+import { PausableRegion } from "../../test/utils/enums";
 const { ethers } = hre;
 const VERSION = "1.1.0";
 
@@ -234,9 +235,22 @@ export async function executeBackfillingDiamondCut(
  * preparing initialization data, and making the diamond cut.
  */
 export async function preUpgrade(protocolAddress: string, chainId: number, env: string, isDryRun: boolean = false) {
+  const signer = (await ethers.getSigners())[0].address;
+  await checkRole([{ name: "FermionDiamond", address: protocolAddress }], "PAUSER", signer);
+
   const pauseFacet = await ethers.getContractAt("PauseFacet", protocolAddress);
-  console.log("Pausing protocol before backfill...");
-  await pauseFacet.pause([]);
+  const regionsToPause = [
+    PausableRegion.Offer,
+    PausableRegion.Verification,
+    PausableRegion.Custody,
+    PausableRegion.CustodyVault,
+  ];
+
+  console.log(
+    "Pausing specific protocol regions before backfill:",
+    regionsToPause.map((region) => PausableRegion[region]),
+  );
+  await pauseFacet.pause(regionsToPause);
 
   // Set the correct GRAPHQL_URL based on chainId and env
   const graphQLUrl = getGraphQLUrl(chainId, env);
@@ -283,7 +297,8 @@ export async function postUpgrade(protocolAddress: string) {
   const initializationFacet = await ethers.getContractAt("InitializationFacet", protocolAddress);
   const version = await initializationFacet.getVersion();
   console.log(`Verified version: ${version.replace(/\0/g, "")}`);
+
   const pauseFacet = await ethers.getContractAt("PauseFacet", protocolAddress);
-  console.log("Unpausing protocol after upgrade...");
+  console.log("Unpausing all protocol regions after upgrade...");
   await pauseFacet.unpause([]);
 }
