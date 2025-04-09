@@ -96,7 +96,7 @@ export async function upgradeClients(env: string, targetVersion: string, dryRun:
   }
 
   const signer = (await ethers.getSigners())[0].address;
-  checkRole(contractsFile.contracts, "UPGRADER", signer);
+  checkRole(contractsFile.contracts, "ADMIN", signer);
 
   const protocolAddress = contractsFile.contracts.find((c: any) => c.name === "FermionDiamond")?.address;
   if (!protocolAddress) {
