@@ -11,7 +11,7 @@ import { BaseContract, Contract, ZeroAddress } from "ethers";
 import fermionConfig from "./../fermion.config";
 
 const version = "1.0.1";
-let deploymentData: any[] = [];
+export let deploymentData: any[] = [];
 
 export async function deploySuite(env: string = "", modules: string[] = [], create3: boolean = false) {
   if (create3) {
@@ -383,12 +383,18 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
 }
 
 export function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
-  // ToDo: calculate interfaceId?
-  if (save) deploymentData.push({ name, address, args });
+  if (save) {
+    const existingIndex = deploymentData.findIndex((contract) => contract.name === name);
+    if (existingIndex >= 0) {
+      deploymentData[existingIndex] = { name, address, args };
+    } else {
+      deploymentData.push({ name, address, args });
+    }
+  }
   console.log(`✅ ${name} deployed to: ${address}`);
 }
 
-async function getDeploymentData(env: string) {
+export async function getDeploymentData(env: string) {
   if (deploymentData.length === 0) {
     const contractsFile = await readContracts(env);
     deploymentData = contractsFile.contracts;

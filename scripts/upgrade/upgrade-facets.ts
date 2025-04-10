@@ -6,6 +6,7 @@ import path from "path";
 import hre from "hardhat";
 import { getSelectors, removeSelectors } from "../libraries/diamond";
 import readline from "readline";
+import { deploymentComplete, getDeploymentData, deploymentData } from "../deploy";
 
 interface FacetConfig {
   version: string;
@@ -48,9 +49,6 @@ export async function upgradeFacets(
 ) {
   const { ethers } = hre;
 
-  console.log(`🚀 Starting Protocol Upgrade to Version ${version}`);
-  console.log(`📅 ${new Date().toLocaleString()}`);
-
   try {
     let balanceBefore: bigint = 0n;
     const getBalance: () => Promise<bigint> = async () => 0n;
@@ -60,7 +58,6 @@ export async function upgradeFacets(
 
     if (dryRun) {
       ({ env, deployerBalance: balanceBefore } = await setupDryRun(env));
-      console.log("🧪 Running in DRY-RUN mode");
     }
 
     const contractsFile = await readContracts(env);
@@ -70,6 +67,9 @@ export async function upgradeFacets(
       throw new Error(`Protocol is already at version ${version}`);
     }
 
+    // Initialize deployment data with existing contracts
+    await getDeploymentData(env);
+
     const signer = (await ethers.getSigners())[0].address;
     checkRole(contracts, "UPGRADER", signer);
 
@@ -77,7 +77,6 @@ export async function upgradeFacets(
     if (!protocolAddress) {
       throw new Error("Protocol address not found");
     }
-    console.log(`📝 Protocol address: ${protocolAddress}`);
 
     const configPath = path.join(__dirname, "..", "config", "upgrades", `${version}.json`);
     const config: FacetConfig | undefined = fs.existsSync(configPath)
@@ -102,8 +101,8 @@ export async function upgradeFacets(
     const newVersion = (await initializationFacet.getVersion()).replace(/\0/g, "");
     console.log(`\n📋 New protocol version: ${newVersion}`);
 
-    const contractsPath = await writeContracts(contracts, env, newVersion);
-    console.log(`✅ Contracts written to ${contractsPath}`);
+    // Write the updated contracts to file
+    await writeContracts(deploymentData, env, newVersion);
 
     if (dryRun) {
       const balanceAfter = await getBalance();
@@ -159,7 +158,9 @@ async function deployAndPrepareNewFacet(
   const facetContract = await Facet.deploy(...constructorArgs);
   await facetContract.waitForDeployment();
   const facetAddress = await facetContract.getAddress();
-  console.log(`✅ ${facetName} deployed at: ${facetAddress}`);
+
+  // Update deployment data with new facet
+  deploymentComplete(facetName, facetAddress, constructorArgs, true);
 
   const initializeData = await prepareInitializeData(facetContract, config, facetName);
 

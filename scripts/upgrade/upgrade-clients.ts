@@ -5,7 +5,7 @@ import fs from "fs";
 import path from "path";
 import hre from "hardhat";
 import fermionConfig from "../../fermion.config";
-import { deploymentComplete } from "../deploy";
+import { deploymentComplete, getDeploymentData, deploymentData } from "../deploy";
 
 interface ClientConfig {
   version: string;
@@ -103,6 +103,9 @@ export async function upgradeClients(env: string, targetVersion: string, dryRun:
     throw new Error("Protocol address not found in contracts file");
   }
 
+  // Initialize deployment data with existing contracts
+  await getDeploymentData(currentEnv);
+
   const configPath = path.join(__dirname, "..", "config", "upgrades", `${targetVersion}.json`);
   const config: ClientConfig | undefined = fs.existsSync(configPath)
     ? JSON.parse(fs.readFileSync(configPath, "utf8"))
@@ -155,27 +158,8 @@ export async function upgradeClients(env: string, targetVersion: string, dryRun:
   await configFacet.setFNFTImplementationAddress(fermionFNFTAddress);
   console.log("✅ FermionFNFT implementation updated");
 
-  const updatedContracts = contractsFile.contracts.map((contract: any) => {
-    if (contract.name === "FermionFNFT") {
-      return {
-        ...contract,
-        address: fermionFNFTAddress,
-        args: [
-          bosonPriceDiscoveryAddress,
-          protocolAddress,
-          dependencies.seaportWrapperAddress,
-          strictAuthorizedTransferSecurityRegistry,
-          wrappedNativeAddress,
-          dependencies.fermionFractionsMintAddress,
-          dependencies.fermionFNFTPriceManagerAddress,
-          dependencies.fermionBuyoutAuctionAddress,
-        ],
-      };
-    }
-    return contract;
-  });
-
-  await writeContracts(updatedContracts, currentEnv, targetVersion);
+  // Write the updated contracts to file
+  await writeContracts(deploymentData, currentEnv, targetVersion);
 
   if (dryRun) {
     const balanceAfter = await getBalance();

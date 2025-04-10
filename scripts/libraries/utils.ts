@@ -20,6 +20,7 @@ export async function writeContracts(
   const networkName = network.name;
 
   const path = getAddressesFilePath(chainId, networkName, env);
+  console.log(`Writing contracts to ${path}`);
   fs.writeFileSync(
     path,
     JSON.stringify(
