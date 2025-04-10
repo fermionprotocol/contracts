@@ -157,6 +157,8 @@ export async function upgradeClients(env: string, targetVersion: string, dryRun:
     [
       bosonPriceDiscoveryAddress,
       protocolAddress,
+      dependencies.seaportWrapperAddress,
+      strictAuthorizedTransferSecurityRegistry,
       wrappedNativeAddress,
       dependencies.fermionFractionsMintAddress,
       dependencies.fermionFNFTPriceManagerAddress,
