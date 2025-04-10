@@ -151,8 +151,19 @@ export async function upgradeClients(env: string, targetVersion: string, dryRun:
   );
   await fermionFNFT.waitForDeployment();
   const fermionFNFTAddress = await fermionFNFT.getAddress();
-  console.log(`✅ FermionFNFT deployed at: ${fermionFNFTAddress}`);
-
+  deploymentComplete(
+    "FermionFNFT",
+    fermionFNFTAddress,
+    [
+      bosonPriceDiscoveryAddress,
+      protocolAddress,
+      wrappedNativeAddress,
+      dependencies.fermionFractionsMintAddress,
+      dependencies.fermionFNFTPriceManagerAddress,
+      dependencies.fermionBuyoutAuctionAddress,
+    ],
+    true,
+  );
   console.log("\n⚙️  Updating FermionFNFT implementation in diamond...");
   const configFacet = await ethers.getContractAt("ConfigFacet", protocolAddress);
   await configFacet.setFNFTImplementationAddress(fermionFNFTAddress);

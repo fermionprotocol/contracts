@@ -58,6 +58,8 @@ describe("Fork Upgrade from 1.0.1 to 1.1.0", function () {
 
   context("Backfilling", function () {
     it("should backfill token fees and offer data during upgrade", async function () {
+      // Backfilling can take a while, so we need to disable the timeout
+      this.timeout(0);
       // Get data from subgraph
       const feeDataList = await prepareTokenFeeBackfillData(graphQLClient);
       const offerDataList = await prepareOfferBackfillData(graphQLClient);
