@@ -34,27 +34,6 @@ task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and init
     }
   });
 
-task(
-  "upgrade-facets",
-  "Upgrade facets performs protocol upgrade including pre-upgrade and post-upgrade hooks for protocol diamond",
-)
-  .addParam("env", "The deployment environment")
-  .addParam("targetVersion", "The version to upgrade to")
-  .addFlag("dryRun", "Test the upgrade without actually upgrading")
-  .setAction(async ({ env, targetVersion, dryRun }) => {
-    const { upgradeFacets } = await import("./scripts/upgrade/upgrade-facets");
-    await upgradeFacets(env, targetVersion, dryRun);
-  });
-
-task("upgrade-clients", "Upgrade client contracts including FermionFNFT and its dependencies")
-  .addParam("env", "The deployment environment")
-  .addParam("targetVersion", "The version to upgrade to")
-  .addFlag("dryRun", "Test the upgrade without actually upgrading")
-  .setAction(async ({ env, targetVersion, dryRun }) => {
-    const { upgradeClients } = await import("./scripts/upgrade/upgrade-clients");
-    await upgradeClients(env, targetVersion, dryRun);
-  });
-
 task("verify-suite", "Verify contracts on the block explorer")
   .addParam("env", "The environment of the contract address file")
   .addOptionalParam("contracts", "The list of contracts to verify")
@@ -62,20 +41,6 @@ task("verify-suite", "Verify contracts on the block explorer")
     const { verifySuite } = await import("./scripts/verify");
 
     await verifySuite(env, contracts && contracts.split(","));
-  });
-
-task("generate-upgrade-config", "Generate upgrade config by comparing contract changes between versions")
-  .addParam("currentVersion", "Branch/tag/commit of the current version")
-  .addOptionalParam("newVersion", "Branch/tag/commit of the new version. If not provided, current branch will be used")
-  .addParam("targetVersion", "Version number for the upgrade config (e.g., 1.1.0)")
-  .setAction(async (args, hre) => {
-    console.log("Starting generate-upgrade-config task...");
-    console.log(`Current version: ${args.currentVersion}`);
-    console.log(`New version: ${args.newVersion || "HEAD"}`);
-    console.log(`Target version: ${args.targetVersion}`);
-
-    const { generateUpgradeConfig } = await import("./scripts/upgrade/generate-upgrade-config");
-    await generateUpgradeConfig(hre, args.currentVersion, args.newVersion || "HEAD", args.targetVersion);
   });
 
 const config: HardhatUserConfig = {
@@ -117,6 +82,14 @@ const config: HardhatUserConfig = {
       url: vars.get("RPC_PROVIDER_OPTIMISM", "https://optimism.llamarpc.com"),
       accounts: [vars.get("DEPLOYER_KEY_OPTIMISM", DEFAULT_DEPLOYER_KEY)],
     },
+    arbitrumSepolia: {
+      url: vars.get("RPC_PROVIDER_ARBITRUM_SEPOLIA", "https://arbitrum-sepolia.drpc.org"),
+      accounts: [vars.get("DEPLOYER_KEY_ARBITRUM_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
+    },
+    arbitrum: {
+      url: vars.get("RPC_PROVIDER_ARBITRUM", "https://arb1.arbitrum.io/rpc"),
+      accounts: [vars.get("DEPLOYER_KEY_ARBITRUM", DEFAULT_DEPLOYER_KEY)],
+    },
   },
   solidity: {
     compilers: [
@@ -131,7 +104,6 @@ const config: HardhatUserConfig = {
               yul: true,
             },
           },
-          metadata: { bytecodeHash: "none", appendCBOR: false },
           evmVersion: "cancun",
           outputSelection: {
             "*": {
@@ -182,6 +154,8 @@ const config: HardhatUserConfig = {
       baseSepolia: vars.get("BASESCAN_API_KEY", ""),
       optimism: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
       optimismSepolia: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
+      arbitrum: vars.get("ARBITRUM_ETHERSCAN_API_KEY", ""),
+      arbitrumSepolia: vars.get("ARBITRUM_SEPOLIA_ETHERSCAN_API_KEY", ""),
     },
     customChains: [
       {
@@ -198,6 +172,22 @@ const config: HardhatUserConfig = {
         urls: {
           apiURL: "https://api-sepolia-optimistic.etherscan.io/api",
           browserURL: "https://sepolia-optimism.etherscan.io",
+        },
+      },
+      {
+        network: "arbitrumSepolia",
+        chainId: 421614,
+        urls: {
+          apiURL: "https://api-sepolia.arbiscan.io/api",
+          browserURL: "https://sepolia.arbiscan.io",
+        },
+      },
+      {
+        network: "arbitrum",
+        chainId: 42161,
+        urls: {
+          apiURL: "https://api.arbiscan.io/api",
+          browserURL: "https://arbiscan.io",
         },
       },
     ],
