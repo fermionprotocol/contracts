@@ -34,27 +34,6 @@ task("deploy-suite", "Deploy suite deploys protocol diamond, all facets and init
     }
   });
 
-task(
-  "upgrade-facets",
-  "Upgrade facets performs protocol upgrade including pre-upgrade and post-upgrade hooks for protocol diamond",
-)
-  .addParam("env", "The deployment environment")
-  .addParam("targetVersion", "The version to upgrade to")
-  .addFlag("dryRun", "Test the upgrade without actually upgrading")
-  .setAction(async ({ env, targetVersion, dryRun }) => {
-    const { upgradeFacets } = await import("./scripts/upgrade/upgrade-facets");
-    await upgradeFacets(env, targetVersion, dryRun);
-  });
-
-task("upgrade-clients", "Upgrade client contracts including FermionFNFT and its dependencies")
-  .addParam("env", "The deployment environment")
-  .addParam("targetVersion", "The version to upgrade to")
-  .addFlag("dryRun", "Test the upgrade without actually upgrading")
-  .setAction(async ({ env, targetVersion, dryRun }) => {
-    const { upgradeClients } = await import("./scripts/upgrade/upgrade-clients");
-    await upgradeClients(env, targetVersion, dryRun);
-  });
-
 task("verify-suite", "Verify contracts on the block explorer")
   .addParam("env", "The environment of the contract address file")
   .addOptionalParam("contracts", "The list of contracts to verify")
