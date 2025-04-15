@@ -167,6 +167,7 @@ const fermionConfig: FermionConfig = {
         openSeaZoneHash: ZeroHash, // ToDo: add the correct value
         openSeaRecipient: "0x0000a26b00c1F0DF003000390027140000fAa719",
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73",
     },
     arbitrum: {
@@ -177,6 +178,7 @@ const fermionConfig: FermionConfig = {
         openSeaZoneHash: ZeroHash, // ToDo: add the correct value
         openSeaRecipient: ZeroHash, // ToDo: add the correct value
       },
+      strictAuthorizedTransferSecurityRegistry: "0xA000027A9B2802E1ddf7000061001e5c005A0000",
       wrappedNative: "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
     },
   },
