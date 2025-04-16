@@ -190,7 +190,7 @@ const config: HardhatUserConfig = {
       optimism: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
       optimismSepolia: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
       arbitrum: vars.get("ARBITRUM_ETHERSCAN_API_KEY", ""),
-      arbitrumSepolia: vars.get("ARBITRUM_SEPOLIA_ETHERSCAN_API_KEY", ""),
+      arbitrumSepolia: vars.get("ARBITRUM_ETHERSCAN_API_KEY", ""),
     },
     customChains: [
       {

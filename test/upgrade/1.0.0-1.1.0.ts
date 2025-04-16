@@ -6,7 +6,7 @@ import { Contract, parseEther, keccak256, toBeHex, concat, encodeBytes32String }
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole } from "../utils/enums";
 import { setStorageAt, getStorageAt } from "@nomicfoundation/hardhat-network-helpers";
-import { executeBackfillingDiamondCut } from "../../scripts/upgrade-hooks/1.1.0";
+import { executeBackfillingDiamondCut } from "../../scripts/upgrade-hooks/1.1.0-rc.1";
 
 const version = encodeBytes32String("v1.1.0");
 const protocolLookupsSlot = "0x769aa294c8d03dc2ae011ff448d15e722e87cfb823b4b4d6339267d1c690d900";

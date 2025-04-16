@@ -6,6 +6,12 @@ import path from "path";
 import hre from "hardhat";
 import fermionConfig from "../../fermion.config";
 import { deploymentComplete, getDeploymentData, deploymentData } from "../deploy";
+import readline from "readline";
+
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
 
 interface ClientConfig {
   version: string;
@@ -76,6 +82,19 @@ async function deployDependencies(protocolAddress: string, bosonPriceDiscoveryAd
   };
 }
 
+async function getUserResponse(question: string, validResponses: string[]): Promise<string> {
+  console.error(question);
+  const answer = await new Promise<string>((resolve) => {
+    rl.question("", resolve);
+  });
+  if (validResponses.includes(answer)) {
+    return answer;
+  } else {
+    console.error("Invalid response!");
+    return getUserResponse(question, validResponses);
+  }
+}
+
 export async function upgradeClients(env: string, targetVersion: string, dryRun: boolean = false) {
   const { ethers } = hre;
   let balanceBefore: bigint = 0n;
@@ -92,7 +111,14 @@ export async function upgradeClients(env: string, targetVersion: string, dryRun:
   }
 
   if (contractsFile.protocolVersion === targetVersion && !dryRun) {
-    throw new Error(`Protocol is already at version ${targetVersion}`);
+    const answer = await getUserResponse(`Protocol is already at version ${targetVersion}. Continue? (y/n)`, [
+      "y",
+      "n",
+    ]);
+    if (answer === "n") {
+      console.log("Upgrade cancelled");
+      process.exit(0);
+    }
   }
 
   const signer = (await ethers.getSigners())[0].address;
@@ -172,7 +198,7 @@ export async function upgradeClients(env: string, targetVersion: string, dryRun:
   console.log("✅ FermionFNFT implementation updated");
 
   // Write the updated contracts to file
-  await writeContracts(deploymentData, currentEnv, targetVersion);
+  await writeContracts(deploymentData, currentEnv, targetVersion, contractsFile.externalAddresses);
 
   if (dryRun) {
     const balanceAfter = await getBalance();

@@ -7,7 +7,6 @@ import path from "path";
 import { readContracts, checkRole } from "../libraries/utils";
 import { PausableRegion } from "../../test/utils/enums";
 const { ethers } = hre;
-const VERSION = "1.1.0";
 
 // Function to get the correct GRAPHQL_URL based on chainId and env
 function getGraphQLUrl(chainId: number, env: string): string {
@@ -234,7 +233,13 @@ export async function executeBackfillingDiamondCut(
  * Perform pre-upgrade tasks, including deploying the BackfillingV1_1_0 contract,
  * preparing initialization data, and making the diamond cut.
  */
-export async function preUpgrade(protocolAddress: string, chainId: number, env: string, isDryRun: boolean = false) {
+export async function preUpgrade(
+  protocolAddress: string,
+  chainId: number,
+  env: string,
+  version: string,
+  isDryRun: boolean = false,
+) {
   const signer = (await ethers.getSigners())[0].address;
   await checkRole([{ name: "FermionDiamond", address: protocolAddress }], "PAUSER", signer);
 
@@ -274,7 +279,7 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
   const backFillFeesCalldata = backfillingFacet.interface.encodeFunctionData("backFillTokenFees", [feeDataList]);
   const backFillOfferCalldata = backfillingFacet.interface.encodeFunctionData("backFillOfferData", [offerDataList]);
 
-  const version = encodeBytes32String(VERSION);
+  const versionBytes = encodeBytes32String(version);
   // Use the correct environment name based on whether we're in dry-run mode
   const envForContracts = isDryRun ? `${env}-dry-run` : env;
   const initializationFacetImplAddress = await getInitializationFacetAddress(chainId, envForContracts);
@@ -285,7 +290,7 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
     backFillOfferCalldata,
     backFillFeesCalldata,
     initializationFacetImplAddress,
-    version,
+    versionBytes,
   );
 }
 

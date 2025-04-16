@@ -102,7 +102,7 @@ export async function upgradeFacets(
     console.log(`\n📋 New protocol version: ${newVersion}`);
 
     // Write the updated contracts to file
-    await writeContracts(deploymentData, env, newVersion);
+    await writeContracts(deploymentData, env, newVersion, contractsFile.externalAddresses);
 
     if (dryRun) {
       const balanceAfter = await getBalance();
@@ -355,7 +355,7 @@ async function executePreUpgradeHook(
     }
 
     console.log("\n⚙️  Executing pre-upgrade hook...");
-    await preUpgrade(protocolAddress, Number(originalChainId), originalEnv, dryRun);
+    await preUpgrade(protocolAddress, Number(originalChainId), originalEnv, version, dryRun);
     console.log("✅ Pre-upgrade hook completed");
   } catch (error: any) {
     console.error("❌ Pre-upgrade hook execution failed:", error);
@@ -405,9 +405,14 @@ async function prepareFacetCuts(
   }
 
   const allFacetsToDeploy = [...config.facets.add, ...config.facets.replace];
-  const deployedFacets = await Promise.all(
-    allFacetsToDeploy.map((facetName) => deployAndPrepareNewFacet(facetName, config, contracts, contractsFile)),
-  );
+  const validDeployedFacets: DeployedFacet[] = [];
+
+  for (const facetName of allFacetsToDeploy) {
+    const deployeFacet = await deployAndPrepareNewFacet(facetName, config, contracts, contractsFile);
+    if (deployeFacet) {
+      validDeployedFacets.push(deployeFacet);
+    }
+  }
 
   const facetCuts = await Promise.all(
     config.facets.remove.map((facetName) => {
@@ -416,7 +421,6 @@ async function prepareFacetCuts(
     }),
   );
 
-  const validDeployedFacets = deployedFacets.filter((f): f is DeployedFacet => f !== null);
   const validFacetCuts = facetCuts.filter((c): c is [string, FacetCutAction, string[]] => c !== null);
 
   const diamondLoupe = await hre.ethers.getContractAt("DiamondLoupeFacet", protocolAddress);
