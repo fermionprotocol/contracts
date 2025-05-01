@@ -19,7 +19,7 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
 
     address private immutable FNFT_FRACTION_MINT;
     address private immutable FNFT_PRICE_MANAGER;
-    address private immutable FNFT_BUYOUT_AUCTION;
+    address internal immutable FNFT_BUYOUT_AUCTION;
 
     /**
      * @notice Constructor
@@ -228,7 +228,7 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * @param _price The bidding price
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
-    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
+    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable virtual {
         forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
