@@ -14,6 +14,8 @@ import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FundsFacet } from "../facets/Funds.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
+import { NativeClaims } from "../libs/NativeClaims.sol";
+import { FundsErrors } from "../domain/Errors.sol";
 /**
  * @dev Buyout auction
  */
@@ -25,6 +27,7 @@ contract FermionBuyoutAuction is
     IFermionFractionsEvents
 {
     using Address for address;
+    using NativeClaims for NativeClaims.Storage;
     constructor(
         address _bosonPriceDiscovery,
         address _fermionProtocol
@@ -292,7 +295,7 @@ contract FermionBuyoutAuction is
             claimAmount += additionalClaimAmount;
         }
 
-        transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount, true);
         emit Claimed(msgSender, lockedIndividualVotes + _additionalFractions, claimAmount, currentEpoch);
     }
 
@@ -548,7 +551,7 @@ contract FermionBuyoutAuction is
                 Common._getFermionFractionsStorage().currentEpoch
             );
         }
-        transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
+        transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount, true);
     }
 
     /**
@@ -560,5 +563,26 @@ contract FermionBuyoutAuction is
      */
     function _burnFractions(address _from, uint256 _amount, uint256 _epoch) internal {
         FermionFractionsERC20(Common._getFermionFractionsStorage().epochToClone[_epoch]).burn(_from, _amount);
+    }
+
+    /**
+     * @notice Claim native funds stored from bid refunds
+     *
+     * Reverts if:
+     * - No native funds available to claim
+     * - Native transfer fails
+     */
+    function claimNativeBidFunds() external {
+        address payable claimer = payable(_msgSender());
+        uint256 amount = NativeClaims._getClaimAmount(claimer);
+
+        if (amount == 0) {
+            revert FundsErrors.NoNativeFundsToClaim();
+        }
+
+        NativeClaims._clearClaim(claimer);
+
+        (bool success, bytes memory errorMessage) = claimer.call{ value: amount }("");
+        if (!success) revert FundsErrors.TokenTransferFailed(claimer, amount, errorMessage);
     }
 }

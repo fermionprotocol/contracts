@@ -9,12 +9,13 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FermionBuyoutAuction } from "./FermionBuyoutAuction.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
-
+import { NativeClaims } from "../libs/NativeClaims.sol";
 /**
  * @dev Fractionalisation and buyout auction
  */
 abstract contract FermionFractions is FermionErrors, IFermionFractions {
     using Address for address;
+    using NativeClaims for NativeClaims.Storage;
 
     address private immutable FNFT_FRACTION_MINT;
     address private immutable FNFT_PRICE_MANAGER;
@@ -402,6 +403,17 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
     }
 
     /**
+     * @notice Claim native funds stored from bid refunds
+     *
+     * Reverts if:
+     * - No native funds available to claim
+     * - Native transfer fails
+     */
+    function claimNativeBidFunds() external {
+        forwardCall(FNFT_BUYOUT_AUCTION);
+    }
+
+    /**
      * @notice Returns the address of the ERC20 clone for a specific epoch
      * Users should interact with this contract directly for ERC20 operations
      *
@@ -586,6 +598,15 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      */
     function liquidSupply() public view returns (uint256) {
         return Common.liquidSupply(Common._getFermionFractionsStorage().currentEpoch);
+    }
+
+    /**
+     * @notice Get the amount of native funds available for claim from bid refunds
+     * @param _claimer The address to check
+     * @return The amount available for claim
+     */
+    function getNativeBidClaimAmount(address _claimer) external view returns (uint256) {
+        return NativeClaims._getClaimAmount(_claimer);
     }
 
     /**
