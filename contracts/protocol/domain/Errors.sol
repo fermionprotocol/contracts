@@ -47,6 +47,11 @@ interface EntityErrors {
         uint256 sellerId,
         uint256 associatedEntityId
     );
+    error NoSuchAssociatedEntity(
+        FermionTypes.AssociatedRole associatedRole,
+        uint256 sellerId,
+        uint256 associatedEntityId
+    );
     error AccountAlreadyExists(address account);
     error NewAccountSameAsOld();
 }

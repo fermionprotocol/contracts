@@ -716,6 +716,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         ) = getAssociatedLookups(_sellerId, _associatedRole, pl);
 
         mapping(uint256 => FermionTypes.EntityData) storage entityData = FermionStorage.protocolEntities().entityData;
+        bool found;
         for (uint256 i; i < _associatedEntitiesIds.length; ++i) {
             uint256 associatedEntityId = _associatedEntitiesIds[i];
             if (_add) {
@@ -740,15 +741,25 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                         if (j != facilitatorsLength - 1)
                             associatedEntities[j] = associatedEntities[facilitatorsLength - 1];
                         associatedEntities.pop();
-
-                        emit AssociatedEntityRemoved(_associatedRole, _sellerId, associatedEntityId);
+                        found = true;
+                        // stack too deep workaround
+                        _emitAssociatedEntityRemoved(_associatedRole, _sellerId, associatedEntityId);
                         break;
                     }
                 }
             }
+            if (!_add && !found) revert NoSuchAssociatedEntity(_associatedRole, _sellerId, associatedEntityId);
 
             isAssociatedRole[associatedEntityId] = _add;
         }
+    }
+
+    function _emitAssociatedEntityRemoved(
+        FermionTypes.AssociatedRole _associatedRole,
+        uint256 _sellerId,
+        uint256 _associatedEntityId
+    ) private {
+        emit AssociatedEntityRemoved(_associatedRole, _sellerId, _associatedEntityId);
     }
 
     /** Returns the storage pointers to associated entities and the mapping of the associated role.
