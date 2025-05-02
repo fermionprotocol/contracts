@@ -13,14 +13,13 @@ import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { IERC2981 } from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { ReentrancyGuardUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 /**
  * @title Fermion F-NFT contract
  * @notice Wrapping, unwrapping, fractionalisation, buyout auction and claiming of Boson Vouchers
  *
  */
-contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT, ReentrancyGuardUpgradeable {
+contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT {
     address private immutable THIS_CONTRACT = address(this);
 
     /**
@@ -65,8 +64,6 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT, Reentran
         if (address(this) == THIS_CONTRACT) {
             revert InvalidInitialization();
         }
-
-        __ReentrancyGuard_init();
 
         voucherAddress = _voucherAddress;
 
@@ -180,24 +177,5 @@ contract FermionFNFT is FermionFractions, FermionWrapper, IFermionFNFT, Reentran
 
     function transferOwnership(address _newOwner) public override(FermionWrapper, IFermionWrapper) {
         super.transferOwnership(_newOwner);
-    }
-
-    /**
-     * @notice Participate in the auction for a specific token.
-     * @dev This function is overridden to enforce non-reentrancy restrictions
-     
-     * Emits a Bid event if successful.
-     *
-     * Reverts if:
-     * - The price is less than a minimal increment above the existing bid
-     * - The auction has ended
-     * - The caller does not pay the price
-     *
-     * @param _tokenId The token Id
-     * @param _price The bidding price
-     * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
-     */
-    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable override nonReentrant {
-        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 }

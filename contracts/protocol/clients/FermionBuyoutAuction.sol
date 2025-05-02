@@ -27,7 +27,6 @@ contract FermionBuyoutAuction is
     IFermionFractionsEvents
 {
     using Address for address;
-    using NativeClaims for NativeClaims.Storage;
     constructor(
         address _bosonPriceDiscovery,
         address _fermionProtocol

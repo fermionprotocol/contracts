@@ -6,7 +6,11 @@ pragma solidity 0.8.24;
  * @notice Provides storage for native currency claims that can be used by both protocol and client contracts
  */
 library NativeClaims {
-    bytes32 private constant STORAGE_SLOT = keccak256("native.claims.storage");
+    // keccak256(abi.encode(uint256(keccak256("native.claims.storage")) - 1)) & ~bytes32(uint256(0xff));
+    bytes32 private constant STORAGE_SLOT = 0xaf833ba755a88e67fdf7592ad2cd23cb88eeb39ba7091cbf219ca880c31f2a00;
+
+    event ClaimAdded(address indexed claimer, uint256 amount);
+    event ClaimCleared(address indexed claimer);
 
     struct Storage {
         mapping(address => uint256) claims;
@@ -25,9 +29,11 @@ library NativeClaims {
 
     function _addClaim(address _claimer, uint256 _amount) internal {
         _getStorage().claims[_claimer] += _amount;
+        emit ClaimAdded(_claimer, _amount);
     }
 
     function _clearClaim(address _claimer) internal {
         _getStorage().claims[_claimer] = 0;
+        emit ClaimCleared(_claimer);
     }
 }

@@ -10,16 +10,16 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FermionBuyoutAuction } from "./FermionBuyoutAuction.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
 import { NativeClaims } from "../libs/NativeClaims.sol";
+import { ReentrancyGuard } from "../bases/mixins/ReentrancyGuard.sol";
 /**
  * @dev Fractionalisation and buyout auction
  */
-abstract contract FermionFractions is FermionErrors, IFermionFractions {
+abstract contract FermionFractions is FermionErrors, IFermionFractions, ReentrancyGuard {
     using Address for address;
-    using NativeClaims for NativeClaims.Storage;
 
     address private immutable FNFT_FRACTION_MINT;
     address private immutable FNFT_PRICE_MANAGER;
-    address internal immutable FNFT_BUYOUT_AUCTION;
+    address private immutable FNFT_BUYOUT_AUCTION;
 
     /**
      * @notice Constructor
@@ -228,7 +228,7 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * @param _price The bidding price
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
-    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable virtual {
+    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable nonReentrant {
         forwardCall(FNFT_BUYOUT_AUCTION);
     }
 

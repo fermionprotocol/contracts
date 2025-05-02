@@ -22,8 +22,6 @@ import { NativeClaims } from "../../libs/NativeClaims.sol";
 contract FundsManager {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
-    using NativeClaims for NativeClaims.Storage;
-
     /**
      * @notice Validates that incoming payments matches expectation. If token is a native currency, it makes sure
      * msg.value is correct. If token is ERC20, it transfers the value from the sender to the protocol.

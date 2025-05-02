@@ -52,7 +52,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const [mockConduit, mockBosonPriceDiscovery, openSeaRecipient] = wallets.slice(9, 12);
 
     const predictedFermionDiamondAddress = await predictFermionDiamondAddress(false, 9); // Diamond will be deployed 10 tx from now
-    console.log("predictedFermionDiamondAddress", predictedFermionDiamondAddress);
+
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
       predictedFermionDiamondAddress,
@@ -140,7 +140,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     }
 
     // Setup fermionMock for native ETH bidding
-    const predictedFermionDiamondAddressNativeEth = await predictFermionDiamondAddress(false, 2); // Diamond will be deployed 10 tx from now
+    const predictedFermionDiamondAddressNativeEth = await predictFermionDiamondAddress(false, 2); // Diamond will be deployed 2 tx from now
     const fermionFNFTNativeEth = await FermionFNFT.deploy(
       mockBosonPriceDiscovery.address,
       predictedFermionDiamondAddressNativeEth,
