@@ -748,10 +748,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                     }
                 }
             }
-            if (!_add && !found) revert NoSuchAssociatedEntity(_associatedRole, _sellerId, associatedEntityId);
 
             isAssociatedRole[associatedEntityId] = _add;
         }
+        if (!_add && !found) revert NoEntitiesModified(_associatedRole, _sellerId);
     }
 
     function _emitAssociatedEntityRemoved(
