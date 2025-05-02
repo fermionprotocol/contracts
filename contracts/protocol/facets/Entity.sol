@@ -676,7 +676,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
             _entityId,
             previousAdmin,
             0xff << (31 * BYTE_SIZE),
-            true,
+            false,
             pl,
             FermionStorage.protocolEntities()
         );
