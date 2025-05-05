@@ -130,15 +130,6 @@ contract EIP712 is SignatureErrors {
 
                     return;
                 }
-            } else {
-                if (returnData.length == 0) {
-                    revert SignatureValidationFailed();
-                } else {
-                    /// @solidity memory-safe-assembly
-                    assembly {
-                        revert(add(SLOT_SIZE, returnData), mload(returnData))
-                    }
-                }
             }
         }
 
