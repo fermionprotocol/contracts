@@ -737,8 +737,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                 uint256 facilitatorsLength = associatedEntities.length;
                 for (uint256 j; j < facilitatorsLength; ++j) {
                     if (associatedEntities[j] == associatedEntityId) {
-                        if (j != facilitatorsLength - 1)
-                            associatedEntities[j] = associatedEntities[facilitatorsLength - 1];
+                        unchecked {
+                            if (j != facilitatorsLength - 1)
+                                associatedEntities[j] = associatedEntities[facilitatorsLength - 1];
+                        }
                         associatedEntities.pop();
 
                         emit AssociatedEntityRemoved(_associatedRole, _sellerId, associatedEntityId);
