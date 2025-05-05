@@ -90,9 +90,9 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
      * @notice Gets the destination contract address from the storage.
      *
      * If the offerIdWithEpoch is 0, returns the address of this contract.
-     * If not, the upper 128 bits are represents the epoch+1
-     * If epoch is -1, returns the address of the FermionFNFT contract.
-     * Otherwise, returns the address of the ERC20 clone for the specific epoch.
+     * If upper 128 bits are 0, returns the address of the FermionFNFT contract.
+     * Otherwise, subtracts 1 from upper 128 bits to get the epoch and
+     * returns the address of the corresponding ERC20 clone.
      *
      * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
      * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
