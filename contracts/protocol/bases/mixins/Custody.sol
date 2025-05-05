@@ -6,6 +6,7 @@ import { FermionTypes } from "../../domain/Types.sol";
 import { FermionStorage } from "../../libs/Storage.sol";
 import { FundsManager } from "./FundsManager.sol";
 import { ICustodyEvents } from "../../interfaces/events/ICustodyEvents.sol";
+import { ContextLib } from "../../libs/ContextLib.sol";
 
 /**
  * @title Custody Base Mixin Contract
@@ -125,7 +126,7 @@ abstract contract Custody is FundsManager {
         offerVault.amount += amountToTransferToOfferVault;
 
         if (_externalCall && returnedAmount > 0) {
-            transferERC20FromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
+            transferERC20FromProtocol(exchangeToken, payable(ContextLib._msgSender()), returnedAmount);
         }
         emit ICustodyEvents.VaultBalanceUpdated(offerId, offerVault.amount);
     }
