@@ -261,9 +261,8 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
             if (_owners.length == 0) {
                 revert InvalidLength();
             }
-            cloneAddress = fractionStorage.epochToClone[0];
         }
-
+        cloneAddress = fractionStorage.epochToClone[0];
         for (uint256 i; i < _owners.length; ++i) {
             if (fractionStorage.migrated[_owners[i]]) revert AlreadyMigrated(_owners[i]);
             fractionStorage.migrated[_owners[i]] = true;
