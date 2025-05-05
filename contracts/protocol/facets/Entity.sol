@@ -70,7 +70,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         address[] calldata _accounts,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.AccountRole[][][] calldata _accountRoles
-    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
+    ) external {
         addOrRemoveEntityAccounts(_entityId, _accounts, _entityRoles, _accountRoles, true);
     }
 
@@ -96,7 +96,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         address[] calldata _accounts,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.AccountRole[][][] calldata _accountRoles
-    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
+    ) external {
         addOrRemoveEntityAccounts(_entityId, _accounts, _entityRoles, _accountRoles, false);
     }
 
@@ -123,7 +123,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.AccountRole[][][] calldata _accountRoles,
         bool _add
-    ) internal {
+    ) internal notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = _entityId; // for some reason this solves the stack too deep error
         EntityLib.validateEntityId(entityId, pl);
@@ -134,13 +134,12 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
 
-        uint256 compactEntityRoles = pe.entityData[entityId].roles;
-        for (uint256 i = 0; i < _accounts.length; i++) {
+        for (uint256 i; i < _accounts.length; ++i) {
             address account = _accounts[i];
 
             uint256 compactAccountRole = getCompactAccountRole(
                 entityId,
-                compactEntityRoles,
+                pe.entityData[entityId].roles,
                 _entityRoles[i],
                 _accountRoles[i]
             );
