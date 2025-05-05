@@ -63,7 +63,7 @@ contract FermionFractionsERC20 is Initializable, ERC20PermitUpgradeable, ERC2771
         super._update(from, to, value);
 
         if (from != address(0) && to != address(0)) {
-            IFermionFNFTPriceManager(owner()).adjustVotesOnTransfer(from, value);
+            IFermionFNFTPriceManager(owner()).adjustVotesOnTransfer(from);
         }
     }
 
