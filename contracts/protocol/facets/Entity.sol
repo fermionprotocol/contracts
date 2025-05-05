@@ -672,14 +672,14 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         ); // compact role for all current and potential future roles
 
         // strip old account of all privileges
-        EntityLib.storeCompactAccountRole(
-            _entityId,
-            previousAdmin,
-            0xff << (31 * BYTE_SIZE),
-            true,
-            pl,
-            FermionStorage.protocolEntities()
-        );
+        // EntityLib.storeCompactAccountRole(
+        //     _entityId,
+        //     previousAdmin,
+        //     0xff << (31 * BYTE_SIZE),
+        //     true,
+        //     pl,
+        //     FermionStorage.protocolEntities()
+        // );
 
         EntityLib.emitManagerAccountAddedOrRemoved(_entityId, _account, true);
         EntityLib.emitManagerAccountAddedOrRemoved(_entityId, previousAdmin, false);
