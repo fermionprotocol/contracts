@@ -182,11 +182,17 @@ contract FundsManager {
      * @param _tokenAddress - address of the token to be transferred
      */
     function checkTrustedForwarder(address _tokenAddress) internal view virtual returns (bool) {
-        try ERC2771Context(_tokenAddress).trustedForwarder() returns (address trustedForwarder) {
-            return trustedForwarder == address(this);
-        } catch {
-            return false;
+        (bool success, bytes memory returnData) = _tokenAddress.staticcall(
+            abi.encodeCall(ERC2771Context.trustedForwarder, ())
+        );
+
+        if (success) {
+            if (returnData.length != SLOT_SIZE) {
+                return false;
+            }
+            return abi.decode(returnData, (address)) == address(this);
         }
+        return false;
     }
 
     /**
