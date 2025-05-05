@@ -20,7 +20,6 @@ contract EIP712 is SignatureErrors {
     bytes32 private constant EIP712_DOMAIN_TYPEHASH =
         keccak256(bytes("EIP712Domain(string name,string version,address verifyingContract,bytes32 salt)"));
     bytes32 internal immutable DOMAIN_SEPARATOR_CACHED;
-    uint256 internal immutable CHAIN_ID_CACHED;
     address internal immutable FERMION_PROTOCOL_ADDRESS;
 
     string internal constant PROTOCOL_NAME = "Fermion Protocol";
@@ -36,7 +35,6 @@ contract EIP712 is SignatureErrors {
         if (_fermionProtocolAddress == address(0)) revert FermionGeneralErrors.InvalidAddress();
 
         FERMION_PROTOCOL_ADDRESS = _fermionProtocolAddress;
-        CHAIN_ID_CACHED = block.chainid;
 
         DOMAIN_SEPARATOR_CACHED = buildDomainSeparator(PROTOCOL_NAME, PROTOCOL_VERSION, FERMION_PROTOCOL_ADDRESS);
     }
@@ -63,7 +61,7 @@ contract EIP712 is SignatureErrors {
      * @return the domain separator
      */
     function getDomainSeparator() internal view returns (bytes32) {
-        if (address(this) == FERMION_PROTOCOL_ADDRESS && block.chainid == CHAIN_ID_CACHED) {
+        if (address(this) == FERMION_PROTOCOL_ADDRESS) {
             return DOMAIN_SEPARATOR_CACHED;
         }
 
@@ -93,7 +91,7 @@ contract EIP712 is SignatureErrors {
                     keccak256(bytes(_name)),
                     keccak256(bytes(_version)),
                     _contract,
-                    CHAIN_ID_CACHED
+                    block.chainid
                 )
             );
     }
