@@ -44,7 +44,11 @@ abstract contract FermionWrapper is FermionFNFTBase, CreatorToken, IFermionWrapp
      *
      */
     constructor(address _seaportWrapper, address _strictAuthorizedTransferSecurityRegistry, address _wrappedNative) {
-        if (_wrappedNative == address(0) || _seaportWrapper == address(0)) revert FermionGeneralErrors.InvalidAddress();
+        if (
+            _wrappedNative == address(0) ||
+            _seaportWrapper == address(0) ||
+            _strictAuthorizedTransferSecurityRegistry == address(0)
+        ) revert FermionGeneralErrors.InvalidAddress();
         WRAPPED_NATIVE = IWrappedNative(_wrappedNative);
         SEAPORT_WRAPPER = _seaportWrapper;
         STRICT_AUTHORIZED_TRANSFER_SECURITY_REGISTRY = _strictAuthorizedTransferSecurityRegistry;
