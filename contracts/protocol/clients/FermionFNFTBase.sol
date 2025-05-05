@@ -16,7 +16,7 @@ abstract contract FermionFNFTBase is ERC721, ERC2771Context {
     address internal immutable FERMION_PROTOCOL;
     address internal immutable BP_PRICE_DISCOVERY; // Boson protocol Price Discovery client
 
-    address internal emptySlot; // former fermionProtocol. Keep it to keep `voucherAddress` in slot 1.
+    uint256 internal emptySlot; // former fermionProtocol. Keep it to keep `voucherAddress` in slot 1.
 
     /**
      * @notice Constructor
