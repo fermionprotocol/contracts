@@ -105,7 +105,6 @@ contract RoyaltiesFacet is OfferErrors, Access {
         for (uint256 i; i < royaltyInfo.recipients.length; ++i) {
             if (royaltyInfo.recipients[i] == address(0)) {
                 royaltyInfo.recipients[i] = payable(defaultRecipient);
-                break;
             }
         }
 
