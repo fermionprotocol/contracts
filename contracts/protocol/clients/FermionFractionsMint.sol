@@ -257,11 +257,10 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
                 emit FractionsMigrated(address(this), fractionBalance);
             }
             fractionStorage.migrated[address(this)] = true;
-        } else {
-            if (_owners.length == 0) {
-                revert InvalidLength();
-            }
+        } else if (_owners.length == 0) {
+            revert InvalidLength();
         }
+        
         cloneAddress = fractionStorage.epochToClone[0];
         for (uint256 i; i < _owners.length; ++i) {
             if (fractionStorage.migrated[_owners[i]]) revert AlreadyMigrated(_owners[i]);
