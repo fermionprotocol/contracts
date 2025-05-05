@@ -233,7 +233,9 @@ contract FundsManager {
                 // Copy the last token in the array to this index to fill the gap
                 tokenList[index] = tokenToMove;
                 // Reset index mapping. Should be index in tokenList array + 1
-                entityTokens[tokenToMove] = index + 1;
+                unchecked {
+                    entityTokens[tokenToMove] = index + 1;
+                }
             }
             // Delete last token address in the array, which was just moved to fill the gap
             tokenList.pop();
