@@ -100,9 +100,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
         bosonOffer.sellerId = bosonSellerId;
-        // bosonOffer.price = _offer.verifierFee; // Boson currently requires price to be 0; this will be enabled with 2.4.2 release
         bosonOffer.sellerDeposit = _offer.sellerDeposit;
-        // bosonOffer.buyerCancelPenalty = _offer.verifierFee; // Boson currently requires buyerCancelPenalty to be 0; this will be enabled with 2.4.2 release
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
         bosonOffer.priceType = IBosonProtocol.PriceType.Discovery;
