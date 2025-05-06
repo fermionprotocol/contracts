@@ -29,14 +29,17 @@ const { ZeroAddress, keccak256, toBeHex } = ethers;
 
 describe("FermionFNFT - fractionalisation tests", function () {
   let fermionFNFTProxy: Contract;
+  let fermionFNFTProxyNativeEth: Contract;
   let mockExchangeToken: Contract;
   let wallets: HardhatEthersSigner[];
   let bidders: HardhatEthersSigner[];
   let fermionMock: Contract;
+  let fermionMockNativeEth: Contract;
   let wrapperContractOwner: HardhatEthersSigner;
   let seller: HardhatEthersSigner;
   const startTokenId = 2n ** 128n + 1n;
   const quantity = 10n;
+  const startTokenIdNativeEth = startTokenId + quantity;
   const additionalDeposit = 0n;
   const metadataURI = "https://example.com";
 
@@ -49,6 +52,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const [mockConduit, mockBosonPriceDiscovery, openSeaRecipient] = wallets.slice(9, 12);
 
     const predictedFermionDiamondAddress = await predictFermionDiamondAddress(false, 9); // Diamond will be deployed 10 tx from now
+
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
       predictedFermionDiamondAddress,
@@ -135,11 +139,64 @@ describe("FermionFNFT - fractionalisation tests", function () {
       await mockExchangeToken.mint(bidder.address, parseEther("1000"));
     }
 
-    return { fermionFNFT, fermionFNFTProxy, mockBoson, mockBosonPriceDiscovery, mockExchangeToken };
+    // Setup fermionMock for native ETH bidding
+    const predictedFermionDiamondAddressNativeEth = await predictFermionDiamondAddress(false, 2); // Diamond will be deployed 2 tx from now
+    const fermionFNFTNativeEth = await FermionFNFT.deploy(
+      mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddressNativeEth,
+      await fermionSeaportWrapper.getAddress(),
+      ZeroAddress,
+      wallets[10].address,
+      await fermionFractionsMint.getAddress(),
+      await fermionFNFTPriceManager.getAddress(),
+      await fermionBuyoutAuction.getAddress(),
+    ); // dummy address
+
+    const proxyNativeEth = await Proxy.deploy(await fermionFNFTNativeEth.getAddress());
+
+    const fermionFNFTProxyNativeEth = await ethers.getContractAt("FermionFNFT", await proxyNativeEth.getAddress());
+    fermionMockNativeEth = await fermionMockFactory.deploy(await fermionFNFTProxyNativeEth.getAddress(), ZeroAddress);
+    const fermionMockNativeEthAddress = await fermionMockNativeEth.getAddress();
+    await mockBoson.mint(fermionMockNativeEthAddress, startTokenIdNativeEth, quantity);
+
+    const offerIdNativeEth = 2n;
+    await fermionFNFTProxyNativeEth
+      .attach(fermionMockNativeEth)
+      .initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerIdNativeEth,
+        metadataURI,
+        { name: "test FNFT Native ETH", symbol: "tFNFT_ETH" },
+      );
+    await fermionMockNativeEth.setDestinationOverride(await mockBoson.getAddress());
+    await mockBoson.attach(fermionMockNativeEth).setApprovalForAll(await fermionFNFTProxyNativeEth.getAddress(), true);
+    await fermionFNFTProxyNativeEth.attach(fermionMockNativeEth).wrap(startTokenIdNativeEth, quantity, seller.address);
+    for (let i = 0n; i < quantity; i++) {
+      const tokenId = startTokenIdNativeEth + i;
+      await fermionFNFTProxyNativeEth.attach(fermionMockNativeEth).pushToNextTokenState(tokenId, TokenState.Unwrapping);
+      await fermionFNFTProxyNativeEth.connect(mockBosonPriceDiscovery).unwrapToSelf(tokenId, ZeroAddress, 0);
+      if (i < quantity - 1n) {
+        await fermionFNFTProxyNativeEth.attach(fermionMockNativeEth).pushToNextTokenState(tokenId, TokenState.Verified);
+        await fermionFNFTProxyNativeEth
+          .attach(fermionMockNativeEth)
+          .pushToNextTokenState(tokenId, TokenState.CheckedIn);
+      }
+    }
+
+    return {
+      fermionFNFT,
+      fermionFNFTProxy,
+      fermionFNFTProxyNativeEth,
+      mockBoson,
+      mockBosonPriceDiscovery,
+      mockExchangeToken,
+    };
   }
 
   before(async function () {
-    ({ fermionFNFTProxy, mockExchangeToken } = await loadFixture(setupFermionFractionsTest));
+    ({ fermionFNFTProxy, fermionFNFTProxyNativeEth, mockExchangeToken } = await loadFixture(setupFermionFractionsTest));
   });
 
   afterEach(async function () {
@@ -1117,6 +1174,18 @@ describe("FermionFNFT - fractionalisation tests", function () {
           additionalDeposit,
           ZeroAddress,
         );
+
+      await fermionFNFTProxyNativeEth
+        .connect(seller)
+        .mintFractions(
+          startTokenIdNativeEth,
+          1,
+          fractionsPerToken,
+          auctionParameters,
+          custodianVaultParameters,
+          additionalDeposit,
+          ZeroAddress,
+        );
     });
 
     context("Bid without fractions or votes", function () {
@@ -1242,6 +1311,43 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
         expect(await mockExchangeToken.balanceOf(bidders[1].address)).to.equal(parseEther("1000") - bidAmount3);
         expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount3);
+      });
+
+      it("When outbid with native ETH, the locked ETH is stored for claim", async function () {
+        const bidAmount = parseEther("1.0");
+        const bidAmount2 = parseEther("1.1");
+
+        // First bid
+        await fermionFNFTProxyNativeEth
+          .connect(bidders[0])
+          .bid(startTokenIdNativeEth, bidAmount, fractions, { value: bidAmount });
+
+        // Second bidder outbids
+        await fermionFNFTProxyNativeEth
+          .connect(bidders[1])
+          .bid(startTokenIdNativeEth, bidAmount2, fractions, { value: bidAmount2 });
+
+        // Verify native ETH was stored for claim
+        expect(await fermionFNFTProxyNativeEth.getNativeBidClaimAmount(bidders[0].address)).to.equal(bidAmount);
+
+        // Verify balances before claiming
+        expect(await ethers.provider.getBalance(bidders[0].address)).to.equal(parseEther("10000") - bidAmount);
+        expect(await ethers.provider.getBalance(bidders[1].address)).to.equal(parseEther("10000") - bidAmount2);
+        expect(await ethers.provider.getBalance(await fermionFNFTProxyNativeEth.getAddress())).to.equal(
+          bidAmount + bidAmount2,
+        );
+
+        // Claim the stored native ETH
+        const claimTx = await fermionFNFTProxyNativeEth.connect(bidders[0]).claimNativeBidFunds();
+        await expect(claimTx).to.changeEtherBalance(bidders[0], bidAmount);
+
+        // Verify claimable amount is cleared after claiming
+        expect(await fermionFNFTProxyNativeEth.getNativeBidClaimAmount(bidders[0].address)).to.equal(0);
+
+        // Verify final balances
+        expect(await ethers.provider.getBalance(bidders[0].address)).to.equal(parseEther("10000"));
+        expect(await ethers.provider.getBalance(bidders[1].address)).to.equal(parseEther("10000") - bidAmount2);
+        expect(await ethers.provider.getBalance(await fermionFNFTProxyNativeEth.getAddress())).to.equal(bidAmount2);
       });
 
       it("Bidding before the buffer time does not extend the timer", async function () {
@@ -1944,6 +2050,13 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount2, 0n))
           .to.be.revertedWithCustomError(fermionFNFTProxy, "AuctionReserved")
           .withArgs(startTokenId);
+      });
+
+      it("No native funds available to claim", async function () {
+        await expect(fermionFNFTProxyNativeEth.connect(bidders[0]).claimNativeBidFunds()).to.be.revertedWithCustomError(
+          fermionFNFTProxyNativeEth,
+          "NoNativeFundsToClaim",
+        );
       });
     });
   });

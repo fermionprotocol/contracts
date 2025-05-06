@@ -126,6 +126,7 @@ interface FundsErrors {
     error ERC721CheckFailed(address tokenAddress, bool erc721expected);
     error ERC721TokenNotTransferred(address tokenAddress, uint256 tokenId);
     error PhygitalsNotFound(uint256 tokenId, FermionTypes.Phygital phygital);
+    error NoNativeFundsToClaim();
 }
 
 interface PauseErrors {
