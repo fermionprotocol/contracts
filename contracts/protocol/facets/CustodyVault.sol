@@ -505,7 +505,6 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IF
             }
 
             itemsInVault++;
-            vaultParameters = offerLookups.custodianVaultParameters;
         }
 
         uint256 auctionEnd = block.timestamp + vaultParameters.partialAuctionDuration; // if new vault was created, this vault parameters were updated
