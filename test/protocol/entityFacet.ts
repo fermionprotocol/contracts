@@ -1122,10 +1122,9 @@ describe("Entity", function () {
         });
 
         it("Removing a facilitator that was not added", async function () {
-          await expect(entityFacet.removeFacilitators(sellerId, [6])).to.not.emit(
-            entityFacet,
-            "AssociatedEntityRemoved",
-          );
+          await expect(entityFacet.removeFacilitators(sellerId, [6]))
+            .to.be.revertedWithCustomError(fermionErrors, "NoEntitiesModified")
+            .withArgs(AssociatedRole.Facilitator, sellerId);
 
           // verify state
           expect(await entityFacet.getSellersFacilitators(sellerId)).to.eql([
@@ -1384,10 +1383,9 @@ describe("Entity", function () {
         });
 
         it("Removing a royaltyRecipient that was not added", async function () {
-          await expect(entityFacet.removeRoyaltyRecipients(sellerId, [6])).to.not.emit(
-            entityFacet,
-            "AssociatedEntityRemoved",
-          );
+          await expect(entityFacet.removeRoyaltyRecipients(sellerId, [6]))
+            .to.be.revertedWithCustomError(fermionErrors, "NoEntitiesModified")
+            .withArgs(AssociatedRole.RoyaltyRecipient, sellerId);
 
           // verify state
           expect(await entityFacet.getSellersRoyaltyRecipients(sellerId)).to.eql([
