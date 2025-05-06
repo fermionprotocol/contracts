@@ -93,6 +93,7 @@ interface CustodyErrors {
     error UpdateRequestTooRecent(uint256 tokenId, uint256 waitTime);
     error NoTokensInCustody(uint256 offerId);
     error InvalidCustodianFeePeriod();
+    error TaxAmountExceedsMaximum(uint256 tokenId, uint256 taxAmount, uint256 maxTaxAmount);
 }
 
 interface AuctionErrors {
