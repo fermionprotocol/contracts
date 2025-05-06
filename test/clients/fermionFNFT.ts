@@ -64,7 +64,7 @@ describe("FermionFNFT", function () {
       mockBosonPriceDiscovery.address,
       predictedFermionDiamondAddress,
       await fermionSeaportWrapper.getAddress(),
-      wallets[11].address,
+      ZeroAddress,
       wallets[10].address,
       await fermionFractionsMint.getAddress(),
       await fermionFNFTPriceManager.getAddress(),
@@ -186,15 +186,6 @@ describe("FermionFNFT", function () {
     it("_fnftBuyoutAuction is zero", async function () {
       const invalidConstructorArgs = [...fnftConstructorArgs];
       invalidConstructorArgs[7] = ZeroAddress;
-      await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
-        fermionFNFT,
-        "InvalidAddress",
-      );
-    });
-
-    it("_strictAuthorizedTransferSecurityRegistry is zero", async function () {
-      const invalidConstructorArgs = [...fnftConstructorArgs];
-      invalidConstructorArgs[3] = ZeroAddress;
       await expect(FermionFNFT.deploy(...invalidConstructorArgs)).to.be.revertedWithCustomError(
         fermionFNFT,
         "InvalidAddress",

@@ -107,7 +107,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         bosonOffer.metadataUri = _offer.metadata.URI;
         bosonOffer.metadataHash = _offer.metadata.hash;
         bosonOffer.royaltyInfo = new IBosonProtocol.RoyaltyInfo[](1);
-        // bosonOffer.voided and bosonOffer.collectionIndex are not set, the defaults are fine
+        // bosonOffer.voided, bosonOffer.collectionIndex, bosonOffer.price, and bosonOffer.buyerCancelPenalty are not set, the defaults are fine
 
         IBosonProtocol.OfferDates memory bosonOfferDates;
         bosonOfferDates.validUntil = type(uint256).max; // unlimited offer. Sellers can limit it when they list preminted vouchers on external marketplaces

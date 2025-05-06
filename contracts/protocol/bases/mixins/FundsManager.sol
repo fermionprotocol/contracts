@@ -190,7 +190,7 @@ contract FundsManager {
             if (returnData.length != SLOT_SIZE) {
                 return false;
             }
-            return abi.decode(returnData, (address)) == address(this);
+            return address(uint160(abi.decode(returnData, (uint256)))) == address(this);
         }
         return false;
     }
