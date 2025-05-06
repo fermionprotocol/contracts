@@ -383,7 +383,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IF
 
         uint256 auctionEndTime = fractionAuction.endTime;
         if (auctionEndTime == 0) revert AuctionNotStarted(_offerId);
-        if (auctionEndTime > block.timestamp) revert AuctionOngoing(_offerId, fractionAuction.endTime);
+        if (auctionEndTime >= block.timestamp) revert AuctionOngoing(_offerId, fractionAuction.endTime);
 
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;

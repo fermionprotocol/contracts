@@ -100,16 +100,14 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
         bosonOffer.sellerId = bosonSellerId;
-        // bosonOffer.price = _offer.verifierFee; // Boson currently requires price to be 0; this will be enabled with 2.4.2 release
         bosonOffer.sellerDeposit = _offer.sellerDeposit;
-        // bosonOffer.buyerCancelPenalty = _offer.verifierFee; // Boson currently requires buyerCancelPenalty to be 0; this will be enabled with 2.4.2 release
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
         bosonOffer.priceType = IBosonProtocol.PriceType.Discovery;
         bosonOffer.metadataUri = _offer.metadata.URI;
         bosonOffer.metadataHash = _offer.metadata.hash;
         bosonOffer.royaltyInfo = new IBosonProtocol.RoyaltyInfo[](1);
-        // bosonOffer.voided and bosonOffer.collectionIndex are not set, the defaults are fine
+        // bosonOffer.voided, bosonOffer.collectionIndex, bosonOffer.price, and bosonOffer.buyerCancelPenalty are not set, the defaults are fine
 
         IBosonProtocol.OfferDates memory bosonOfferDates;
         bosonOfferDates.validUntil = type(uint256).max; // unlimited offer. Sellers can limit it when they list preminted vouchers on external marketplaces
