@@ -97,7 +97,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         // Create offer in Boson
         uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
-        bosonOffer.sellerId = bosonSellerId;
         bosonOffer.sellerDeposit = _offer.sellerDeposit;
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
