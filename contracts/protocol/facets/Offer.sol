@@ -36,8 +36,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
     address private immutable BOSON_TOKEN;
 
     constructor(address _bosonProtocol) {
-        if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
-
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
         BOSON_TOKEN = IBosonProtocol(_bosonProtocol).getTokenAddress();
     }
