@@ -33,6 +33,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IF
      *
      * Reverts if:
      * - Custody region is paused
+     * - Caller is not the F-NFT contract owning the token
      *
      * @param _firstTokenId - the lowest token ID to add to the vault
      * @param _length - the number of tokens to add to the vault
