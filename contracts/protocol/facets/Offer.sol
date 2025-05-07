@@ -95,8 +95,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo);
 
         // Create offer in Boson
-        uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
+        // bosonOffer.sellerId is intentionally no set as it will be handled in BOSON_PROTOCOL.createOffer call below
         bosonOffer.sellerDeposit = _offer.sellerDeposit;
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
@@ -121,7 +121,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             bosonOffer,
             bosonOfferDates,
             bosonOfferDurations,
-            bosonSellerId + BOSON_DR_ID_OFFSET,
+            FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET,
             0, // no agent
             type(uint256).max // no fee limit
         );
