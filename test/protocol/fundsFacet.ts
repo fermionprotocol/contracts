@@ -398,9 +398,39 @@ describe("Funds", function () {
           .to.be.revertedWithCustomError(fermionErrors, "UnexpectedDataReturned")
           .withArgs("0x1626ba7e000000000000000abcde000000000000000000000000000000000001");
       });
+
+      it("should use safeTransferFrom when trustedForwarder returns unexpected data", async function () {
+        const amount = parseEther("1");
+        await mockToken1.mint(defaultSigner.address, amount);
+        await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+
+        // Test with return data too short
+        await mockToken1.setTrustedForwarderReturnData(1); // TooShort
+        await mockToken1.setTransferReturnData(2); // NoReturn - will cause SafeERC20FailedOperation
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken1.getAddress(), amount))
+          .to.be.revertedWithCustomError(fermionErrors, "SafeERC20FailedOperation")
+          .withArgs(await mockToken1.getAddress());
+
+        // Test with return data too long
+        await mockToken1.mint(defaultSigner.address, amount);
+        await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+        await mockToken1.setTrustedForwarderReturnData(2); // TooLong
+        await mockToken1.setTransferReturnData(3); // InvalidReturn - will cause SafeERC20FailedOperation
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken1.getAddress(), amount))
+          .to.be.revertedWithCustomError(fermionErrors, "SafeERC20FailedOperation")
+          .withArgs(await mockToken1.getAddress());
+
+        // Test with polluted data
+        await mockToken1.mint(defaultSigner.address, amount);
+        await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+        await mockToken1.setTrustedForwarderReturnData(3); // Polluted
+        await mockToken1.setTransferReturnData(2); // NoReturn - will cause SafeERC20FailedOperation
+        await expect(fundsFacet.depositFunds(sellerId, await mockToken1.getAddress(), amount))
+          .to.be.revertedWithCustomError(fermionErrors, "SafeERC20FailedOperation")
+          .withArgs(await mockToken1.getAddress());
+      });
     });
   });
-
   context("withdrawFunds", function () {
     const amountNative = parseEther("10");
     const amountMockToken = parseEther("12");
