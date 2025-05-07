@@ -280,6 +280,37 @@ describe("Funds", function () {
       );
     });
 
+    it("should use safeTransferFrom sucesfully when trustedForwarder returns unexpected data", async function () {
+      const amount = parseEther("1");
+      await mockToken1.mint(defaultSigner.address, amount);
+      await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+
+      // Test with return data too short
+      await mockToken1.setTrustedForwarderReturnData(1); // TooShort
+      const initialBalance = await mockToken1.balanceOf(fermionProtocolAddress);
+      await fundsFacet.depositFunds(sellerId, await mockToken1.getAddress(), amount);
+      const finalBalance = await mockToken1.balanceOf(fermionProtocolAddress);
+      expect(finalBalance - initialBalance).to.equal(amount);
+
+      // Test with return data too long
+      await mockToken1.mint(defaultSigner.address, amount);
+      await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+      await mockToken1.setTrustedForwarderReturnData(2); // TooLong
+      const initialBalance2 = await mockToken1.balanceOf(fermionProtocolAddress);
+      await fundsFacet.depositFunds(sellerId, await mockToken1.getAddress(), amount);
+      const finalBalance2 = await mockToken1.balanceOf(fermionProtocolAddress);
+      expect(finalBalance2 - initialBalance2).to.equal(amount);
+
+      // Test with polluted data
+      await mockToken1.mint(defaultSigner.address, amount);
+      await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
+      await mockToken1.setTrustedForwarderReturnData(3); // Polluted
+      const initialBalance3 = await mockToken1.balanceOf(fermionProtocolAddress);
+      await fundsFacet.depositFunds(sellerId, await mockToken1.getAddress(), amount);
+      const finalBalance3 = await mockToken1.balanceOf(fermionProtocolAddress);
+      expect(finalBalance3 - initialBalance3).to.equal(amount);
+    });
+
     context("Revert reasons", function () {
       it("Funds region is paused", async function () {
         await pauseFacet.pause([PausableRegion.Funds]);
@@ -399,7 +430,7 @@ describe("Funds", function () {
           .withArgs("0x1626ba7e000000000000000abcde000000000000000000000000000000000001");
       });
 
-      it("should use safeTransferFrom when trustedForwarder returns unexpected data", async function () {
+      it("should revert if token contract is not fully compliant with ERC20 return data (using OZ safeTransferFrom)", async function () {
         const amount = parseEther("1");
         await mockToken1.mint(defaultSigner.address, amount);
         await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
