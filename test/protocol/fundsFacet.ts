@@ -437,7 +437,7 @@ describe("Funds", function () {
 
         // Test with return data too short
         await mockToken1.setTrustedForwarderReturnData(1); // TooShort
-        await mockToken1.setTransferReturnData(2); // NoReturn - will cause SafeERC20FailedOperation
+        await mockToken1.setTransferReturnData(3); // InvalidReturn - will cause SafeERC20FailedOperation
         await expect(fundsFacet.depositFunds(sellerId, await mockToken1.getAddress(), amount))
           .to.be.revertedWithCustomError(fermionErrors, "SafeERC20FailedOperation")
           .withArgs(await mockToken1.getAddress());
@@ -455,7 +455,7 @@ describe("Funds", function () {
         await mockToken1.mint(defaultSigner.address, amount);
         await mockToken1.connect(defaultSigner).approve(fermionProtocolAddress, amount);
         await mockToken1.setTrustedForwarderReturnData(3); // Polluted
-        await mockToken1.setTransferReturnData(2); // NoReturn - will cause SafeERC20FailedOperation
+        await mockToken1.setTransferReturnData(3); // InvalidReturn - will cause SafeERC20FailedOperation
         await expect(fundsFacet.depositFunds(sellerId, await mockToken1.getAddress(), amount))
           .to.be.revertedWithCustomError(fermionErrors, "SafeERC20FailedOperation")
           .withArgs(await mockToken1.getAddress());
