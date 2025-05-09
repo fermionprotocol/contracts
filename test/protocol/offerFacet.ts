@@ -3947,7 +3947,6 @@ describe("Offer", function () {
 
             bosonProtocolBalance = await ethers.provider.getBalance(bosonProtocolAddress);
 
-            // await mockToken.approve(fermionProtocolAddress, minimalPrice);
             const tx = await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleData, {
               value: minimalPrice,
             });
