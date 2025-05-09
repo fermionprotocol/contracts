@@ -3985,7 +3985,6 @@ describe("Offer", function () {
             });
 
             it("Native funds cannot be sent if seller deposit is 0", async function () {
-              // await mockToken.approve(fermionProtocolAddress, minimalPrice);
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleData, { value: parseEther("1") }),
               ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
