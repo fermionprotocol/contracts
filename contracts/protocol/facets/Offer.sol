@@ -635,6 +635,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             }
             uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
             BOSON_PROTOCOL.depositFunds{ value: msgValue }(bosonSellerId, _exchangeToken, _sellerDeposit);
+        } else if (msg.value != 0) {
+            revert FundsErrors.NativeNotAllowed();
         }
     }
 

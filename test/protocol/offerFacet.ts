@@ -3870,6 +3870,14 @@ describe("Offer", function () {
             const newBosonProtocolBalance = await mockToken.balanceOf(bosonProtocolAddress);
             expect(newBosonProtocolBalance).to.equal(bosonProtocolBalance + fullPrice - openSeaFee);
           });
+
+          context("Revert reasons", function () {
+            it("Native funds cannot be sent if seller deposit is 0", async function () {
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: parseEther("1") }),
+              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+            });
+          });
         });
 
         context("unwrapToSelf", function () {
@@ -3975,6 +3983,13 @@ describe("Offer", function () {
                 .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
                 .withArgs(minimalPrice, minimalPrice - 1n);
               await mockToken.setBurnAmount(0);
+            });
+
+            it("Native funds cannot be sent if seller deposit is 0", async function () {
+              // await mockToken.approve(fermionProtocolAddress, minimalPrice);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, selfSaleData, { value: parseEther("1") }),
+              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
             });
           });
         });
@@ -4121,6 +4136,13 @@ describe("Offer", function () {
               await expect(
                 offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder),
               ).to.be.revertedWithCustomError(fermionErrors, "InvalidUnwrap");
+            });
+
+            it("Native funds cannot be sent if seller deposit is 0", async function () {
+              // await mockToken.approve(fermionProtocolAddress, minimalPrice);
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_FIXED_PRICE, encodedPrice, { value: parseEther("1") }),
+              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
             });
           });
         });
