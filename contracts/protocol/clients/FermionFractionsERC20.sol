@@ -5,6 +5,7 @@ import { ERC20PermitUpgradeable } from "@openzeppelin/contracts-upgradeable/toke
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
+import { IFermionFractionsERC20 } from "../interfaces/IFermionFractionsERC20.sol";
 import { ContextUpgradeable as Context } from "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol";
 import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 
@@ -12,7 +13,7 @@ import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contr
  * @dev Implementation of the Fermion Fractions ERC20 epoch token.
  * This implementation is designed to be used with minimal proxies (EIP-1167).
  */
-contract FermionFractionsERC20 is Initializable, ERC20PermitUpgradeable, ERC2771Context, OwnableUpgradeable {
+contract FermionFractionsERC20 is Initializable, ERC20PermitUpgradeable, ERC2771Context, OwnableUpgradeable, IFermionFractionsERC20 {
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address _fermionProtocol) ERC2771Context(_fermionProtocol) {
         _disableInitializers();
