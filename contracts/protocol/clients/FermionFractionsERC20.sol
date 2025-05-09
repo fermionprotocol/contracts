@@ -13,7 +13,13 @@ import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contr
  * @dev Implementation of the Fermion Fractions ERC20 epoch token.
  * This implementation is designed to be used with minimal proxies (EIP-1167).
  */
-contract FermionFractionsERC20 is Initializable, ERC20PermitUpgradeable, ERC2771Context, OwnableUpgradeable, IFermionFractionsERC20 {
+contract FermionFractionsERC20 is
+    Initializable,
+    ERC20PermitUpgradeable,
+    ERC2771Context,
+    OwnableUpgradeable,
+    IFermionFractionsERC20
+{
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor(address _fermionProtocol) ERC2771Context(_fermionProtocol) {
         _disableInitializers();
