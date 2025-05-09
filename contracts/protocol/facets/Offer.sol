@@ -544,11 +544,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         }
 
         _priceDiscovery.price = _buyerOrder.parameters.offer[0].startAmount;
-        unchecked {
-            for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
-                // reduce the price by the openSea fee and the royalties
-                _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
-            }
+        for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
+            // reduce the price by the openSea fee and the royalties
+            _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
         }
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
