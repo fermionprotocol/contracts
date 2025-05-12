@@ -855,7 +855,7 @@ describe("Entity", function () {
           .to.be.revertedWithCustomError(fermionErrors, "NoSuchEntity")
           .withArgs(0);
 
-        // old admin should not be able to perform entity admin actions, but can perform wallet admin actions
+        // old admin should not be able to perform entity admin actions, including wallet admin actions
         await expect(entityFacet.setAdmin(entityId, newAdmin.address))
           .to.be.revertedWithCustomError(fermionErrors, "NotAdmin")
           .withArgs(entityId, defaultSigner.address);
@@ -867,7 +867,9 @@ describe("Entity", function () {
             [[EntityRole.Verifier]],
             [[[AccountRole.Assistant]]],
           ),
-        ).to.not.be.reverted;
+        )
+          .to.be.revertedWithCustomError(fermionErrors, "NotRoleManager")
+          .withArgs(defaultSigner.address, entityId, EntityRole.Verifier);
 
         // old admin can create a new entity
         await expect(entityFacet.createEntity([EntityRole.Seller, EntityRole.Custodian], metadataURI)).to.not.be
