@@ -1320,12 +1320,12 @@ describe("FermionFNFT - fractionalisation tests", function () {
         // First bid
         await fermionFNFTProxyNativeEth
           .connect(bidders[0])
-          .bid(startTokenIdNativeEth, bidAmount, fractions, { value: bidAmount });
+          .bid(startTokenIdNativeEth, bidAmount, fractions, { value: bidAmount, gasPrice: 0 }); // gasPrice is explicitly set to 0 to pass the coverage test
 
         // Second bidder outbids
         await fermionFNFTProxyNativeEth
           .connect(bidders[1])
-          .bid(startTokenIdNativeEth, bidAmount2, fractions, { value: bidAmount2 });
+          .bid(startTokenIdNativeEth, bidAmount2, fractions, { value: bidAmount2, gasPrice: 0 });
 
         // Verify native ETH was stored for claim
         expect(await fermionFNFTProxyNativeEth.getNativeBidClaimAmount(bidders[0].address)).to.equal(bidAmount);
@@ -1338,7 +1338,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         );
 
         // Claim the stored native ETH
-        const claimTx = await fermionFNFTProxyNativeEth.connect(bidders[0]).claimNativeBidFunds();
+        const claimTx = await fermionFNFTProxyNativeEth.connect(bidders[0]).claimNativeBidFunds({ gasPrice: 0 });
         await expect(claimTx).to.changeEtherBalance(bidders[0], bidAmount);
 
         // Verify claimable amount is cleared after claiming
