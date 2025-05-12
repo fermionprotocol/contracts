@@ -35,8 +35,9 @@ interface IFermionFNFTPriceManager {
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
      *
      * @param voteYes True to vote YES, false to vote NO.
+     * @param _proposalId The ID of the proposal to vote on.
      */
-    function voteOnProposal(bool voteYes) external;
+    function voteOnProposal(bool voteYes, uint256 _proposalId) external;
 
     /**
      * @notice Allows a voter to explicitly remove their vote on an active proposal.
@@ -47,8 +48,10 @@ interface IFermionFNFTPriceManager {
      * Reverts:
      * - `ProposalNotActive` if the proposal is not active.
      * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
+     *
+     * @param _proposalId The ID of the proposal to remove the vote from.
      */
-    function removeVoteOnProposal() external;
+    function removeVoteOnProposal(uint256 _proposalId) external;
 
     /**
      * @notice Fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.

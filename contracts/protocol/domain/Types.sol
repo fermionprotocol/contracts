@@ -177,7 +177,8 @@ contract FermionTypes {
         uint256 lockedRedeemableSupply;
         mapping(uint256 => TokenAuctionInfo) tokenInfo;
         address priceOracle;
-        PriceUpdateProposal currentProposal; // Stores the single active proposal
+        mapping(address => PriceUpdateVoter) voters;
+        PriceUpdateProposal[] priceUpdateProposals;
     }
 
     struct TokenAuctionInfo {
@@ -209,7 +210,6 @@ contract FermionTypes {
         uint256 yesVotes;
         uint256 noVotes;
         PriceUpdateProposalState state;
-        mapping(address => PriceUpdateVoter) voters;
     }
 
     struct PriceUpdateVoter {
