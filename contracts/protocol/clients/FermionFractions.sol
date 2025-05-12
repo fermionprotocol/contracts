@@ -378,10 +378,11 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions, Reentran
      * - `NoVotingPower` if the caller has no fractions to vote with.
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
-     *
+     * - `InvalidProposalId` if the provided proposalId doesn't match the current active proposal.
+     * @param _proposalId The ID of the proposal to vote on.
      * @param _voteYes True to vote YES, false to vote NO.
      */
-    function voteOnProposal(bool _voteYes) external {
+    function voteOnProposal(uint256 _proposalId, bool _voteYes) external {
         forwardCall(FNFT_PRICE_MANAGER);
     }
 

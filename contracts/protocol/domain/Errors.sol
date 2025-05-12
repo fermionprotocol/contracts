@@ -181,6 +181,7 @@ interface FractionalisationErrors is AuctionErrors {
     error ConflictingVote();
     error OracleInternalError();
     error AlreadyMigrated(address owner);
+    error InvalidProposalId(uint256 providedId, uint256 currentId);
 }
 
 interface PriceOracleRegistryErrors {
