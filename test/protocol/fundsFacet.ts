@@ -1376,7 +1376,7 @@ describe("Funds", function () {
           .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
-        await custodyFacet.clearCheckoutRequest(fnftTokenId);
+        await custodyFacet.clearCheckoutRequest(fnftTokenId, 0);
 
         // Withdraw phygital
         const tx = await fundsFacet.withdrawPhygitals([fnftTokenId], buyer.address);
@@ -1420,7 +1420,7 @@ describe("Funds", function () {
           .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
-        await custodyFacet.clearCheckoutRequest(fnftTokenId);
+        await custodyFacet.clearCheckoutRequest(fnftTokenId, 0);
 
         // Withdraw phygitals
         const tx = await fundsFacet.withdrawPhygitals([fnftTokenId], buyer.address);
@@ -1472,7 +1472,7 @@ describe("Funds", function () {
           .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
-        await custodyFacet.clearCheckoutRequest(fnftTokenId);
+        await custodyFacet.clearCheckoutRequest(fnftTokenId, 0);
 
         const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(
           wallets,
@@ -1497,7 +1497,7 @@ describe("Funds", function () {
         const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionFnftAddress);
         await fermionFnft.connect(buyer).setApprovalForAll(fermionProtocolAddress, true);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId2);
-        await custodyFacet.clearCheckoutRequest(fnftTokenId2);
+        await custodyFacet.clearCheckoutRequest(fnftTokenId2, 0);
 
         const tx = await fundsFacet.withdrawPhygitals([fnftTokenId2, fnftTokenId], buyer.address);
 
@@ -1531,7 +1531,7 @@ describe("Funds", function () {
           .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
         await custodyFacet.connect(custodian).checkIn(fnftTokenId);
         await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
-        await custodyFacet.clearCheckoutRequest(fnftTokenId);
+        await custodyFacet.clearCheckoutRequest(fnftTokenId, 0);
 
         const contractAccountWithReceiveFactory = await ethers.getContractFactory("ContractWalletWithReceive");
         const contractAccountWithReceive = await contractAccountWithReceiveFactory.deploy();
@@ -1591,7 +1591,7 @@ describe("Funds", function () {
               .submitVerdict(fnftTokenId, VerificationStatus.Verified, verificationMetadata);
             await custodyFacet.connect(custodian).checkIn(fnftTokenId);
             await custodyFacet.connect(buyer).requestCheckOut(fnftTokenId);
-            await custodyFacet.clearCheckoutRequest(fnftTokenId);
+            await custodyFacet.clearCheckoutRequest(fnftTokenId, 0);
           });
 
           it("Funds region is paused", async function () {
@@ -1726,7 +1726,7 @@ describe("Funds", function () {
             const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionFnftAddress);
             await fermionFnft.connect(buyer2).setApprovalForAll(fermionProtocolAddress, true);
             await custodyFacet.connect(buyer2).requestCheckOut(fnftTokenId2);
-            await custodyFacet.clearCheckoutRequest(fnftTokenId2);
+            await custodyFacet.clearCheckoutRequest(fnftTokenId2, 0);
 
             const [buyer2EntityId] = await entityFacet["getEntity(address)"](buyer2.address);
             await entityFacet

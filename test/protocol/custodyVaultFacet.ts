@@ -3224,7 +3224,7 @@ describe("CustodyVault", function () {
       await custodyVaultFacet.topUpCustodianVault(exchange.tokenId, vaultBalance);
       await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-      await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+      await custodyFacet.clearCheckoutRequest(exchange.tokenId, 0);
 
       const tx = await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 

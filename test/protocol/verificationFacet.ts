@@ -3290,7 +3290,7 @@ describe("Verification", function () {
         const fermionFnft = await ethers.getContractAt("FermionFNFT", fermionFnftAddress);
         await fermionFnft.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-        await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+        await custodyFacet.clearCheckoutRequest(exchange.tokenId, 0);
         await fundsFacet.connect(buyer)["withdrawPhygitals(uint256[],address)"]([exchange.tokenId], buyer.address);
 
         await expect(verificationFacet.connect(verifier).verifyPhygitals(exchange.tokenId, digest))
@@ -3372,7 +3372,7 @@ describe("Verification", function () {
         const fermionFNFT = await ethers.getContractAt("FermionFNFT", fermionFNFTAddress);
         await fermionFNFT.connect(buyer).approve(await custodyFacet.getAddress(), tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(tokenId);
-        await custodyFacet.clearCheckoutRequest(tokenId);
+        await custodyFacet.clearCheckoutRequest(tokenId, 0);
         await custodyFacet.checkOut(tokenId);
         await expect(verificationFacet.connect(verifier).verifyPhygitals(tokenId, newDigest))
           .to.be.revertedWithCustomError(fermionErrors, "PhygitalsAlreadyVerified")
