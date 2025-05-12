@@ -300,7 +300,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         for (uint256 i; i < royaltyInfo.recipients.length; ++i) {
             if (royaltyInfo.recipients[i] == address(0)) {
                 royaltyInfo.recipients[i] = payable(pe.entityData[offer.sellerId].admin);
-                break;
             }
         }
 
