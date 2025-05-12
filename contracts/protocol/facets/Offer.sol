@@ -616,6 +616,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             ];
 
             if (availableFunds >= _sellerDeposit) {
+                if (_exchangeToken != address(0) && msg.value > 0) revert FundsErrors.NativeNotAllowed();
                 decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
             } else {
                 // For offers in native token, the seller deposit cannot be sent at the time of unwrapping.

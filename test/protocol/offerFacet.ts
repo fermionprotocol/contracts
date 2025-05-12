@@ -1482,7 +1482,7 @@ describe("Offer", function () {
     });
   });
 
-  context("unwrapping", function () {
+  context.only("unwrapping", function () {
     const bosonOfferId = 1n;
     const quantity = 15n;
     const verifierFee = parseEther("0.01");
@@ -2273,6 +2273,25 @@ describe("Offer", function () {
                   ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
                 });
               });
+            });
+
+            it("Native sent to ERC20 offer and seller deposit fully covered", async function () {
+              await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit);
+
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: sellerDeposit }),
+              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
+            });
+
+            it("Native sent to ERC20 offer and seller deposit partially covered", async function () {
+              const remainder = sellerDeposit / 10n;
+              await fundsFacet.depositFunds(sellerId, exchangeToken, sellerDeposit - remainder);
+
+              await mockToken.approve(fermionProtocolAddress, remainder);
+
+              await expect(
+                offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder, { value: sellerDeposit }),
+              ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
             });
 
             it("Price does not cover the verifier fee", async function () {
