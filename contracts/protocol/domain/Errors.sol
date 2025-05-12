@@ -175,6 +175,7 @@ interface FractionalisationErrors is AuctionErrors {
     error OnlyFractionOwner();
     error InvalidVoteDuration(uint256 voteDuration);
     error AlreadyVotedInProposal(uint256 proposalId);
+    error InvalidProposalId();
     error ConflictingVote();
     error OracleInternalError();
     error AlreadyMigrated(address owner);

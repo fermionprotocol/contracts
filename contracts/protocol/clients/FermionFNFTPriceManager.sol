@@ -196,11 +196,10 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         if (proposerVotes == 0) {
             revert FractionalisationErrors.OnlyFractionOwner();
         }
-        if (
-            $.priceUpdateProposals[voter.proposalId].state == FermionTypes.PriceUpdateProposalState.Active &&
-            $.priceUpdateProposals[voter.proposalId].votingDeadline > block.timestamp
-        ) {
-            revert FractionalisationErrors.AlreadyVotedInProposal(voter.proposalId);
+
+        if (voter.proposalId < $.priceUpdateProposals.length) {
+            if ($.priceUpdateProposals[voter.proposalId].state == FermionTypes.PriceUpdateProposalState.Active)
+                revert FractionalisationErrors.AlreadyVotedInProposal(voter.proposalId);
         }
 
         if (_quorumPercent < MIN_QUORUM_PERCENT || _quorumPercent > HUNDRED_PERCENT) {
@@ -228,7 +227,8 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         voter.votedYes = true;
         voter.voteCount = proposerVotes;
 
-        $.voters[_msgSender()] = voter;
+        address msgSender = _msgSender();
+        $.voters[msgSender] = voter;
 
         emit IFermionFractionsEvents.PriceUpdateProposalCreated(
             newProposal.proposalId,
@@ -236,6 +236,8 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
             newProposal.votingDeadline,
             _quorumPercent
         );
+
+        emit IFermionFractionsEvents.PriceUpdateVoted(newProposal.proposalId, msgSender, proposerVotes, true);
     }
 
     /**
@@ -257,6 +259,7 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
         uint256 currentEpoch = fractionStorage.currentEpoch;
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
+        if (_proposalId >= $.priceUpdateProposals.length) revert FractionalisationErrors.InvalidProposalId();
         FermionTypes.PriceUpdateProposal storage proposal = $.priceUpdateProposals[_proposalId];
         address msgSender = _msgSender();
         FermionTypes.PriceUpdateVoter memory voter = $.voters[msgSender];
@@ -264,20 +267,13 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         address erc20Clone = fractionStorage.epochToClone[currentEpoch];
         uint256 fractionsBalance = IERC20(erc20Clone).balanceOf(msgSender);
 
-        if (
-            proposal.state != FermionTypes.PriceUpdateProposalState.Active || proposal.votingDeadline < block.timestamp
-        ) {
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active)
             revert FractionalisationErrors.ProposalNotActive(proposal.proposalId);
-        }
 
         FermionTypes.PriceUpdateProposal storage voterProposal = $.priceUpdateProposals[voter.proposalId];
         if (voter.proposalId != proposal.proposalId) {
-            if (
-                voterProposal.state == FermionTypes.PriceUpdateProposalState.Active &&
-                voterProposal.votingDeadline >= block.timestamp
-            ) {
+            if (voterProposal.state == FermionTypes.PriceUpdateProposalState.Active)
                 revert FractionalisationErrors.AlreadyVotedInProposal(voter.proposalId);
-            }
             voter.proposalId = proposal.proposalId;
             voter.votedYes = _voteYes;
             voter.voteCount = 0;
@@ -287,7 +283,7 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
             if (fractionsBalance == 0) revert FractionalisationErrors.NoVotingPower(msgSender);
             uint256 additionalVotes;
 
-            if (voter.votedYes != _voteYes) revert FractionalisationErrors.ConflictingVote();
+            if (voter.votedYes != _voteYes && voter.voteCount > 0) revert FractionalisationErrors.ConflictingVote();
             unchecked {
                 additionalVotes = fractionsBalance > voter.voteCount ? fractionsBalance - voter.voteCount : 0;
             }
@@ -322,17 +318,17 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         FermionTypes.PriceUpdateProposal storage proposal = $.priceUpdateProposals[_proposalId];
         address msgSender = _msgSender();
 
-        if (
-            proposal.state != FermionTypes.PriceUpdateProposalState.Active || proposal.votingDeadline < block.timestamp
-        ) {
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
             revert FractionalisationErrors.ProposalNotActive(proposal.proposalId);
         }
 
         FermionTypes.PriceUpdateVoter storage voter = $.voters[msgSender];
 
-        if (voter.proposalId != proposal.proposalId) revert FractionalisationErrors.NoVotingPower(msgSender);
-
         uint256 votesToRemove = voter.voteCount;
+
+        if (voter.proposalId != proposal.proposalId || votesToRemove == 0)
+            revert FractionalisationErrors.NoVotingPower(msgSender);
+
         bool votedYes = voter.votedYes;
 
         unchecked {
@@ -433,13 +429,16 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         }
 
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
-        FermionTypes.PriceUpdateProposal storage proposal = $.priceUpdateProposals[$.voters[from].proposalId];
+        uint256 voterProposalId = $.voters[from].proposalId;
 
-        if (
-            proposal.state != FermionTypes.PriceUpdateProposalState.Active || proposal.votingDeadline < block.timestamp
-        ) {
+        // check if no proposal has been created yet
+        if (voterProposalId >= $.priceUpdateProposals.length) {
             return;
         }
+
+        FermionTypes.PriceUpdateProposal storage proposal = $.priceUpdateProposals[voterProposalId];
+
+        if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) return;
 
         FermionTypes.PriceUpdateVoter storage voter = $.voters[from];
         uint256 voteCount = voter.voteCount;
