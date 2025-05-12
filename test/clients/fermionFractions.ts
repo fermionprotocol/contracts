@@ -4003,7 +4003,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           await erc20Clone.connect(owner1).transfer(owner2.address, owner2VoteAmount);
           const owner1Balance = await balanceOfERC20(fermionFNFTProxy, owner1.address);
           const owner2Balance = await balanceOfERC20(fermionFNFTProxy, owner2.address);
-          
+
           let tx = await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
           expect(tx).to.emit(fermionFNFTProxy, "PriceUpdateVoted").withArgs(0, owner1.address, owner1Balance, true);
           let voterDetails = await fermionFNFTProxy.getVoterDetails(owner1.address);
@@ -4020,6 +4020,45 @@ describe("FermionFNFT - fractionalisation tests", function () {
           voterDetails = await fermionFNFTProxy.getVoterDetails(owner2.address);
           expect(voterDetails.proposalId).to.equal(0);
           expect(voterDetails.voteCount).to.equal(owner2Balance);
+        });
+        it("should allow voters from previous not-active proposals to vote", async function () {
+          let owner1Balance = await balanceOfERC20(fermionFNFTProxy, owner1.address);
+          let tx = await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION); // proposal id = 0
+          expect(tx).to.emit(fermionFNFTProxy, "PriceUpdateVoted").withArgs(0, owner1.address, owner1Balance, true);
+          await setNextBlockTimestamp(Number((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1));
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(true, 0); // finalize the proposal
+
+          let proposal = await fermionFNFTProxy.getProposalDetails(0);
+          expect(proposal.yesVotes).to.equal(owner1Balance);
+          expect(proposal.state).to.equal(PriceUpdateProposalState.Executed);
+
+          let voterDetails = await fermionFNFTProxy.getVoterDetails(owner1.address);
+          expect(voterDetails.proposalId).to.equal(0);
+          expect(voterDetails.voteCount).to.equal(owner1Balance);
+          expect(voterDetails.votedYes).to.equal(true);
+
+          const owner2VoteAmount = parseEther("5");
+          const erc20Clone = await getERC20Clone(fermionFNFTProxy);
+          await erc20Clone.connect(owner1).transfer(owner2.address, owner2VoteAmount);
+
+          owner1Balance = await balanceOfERC20(fermionFNFTProxy, owner1.address);
+          const owner2Balance = await balanceOfERC20(fermionFNFTProxy, owner2.address);
+
+          tx = await fermionFNFTProxy.connect(owner2).updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION); // proposal id = 1
+          expect(tx).to.emit(fermionFNFTProxy, "PriceUpdateVoted").withArgs(1, owner2.address, owner2Balance, true);
+
+          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(false, 1);
+          expect(tx).to.emit(fermionFNFTProxy, "PriceUpdateVoted").withArgs(1, owner1.address, owner1Balance, false);
+
+          proposal = await fermionFNFTProxy.getProposalDetails(1);
+          expect(proposal.noVotes).to.equal(owner1Balance);
+          expect(proposal.yesVotes).to.equal(owner2Balance);
+          expect(proposal.state).to.equal(PriceUpdateProposalState.Active);
+
+          voterDetails = await fermionFNFTProxy.getVoterDetails(owner1.address);
+          expect(voterDetails.proposalId).to.equal(1);
+          expect(voterDetails.voteCount).to.equal(owner1Balance);
+          expect(voterDetails.votedYes).to.equal(false);
         });
         it("should allow a voter to update their vote count with additional fractions", async function () {
           await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
@@ -4166,30 +4205,54 @@ describe("FermionFNFT - fractionalisation tests", function () {
           expect(proposal.yesVotes).to.equal(transferAmountA); // Owner2's votes remain unchanged
           expect(owner2VoterDetails.voteCount).to.equal(transferAmountA); // Vote count is unchanged
         });
-        it("should revert for double voting", async function () {
-          await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
+        context("Revert reasons", function () {
+          it("Double voting", async function () {
+            await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
 
-          await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(true, 0)).to.be.revertedWithCustomError(
-            fermionFNFTProxy,
-            "AlreadyVoted",
-          );
-        });
+            await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(true, 0)).to.be.revertedWithCustomError(
+              fermionFNFTProxy,
+              "AlreadyVoted",
+            );
+          });
 
-        it("should revert if the voter has no fractions", async function () {
-          await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          const random = wallets[11]; //random wallet
-          await expect(fermionFNFTProxy.connect(random).voteOnProposal(true, 0)).to.be.revertedWithCustomError(
-            fermionFNFTProxy,
-            "NoVotingPower",
-          );
-        });
+          it("Voter has no fractions", async function () {
+            await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
+            const random = wallets[11]; //random wallet
+            await expect(fermionFNFTProxy.connect(random).voteOnProposal(true, 0)).to.be.revertedWithCustomError(
+              fermionFNFTProxy,
+              "NoVotingPower",
+            );
+          });
 
-        it("should revert if a voter changes vote direction", async function () {
-          await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(false, 0)).to.be.revertedWithCustomError(
-            fermionFNFTProxy,
-            "ConflictingVote",
-          );
+          it("Voter changes vote direction", async function () {
+            await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
+            await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(false, 0)).to.be.revertedWithCustomError(
+              fermionFNFTProxy,
+              "ConflictingVote",
+            );
+          });
+          it("Cannot create new proposal if already voted in another active proposal", async function () {
+            const erc20Clone = await getERC20Clone(fermionFNFTProxy);
+            await erc20Clone.connect(owner1).transfer(owner2.address, parseEther("1"));
+            await fermionFNFTProxy.connect(owner1).updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
+            await fermionFNFTProxy.connect(owner2).voteOnProposal(false, 0);
+
+            await expect(fermionFNFTProxy.connect(owner2).updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION))
+              .to.be.revertedWithCustomError(fermionFNFTProxy, "AlreadyVotedInProposal")
+              .withArgs(0);
+          });
+          it("Cannot vote on another proposal if already voted in another active proposal", async function () {
+            const erc20Clone = await getERC20Clone(fermionFNFTProxy);
+            await erc20Clone.connect(owner1).transfer(owner2.address, parseEther("1"));
+            await fermionFNFTProxy.connect(owner1).updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION); // Proposal id = 0
+            await fermionFNFTProxy.connect(owner2).updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION); // Proposal id = 1
+            // send additional fractions to owner2
+            await erc20Clone.connect(owner1).transfer(owner2.address, parseEther("1"));
+            // owner2 should not be able to vote on proposal id = 0 as they have already voted in proposal id = 1
+            await expect(fermionFNFTProxy.connect(owner2).voteOnProposal(false, 0))
+              .to.be.revertedWithCustomError(fermionFNFTProxy, "AlreadyVotedInProposal")
+              .withArgs(1);
+          });
         });
         context("removeVoteOnProposal", function () {
           let tx: any;

@@ -197,9 +197,11 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
             revert FractionalisationErrors.OnlyFractionOwner();
         }
 
-        if (voter.proposalId < $.priceUpdateProposals.length) {
-            if ($.priceUpdateProposals[voter.proposalId].state == FermionTypes.PriceUpdateProposalState.Active)
-                revert FractionalisationErrors.AlreadyVotedInProposal(voter.proposalId);
+        if (
+            voter.voteCount != 0 &&
+            $.priceUpdateProposals[voter.proposalId].state == FermionTypes.PriceUpdateProposalState.Active
+        ) {
+            revert FractionalisationErrors.AlreadyVotedInProposal(voter.proposalId);
         }
 
         if (_quorumPercent < MIN_QUORUM_PERCENT || _quorumPercent > HUNDRED_PERCENT) {
