@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title FermionFractionsERC20 interface
  *
  * A set of methods to that extends ERC20 with Fermion fractions functionality.
  */
-interface IFermionFractionsERC20 is IERC20{
-   /**
+interface IFermionFractionsERC20 is IERC20 {
+    /**
      * @dev Creates `value` tokens and assigns them to `account`.
      * Can only be called by the owner.
      */
