@@ -169,10 +169,8 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
      * @param _voteDuration The duration of the governance proposal in seconds.
      */
     function updateExitPrice(uint256 _newPrice, uint256 _quorumPercent, uint256 _voteDuration) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
-            Common._getFermionFractionsStorage().currentEpoch
-        );
-
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(fractionStorage.currentEpoch);
         address oracle = $.priceOracle;
         if (oracle != address(0)) {
             if (_isOracleApproved(oracle)) {
@@ -188,7 +186,6 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
             }
         }
         address msgSender = _msgSender();
-        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
         FermionTypes.PriceUpdateProposal[] storage priceUpdateProposals = $.priceUpdateProposals;
         uint256 proposerVotes = IERC20(fractionStorage.epochToClone[fractionStorage.currentEpoch]).balanceOf(msgSender);
         FermionTypes.PriceUpdateVoter storage voter = $.voters[msgSender];
@@ -258,15 +255,16 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
         uint256 currentEpoch = fractionStorage.currentEpoch;
         FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
-        if (_proposalId >= $.priceUpdateProposals.length) revert FractionalisationErrors.InvalidProposalId();
-        FermionTypes.PriceUpdateProposal storage proposal = $.priceUpdateProposals[_proposalId];
+        FermionTypes.PriceUpdateProposal[] storage priceUpdateProposals = $.priceUpdateProposals;
+        if (_proposalId >= priceUpdateProposals.length) revert FractionalisationErrors.InvalidProposalId();
+        FermionTypes.PriceUpdateProposal storage proposal = priceUpdateProposals[_proposalId];
         address msgSender = _msgSender();
         FermionTypes.PriceUpdateVoter memory voter = $.voters[msgSender];
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active)
             revert FractionalisationErrors.ProposalNotActive(_proposalId);
 
-        FermionTypes.PriceUpdateProposal storage voterProposal = $.priceUpdateProposals[voter.proposalId];
+        FermionTypes.PriceUpdateProposal storage voterProposal = priceUpdateProposals[voter.proposalId];
         if (voter.proposalId != _proposalId) {
             if (voterProposal.state == FermionTypes.PriceUpdateProposalState.Active)
                 revert FractionalisationErrors.AlreadyVotedInProposal(voter.proposalId);
