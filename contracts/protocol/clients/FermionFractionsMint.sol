@@ -320,10 +320,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
             emit Fractionalised(tokenId, _fractionsAmount, currentEpoch);
         }
 
-        FermionFractionsERC20(fractionStorage.epochToClone[currentEpoch]).mint(
-            tokenOwner,
-            _length * _fractionsAmount
-        );
+        FermionFractionsERC20(fractionStorage.epochToClone[currentEpoch]).mint(tokenOwner, _length * _fractionsAmount);
 
         $.nftCount += _length;
     }

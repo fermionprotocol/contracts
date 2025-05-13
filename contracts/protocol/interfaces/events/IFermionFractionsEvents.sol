@@ -23,7 +23,11 @@ interface IFermionFractionsEvents {
     event VoteRemoved(uint256 indexed tokenId, address indexed from, uint256 fractionAmount, uint256 epoch);
     event AuctionStarted(uint256 indexed tokenId, uint256 endTime, uint256 epoch);
     event Fractionalised(uint256 indexed tokenId, uint256 fractionsCount, uint256 epoch);
-    event FractionsSetup(uint256 initialFractionsAmount, FermionTypes.BuyoutAuctionParameters buyoutAuctionParameters, uint256 epoch);
+    event FractionsSetup(
+        uint256 initialFractionsAmount,
+        FermionTypes.BuyoutAuctionParameters buyoutAuctionParameters,
+        uint256 epoch
+    );
     event AdditionalFractionsMinted(uint256 additionalAmount, uint256 totalFractionsAmount, uint256 epoch);
     // Buyout Exit Price Governance Update Events
     event PriceUpdateProposalCreated(
@@ -31,10 +35,16 @@ interface IFermionFractionsEvents {
         uint256 newExitPrice,
         uint256 votingDeadline,
         uint256 quorumRequired,
-        uint256 epoch   
+        uint256 epoch
     );
     event PriceUpdateProposalFinalized(uint256 indexed proposalId, bool success, uint256 epoch);
-    event PriceUpdateVoted(uint256 indexed proposalId, address indexed voter, uint256 voteCount, bool votedYes, uint256 epoch);
+    event PriceUpdateVoted(
+        uint256 indexed proposalId,
+        address indexed voter,
+        uint256 voteCount,
+        bool votedYes,
+        uint256 epoch
+    );
     event PriceUpdateVoteRemoved(
         uint256 indexed proposalId,
         address indexed voter,

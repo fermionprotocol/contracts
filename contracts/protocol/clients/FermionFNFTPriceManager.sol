@@ -140,12 +140,7 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
             votes.total -= _fractionAmount;
         }
 
-        Common._transferFractions(
-            address(this),
-            msgSender,
-            _fractionAmount,
-            currentEpoch
-        );
+        Common._transferFractions(address(this), msgSender, _fractionAmount, currentEpoch);
 
         emit IFermionFractionsEvents.VoteRemoved(_tokenId, msgSender, _fractionAmount, currentEpoch);
     }
@@ -292,7 +287,13 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
 
             $.voters[msgSender] = voter;
 
-            emit IFermionFractionsEvents.PriceUpdateVoted(_proposalId, msgSender, fractionsBalance, _voteYes, currentEpoch);
+            emit IFermionFractionsEvents.PriceUpdateVoted(
+                _proposalId,
+                msgSender,
+                fractionsBalance,
+                _voteYes,
+                currentEpoch
+            );
         }
     }
 
@@ -337,7 +338,13 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
 
         delete $.voters[msgSender];
 
-        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(_proposalId, msgSender, votesToRemove, votedYes, currentEpoch);
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(
+            _proposalId,
+            msgSender,
+            votesToRemove,
+            votedYes,
+            currentEpoch
+        );
     }
 
     /**
@@ -367,10 +374,7 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         if (totalVotes >= quorumRequired) {
             if (_proposal.yesVotes > _proposal.noVotes) {
                 _proposal.state = FermionTypes.PriceUpdateProposalState.Executed;
-                Common
-                    ._getBuyoutAuctionStorage(currentEpoch)
-                    .auctionParameters
-                    .exitPrice = _proposal.newExitPrice;
+                Common._getBuyoutAuctionStorage(currentEpoch).auctionParameters.exitPrice = _proposal.newExitPrice;
                 emit IFermionFractionsEvents.ExitPriceUpdated(_proposal.newExitPrice, false, currentEpoch);
             } else {
                 _proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
@@ -461,6 +465,12 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
                 proposal.noVotes -= votesToRemove;
             }
         }
-        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(voterProposalId, from, votesToRemove, voter.votedYes, currentEpoch);
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(
+            voterProposalId,
+            from,
+            votesToRemove,
+            voter.votedYes,
+            currentEpoch
+        );
     }
 }
