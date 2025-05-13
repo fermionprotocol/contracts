@@ -33,6 +33,7 @@ interface IFermionFNFTPriceManager {
      * - `NoVotingPower` if the caller has no fractions to vote with.
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
+     * - `InvalidProposalId` if the provided proposalId doesn't match the current active proposal.
      *
      * @param _proposalId The ID of the proposal to vote on.
      * @param voteYes True to vote YES, false to vote NO.

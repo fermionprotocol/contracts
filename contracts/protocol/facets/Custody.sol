@@ -186,12 +186,15 @@ contract CustodyFacet is Context, CustodyErrors, Access, Custody, ICustodyEvents
      * - if taxes are to be paid and:
      *   - the caller is not the buyer
      *   - the amount paid is less than the amount owed
+     *   - the current tax amount exceeds the maximum allowed amount
      * - The checkout request status is not CheckOutRequested
      *
      * @param _tokenId - the token ID
+     * @param _maxTaxAmount - the maximum tax amount the caller is willing to pay
      */
     function clearCheckoutRequest(
-        uint256 _tokenId
+        uint256 _tokenId,
+        uint256 _maxTaxAmount
     ) external payable notPaused(FermionTypes.PausableRegion.Custody) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         FermionTypes.CheckoutRequest storage checkoutRequest = getValidCheckoutRequest(
@@ -212,6 +215,10 @@ contract CustodyFacet is Context, CustodyErrors, Access, Custody, ICustodyEvents
             address msgSender = _msgSender();
             if (buyer != msgSender) {
                 revert NotTokenBuyer(_tokenId, buyer, msgSender);
+            }
+
+            if (taxAmount > _maxTaxAmount) {
+                revert TaxAmountExceedsMaximum(_tokenId, taxAmount, _maxTaxAmount);
             }
 
             address exchangeToken = offer.exchangeToken;

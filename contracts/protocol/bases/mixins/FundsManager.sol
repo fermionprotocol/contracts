@@ -12,6 +12,7 @@ import { FermionStorage } from "../../libs/Storage.sol";
 import { ContextLib } from "../../libs/ContextLib.sol";
 import { FermionFNFTLib } from "../../libs/FermionFNFTLib.sol";
 import { IFundsEvents } from "../../interfaces/events/IFundsEvents.sol";
+import { NativeClaims } from "../../libs/NativeClaims.sol";
 
 /**
  * @title Funds Manager Base Contract
@@ -21,7 +22,6 @@ import { IFundsEvents } from "../../interfaces/events/IFundsEvents.sol";
 contract FundsManager {
     using SafeERC20 for IERC20;
     using FermionFNFTLib for address;
-
     /**
      * @notice Validates that incoming payments matches expectation. If token is a native currency, it makes sure
      * msg.value is correct. If token is ERC20, it transfers the value from the sender to the protocol.
@@ -125,6 +125,10 @@ contract FundsManager {
      * - Contract at token address does not support ERC20 function transfer
      * - Available funds is less than amount to be decreased
      *
+     * @notice For native currency transfers (when _tokenAddress is address(0)), this function attempts direct transfer.
+     *         If the transfer fails, the transaction will revert. For more flexible native currency handling,
+     *         use the overloaded version with _storeNativeForClaim parameter.
+     *
      * @param _entityId - id of entity for which funds should be decreased, or 0 for protocol
      * @param _tokenAddress - address of the token to be transferred
      * @param _to - address of the recipient
@@ -154,16 +158,51 @@ contract FundsManager {
      * - Contract at token address does not support ERC20 function transfer
      * - Available funds is less than amount to be decreased
      *
+     * @notice For funds currency transfers, this function attempts direct transfer.
+     *         If the transfer fails, the transaction will revert. For more flexible native currency handling,
+     *         use the overloaded version with _storeNativeForClaim parameter.
+     *
      * @param _tokenAddress - address of the token to be transferred
      * @param _to - address of the recipient
      * @param _amount - amount to be transferred
      */
-    function transferERC20FromProtocol(address _tokenAddress, address payable _to, uint256 _amount) internal {
+    function transferERC20FromProtocol(address _tokenAddress, address payable _to, uint256 _amount) internal virtual {
+        transferERC20FromProtocol(_tokenAddress, _to, _amount, false);
+    }
+
+    /**
+     * @notice Transfers ERC20 tokens or native currency from the protocol to a recipient
+     *
+     * Reverts if:
+     * - Transfer of native currency is not successful (i.e. recipient is a contract which reverts)
+     * - Contract at token address does not support ERC20 function transfer
+     * - Available funds is less than amount to be decreased
+     *
+     * @notice For native funds transfers:
+     *         - If _storeNativeForClaim is true, the amount is stored for later claim by the recipient
+     *         - If _storeNativeForClaim is false, attempts direct transfer (may revert on failure)
+     *
+     * @param _tokenAddress The address of the token (0x0 for native currency)
+     * @param _to The recipient address
+     * @param _amount The amount to transfer
+     * @param _storeNativeForClaim Whether to store native currency for later claim instead of direct transfer
+     */
+    function transferERC20FromProtocol(
+        address _tokenAddress,
+        address payable _to,
+        uint256 _amount,
+        bool _storeNativeForClaim
+    ) internal virtual {
         // try to transfer the funds
         if (_tokenAddress == address(0)) {
-            // transfer native currency
-            (bool success, bytes memory errorMessage) = _to.call{ value: _amount }("");
-            if (!success) revert FundsErrors.TokenTransferFailed(_to, _amount, errorMessage);
+            if (_storeNativeForClaim) {
+                // Store native amount for later claim
+                NativeClaims._addClaim(_to, _amount);
+            } else {
+                // transfer native currency directly
+                (bool success, bytes memory errorMessage) = _to.call{ value: _amount }("");
+                if (!success) revert FundsErrors.TokenTransferFailed(_to, _amount, errorMessage);
+            }
         } else {
             // transfer ERC20 tokens
             if (checkTrustedForwarder(_tokenAddress)) {
