@@ -169,7 +169,7 @@ contract FermionBuyoutAuction is
         }
 
         auctionDetails.lockedBidAmount = bidAmount;
-        emit Bid(_tokenId, msgSender, _price, totalLockedFractions, bidAmount);
+        emit Bid(_tokenId, msgSender, _price, totalLockedFractions, bidAmount, Common._getFermionFractionsStorage().currentEpoch);
     }
 
     /**
@@ -185,9 +185,8 @@ contract FermionBuyoutAuction is
      * @param _tokenId The token Id
      */
     function removeBid(uint256 _tokenId) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
-            Common._getFermionFractionsStorage().currentEpoch
-        );
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
@@ -205,7 +204,7 @@ contract FermionBuyoutAuction is
 
         delete auction.details;
 
-        emit Bid(0, address(0), 0, 0, 0);
+        emit Bid(0, address(0), 0, 0, 0, currentEpoch);
     }
 
     /**
@@ -233,7 +232,7 @@ contract FermionBuyoutAuction is
 
         ERC721._safeTransfer(address(this), msgSender, _tokenId);
 
-        emit Redeemed(_tokenId, msgSender);
+        emit Redeemed(_tokenId, msgSender, Common._getFermionFractionsStorage().currentEpoch);
     }
 
     /**

@@ -101,7 +101,7 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
 
         Common._transferFractions(msgSender, address(this), _fractionAmount, currentEpoch);
 
-        emit IFermionFractionsEvents.Voted(_tokenId, msgSender, _fractionAmount);
+        emit IFermionFractionsEvents.Voted(_tokenId, msgSender, _fractionAmount, currentEpoch);
     }
 
     /**
@@ -118,10 +118,10 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
      */
     function removeVoteToStartAuction(uint256 _tokenId, uint256 _fractionAmount) external {
         if (_fractionAmount == 0) revert InvalidAmount();
-
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
         FermionTypes.Auction storage auction = Common.getLastAuction(
             _tokenId,
-            Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
+            Common._getBuyoutAuctionStorage(currentEpoch)
         );
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
@@ -144,10 +144,10 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
             address(this),
             msgSender,
             _fractionAmount,
-            Common._getFermionFractionsStorage().currentEpoch
+            currentEpoch
         );
 
-        emit IFermionFractionsEvents.VoteRemoved(_tokenId, msgSender, _fractionAmount);
+        emit IFermionFractionsEvents.VoteRemoved(_tokenId, msgSender, _fractionAmount, currentEpoch);
     }
 
     /**
@@ -170,13 +170,14 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
      */
     function updateExitPrice(uint256 _newPrice, uint256 _quorumPercent, uint256 _voteDuration) external {
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(fractionStorage.currentEpoch);
+        uint256 currentEpoch = fractionStorage.currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         address oracle = $.priceOracle;
         if (oracle != address(0)) {
             if (_isOracleApproved(oracle)) {
                 try IPriceOracle(oracle).getPrice() returns (uint256 oraclePrice) {
                     $.auctionParameters.exitPrice = oraclePrice;
-                    emit IFermionFractionsEvents.ExitPriceUpdated(oraclePrice, true);
+                    emit IFermionFractionsEvents.ExitPriceUpdated(oraclePrice, true, currentEpoch);
                     return;
                 } catch (bytes memory reason) {
                     if (!_isInvalidPriceError(reason)) {
@@ -187,7 +188,7 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
         }
         address msgSender = _msgSender();
         FermionTypes.PriceUpdateProposal[] storage priceUpdateProposals = $.priceUpdateProposals;
-        uint256 proposerVotes = IERC20(fractionStorage.epochToClone[fractionStorage.currentEpoch]).balanceOf(msgSender);
+        uint256 proposerVotes = IERC20(fractionStorage.epochToClone[currentEpoch]).balanceOf(msgSender);
         FermionTypes.PriceUpdateVoter storage voter = $.voters[msgSender];
 
         if (proposerVotes == 0) {
@@ -230,10 +231,11 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
             newProposalId,
             _newPrice,
             newProposal.votingDeadline,
-            _quorumPercent
+            _quorumPercent,
+            currentEpoch
         );
 
-        emit IFermionFractionsEvents.PriceUpdateVoted(newProposalId, msgSender, proposerVotes, true);
+        emit IFermionFractionsEvents.PriceUpdateVoted(newProposalId, msgSender, proposerVotes, true, currentEpoch);
     }
 
     /**
@@ -290,7 +292,7 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
 
             $.voters[msgSender] = voter;
 
-            emit IFermionFractionsEvents.PriceUpdateVoted(_proposalId, msgSender, fractionsBalance, _voteYes);
+            emit IFermionFractionsEvents.PriceUpdateVoted(_proposalId, msgSender, fractionsBalance, _voteYes, currentEpoch);
         }
     }
 
@@ -307,9 +309,8 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
      * @param _proposalId The ID of the proposal to remove the vote from.
      */
     function removeVoteOnProposal(uint256 _proposalId) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
-            Common._getFermionFractionsStorage().currentEpoch
-        );
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         FermionTypes.PriceUpdateProposal storage proposal = $.priceUpdateProposals[_proposalId];
         address msgSender = _msgSender();
 
@@ -336,7 +337,7 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
 
         delete $.voters[msgSender];
 
-        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(_proposalId, msgSender, votesToRemove, votedYes);
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(_proposalId, msgSender, votesToRemove, votedYes, currentEpoch);
     }
 
     /**
@@ -362,15 +363,15 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
 
         uint256 totalVotes = _proposal.yesVotes + _proposal.noVotes;
         uint256 quorumRequired = (_liquidSupply * _proposal.quorumPercent) / HUNDRED_PERCENT;
-
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
         if (totalVotes >= quorumRequired) {
             if (_proposal.yesVotes > _proposal.noVotes) {
                 _proposal.state = FermionTypes.PriceUpdateProposalState.Executed;
                 Common
-                    ._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
+                    ._getBuyoutAuctionStorage(currentEpoch)
                     .auctionParameters
                     .exitPrice = _proposal.newExitPrice;
-                emit IFermionFractionsEvents.ExitPriceUpdated(_proposal.newExitPrice, false);
+                emit IFermionFractionsEvents.ExitPriceUpdated(_proposal.newExitPrice, false, currentEpoch);
             } else {
                 _proposal.state = FermionTypes.PriceUpdateProposalState.Failed;
             }
@@ -380,7 +381,8 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
 
         emit IFermionFractionsEvents.PriceUpdateProposalFinalized(
             _proposalId,
-            _proposal.state == FermionTypes.PriceUpdateProposalState.Executed
+            _proposal.state == FermionTypes.PriceUpdateProposalState.Executed,
+            currentEpoch
         );
 
         return true;
@@ -459,6 +461,6 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
                 proposal.noVotes -= votesToRemove;
             }
         }
-        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(voterProposalId, from, votesToRemove, voter.votedYes);
+        emit IFermionFractionsEvents.PriceUpdateVoteRemoved(voterProposalId, from, votesToRemove, voter.votedYes, currentEpoch);
     }
 }
