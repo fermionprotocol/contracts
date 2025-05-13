@@ -378,10 +378,10 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
      *
-     * @param _voteYes True to vote YES, false to vote NO.
      * @param _proposalId The ID of the proposal to vote on.
+     * @param _voteYes True to vote YES, false to vote NO.
      */
-    function voteOnProposal(bool _voteYes, uint256 _proposalId) external {
+    function voteOnProposal(uint256 _proposalId, bool _voteYes) external {
         forwardCall(FNFT_PRICE_MANAGER);
     }
 
@@ -535,7 +535,6 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
     /**
      * @notice Returns details of a specific proposal from current epoch.
      *
-     * @return proposalId The unique ID of the proposal.
      * @return newExitPrice The proposed exit price.
      * @return votingDeadline The deadline for voting.
      * @return quorumPercent The required quorum percentage.
@@ -549,7 +548,6 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
         external
         view
         returns (
-            uint256 proposalId,
             uint256 newExitPrice,
             uint256 votingDeadline,
             uint256 quorumPercent,
@@ -562,7 +560,6 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
             ._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
             .priceUpdateProposals[_proposalId];
         return (
-            proposal.proposalId,
             proposal.newExitPrice,
             proposal.votingDeadline,
             proposal.quorumPercent,

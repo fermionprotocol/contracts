@@ -34,10 +34,10 @@ interface IFermionFNFTPriceManager {
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
      *
-     * @param voteYes True to vote YES, false to vote NO.
      * @param _proposalId The ID of the proposal to vote on.
+     * @param voteYes True to vote YES, false to vote NO.
      */
-    function voteOnProposal(bool voteYes, uint256 _proposalId) external;
+    function voteOnProposal(uint256 _proposalId, bool voteYes) external;
 
     /**
      * @notice Allows a voter to explicitly remove their vote on an active proposal.

@@ -203,7 +203,6 @@ contract FermionTypes {
     }
 
     struct PriceUpdateProposal {
-        uint256 proposalId; // Tracks the ID of the current proposal
         uint256 newExitPrice;
         uint256 votingDeadline;
         uint256 quorumPercent; // in bps (e.g. 2000 is 20%)
