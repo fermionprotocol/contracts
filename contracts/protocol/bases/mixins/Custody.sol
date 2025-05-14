@@ -103,7 +103,7 @@ abstract contract Custody is FundsManager {
                 if (_externalCall) {
                     // Full custodian payoff must be paid in order to fractionalise
                     uint256 diff = custodianPayoff + custodianFee.amount - balance;
-                    if (returnedAmount > diff) {
+                    if (returnedAmount >= diff) {
                         returnedAmount -= diff;
                         balance = custodianPayoff + custodianFee.amount;
                     } else {

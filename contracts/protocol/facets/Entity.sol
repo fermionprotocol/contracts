@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BYTE_SIZE } from "../domain/Constants.sol";
+import { BYTE_SIZE, ANY_ENTITY_ROLE } from "../domain/Constants.sol";
 import { EntityErrors, FermionGeneralErrors, OfferErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../bases/mixins/Access.sol";
@@ -583,13 +583,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
             // To set entity-wide account roles, the caller must have entity-wide manager role
             if (
-                !EntityLib.hasAccountRole(
-                    _entityId,
-                    msgSender,
-                    FermionTypes.EntityRole(0),
-                    FermionTypes.AccountRole.Manager,
-                    true
-                )
+                !EntityLib.hasAccountRole(_entityId, msgSender, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Manager, true)
             ) revert NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Manager);
 
             uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[0]);

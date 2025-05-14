@@ -202,6 +202,9 @@ interface WrapperErrors {
     error UnsuccessfulExternalCall();
 }
 
+interface SafeERC20Errors {
+    error SafeERC20FailedOperation(address token);
+}
 interface FermionErrors is
     FermionGeneralErrors,
     InitializationErrors,
@@ -216,5 +219,6 @@ interface FermionErrors is
     FractionalisationErrors,
     SignatureErrors,
     PriceOracleRegistryErrors,
-    WrapperErrors
+    WrapperErrors,
+    SafeERC20Errors
 {}

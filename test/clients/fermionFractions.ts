@@ -3563,6 +3563,18 @@ describe("FermionFNFT - fractionalisation tests", function () {
     });
   });
 
+  context("claimFromEpoch", function () {
+    context("Revert reasons", function () {
+      it("Invalid claim amount", async function () {
+        const currentEpoch = await fermionFNFTProxy.currentEpoch();
+        await expect(fermionFNFTProxy.connect(seller).claimFromEpoch(0n, currentEpoch)).to.be.revertedWithCustomError(
+          fermionFNFTProxy,
+          "InvalidAmount",
+        );
+      });
+    });
+  });
+
   context("getPastAuctionDetails", function () {
     context("Revert reasons", function () {
       it("Invalid index", async function () {

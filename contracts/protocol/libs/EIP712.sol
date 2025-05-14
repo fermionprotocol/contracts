@@ -93,7 +93,7 @@ contract EIP712 is SignatureErrors {
                     keccak256(bytes(_name)),
                     keccak256(bytes(_version)),
                     _contract,
-                    CHAIN_ID_CACHED
+                    block.chainid
                 )
             );
     }
@@ -112,7 +112,7 @@ contract EIP712 is SignatureErrors {
         bytes32 typedMessageHash = toTypedMessageHash(_hashedMessage);
 
         // Check if user is a contract implementing ERC1271
-        if (_user.code.length > 0) {
+        if (_user.code.length > 0 && _sig.v == 0) {
             (bool success, bytes memory returnData) = _user.staticcall(
                 abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encode(_sig)))
             );
