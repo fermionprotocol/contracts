@@ -1482,7 +1482,7 @@ describe("Offer", function () {
     });
   });
 
-  context.only("unwrapping", function () {
+  context("unwrapping", function () {
     const bosonOfferId = 1n;
     const quantity = 15n;
     const verifierFee = parseEther("0.01");
