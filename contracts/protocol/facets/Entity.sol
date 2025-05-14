@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BYTE_SIZE } from "../domain/Constants.sol";
+import { BYTE_SIZE, ANY_ENTITY_ROLE } from "../domain/Constants.sol";
 import { EntityErrors, FermionGeneralErrors, OfferErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../bases/mixins/Access.sol";
@@ -586,7 +586,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                 !EntityLib.hasAccountRole(
                     _entityId,
                     msgSender,
-                    FermionTypes.EntityRole(0),
+                    ANY_ENTITY_ROLE,
                     FermionTypes.AccountRole.Manager,
                     true
                 )

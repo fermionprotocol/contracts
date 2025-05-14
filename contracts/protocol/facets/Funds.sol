@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
+import { FEE_COLLECTOR, ANY_ENTITY_ROLE } from "../../protocol/domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FundsErrors, EntityErrors, FermionGeneralErrors, OfferErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -85,7 +85,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
             !EntityLib.hasAccountRole(
                 _entityId,
                 _treasury,
-                FermionTypes.EntityRole(0),
+                ANY_ENTITY_ROLE,
                 FermionTypes.AccountRole.Treasury,
                 true
             )
@@ -96,7 +96,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
             !EntityLib.hasAccountRole(
                 _entityId,
                 msgSender,
-                FermionTypes.EntityRole(0),
+                ANY_ENTITY_ROLE,
                 FermionTypes.AccountRole.Assistant,
                 true
             )
@@ -201,7 +201,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
                     !EntityLib.hasAccountRole(
                         _entityId,
                         _treasury,
-                        FermionTypes.EntityRole(0),
+                        ANY_ENTITY_ROLE,
                         FermionTypes.AccountRole.Treasury,
                         true
                     )
@@ -212,7 +212,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
                     !EntityLib.hasAccountRole(
                         _entityId,
                         msgSender,
-                        FermionTypes.EntityRole(0),
+                        ANY_ENTITY_ROLE,
                         FermionTypes.AccountRole.Assistant,
                         true
                     )

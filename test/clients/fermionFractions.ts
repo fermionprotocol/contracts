@@ -3563,6 +3563,18 @@ describe("FermionFNFT - fractionalisation tests", function () {
     });
   });
 
+  context("claimFromEpoch", function () {
+    context("Revert reasons", function () {
+      it("Invalid claim amount", async function () {
+        const currentEpoch = await fermionFNFTProxy.currentEpoch();
+        await expect(fermionFNFTProxy.connect(seller).claimFromEpoch(0n, currentEpoch)).to.be.revertedWithCustomError(
+          fermionFNFTProxy,
+          "InvalidAmount",
+        );
+      });
+    });
+  });
+
   context("getPastAuctionDetails", function () {
     context("Revert reasons", function () {
       it("Invalid index", async function () {
@@ -4182,6 +4194,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
           const remainingBalance = owner1Balance - transferAmount;
           const erc20Clone = await getERC20Clone(fermionFNFTProxy);
           await erc20Clone.connect(owner1).transfer(owner2.address, transferAmount);
+
+          // Try to adjust votes on transfer if the caller is not the current epoch's ERC20 clone (nothing should happen)
+          await fermionFNFTProxy.connect(owner2).adjustVotesOnTransfer(owner1.address, transferAmount);
 
           // Verify no votes are removed, as remaining balance supports the vote count
           proposal = await fermionFNFTProxy.getCurrentProposalDetails();

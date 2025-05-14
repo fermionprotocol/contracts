@@ -36,8 +36,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
     address private immutable BOSON_TOKEN;
 
     constructor(address _bosonProtocol) {
-        if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
-
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
         BOSON_TOKEN = IBosonProtocol(_bosonProtocol).getTokenAddress();
     }
@@ -97,19 +95,16 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo);
 
         // Create offer in Boson
-        uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
-        bosonOffer.sellerId = bosonSellerId;
-        // bosonOffer.price = _offer.verifierFee; // Boson currently requires price to be 0; this will be enabled with 2.4.2 release
+        // bosonOffer.sellerId is intentionally no set as it will be handled in BOSON_PROTOCOL.createOffer call below
         bosonOffer.sellerDeposit = _offer.sellerDeposit;
-        // bosonOffer.buyerCancelPenalty = _offer.verifierFee; // Boson currently requires buyerCancelPenalty to be 0; this will be enabled with 2.4.2 release
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
         bosonOffer.priceType = IBosonProtocol.PriceType.Discovery;
         bosonOffer.metadataUri = _offer.metadata.URI;
         bosonOffer.metadataHash = _offer.metadata.hash;
         bosonOffer.royaltyInfo = new IBosonProtocol.RoyaltyInfo[](1);
-        // bosonOffer.voided and bosonOffer.collectionIndex are not set, the defaults are fine
+        // bosonOffer.voided, bosonOffer.collectionIndex, bosonOffer.price, and bosonOffer.buyerCancelPenalty are not set, the defaults are fine
 
         IBosonProtocol.OfferDates memory bosonOfferDates;
         bosonOfferDates.validUntil = type(uint256).max; // unlimited offer. Sellers can limit it when they list preminted vouchers on external marketplaces
@@ -126,7 +121,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             bosonOffer,
             bosonOfferDates,
             bosonOfferDurations,
-            bosonSellerId + BOSON_DR_ID_OFFSET,
+            FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET,
             0, // no agent
             type(uint256).max // no fee limit
         );
