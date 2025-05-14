@@ -4230,6 +4230,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
           const erc20Clone = await getERC20Clone(fermionFNFTProxy);
           await erc20Clone.connect(owner1).transfer(owner2.address, transferAmount);
 
+          // Try to adjust votes on transfer if the caller is not the current epoch's ERC20 clone (nothing should happen)
+          await fermionFNFTProxy.connect(owner2).adjustVotesOnTransfer(owner1.address, transferAmount);
+
           // Verify yes votes are removed, as remaining balance supports the vote count
           proposal = await fermionFNFTProxy.getProposalDetails(0);
           let voterDetails = await fermionFNFTProxy.getVoterDetails(owner1.address);
