@@ -29,14 +29,17 @@ const { ZeroAddress, keccak256, toBeHex } = ethers;
 
 describe("FermionFNFT - fractionalisation tests", function () {
   let fermionFNFTProxy: Contract;
+  let fermionFNFTProxyNativeEth: Contract;
   let mockExchangeToken: Contract;
   let wallets: HardhatEthersSigner[];
   let bidders: HardhatEthersSigner[];
   let fermionMock: Contract;
+  let fermionMockNativeEth: Contract;
   let wrapperContractOwner: HardhatEthersSigner;
   let seller: HardhatEthersSigner;
   const startTokenId = 2n ** 128n + 1n;
   const quantity = 10n;
+  const startTokenIdNativeEth = startTokenId + quantity;
   const additionalDeposit = 0n;
   const metadataURI = "https://example.com";
 
@@ -49,6 +52,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
     const [mockConduit, mockBosonPriceDiscovery, openSeaRecipient] = wallets.slice(9, 12);
 
     const predictedFermionDiamondAddress = await predictFermionDiamondAddress(false, 9); // Diamond will be deployed 10 tx from now
+
     const seaportWrapperConstructorArgs = [
       mockBosonPriceDiscovery.address,
       predictedFermionDiamondAddress,
@@ -135,11 +139,64 @@ describe("FermionFNFT - fractionalisation tests", function () {
       await mockExchangeToken.mint(bidder.address, parseEther("1000"));
     }
 
-    return { fermionFNFT, fermionFNFTProxy, mockBoson, mockBosonPriceDiscovery, mockExchangeToken };
+    // Setup fermionMock for native ETH bidding
+    const predictedFermionDiamondAddressNativeEth = await predictFermionDiamondAddress(false, 2); // Diamond will be deployed 2 tx from now
+    const fermionFNFTNativeEth = await FermionFNFT.deploy(
+      mockBosonPriceDiscovery.address,
+      predictedFermionDiamondAddressNativeEth,
+      await fermionSeaportWrapper.getAddress(),
+      ZeroAddress,
+      wallets[10].address,
+      await fermionFractionsMint.getAddress(),
+      await fermionFNFTPriceManager.getAddress(),
+      await fermionBuyoutAuction.getAddress(),
+    ); // dummy address
+
+    const proxyNativeEth = await Proxy.deploy(await fermionFNFTNativeEth.getAddress());
+
+    const fermionFNFTProxyNativeEth = await ethers.getContractAt("FermionFNFT", await proxyNativeEth.getAddress());
+    fermionMockNativeEth = await fermionMockFactory.deploy(await fermionFNFTProxyNativeEth.getAddress(), ZeroAddress);
+    const fermionMockNativeEthAddress = await fermionMockNativeEth.getAddress();
+    await mockBoson.mint(fermionMockNativeEthAddress, startTokenIdNativeEth, quantity);
+
+    const offerIdNativeEth = 2n;
+    await fermionFNFTProxyNativeEth
+      .attach(fermionMockNativeEth)
+      .initialize(
+        await mockBoson.getAddress(),
+        wrapperContractOwner.address,
+        ZeroAddress,
+        offerIdNativeEth,
+        metadataURI,
+        { name: "test FNFT Native ETH", symbol: "tFNFT_ETH" },
+      );
+    await fermionMockNativeEth.setDestinationOverride(await mockBoson.getAddress());
+    await mockBoson.attach(fermionMockNativeEth).setApprovalForAll(await fermionFNFTProxyNativeEth.getAddress(), true);
+    await fermionFNFTProxyNativeEth.attach(fermionMockNativeEth).wrap(startTokenIdNativeEth, quantity, seller.address);
+    for (let i = 0n; i < quantity; i++) {
+      const tokenId = startTokenIdNativeEth + i;
+      await fermionFNFTProxyNativeEth.attach(fermionMockNativeEth).pushToNextTokenState(tokenId, TokenState.Unwrapping);
+      await fermionFNFTProxyNativeEth.connect(mockBosonPriceDiscovery).unwrapToSelf(tokenId, ZeroAddress, 0);
+      if (i < quantity - 1n) {
+        await fermionFNFTProxyNativeEth.attach(fermionMockNativeEth).pushToNextTokenState(tokenId, TokenState.Verified);
+        await fermionFNFTProxyNativeEth
+          .attach(fermionMockNativeEth)
+          .pushToNextTokenState(tokenId, TokenState.CheckedIn);
+      }
+    }
+
+    return {
+      fermionFNFT,
+      fermionFNFTProxy,
+      fermionFNFTProxyNativeEth,
+      mockBoson,
+      mockBosonPriceDiscovery,
+      mockExchangeToken,
+    };
   }
 
   before(async function () {
-    ({ fermionFNFTProxy, mockExchangeToken } = await loadFixture(setupFermionFractionsTest));
+    ({ fermionFNFTProxy, fermionFNFTProxyNativeEth, mockExchangeToken } = await loadFixture(setupFermionFractionsTest));
   });
 
   afterEach(async function () {
@@ -1117,6 +1174,18 @@ describe("FermionFNFT - fractionalisation tests", function () {
           additionalDeposit,
           ZeroAddress,
         );
+
+      await fermionFNFTProxyNativeEth
+        .connect(seller)
+        .mintFractions(
+          startTokenIdNativeEth,
+          1,
+          fractionsPerToken,
+          auctionParameters,
+          custodianVaultParameters,
+          additionalDeposit,
+          ZeroAddress,
+        );
     });
 
     context("Bid without fractions or votes", function () {
@@ -1242,6 +1311,43 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
         expect(await mockExchangeToken.balanceOf(bidders[1].address)).to.equal(parseEther("1000") - bidAmount3);
         expect(await mockExchangeToken.balanceOf(await fermionFNFTProxy.getAddress())).to.equal(bidAmount3);
+      });
+
+      it("When outbid with native ETH, the locked ETH is stored for claim", async function () {
+        const bidAmount = parseEther("1.0");
+        const bidAmount2 = parseEther("1.1");
+
+        // First bid
+        await fermionFNFTProxyNativeEth
+          .connect(bidders[0])
+          .bid(startTokenIdNativeEth, bidAmount, fractions, { value: bidAmount, gasPrice: 0 }); // gasPrice is explicitly set to 0 to pass the coverage test
+
+        // Second bidder outbids
+        await fermionFNFTProxyNativeEth
+          .connect(bidders[1])
+          .bid(startTokenIdNativeEth, bidAmount2, fractions, { value: bidAmount2, gasPrice: 0 });
+
+        // Verify native ETH was stored for claim
+        expect(await fermionFNFTProxyNativeEth.getNativeBidClaimAmount(bidders[0].address)).to.equal(bidAmount);
+
+        // Verify balances before claiming
+        expect(await ethers.provider.getBalance(bidders[0].address)).to.equal(parseEther("10000") - bidAmount);
+        expect(await ethers.provider.getBalance(bidders[1].address)).to.equal(parseEther("10000") - bidAmount2);
+        expect(await ethers.provider.getBalance(await fermionFNFTProxyNativeEth.getAddress())).to.equal(
+          bidAmount + bidAmount2,
+        );
+
+        // Claim the stored native ETH
+        const claimTx = await fermionFNFTProxyNativeEth.connect(bidders[0]).claimNativeBidFunds({ gasPrice: 0 });
+        await expect(claimTx).to.changeEtherBalance(bidders[0], bidAmount);
+
+        // Verify claimable amount is cleared after claiming
+        expect(await fermionFNFTProxyNativeEth.getNativeBidClaimAmount(bidders[0].address)).to.equal(0);
+
+        // Verify final balances
+        expect(await ethers.provider.getBalance(bidders[0].address)).to.equal(parseEther("10000"));
+        expect(await ethers.provider.getBalance(bidders[1].address)).to.equal(parseEther("10000") - bidAmount2);
+        expect(await ethers.provider.getBalance(await fermionFNFTProxyNativeEth.getAddress())).to.equal(bidAmount2);
       });
 
       it("Bidding before the buffer time does not extend the timer", async function () {
@@ -1944,6 +2050,13 @@ describe("FermionFNFT - fractionalisation tests", function () {
         await expect(fermionFNFTProxy.connect(bidders[1]).bid(startTokenId, bidAmount2, 0n))
           .to.be.revertedWithCustomError(fermionFNFTProxy, "AuctionReserved")
           .withArgs(startTokenId);
+      });
+
+      it("No native funds available to claim", async function () {
+        await expect(fermionFNFTProxyNativeEth.connect(bidders[0]).claimNativeBidFunds()).to.be.revertedWithCustomError(
+          fermionFNFTProxyNativeEth,
+          "NoNativeFundsToClaim",
+        );
       });
     });
   });
@@ -3450,6 +3563,18 @@ describe("FermionFNFT - fractionalisation tests", function () {
     });
   });
 
+  context("claimFromEpoch", function () {
+    context("Revert reasons", function () {
+      it("Invalid claim amount", async function () {
+        const currentEpoch = await fermionFNFTProxy.currentEpoch();
+        await expect(fermionFNFTProxy.connect(seller).claimFromEpoch(0n, currentEpoch)).to.be.revertedWithCustomError(
+          fermionFNFTProxy,
+          "InvalidAmount",
+        );
+      });
+    });
+  });
+
   context("getPastAuctionDetails", function () {
     context("Revert reasons", function () {
       it("Invalid index", async function () {
@@ -4008,7 +4133,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           const owner1Balance = await balanceOfERC20(fermionFNFTProxy, owner1.address);
 
           await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          const tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          const tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
 
           expect(tx).to.emit(fermionFNFTProxy, "PriceUpdateVoted").withArgs(1, owner1.address, owner1Balance, true);
 
@@ -4035,7 +4160,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           expect(owner2InitialBalance).to.equal(setupTransferAmount);
 
           // Cast an initial vote from owner1.
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
           let proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.yesVotes).to.equal(owner1InitialBalance);
 
@@ -4043,7 +4168,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           const additionalFractions = parseEther("1");
           await erc20Clone.connect(owner2).transfer(owner1.address, additionalFractions);
 
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
 
           proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.yesVotes).to.equal(owner1InitialBalance + additionalFractions);
@@ -4059,7 +4184,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
           // Step 2: Create a governance proposal and cast a NO vote using `owner1`
           const tx = await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(false);
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, false);
 
           // Verify initial proposal state
           let proposal = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4069,6 +4194,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
           const remainingBalance = owner1Balance - transferAmount;
           const erc20Clone = await getERC20Clone(fermionFNFTProxy);
           await erc20Clone.connect(owner1).transfer(owner2.address, transferAmount);
+
+          // Try to adjust votes on transfer if the caller is not the current epoch's ERC20 clone (nothing should happen)
+          await fermionFNFTProxy.connect(owner2).adjustVotesOnTransfer(owner1.address, transferAmount);
 
           // Verify no votes are removed, as remaining balance supports the vote count
           proposal = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4089,7 +4217,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           expect(voterDetails.voteCount).to.equal(0);
 
           // Step 5: Allow `owner2` to cast a vote with the newly acquired fractions
-          await fermionFNFTProxy.connect(owner2).voteOnProposal(false);
+          await fermionFNFTProxy.connect(owner2).voteOnProposal(1, false);
 
           // Verify `proposal.noVotes` reflects the original total balance (transferred from `owner1` to `owner2`)
           const currentProposalDetails = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4097,7 +4225,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
           // Step 6: Finalize the current proposal to allow creation of a new one
           await setNextBlockTimestamp(Number((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1));
-          await fermionFNFTProxy.connect(owner2).voteOnProposal(false); // Finalize the proposal
+          await fermionFNFTProxy.connect(owner2).voteOnProposal(1, false); // Finalize the proposal
 
           // Verify the proposal is finalized
           const finalizedProposal = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4112,7 +4240,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
           // Create a new proposal and cast a vote with `owner1`'s new balance
           await fermionFNFTProxy.updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(false);
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(2, false);
 
           // Verify updated vote count matches transferred balance
           proposal = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4130,7 +4258,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
           // Step 2: Create a governance proposal and Owner1 votes NO
           await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(false);
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, false);
 
           // Verify initial proposal state
           let proposal = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4147,7 +4275,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           expect(owner1RemainingBalance).to.be.equal(voterDetails.voteCount - transferAmountA);
 
           // Step 4: Owner2 votes with the received A amount
-          await fermionFNFTProxy.connect(owner2).voteOnProposal(true);
+          await fermionFNFTProxy.connect(owner2).voteOnProposal(1, true);
 
           proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           let owner2VoterDetails = await fermionFNFTProxy.getVoterDetails(owner2.address);
@@ -4169,9 +4297,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
         });
         it("should revert for double voting", async function () {
           await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
 
-          await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(true)).to.be.revertedWithCustomError(
+          await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(1, true)).to.be.revertedWithCustomError(
             fermionFNFTProxy,
             "AlreadyVoted",
           );
@@ -4180,7 +4308,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         it("should revert if the voter has no fractions", async function () {
           await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
           const random = wallets[11]; //random wallet
-          await expect(fermionFNFTProxy.connect(random).voteOnProposal(true)).to.be.revertedWithCustomError(
+          await expect(fermionFNFTProxy.connect(random).voteOnProposal(1, true)).to.be.revertedWithCustomError(
             fermionFNFTProxy,
             "NoVotingPower",
           );
@@ -4188,8 +4316,8 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
         it("should revert if a voter changes vote direction", async function () {
           await fermionFNFTProxy.updateExitPrice(parseEther("2"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
-          await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(false)).to.be.revertedWithCustomError(
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
+          await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(1, false)).to.be.revertedWithCustomError(
             fermionFNFTProxy,
             "ConflictingVote",
           );
@@ -4201,7 +4329,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           it("should correctly update vote counts for NO votes when removed", async function () {
             // Step 1: Cast a NO vote
             const owner1Balance = await balanceOfERC20(fermionFNFTProxy, owner1);
-            await fermionFNFTProxy.connect(owner1).voteOnProposal(false);
+            await fermionFNFTProxy.connect(owner1).voteOnProposal(1, false);
 
             // Step 2: Verify the initial state of the proposal
             let proposal = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4229,7 +4357,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           it("should allow a voter to remove their vote on an active proposal", async function () {
             // Step 1: Cast a YES vote
             const owner1Balance = await balanceOfERC20(fermionFNFTProxy, owner1);
-            await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+            await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
 
             // Step 2: Verify the initial state of the proposal
             let proposal = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4257,9 +4385,9 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
           it("should revert if there is no active proposal", async function () {
             // Finalize the current proposal
-            const tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+            const tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
             await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
-            await fermionFNFTProxy.connect(owner1).voteOnProposal(true); // Finalize the proposal
+            await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true); // Finalize the proposal
 
             // Attempt to remove a vote on a finalized proposal
             await expect(fermionFNFTProxy.connect(owner1).removeVoteOnProposal()).to.be.revertedWithCustomError(
@@ -4280,11 +4408,11 @@ describe("FermionFNFT - fractionalisation tests", function () {
       context("Finalizing Proposals", function () {
         it("should finalize as executed when quorum is met and yes votes are greater", async function () {
           let tx = await fermionFNFTProxy.updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(seller).voteOnProposal(true);
+          await fermionFNFTProxy.connect(seller).voteOnProposal(1, true);
 
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
 
-          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
 
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.state).to.equal(PriceUpdateProposalState.Executed);
@@ -4307,11 +4435,11 @@ describe("FermionFNFT - fractionalisation tests", function () {
           const quorumThreshold = (liquidSupply * quorumPercent) / 10000n;
           const erc20Clone = await getERC20Clone(fermionFNFTProxy);
           await erc20Clone.connect(owner1).transfer(owner2.address, quorumThreshold);
-          await fermionFNFTProxy.connect(owner2).voteOnProposal(true);
+          await fermionFNFTProxy.connect(owner2).voteOnProposal(1, true);
 
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
 
-          await fermionFNFTProxy.connect(owner2).voteOnProposal(true); // finalization
+          await fermionFNFTProxy.connect(owner2).voteOnProposal(1, true); // finalization
 
           // Retrieve proposal details after finalization
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
@@ -4322,7 +4450,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
         it("should finalize as failed when quorum is not met", async function () {
           let tx = await fermionFNFTProxy.updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION);
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
-          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(false); // Vote won't matter as quorum is not met.
+          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(1, false); // Vote won't matter as quorum is not met.
 
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.state).to.equal(PriceUpdateProposalState.Failed);
@@ -4332,10 +4460,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
         it("should finalize as failed when quorum is met but no votes are greater", async function () {
           let tx = await fermionFNFTProxy.updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(false); // Majority votes 'no'
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, false); // Majority votes 'no'
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
 
-          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
 
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.state).to.equal(PriceUpdateProposalState.Failed);
@@ -4347,7 +4475,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           let tx = await fermionFNFTProxy.updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION);
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
 
-          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(true); // Trigger finalization.
+          tx = await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true); // Trigger finalization.
 
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.state).to.equal(PriceUpdateProposalState.Failed);
@@ -4357,7 +4485,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
         it("should stay ACTIVE when attempting to finalize before the deadline", async function () {
           const tx = await fermionFNFTProxy.updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
 
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.state).to.equal(PriceUpdateProposalState.Active);
@@ -4368,7 +4496,7 @@ describe("FermionFNFT - fractionalisation tests", function () {
           await erc20Clone.connect(owner1).transfer(owner2.address, transferAmount);
 
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION - 10);
-          await fermionFNFTProxy.connect(owner2).voteOnProposal(true);
+          await fermionFNFTProxy.connect(owner2).voteOnProposal(1, true);
 
           const updatedProposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(updatedProposal.state).to.equal(PriceUpdateProposalState.Active);
@@ -4376,22 +4504,27 @@ describe("FermionFNFT - fractionalisation tests", function () {
         });
 
         it("should revert if there is no active proposal", async function () {
-          await expect(fermionFNFTProxy.connect(owner2).voteOnProposal(true)).to.be.revertedWithCustomError(
+          await expect(fermionFNFTProxy.connect(owner2).voteOnProposal(0, true)).to.be.revertedWithCustomError(
             fermionFNFTProxy,
             "ProposalNotActive",
+          );
+
+          await expect(fermionFNFTProxy.connect(owner2).voteOnProposal(1, true)).to.be.revertedWithCustomError(
+            fermionFNFTProxy,
+            "InvalidProposalId",
           );
         });
 
         it("should revert if a proposal is already finalized", async function () {
           const tx = await fermionFNFTProxy.updateExitPrice(parseEther("3"), 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(true);
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true);
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
-          await fermionFNFTProxy.connect(owner1).voteOnProposal(true); // Trigger finalization.
+          await fermionFNFTProxy.connect(owner1).voteOnProposal(1, true); // Trigger finalization.
 
           const proposal = await fermionFNFTProxy.getCurrentProposalDetails();
           expect(proposal.state).to.equal(PriceUpdateProposalState.Executed);
 
-          await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(false)).to.be.revertedWithCustomError(
+          await expect(fermionFNFTProxy.connect(owner1).voteOnProposal(1, true)).to.be.revertedWithCustomError(
             fermionFNFTProxy,
             "ProposalNotActive",
           );
@@ -4416,10 +4549,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
           // Update the exit price through governance
           let tx = await fermionFNFTProxy.connect(seller).updateExitPrice(maxBid - 1n, 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(seller).voteOnProposal(true);
+          await fermionFNFTProxy.connect(seller).voteOnProposal(1, true);
 
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
-          await fermionFNFTProxy.connect(seller).voteOnProposal(true);
+          await fermionFNFTProxy.connect(seller).voteOnProposal(1, true);
 
           tx = await fermionFNFTProxy.startAuction(startTokenId);
 
@@ -4443,10 +4576,10 @@ describe("FermionFNFT - fractionalisation tests", function () {
 
           // Update the exit price through governance
           let tx = await fermionFNFTProxy.connect(seller).updateExitPrice(maxBid, 7500, MIN_GOV_VOTE_DURATION);
-          await fermionFNFTProxy.connect(seller).voteOnProposal(true);
+          await fermionFNFTProxy.connect(seller).voteOnProposal(1, true);
 
           await setNextBlockTimestamp((await getBlockTimestampFromTransaction(tx)) + MIN_GOV_VOTE_DURATION + 1);
-          await fermionFNFTProxy.connect(seller).voteOnProposal(true);
+          await fermionFNFTProxy.connect(seller).voteOnProposal(1, true);
 
           tx = await fermionFNFTProxy.startAuction(startTokenId);
 

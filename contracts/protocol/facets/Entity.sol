@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BYTE_SIZE } from "../domain/Constants.sol";
+import { BYTE_SIZE, ANY_ENTITY_ROLE } from "../domain/Constants.sol";
 import { EntityErrors, FermionGeneralErrors, OfferErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../bases/mixins/Access.sol";
@@ -582,13 +582,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
             // To set entity-wide account roles, the caller must have entity-wide manager role
             if (
-                !EntityLib.hasAccountRole(
-                    _entityId,
-                    msgSender,
-                    FermionTypes.EntityRole(0),
-                    FermionTypes.AccountRole.Manager,
-                    true
-                )
+                !EntityLib.hasAccountRole(_entityId, msgSender, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Manager, true)
             ) revert NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Manager);
 
             uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[0]);
@@ -675,7 +669,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
             _entityId,
             previousAdmin,
             0xff << (31 * BYTE_SIZE),
-            true,
+            false,
             pl,
             FermionStorage.protocolEntities()
         );
@@ -715,6 +709,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         ) = getAssociatedLookups(_sellerId, _associatedRole, pl);
 
         mapping(uint256 => FermionTypes.EntityData) storage entityData = FermionStorage.protocolEntities().entityData;
+        bool found;
         for (uint256 i; i < _associatedEntitiesIds.length; ++i) {
             uint256 associatedEntityId = _associatedEntitiesIds[i];
             if (_add) {
@@ -741,8 +736,9 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                                 associatedEntities[j] = associatedEntities[facilitatorsLength - 1];
                         }
                         associatedEntities.pop();
-
-                        emit AssociatedEntityRemoved(_associatedRole, _sellerId, associatedEntityId);
+                        found = true;
+                        // stack too deep workaround
+                        _emitAssociatedEntityRemoved(_associatedRole, _sellerId, associatedEntityId);
                         break;
                     }
                 }
@@ -750,6 +746,15 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
             isAssociatedRole[associatedEntityId] = _add;
         }
+        if (!_add && !found) revert NoEntitiesModified(_associatedRole, _sellerId);
+    }
+
+    function _emitAssociatedEntityRemoved(
+        FermionTypes.AssociatedRole _associatedRole,
+        uint256 _sellerId,
+        uint256 _associatedEntityId
+    ) private {
+        emit AssociatedEntityRemoved(_associatedRole, _sellerId, _associatedEntityId);
     }
 
     /** Returns the storage pointers to associated entities and the mapping of the associated role.

@@ -383,7 +383,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IF
 
         uint256 auctionEndTime = fractionAuction.endTime;
         if (auctionEndTime == 0) revert AuctionNotStarted(_offerId);
-        if (auctionEndTime > block.timestamp) revert AuctionOngoing(_offerId, fractionAuction.endTime);
+        if (auctionEndTime >= block.timestamp) revert AuctionOngoing(_offerId, fractionAuction.endTime);
 
         // fractions to the winner
         address winnerAddress = EntityLib.fetchEntityData(fractionAuction.bidderId).admin;
@@ -505,7 +505,6 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IF
             }
 
             itemsInVault++;
-            vaultParameters = offerLookups.custodianVaultParameters;
         }
 
         uint256 auctionEnd = block.timestamp + vaultParameters.partialAuctionDuration; // if new vault was created, this vault parameters were updated

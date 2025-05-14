@@ -109,7 +109,7 @@ contract ConfigFacet is Access, FermionGeneralErrors, IFermionConfig {
         address _tokenAddress,
         uint256[] calldata _priceRanges,
         uint16[] calldata _feePercentages
-    ) external onlyRole(ADMIN) nonReentrant {
+    ) external onlyRole(ADMIN) notPaused(FermionTypes.PausableRegion.Config) nonReentrant {
         if (_priceRanges.length != _feePercentages.length)
             revert ArrayLengthMismatch(_priceRanges.length, _feePercentages.length);
         // Clear existing price ranges and percentage tiers

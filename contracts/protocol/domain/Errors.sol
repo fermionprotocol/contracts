@@ -47,6 +47,7 @@ interface EntityErrors {
         uint256 sellerId,
         uint256 associatedEntityId
     );
+    error NoEntitiesModified(FermionTypes.AssociatedRole associatedRole, uint256 sellerId);
     error AccountAlreadyExists(address account);
     error NewAccountSameAsOld();
 }
@@ -93,6 +94,7 @@ interface CustodyErrors {
     error UpdateRequestTooRecent(uint256 tokenId, uint256 waitTime);
     error NoTokensInCustody(uint256 offerId);
     error InvalidCustodianFeePeriod();
+    error TaxAmountExceedsMaximum(uint256 tokenId, uint256 taxAmount, uint256 maxTaxAmount);
 }
 
 interface AuctionErrors {
@@ -126,6 +128,7 @@ interface FundsErrors {
     error ERC721CheckFailed(address tokenAddress, bool erc721expected);
     error ERC721TokenNotTransferred(address tokenAddress, uint256 tokenId);
     error PhygitalsNotFound(uint256 tokenId, FermionTypes.Phygital phygital);
+    error NoNativeFundsToClaim();
 }
 
 interface PauseErrors {
@@ -178,6 +181,7 @@ interface FractionalisationErrors is AuctionErrors {
     error ConflictingVote();
     error OracleInternalError();
     error AlreadyMigrated(address owner);
+    error InvalidProposalId(uint256 providedId, uint256 currentId);
 }
 
 interface PriceOracleRegistryErrors {
@@ -198,6 +202,9 @@ interface WrapperErrors {
     error UnsuccessfulExternalCall();
 }
 
+interface SafeERC20Errors {
+    error SafeERC20FailedOperation(address token);
+}
 interface FermionErrors is
     FermionGeneralErrors,
     InitializationErrors,
@@ -212,5 +219,6 @@ interface FermionErrors is
     FractionalisationErrors,
     SignatureErrors,
     PriceOracleRegistryErrors,
-    WrapperErrors
+    WrapperErrors,
+    SafeERC20Errors
 {}

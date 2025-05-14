@@ -9,11 +9,12 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FermionBuyoutAuction } from "./FermionBuyoutAuction.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
-
+import { NativeClaims } from "../libs/NativeClaims.sol";
+import { ReentrancyGuard } from "../bases/mixins/ReentrancyGuard.sol";
 /**
  * @dev Fractionalisation and buyout auction
  */
-abstract contract FermionFractions is FermionErrors, IFermionFractions {
+abstract contract FermionFractions is FermionErrors, IFermionFractions, ReentrancyGuard {
     using Address for address;
 
     address private immutable FNFT_FRACTION_MINT;
@@ -227,7 +228,7 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * @param _price The bidding price
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
-    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
+    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable nonReentrant {
         forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
@@ -377,10 +378,11 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * - `NoVotingPower` if the caller has no fractions to vote with.
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
-     *
+     * - `InvalidProposalId` if the provided proposalId doesn't match the current active proposal.
+     * @param _proposalId The ID of the proposal to vote on.
      * @param _voteYes True to vote YES, false to vote NO.
      */
-    function voteOnProposal(bool _voteYes) external {
+    function voteOnProposal(uint256 _proposalId, bool _voteYes) external {
         forwardCall(FNFT_PRICE_MANAGER);
     }
 
@@ -399,6 +401,17 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      */
     function removeVoteOnProposal() external {
         forwardCall(FNFT_PRICE_MANAGER);
+    }
+
+    /**
+     * @notice Claim native funds stored from bid refunds
+     *
+     * Reverts if:
+     * - No native funds available to claim
+     * - Native transfer fails
+     */
+    function claimNativeBidFunds() external {
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -586,6 +599,15 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      */
     function liquidSupply() public view returns (uint256) {
         return Common.liquidSupply(Common._getFermionFractionsStorage().currentEpoch);
+    }
+
+    /**
+     * @notice Get the amount of native funds available for claim from bid refunds
+     * @param _claimer The address to check
+     * @return The amount available for claim
+     */
+    function getNativeBidClaimAmount(address _claimer) external view returns (uint256) {
+        return NativeClaims._getClaimAmount(_claimer);
     }
 
     /**

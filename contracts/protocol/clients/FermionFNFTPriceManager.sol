@@ -236,22 +236,27 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
      * - `NoVotingPower` if the caller has no fractions to vote with.
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
+     * - `InvalidProposalId` if the provided proposalId doesn't match the current active proposal.
      *
+     * @param _proposalId The ID of the proposal to vote on.
      * @param _voteYes True to vote YES, false to vote NO.
      */
-    function voteOnProposal(bool _voteYes) external {
+    function voteOnProposal(uint256 _proposalId, bool _voteYes) external {
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
         uint256 currentEpoch = fractionStorage.currentEpoch;
         FermionTypes.PriceUpdateProposal storage proposal = Common
             ._getBuyoutAuctionStorage(currentEpoch)
             .currentProposal;
-        address erc20Clone = fractionStorage.epochToClone[currentEpoch];
-        address msgSender = _msgSender();
-        uint256 fractionsBalance = IERC20(erc20Clone).balanceOf(msgSender);
+        if (_proposalId != proposal.proposalId) {
+            revert FractionalisationErrors.InvalidProposalId(_proposalId, proposal.proposalId);
+        }
 
         if (proposal.state != FermionTypes.PriceUpdateProposalState.Active) {
             revert FractionalisationErrors.ProposalNotActive(proposal.proposalId);
         }
+        address erc20Clone = fractionStorage.epochToClone[currentEpoch];
+        address msgSender = _msgSender();
+        uint256 fractionsBalance = IERC20(erc20Clone).balanceOf(msgSender);
 
         if (!_finalizeProposal(proposal, Common.liquidSupply(currentEpoch))) {
             if (fractionsBalance == 0) revert FractionalisationErrors.NoVotingPower(msgSender);
