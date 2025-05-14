@@ -583,13 +583,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
             // To set entity-wide account roles, the caller must have entity-wide manager role
             if (
-                !EntityLib.hasAccountRole(
-                    _entityId,
-                    msgSender,
-                    ANY_ENTITY_ROLE,
-                    FermionTypes.AccountRole.Manager,
-                    true
-                )
+                !EntityLib.hasAccountRole(_entityId, msgSender, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Manager, true)
             ) revert NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Manager);
 
             uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[0]);

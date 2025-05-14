@@ -81,26 +81,12 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
         address[] memory _tokenList,
         uint256[] memory _tokenAmounts
     ) external {
-        if (
-            !EntityLib.hasAccountRole(
-                _entityId,
-                _treasury,
-                ANY_ENTITY_ROLE,
-                FermionTypes.AccountRole.Treasury,
-                true
-            )
-        ) revert EntityErrors.NotEntityWideRole(_treasury, _entityId, FermionTypes.AccountRole.Treasury);
+        if (!EntityLib.hasAccountRole(_entityId, _treasury, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Treasury, true))
+            revert EntityErrors.NotEntityWideRole(_treasury, _entityId, FermionTypes.AccountRole.Treasury);
 
         address msgSender = _msgSender();
-        if (
-            !EntityLib.hasAccountRole(
-                _entityId,
-                msgSender,
-                ANY_ENTITY_ROLE,
-                FermionTypes.AccountRole.Assistant,
-                true
-            )
-        ) revert EntityErrors.NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Assistant);
+        if (!EntityLib.hasAccountRole(_entityId, msgSender, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Assistant, true))
+            revert EntityErrors.NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Assistant);
 
         withdrawFundsInternal(_entityId, _treasury, _tokenList, _tokenAmounts);
     }
