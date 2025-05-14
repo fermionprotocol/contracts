@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
+import { FermionTypes } from "./Types.sol";
 
 // Access Control Roles
 bytes32 constant ADMIN = keccak256("ADMIN"); // Role Admin
@@ -34,3 +35,5 @@ uint256 constant DEFAULT_FRACTION_AMOUNT = 1e5 * MIN_FRACTIONS;
 uint256 constant PARTIAL_THRESHOLD_MULTIPLIER = 12;
 uint256 constant LIQUIDATION_THRESHOLD_MULTIPLIER = 2;
 uint256 constant PARTIAL_AUCTION_DURATION_DIVISOR = 4;
+
+FermionTypes.EntityRole constant ANY_ENTITY_ROLE = FermionTypes.EntityRole(0);

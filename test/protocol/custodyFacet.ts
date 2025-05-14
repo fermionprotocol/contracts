@@ -48,6 +48,7 @@ describe("Custody", function () {
   let buyer: HardhatEthersSigner;
   let seaportAddress: string;
   let wrapper: Contract, wrapperSelfSale: Contract, wrapperSelfCustody: Contract, wrapperCustodianSwitch: Contract;
+  const maxTaxAmount = parseEther("1");
   const sellerId = "1";
   const verifierId = "2";
   const custodianId = "3";
@@ -405,7 +406,7 @@ describe("Custody", function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
           await expect(custodyFacet.connect(custodian).checkIn(exchange.tokenId))
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
@@ -416,7 +417,7 @@ describe("Custody", function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
           await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 
           await expect(custodyFacet.connect(custodian).checkIn(exchange.tokenId))
@@ -575,7 +576,7 @@ describe("Custody", function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
           await expect(custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId))
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
@@ -586,7 +587,7 @@ describe("Custody", function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
           await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 
           await expect(custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId))
@@ -758,7 +759,7 @@ describe("Custody", function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
           await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
@@ -773,7 +774,7 @@ describe("Custody", function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
           await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 
           await expect(custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount))
@@ -800,7 +801,7 @@ describe("Custody", function () {
 
         await mockToken.mint(buyer.address, taxAmount);
         await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
-        const tx = await custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId);
+        const tx = await custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
         // Events
         // Fermion
@@ -832,7 +833,7 @@ describe("Custody", function () {
 
         await mockToken.mint(buyer.address, taxAmount);
         await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
-        const tx = await custodyFacet.connect(buyer).clearCheckoutRequest(exchangeSelfCustody.tokenId);
+        const tx = await custodyFacet.connect(buyer).clearCheckoutRequest(exchangeSelfCustody.tokenId, maxTaxAmount);
 
         // Events
         // Fermion
@@ -858,7 +859,7 @@ describe("Custody", function () {
         it("Custody region is paused", async function () {
           await pauseFacet.pause([PausableRegion.Custody]);
 
-          await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
             .withArgs(PausableRegion.Custody);
         });
@@ -872,17 +873,17 @@ describe("Custody", function () {
           const wallet = wallets[9];
 
           // completely random wallet
-          await expect(custodyFacet.connect(wallet).clearCheckoutRequest(exchange.tokenId))
+          await expect(custodyFacet.connect(wallet).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
             .withArgs(exchange.tokenId, buyer.address, wallet.address);
 
           // seller
-          await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+          await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
             .withArgs(exchange.tokenId, buyer.address, defaultSigner.address);
 
           // custodian
-          await expect(custodyFacet.connect(custodian).clearCheckoutRequest(exchange.tokenId))
+          await expect(custodyFacet.connect(custodian).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "NotTokenBuyer")
             .withArgs(exchange.tokenId, buyer.address, custodian.address);
         });
@@ -898,14 +899,14 @@ describe("Custody", function () {
           // ERC20 offer - insufficient allowance
           await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount - 1n);
 
-          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
             .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientAllowance")
             .withArgs(fermionProtocolAddress, taxAmount - 1n, taxAmount);
 
           // ERC20 offer - contract sends insufficient funds
           await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
           await mockToken.setBurnAmount(1);
-          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "WrongValueReceived")
             .withArgs(taxAmount, taxAmount - 1n);
           await mockToken.setBurnAmount(0);
@@ -914,16 +915,25 @@ describe("Custody", function () {
           const buyerBalance = await mockToken.balanceOf(buyer.address);
           await mockToken.connect(buyer).transfer(wallets[9].address, buyerBalance); // transfer all the tokens to another wallet
 
-          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
             .to.be.revertedWithCustomError(mockToken, "ERC20InsufficientBalance")
             .withArgs(buyer.address, 0n, taxAmount);
 
           // Send native currency to ERC20 offer
           await expect(
-            custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, { value: taxAmount }),
+            custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount, { value: taxAmount }),
           ).to.be.revertedWithCustomError(fermionErrors, "NativeNotAllowed");
         });
-
+        it("Tax amount exceeds maximum", async function () {
+          const belowTaxAmount = taxAmount - 1n;
+          await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
+          await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
+          await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
+          await custodyFacet.submitTaxAmount(exchange.tokenId, taxAmount);
+          await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, belowTaxAmount))
+            .to.be.revertedWithCustomError(fermionErrors, "TaxAmountExceedsMaximum")
+            .withArgs(exchange.tokenId, taxAmount, belowTaxAmount);
+        });
         context("Invalid state", function () {
           const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
 
@@ -935,9 +945,9 @@ describe("Custody", function () {
 
             await mockToken.mint(buyer.address, taxAmount);
             await mockToken.connect(buyer).approve(fermionProtocolAddress, taxAmount);
-            await custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId);
+            await custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
-            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(
                 exchange.tokenId,
@@ -947,7 +957,7 @@ describe("Custody", function () {
           });
 
           it("Cannot clear checkout request before it's unwrapped", async function () {
-            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
           });
@@ -956,21 +966,21 @@ describe("Custody", function () {
             await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, emptySelfSaleData);
 
             // Unwrapped but not verified
-            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
 
             await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
             // Unwrapped and rejected
-            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId))
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
           });
 
           it("Cannot clear checkout request if not checked in", async function () {
             // Verified but not checked in
-            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
           });
@@ -979,7 +989,7 @@ describe("Custody", function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
 
             // Checked in but checkout not requested
-            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedIn);
           });
@@ -988,11 +998,11 @@ describe("Custody", function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
             await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-            await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+            await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
             await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 
             // Already checked out
-            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedOut);
           });
@@ -1003,7 +1013,7 @@ describe("Custody", function () {
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
             // Checked in but checkout not requested
-            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.connect(buyer).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
               .withArgs(sellerId, buyer.address, EntityRole.Seller, AccountRole.Assistant);
           });
@@ -1021,7 +1031,7 @@ describe("Custody", function () {
         const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, exchangeToken);
         const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
 
-        const tx = await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+        const tx = await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
         // Events
         // Fermion
@@ -1050,7 +1060,7 @@ describe("Custody", function () {
         const sellerAvailableFunds = await fundsFacet.getAvailableFunds(sellerId, exchangeToken);
         const protocolBalance = await mockToken.balanceOf(fermionProtocolAddress);
 
-        const tx = await custodyFacet.clearCheckoutRequest(exchangeSelfCustody.tokenId);
+        const tx = await custodyFacet.clearCheckoutRequest(exchangeSelfCustody.tokenId, maxTaxAmount);
 
         // Events
         // Fermion
@@ -1077,7 +1087,7 @@ describe("Custody", function () {
         await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
-        const tx = await custodyFacet.connect(facilitator).clearCheckoutRequest(exchange.tokenId);
+        const tx = await custodyFacet.connect(facilitator).clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
         // Events
         // Fermion
@@ -1090,7 +1100,7 @@ describe("Custody", function () {
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
-          await verifySellerAssistantRole("clearCheckoutRequest", [exchange.tokenId]);
+          await verifySellerAssistantRole("clearCheckoutRequest", [exchange.tokenId, maxTaxAmount]);
         });
 
         it("Caller is not the facilitator defined in the offer", async function () {
@@ -1098,7 +1108,7 @@ describe("Custody", function () {
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
-          await expect(custodyFacet.connect(facilitator2).clearCheckoutRequest(exchange.tokenId))
+          await expect(custodyFacet.connect(facilitator2).clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
             .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
             .withArgs(sellerId, facilitator2.address, EntityRole.Seller, AccountRole.Assistant);
         });
@@ -1111,9 +1121,9 @@ describe("Custody", function () {
             await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
 
-            await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+            await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
-            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(
                 exchange.tokenId,
@@ -1123,7 +1133,7 @@ describe("Custody", function () {
           });
 
           it("Cannot clear checkout request before it's unwrapped", async function () {
-            await expect(custodyFacet.clearCheckoutRequest(tokenId))
+            await expect(custodyFacet.clearCheckoutRequest(tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
           });
@@ -1132,21 +1142,21 @@ describe("Custody", function () {
             await offerFacet.unwrapNFT(tokenId, WrapType.SELF_SALE, emptySelfSaleData);
 
             // Unwrapped but not verified
-            await expect(custodyFacet.clearCheckoutRequest(tokenId))
+            await expect(custodyFacet.clearCheckoutRequest(tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
 
             await verificationFacet.submitVerdict(tokenId, VerificationStatus.Rejected, verificationMetadata);
 
             // Unwrapped and rejected
-            await expect(custodyFacet.clearCheckoutRequest(tokenId))
+            await expect(custodyFacet.clearCheckoutRequest(tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
           });
 
           it("Cannot clear checkout request if not checked in", async function () {
             // Verified but not checked in
-            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.None);
           });
@@ -1155,7 +1165,7 @@ describe("Custody", function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
 
             // Checked in but checkout not requested
-            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedIn);
           });
@@ -1164,11 +1174,11 @@ describe("Custody", function () {
             await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
             await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
             await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-            await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+            await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
             await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 
             // Checked in but checkout not requested
-            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId))
+            await expect(custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount))
               .to.be.revertedWithCustomError(fermionErrors, "InvalidCheckoutRequestStatus")
               .withArgs(exchange.tokenId, CheckoutRequestStatus.CheckOutRequested, CheckoutRequestStatus.CheckedOut);
           });
@@ -1182,7 +1192,7 @@ describe("Custody", function () {
       await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
       await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-      await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+      await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
       const tx = await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 
@@ -1206,7 +1216,7 @@ describe("Custody", function () {
       await custodyFacet.checkIn(exchangeSelfCustody.tokenId);
       await wrapperSelfCustody.connect(buyer).approve(fermionProtocolAddress, exchangeSelfCustody.tokenId);
       await custodyFacet.connect(buyer).requestCheckOut(exchangeSelfCustody.tokenId);
-      await custodyFacet.clearCheckoutRequest(exchangeSelfCustody.tokenId);
+      await custodyFacet.clearCheckoutRequest(exchangeSelfCustody.tokenId, maxTaxAmount);
 
       const tx = await custodyFacet.checkOut(exchangeSelfCustody.tokenId);
 
@@ -1243,7 +1253,7 @@ describe("Custody", function () {
         await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
         await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
         await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-        await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+        await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
         const wallet = wallets[9];
 
@@ -1296,7 +1306,7 @@ describe("Custody", function () {
           await custodyFacet.connect(custodian).checkIn(exchange.tokenId);
           await wrapper.connect(buyer).approve(fermionProtocolAddress, exchange.tokenId);
           await custodyFacet.connect(buyer).requestCheckOut(exchange.tokenId);
-          await custodyFacet.clearCheckoutRequest(exchange.tokenId);
+          await custodyFacet.clearCheckoutRequest(exchange.tokenId, maxTaxAmount);
 
           await custodyFacet.connect(custodian).checkOut(exchange.tokenId);
 
@@ -1502,7 +1512,7 @@ describe("Custody", function () {
         //chekout token1 from exchangeCustodianSwitch offer
         await wrapperCustodianSwitch.connect(buyer).approve(fermionProtocolAddress, exchangeCustodianSwitch.tokenId1);
         await custodyFacet.connect(buyer).requestCheckOut(exchangeCustodianSwitch.tokenId1);
-        await custodyFacet.clearCheckoutRequest(exchangeCustodianSwitch.tokenId1);
+        await custodyFacet.clearCheckoutRequest(exchangeCustodianSwitch.tokenId1, maxTaxAmount);
         await custodyFacet.connect(custodian).checkOut(exchangeCustodianSwitch.tokenId1);
 
         const tx = await custodyFacet.connect(buyer).acceptCustodianUpdate(offerIdCustodianSwitch);
@@ -1542,7 +1552,7 @@ describe("Custody", function () {
           ]) {
             await wrapperCustodianSwitch.connect(buyer).approve(fermionProtocolAddress, token);
             await custodyFacet.connect(buyer).requestCheckOut(token);
-            await custodyFacet.clearCheckoutRequest(token);
+            await custodyFacet.clearCheckoutRequest(token, maxTaxAmount);
             await custodyFacet.connect(custodian).checkOut(token);
           }
 
