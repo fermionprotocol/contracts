@@ -397,8 +397,9 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions, Reentran
      * - `ProposalNotActive` if the proposal is not active.
      * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
      *
+     * @param _proposalId The ID of the proposal to remove the vote from.
      */
-    function removeVoteOnProposal() external {
+    function removeVoteOnProposal(uint256 _proposalId) external {
         forwardCall(FNFT_PRICE_MANAGER);
     }
 
@@ -543,9 +544,8 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions, Reentran
     }
 
     /**
-     * @notice Returns the non-mapping details of the current active proposal.
+     * @notice Returns details of a specific proposal from current epoch.
      *
-     * @return proposalId The unique ID of the proposal.
      * @return newExitPrice The proposed exit price.
      * @return votingDeadline The deadline for voting.
      * @return quorumPercent The required quorum percentage.
@@ -553,11 +553,12 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions, Reentran
      * @return noVotes The number of votes against.
      * @return state The state of the proposal (Active, Executed, or Failed).
      */
-    function getCurrentProposalDetails()
+    function getProposalDetails(
+        uint256 _proposalId
+    )
         external
         view
         returns (
-            uint256 proposalId,
             uint256 newExitPrice,
             uint256 votingDeadline,
             uint256 quorumPercent,
@@ -568,9 +569,8 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions, Reentran
     {
         FermionTypes.PriceUpdateProposal storage proposal = Common
             ._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
-            .currentProposal;
+            .priceUpdateProposals[_proposalId];
         return (
-            proposal.proposalId,
             proposal.newExitPrice,
             proposal.votingDeadline,
             proposal.quorumPercent,
@@ -587,10 +587,7 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions, Reentran
      * @return voterDetails The details of the voter's vote.
      */
     function getVoterDetails(address _voter) external view returns (FermionTypes.PriceUpdateVoter memory) {
-        return
-            Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch).currentProposal.voters[
-                _voter
-            ];
+        return Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch).voters[_voter];
     }
 
     /**

@@ -266,24 +266,27 @@ contract FundsManager {
         if (entityFunds == _amount) {
             // Get the index in the tokenList array, which is 1 less than the tokenIndexByAccount index
             address[] storage tokenList = entityLookups.tokenList;
-            uint256 lastTokenIndex = tokenList.length - 1;
-            mapping(address => uint256) storage entityTokens = pl.tokenIndexByAccount[_entityId];
-            uint256 index = entityTokens[_tokenAddress] - 1;
+            unchecked {
+                uint256 lastTokenIndex = tokenList.length - 1;
+                mapping(address => uint256) storage entityTokens = pl.tokenIndexByAccount[_entityId];
+                uint256 index = entityTokens[_tokenAddress] - 1;
 
-            // if target is last index then only pop and delete are needed
-            // otherwise, we overwrite the target with the last token first
-            if (index != lastTokenIndex) {
-                // Need to fill gap caused by delete if more than one element in storage array
-                address tokenToMove = tokenList[lastTokenIndex];
-                // Copy the last token in the array to this index to fill the gap
-                tokenList[index] = tokenToMove;
-                // Reset index mapping. Should be index in tokenList array + 1
-                entityTokens[tokenToMove] = index + 1;
+                // if target is last index then only pop and delete are needed
+                // otherwise, we overwrite the target with the last token first
+                if (index != lastTokenIndex) {
+                    // Need to fill gap caused by delete if more than one element in storage array
+                    address tokenToMove = tokenList[lastTokenIndex];
+                    // Copy the last token in the array to this index to fill the gap
+                    tokenList[index] = tokenToMove;
+                    // Reset index mapping. Should be index in tokenList array + 1
+                    entityTokens[tokenToMove] = index + 1;
+                }
+
+                // Delete last token address in the array, which was just moved to fill the gap
+                tokenList.pop();
+                // Delete from index mapping
+                delete entityTokens[_tokenAddress];
             }
-            // Delete last token address in the array, which was just moved to fill the gap
-            tokenList.pop();
-            // Delete from index mapping
-            delete entityTokens[_tokenAddress];
         }
     }
 

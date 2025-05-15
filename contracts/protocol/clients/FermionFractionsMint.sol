@@ -135,7 +135,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
 
         $.auctionParameters = _buyoutAuctionParameters;
 
-        emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters);
+        emit FractionsSetup(_fractionsAmount, _buyoutAuctionParameters, currentEpoch);
 
         address msgSender = _msgSender();
         if (msgSender != FERMION_PROTOCOL) {
@@ -219,7 +219,7 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
 
         FermionFractionsERC20(fractionStorage.epochToClone[currentEpoch]).mint(FERMION_PROTOCOL, _amount);
 
-        emit AdditionalFractionsMinted(_amount, Common.liquidSupply(currentEpoch));
+        emit AdditionalFractionsMinted(_amount, Common.liquidSupply(currentEpoch), currentEpoch);
     }
 
     /**
@@ -297,7 +297,8 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
         FermionTypes.BuyoutAuctionStorage storage $
     ) internal {
         address tokenOwner = ownerOf(_firstTokenId); // all tokens must be owned by the same address
-
+        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
+        uint256 currentEpoch = fractionStorage.currentEpoch;
         for (uint256 i = 0; i < _length; i++) {
             uint256 tokenId = _firstTokenId + i;
             FermionTypes.TokenState tokenState = Common._getFermionCommonStorage().tokenState[tokenId];
@@ -316,15 +317,10 @@ contract FermionFractionsMint is FermionFNFTBase, FermionErrors, FundsManager, I
             tokenInfo.isFractionalised = true;
             tokenInfo.auctions.push();
 
-            emit Fractionalised(tokenId, _fractionsAmount);
+            emit Fractionalised(tokenId, _fractionsAmount, currentEpoch);
         }
 
-        FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
-
-        FermionFractionsERC20(fractionStorage.epochToClone[fractionStorage.currentEpoch]).mint(
-            tokenOwner,
-            _length * _fractionsAmount
-        );
+        FermionFractionsERC20(fractionStorage.epochToClone[currentEpoch]).mint(tokenOwner, _length * _fractionsAmount);
 
         $.nftCount += _length;
     }

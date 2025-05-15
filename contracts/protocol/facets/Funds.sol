@@ -259,11 +259,11 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
             uint256 amount = MathLib.applyPercentage(_saleProceeds, royaltyInfo.bps[i]);
             royalties += amount;
 
-            FundsManager.increaseAvailableFunds(_entityId, tokenAddress, amount);
+            increaseAvailableFunds(_entityId, tokenAddress, amount);
         }
 
         // return the remainder
-        FundsManager.transferERC20FromProtocol(tokenAddress, payable(msg.sender), _saleProceeds - royalties);
+        transferERC20FromProtocol(tokenAddress, payable(msg.sender), _saleProceeds - royalties);
     }
 
     /**
