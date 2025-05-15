@@ -52,6 +52,7 @@ describe("CustodyVault", function () {
   };
   const exchange = { tokenId: "", custodianId: "", price: 0n };
   const additionalDeposit = 0n;
+  const defaultEpoch = 0n;
 
   async function setupCustodyTest() {
     // Create three entities
@@ -447,11 +448,13 @@ describe("CustodyVault", function () {
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2)
               .to.emit(wrapper, "FractionsSetup")
-              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters));
-            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT);
+              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters), defaultEpoch);
+            await expect(tx2)
+              .to.emit(wrapper, "Fractionalised")
+              .withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT, defaultEpoch);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue);
+              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue, defaultEpoch);
 
             // offer vault is created
             const expectedOfferVault = {
@@ -506,11 +509,13 @@ describe("CustodyVault", function () {
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2)
               .to.emit(wrapper, "FractionsSetup")
-              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters));
-            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT);
+              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters), defaultEpoch);
+            await expect(tx2)
+              .to.emit(wrapper, "Fractionalised")
+              .withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT, defaultEpoch);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue);
+              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue, defaultEpoch);
 
             // offer vault is created
             const expectedOfferVault = {
@@ -575,11 +580,13 @@ describe("CustodyVault", function () {
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2)
               .to.emit(wrapper, "FractionsSetup")
-              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters));
-            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT);
+              .withArgs(DEFAULT_FRACTION_AMOUNT, Object.values(buyoutAuctionDefaultParameters), defaultEpoch);
+            await expect(tx2)
+              .to.emit(wrapper, "Fractionalised")
+              .withArgs(exchange.tokenId, DEFAULT_FRACTION_AMOUNT, defaultEpoch);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue);
+              .withArgs(fractionsToIssue, DEFAULT_FRACTION_AMOUNT + fractionsToIssue, defaultEpoch);
 
             // offer vault is created
             const expectedOfferVault = {
@@ -683,10 +690,12 @@ describe("CustodyVault", function () {
               .to.emit(custodyVaultFacet, "AuctionStarted")
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2).to.not.emit(wrapper, "FractionsSetup");
-            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, fractionsPerToken);
+            await expect(tx2)
+              .to.emit(wrapper, "Fractionalised")
+              .withArgs(exchange.tokenId, fractionsPerToken, defaultEpoch);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue);
+              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue, defaultEpoch);
 
             // offer vault remains the same, just number of items is increased
             const expectedOfferVault = {
@@ -733,10 +742,12 @@ describe("CustodyVault", function () {
               .to.emit(custodyVaultFacet, "AuctionStarted")
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2).to.not.emit(wrapper, "FractionsSetup");
-            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, fractionsPerToken);
+            await expect(tx2)
+              .to.emit(wrapper, "Fractionalised")
+              .withArgs(exchange.tokenId, fractionsPerToken, defaultEpoch);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue);
+              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue, defaultEpoch);
 
             // offer vault remains the same, just number of items is increased
             const expectedOfferVault = {
@@ -792,10 +803,12 @@ describe("CustodyVault", function () {
               .to.emit(custodyVaultFacet, "AuctionStarted")
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2).to.not.emit(wrapper, "FractionsSetup");
-            await expect(tx2).to.emit(wrapper, "Fractionalised").withArgs(exchange.tokenId, fractionsPerToken);
+            await expect(tx2)
+              .to.emit(wrapper, "Fractionalised")
+              .withArgs(exchange.tokenId, fractionsPerToken, defaultEpoch);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue);
+              .withArgs(fractionsToIssue, 2n * fractionsPerToken + fractionsToIssue, defaultEpoch);
 
             // offer vault remains the same, just number of items is increased
             const expectedOfferVault = {
@@ -2631,7 +2644,7 @@ describe("CustodyVault", function () {
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, tokenCount * fractionsPerToken + fractionsToIssue);
+              .withArgs(fractionsToIssue, tokenCount * fractionsPerToken + fractionsToIssue, defaultEpoch);
 
             // offer vault remains the same
             const expectedOfferVault = {
@@ -2669,7 +2682,7 @@ describe("CustodyVault", function () {
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, tokenCount * fractionsPerToken + fractionsToIssue);
+              .withArgs(fractionsToIssue, tokenCount * fractionsPerToken + fractionsToIssue, defaultEpoch);
 
             const expectedOfferVault = {
               amount: 0n,
@@ -2713,7 +2726,7 @@ describe("CustodyVault", function () {
               .withArgs(offerId, fractionsToIssue, auctionEnd);
             await expect(tx2)
               .to.emit(wrapper, "AdditionalFractionsMinted")
-              .withArgs(fractionsToIssue, tokenCount * fractionsPerToken + fractionsToIssue);
+              .withArgs(fractionsToIssue, tokenCount * fractionsPerToken + fractionsToIssue, defaultEpoch);
 
             // offer vault remains the same, just number of items is increased
             const expectedOfferVault = {

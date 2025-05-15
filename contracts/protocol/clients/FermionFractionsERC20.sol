@@ -64,12 +64,12 @@ contract FermionFractionsERC20 is
     /**
      * @dev Override the _update function to notify the owner (FermionFNFT contract) about transfers.
      * This allows the FermionFNFT contract to adjust votes when necessary to maintain voting integrity.
-     * The notification is only sent for actual transfers (not mints or burns).
+     * The notifications is only sent for transfers and burns (excluding mints as they have no effect on voting power adjustments).
      */
     function _update(address from, address to, uint256 value) internal override {
         super._update(from, to, value);
 
-        if (from != address(0) && to != address(0)) {
+        if (from != address(0)) {
             IFermionFNFTPriceManager(owner()).adjustVotesOnTransfer(from, value);
         }
     }
