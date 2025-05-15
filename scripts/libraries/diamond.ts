@@ -1,4 +1,4 @@
-import { BaseContract, Contract, ContractFactory, FunctionFragment } from "ethers";
+import { BaseContract, Contract, ContractFactory, FunctionFragment, Interface } from "ethers";
 
 type Facets = { facetAddress: string; functionSelectors: string[] }[];
 
@@ -13,10 +13,15 @@ export const FacetCutAction = { Add: 0, Replace: 1, Remove: 2 };
 // get function selectors from ABI
 export function getSelectors(contract: Contract | ContractFactory<any[], BaseContract>): SelectorsObj {
   const signatures = Object.values(
-    contract.interface.fragments.filter((fragment) => fragment.type === "function"),
+    contract.interface.fragments
+      .filter((fragment) => fragment.type === "function")
+      .filter((fragment) => {
+        const functionFragment = fragment as FunctionFragment;
+        return functionFragment.selector && !functionFragment.selector.startsWith("0x00000000");
+      }),
   ) as FunctionFragment[];
   const selectors = signatures.reduce<string[]>((acc, val) => {
-    if (val.format("sighash") !== "init(bytes)") {
+    if (!val.format("sighash").startsWith("init")) {
       acc.push(val.selector);
     }
     return acc;
@@ -31,7 +36,7 @@ export function getSelectors(contract: Contract | ContractFactory<any[], BaseCon
 
 // get function selector from function signature
 function getSelector(func: string): string | undefined {
-  const abiInterface = new ethers.Interface([func]);
+  const abiInterface = new Interface([func]);
   return abiInterface.getFunction(func)?.selector;
 }
 
@@ -78,7 +83,7 @@ export function get(this: SelectorsObj, functionNames: string[]): SelectorsObj {
 
 // remove selectors using an array of signatures
 export function removeSelectors(selectors: string[], signatures: string[]): string[] {
-  const iface = new ethers.Interface(signatures.map((v: any) => "function " + v));
+  const iface = new Interface(signatures.map((v: any) => "function " + v));
   const removeSelectors = signatures.map((v: any) => iface.getFunction(v)?.selector);
   selectors = selectors.filter((v: any) => !removeSelectors.includes(v));
   return selectors;

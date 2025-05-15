@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FEE_COLLECTOR } from "../../protocol/domain/Constants.sol";
+import { FEE_COLLECTOR, ANY_ENTITY_ROLE } from "../../protocol/domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FundsErrors, EntityErrors, FermionGeneralErrors, OfferErrors, VerificationErrors } from "../domain/Errors.sol";
 import { FermionStorage } from "../libs/Storage.sol";
@@ -81,26 +81,12 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
         address[] memory _tokenList,
         uint256[] memory _tokenAmounts
     ) external {
-        if (
-            !EntityLib.hasAccountRole(
-                _entityId,
-                _treasury,
-                FermionTypes.EntityRole(0),
-                FermionTypes.AccountRole.Treasury,
-                true
-            )
-        ) revert EntityErrors.NotEntityWideRole(_treasury, _entityId, FermionTypes.AccountRole.Treasury);
+        if (!EntityLib.hasAccountRole(_entityId, _treasury, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Treasury, true))
+            revert EntityErrors.NotEntityWideRole(_treasury, _entityId, FermionTypes.AccountRole.Treasury);
 
         address msgSender = _msgSender();
-        if (
-            !EntityLib.hasAccountRole(
-                _entityId,
-                msgSender,
-                FermionTypes.EntityRole(0),
-                FermionTypes.AccountRole.Assistant,
-                true
-            )
-        ) revert EntityErrors.NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Assistant);
+        if (!EntityLib.hasAccountRole(_entityId, msgSender, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Assistant, true))
+            revert EntityErrors.NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Assistant);
 
         withdrawFundsInternal(_entityId, _treasury, _tokenList, _tokenAmounts);
     }
@@ -201,7 +187,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
                     !EntityLib.hasAccountRole(
                         _entityId,
                         _treasury,
-                        FermionTypes.EntityRole(0),
+                        ANY_ENTITY_ROLE,
                         FermionTypes.AccountRole.Treasury,
                         true
                     )
@@ -212,7 +198,7 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
                     !EntityLib.hasAccountRole(
                         _entityId,
                         msgSender,
-                        FermionTypes.EntityRole(0),
+                        ANY_ENTITY_ROLE,
                         FermionTypes.AccountRole.Assistant,
                         true
                     )
@@ -273,11 +259,11 @@ contract FundsFacet is Context, FundsErrors, Access, FundsManager, IFundsEvents 
             uint256 amount = MathLib.applyPercentage(_saleProceeds, royaltyInfo.bps[i]);
             royalties += amount;
 
-            FundsManager.increaseAvailableFunds(_entityId, tokenAddress, amount);
+            increaseAvailableFunds(_entityId, tokenAddress, amount);
         }
 
         // return the remainder
-        FundsManager.transferERC20FromProtocol(tokenAddress, payable(msg.sender), _saleProceeds - royalties);
+        transferERC20FromProtocol(tokenAddress, payable(msg.sender), _saleProceeds - royalties);
     }
 
     /**

@@ -14,6 +14,8 @@ import { IFermionBuyoutAuction } from "../interfaces/IFermionBuyoutAuction.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FundsFacet } from "../facets/Funds.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
+import { NativeClaims } from "../libs/NativeClaims.sol";
+import { FundsErrors } from "../domain/Errors.sol";
 /**
  * @dev Buyout auction
  */
@@ -85,89 +87,86 @@ contract FermionBuyoutAuction is
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
     function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
-            Common._getFermionFractionsStorage().currentEpoch
-        );
-        if (!$.tokenInfo[_tokenId].isFractionalised) revert TokenNotFractionalised(_tokenId);
-
-        FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
-        FermionTypes.AuctionDetails storage auctionDetails = auction.details;
-        if (auctionDetails.state == FermionTypes.AuctionState.Reserved) revert AuctionReserved(_tokenId);
-
-        uint256 minimalBid;
-        {
-            uint256 maxBid = auctionDetails.maxBid;
-            minimalBid = (maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
-
-            // due to rounding errors, the minimal bid can be equal to the max bid. Ensure strict increase.
-            if (minimalBid == maxBid) minimalBid += 1;
-        }
-
-        if (_price < minimalBid) {
-            revert InvalidBid(_tokenId, _price, minimalBid);
-        }
-
-        uint256 fractionsPerToken;
-        {
-            FermionTypes.BuyoutAuctionParameters storage auctionParameters = $.auctionParameters;
-            if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing) {
-                if (block.timestamp > auctionDetails.timer) revert AuctionEnded(_tokenId, auctionDetails.timer);
-
-                fractionsPerToken = auctionDetails.totalFractions;
-            } else {
-                fractionsPerToken = Common.liquidSupply(Common._getFermionFractionsStorage().currentEpoch) / $.nftCount;
-                if (_price >= auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
-                    // If price is above the exit price, the cutoff date is set
-                    startAuctionInternal(_tokenId);
-                } else {
-                    // reset ticker for Unbidding
-                    auctionDetails.timer = block.timestamp + auctionParameters.topBidLockTime;
-                }
-            }
-        }
-
-        // Return to the previous bidder the fractions and the bid
-        address exchangeToken = $.exchangeToken;
-        payOutLastBidder(auctionDetails, exchangeToken);
-
-        FermionTypes.Votes storage votes = auction.votes;
-        uint256 availableFractions = fractionsPerToken - votes.total; // available fractions to additionaly be used in bid
-
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
         address msgSender = _msgSender();
-        uint256 bidAmount;
-        if (_fractions >= availableFractions) {
-            // Bidder has enough fractions to claim the remaining fractions. In this case they win the auction at the current price.
-            // If the locked fractions belong to other users, the bidder must still pay the corresponding price.
-            _fractions = availableFractions;
-
-            if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuctionInternal(_tokenId);
-            auctionDetails.state = FermionTypes.AuctionState.Reserved;
-        }
 
         uint256 totalLockedFractions;
-        unchecked {
-            totalLockedFractions = _fractions + votes.individual[msgSender]; // cannot overflow, since _fractions <= availableFractions = fractionsPerToken - votes.total
-            bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken; // cannot overflow, since fractionsPerToken >= totalLockedFractions
-        }
+        uint256 bidAmount;
+        {
+            FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
+            if (!$.tokenInfo[_tokenId].isFractionalised) revert TokenNotFractionalised(_tokenId);
 
-        auctionDetails.maxBidder = msgSender;
-        auctionDetails.lockedFractions = _fractions; // locked in addition to the votes. If outbid, this is released back to the bidder
-        auctionDetails.maxBid = _price;
+            FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
+            FermionTypes.AuctionDetails storage auctionDetails = auction.details;
+            if (auctionDetails.state == FermionTypes.AuctionState.Reserved) revert AuctionReserved(_tokenId);
 
-        if (_fractions > 0) {
-            Common._transferFractions(
-                msgSender,
-                address(this),
-                _fractions,
-                Common._getFermionFractionsStorage().currentEpoch
-            );
-        }
-        if (bidAmount > 0) {
-            validateIncomingPayment(exchangeToken, bidAmount);
-        }
+            uint256 minimalBid;
+            {
+                uint256 maxBid = auctionDetails.maxBid;
+                minimalBid = (maxBid * (HUNDRED_PERCENT + MINIMAL_BID_INCREMENT)) / HUNDRED_PERCENT;
 
-        auctionDetails.lockedBidAmount = bidAmount;
-        emit Bid(_tokenId, msgSender, _price, totalLockedFractions, bidAmount);
+                // due to rounding errors, the minimal bid can be equal to the max bid. Ensure strict increase.
+                if (minimalBid == maxBid) minimalBid += 1;
+            }
+
+            if (_price < minimalBid) {
+                revert InvalidBid(_tokenId, _price, minimalBid);
+            }
+
+            uint256 fractionsPerToken;
+            {
+                FermionTypes.BuyoutAuctionParameters storage auctionParameters = $.auctionParameters;
+                if (auctionDetails.state >= FermionTypes.AuctionState.Ongoing) {
+                    if (block.timestamp > auctionDetails.timer) revert AuctionEnded(_tokenId, auctionDetails.timer);
+
+                    fractionsPerToken = auctionDetails.totalFractions;
+                } else {
+                    fractionsPerToken = Common.liquidSupply(currentEpoch) / $.nftCount;
+                    if (_price >= auctionParameters.exitPrice && auctionParameters.exitPrice > 0) {
+                        // If price is above the exit price, the cutoff date is set
+                        startAuctionInternal(_tokenId);
+                    } else {
+                        // reset ticker for Unbidding
+                        auctionDetails.timer = block.timestamp + auctionParameters.topBidLockTime;
+                    }
+                }
+            }
+
+            // Return to the previous bidder the fractions and the bid
+            address exchangeToken = $.exchangeToken;
+            payOutLastBidder(auctionDetails, exchangeToken);
+
+            FermionTypes.Votes storage votes = auction.votes;
+            uint256 availableFractions = fractionsPerToken - votes.total; // available fractions to additionaly be used in bid
+
+            if (_fractions >= availableFractions) {
+                // Bidder has enough fractions to claim the remaining fractions. In this case they win the auction at the current price.
+                // If the locked fractions belong to other users, the bidder must still pay the corresponding price.
+                _fractions = availableFractions;
+
+                if (auctionDetails.state == FermionTypes.AuctionState.NotStarted) startAuctionInternal(_tokenId);
+                auctionDetails.state = FermionTypes.AuctionState.Reserved;
+            }
+
+            unchecked {
+                totalLockedFractions = _fractions + votes.individual[msgSender]; // cannot overflow, since _fractions <= availableFractions = fractionsPerToken - votes.total
+                bidAmount = ((fractionsPerToken - totalLockedFractions) * _price) / fractionsPerToken; // cannot overflow, since fractionsPerToken >= totalLockedFractions
+            }
+
+            auctionDetails.maxBidder = msgSender;
+            auctionDetails.lockedFractions = _fractions; // locked in addition to the votes. If outbid, this is released back to the bidder
+            auctionDetails.maxBid = _price;
+
+            if (_fractions > 0) {
+                Common._transferFractions(msgSender, address(this), _fractions, currentEpoch);
+            }
+            if (bidAmount > 0) {
+                validateIncomingPayment(exchangeToken, bidAmount);
+            }
+
+            auctionDetails.lockedBidAmount = bidAmount;
+        }
+        emit Bid(_tokenId, msgSender, _price, totalLockedFractions, bidAmount, currentEpoch);
     }
 
     /**
@@ -183,9 +182,8 @@ contract FermionBuyoutAuction is
      * @param _tokenId The token Id
      */
     function removeBid(uint256 _tokenId) external {
-        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(
-            Common._getFermionFractionsStorage().currentEpoch
-        );
+        uint256 currentEpoch = Common._getFermionFractionsStorage().currentEpoch;
+        FermionTypes.BuyoutAuctionStorage storage $ = Common._getBuyoutAuctionStorage(currentEpoch);
         FermionTypes.Auction storage auction = Common.getLastAuction(_tokenId, $);
         FermionTypes.AuctionDetails storage auctionDetails = auction.details;
 
@@ -203,7 +201,7 @@ contract FermionBuyoutAuction is
 
         delete auction.details;
 
-        emit Bid(0, address(0), 0, 0, 0);
+        emit Bid(0, address(0), 0, 0, 0, currentEpoch);
     }
 
     /**
@@ -231,7 +229,7 @@ contract FermionBuyoutAuction is
 
         ERC721._safeTransfer(address(this), msgSender, _tokenId);
 
-        emit Redeemed(_tokenId, msgSender);
+        emit Redeemed(_tokenId, msgSender, Common._getFermionFractionsStorage().currentEpoch);
     }
 
     /**
@@ -292,7 +290,7 @@ contract FermionBuyoutAuction is
             claimAmount += additionalClaimAmount;
         }
 
-        transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount);
+        transferERC20FromProtocol($.exchangeToken, payable(msgSender), claimAmount, true);
         emit Claimed(msgSender, lockedIndividualVotes + _additionalFractions, claimAmount, currentEpoch);
     }
 
@@ -548,7 +546,7 @@ contract FermionBuyoutAuction is
                 Common._getFermionFractionsStorage().currentEpoch
             );
         }
-        transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount);
+        transferERC20FromProtocol(_exchangeToken, payable(bidder), _auction.lockedBidAmount, true);
     }
 
     /**
@@ -560,5 +558,26 @@ contract FermionBuyoutAuction is
      */
     function _burnFractions(address _from, uint256 _amount, uint256 _epoch) internal {
         FermionFractionsERC20(Common._getFermionFractionsStorage().epochToClone[_epoch]).burn(_from, _amount);
+    }
+
+    /**
+     * @notice Claim native funds stored from bid refunds
+     *
+     * Reverts if:
+     * - No native funds available to claim
+     * - Native transfer fails
+     */
+    function claimNativeBidFunds() external {
+        address payable claimer = payable(_msgSender());
+        uint256 amount = NativeClaims._getClaimAmount(claimer);
+
+        if (amount == 0) {
+            revert FundsErrors.NoNativeFundsToClaim();
+        }
+
+        NativeClaims._clearClaim(claimer);
+
+        (bool success, bytes memory errorMessage) = claimer.call{ value: amount }("");
+        if (!success) revert FundsErrors.TokenTransferFailed(claimer, amount, errorMessage);
     }
 }

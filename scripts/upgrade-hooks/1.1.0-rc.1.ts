@@ -4,9 +4,9 @@ import hre from "hardhat";
 import fetch from "node-fetch";
 import fs from "fs";
 import path from "path";
-import { readContracts } from "../libraries/utils";
+import { readContracts, checkRole } from "../libraries/utils";
+import { PausableRegion } from "../../test/utils/enums";
 const { ethers } = hre;
-const VERSION = "1.1.0";
 
 // Function to get the correct GRAPHQL_URL based on chainId and env
 function getGraphQLUrl(chainId: number, env: string): string {
@@ -25,7 +25,7 @@ function getGraphQLUrl(chainId: number, env: string): string {
 }
 
 // Function to get the InitializationFacet address based on chainId and env
-async function getInitializationFacetAddress(chainId: number, env: string): Promise<string> {
+export async function getInitializationFacetAddress(chainId: number, env: string): Promise<string> {
   const addressData = await readContracts(env);
   const initializationFacet = addressData.contracts.find((contract: any) => contract.name === "InitializationFacet");
 
@@ -233,7 +233,30 @@ export async function executeBackfillingDiamondCut(
  * Perform pre-upgrade tasks, including deploying the BackfillingV1_1_0 contract,
  * preparing initialization data, and making the diamond cut.
  */
-export async function preUpgrade(protocolAddress: string, chainId: number, env: string) {
+export async function preUpgrade(
+  protocolAddress: string,
+  chainId: number,
+  env: string,
+  version: string,
+  isDryRun: boolean = false,
+) {
+  const signer = (await ethers.getSigners())[0].address;
+  await checkRole([{ name: "FermionDiamond", address: protocolAddress }], "PAUSER", signer);
+
+  const pauseFacet = await ethers.getContractAt("PauseFacet", protocolAddress);
+  const regionsToPause = [
+    PausableRegion.Offer,
+    PausableRegion.Verification,
+    PausableRegion.Custody,
+    PausableRegion.CustodyVault,
+  ];
+
+  console.log(
+    "Pausing specific protocol regions before backfill:",
+    regionsToPause.map((region) => PausableRegion[region]),
+  );
+  await pauseFacet.pause(regionsToPause);
+
   // Set the correct GRAPHQL_URL based on chainId and env
   const graphQLUrl = getGraphQLUrl(chainId, env);
   const client = createClient({
@@ -249,15 +272,17 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
   console.log("Deploying BackfillingV1_1_0...");
   const BackfillingV1_1_0 = await ethers.getContractFactory("BackfillingV1_1_0");
   const backfillingFacet = await BackfillingV1_1_0.deploy();
-  await backfillingFacet.deployed();
-  console.log(`BackfillingV1_1_0 deployed at: ${backfillingFacet.address}`);
+  await backfillingFacet.waitForDeployment();
+  console.log(`BackfillingV1_1_0 deployed at: ${await backfillingFacet.getAddress()}`);
 
   console.log("Preparing initialization calldata...");
   const backFillFeesCalldata = backfillingFacet.interface.encodeFunctionData("backFillTokenFees", [feeDataList]);
   const backFillOfferCalldata = backfillingFacet.interface.encodeFunctionData("backFillOfferData", [offerDataList]);
 
-  const version = encodeBytes32String(VERSION);
-  const initializationFacetImplAddress = await getInitializationFacetAddress(chainId, env);
+  const versionBytes = encodeBytes32String(version);
+  // Use the correct environment name based on whether we're in dry-run mode
+  const envForContracts = isDryRun ? `${env}-dry-run` : env;
+  const initializationFacetImplAddress = await getInitializationFacetAddress(chainId, envForContracts);
 
   await executeBackfillingDiamondCut(
     protocolAddress,
@@ -265,6 +290,20 @@ export async function preUpgrade(protocolAddress: string, chainId: number, env: 
     backFillOfferCalldata,
     backFillFeesCalldata,
     initializationFacetImplAddress,
-    version,
+    versionBytes,
   );
+}
+
+/**
+ * Perform post-upgrade tasks, including verification of the upgrade.
+ */
+export async function postUpgrade(protocolAddress: string) {
+  console.log("Verifying upgrade...");
+  const initializationFacet = await ethers.getContractAt("InitializationFacet", protocolAddress);
+  const version = await initializationFacet.getVersion();
+  console.log(`Verified version: ${version.replace(/\0/g, "")}`);
+
+  const pauseFacet = await ethers.getContractAt("PauseFacet", protocolAddress);
+  console.log("Unpausing all protocol regions after upgrade...");
+  await pauseFacet.unpause([]);
 }

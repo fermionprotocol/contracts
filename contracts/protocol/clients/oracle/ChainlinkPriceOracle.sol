@@ -61,9 +61,8 @@ contract ChainlinkPriceOracle is Initializable, OwnableUpgradeable, IPriceOracle
      * @dev Emits a `FeedUpdated` event upon success.
      */
     function setFeed(address _feed) external onlyOwner {
-        address previousFeed = feed;
         _setFeedInternal(_feed);
-        emit FeedUpdated(previousFeed, _feed);
+        emit FeedUpdated(feed, _feed);
     }
 
     /**
@@ -72,9 +71,8 @@ contract ChainlinkPriceOracle is Initializable, OwnableUpgradeable, IPriceOracle
      * @dev Emits a `MaxStalenessPeriodUpdated` event upon success.
      */
     function setMaxStalenessPeriod(uint256 _maxStalenessPeriod) external onlyOwner {
-        uint256 previousStalenessPeriod = maxStalenessPeriod;
         _setMaxStalenessPeriodInternal(_maxStalenessPeriod);
-        emit MaxStalenessPeriodUpdated(previousStalenessPeriod, _maxStalenessPeriod);
+        emit MaxStalenessPeriodUpdated(maxStalenessPeriod, _maxStalenessPeriod);
     }
 
     /**

@@ -33,10 +33,12 @@ interface IFermionFNFTPriceManager {
      * - `NoVotingPower` if the caller has no fractions to vote with.
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
+     * - `InvalidProposalId` if the provided proposalId doesn't match the current active proposal.
      *
+     * @param _proposalId The ID of the proposal to vote on.
      * @param voteYes True to vote YES, false to vote NO.
      */
-    function voteOnProposal(bool voteYes) external;
+    function voteOnProposal(uint256 _proposalId, bool voteYes) external;
 
     /**
      * @notice Allows a voter to explicitly remove their vote on an active proposal.
@@ -47,8 +49,10 @@ interface IFermionFNFTPriceManager {
      * Reverts:
      * - `ProposalNotActive` if the proposal is not active.
      * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
+     *
+     * @param _proposalId The ID of the proposal to remove the vote from.
      */
-    function removeVoteOnProposal() external;
+    function removeVoteOnProposal(uint256 _proposalId) external;
 
     /**
      * @notice Fractional owners can vote to start the auction for a specific token, even if the current bid is below the exit price.
@@ -99,7 +103,6 @@ interface IFermionFNFTPriceManager {
      *
      *
      * @param from The address of the sender whose votes may need adjustment.
-     * @param amount The number of fractions being transferred.
      */
-    function adjustVotesOnTransfer(address from, uint256 amount) external;
+    function adjustVotesOnTransfer(address from) external;
 }

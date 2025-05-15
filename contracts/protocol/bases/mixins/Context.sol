@@ -9,8 +9,6 @@ import { ContextLib } from "../../libs/ContextLib.sol";
  * @notice Provides the message sender
  */
 contract Context {
-    uint256 private constant ADDRESS_LENGTH = 20;
-
     /**
      * @notice Returns the message sender address.
      *

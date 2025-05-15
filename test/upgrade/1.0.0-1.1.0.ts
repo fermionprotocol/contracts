@@ -6,7 +6,7 @@ import { Contract, parseEther, keccak256, toBeHex, concat, encodeBytes32String }
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { EntityRole } from "../utils/enums";
 import { setStorageAt, getStorageAt } from "@nomicfoundation/hardhat-network-helpers";
-import { executeBackfillingDiamondCut } from "../../scripts/upgrade-hooks/1.1.0";
+import { executeBackfillingDiamondCut } from "../../scripts/upgrade-hooks/1.1.0-rc.1";
 
 const version = encodeBytes32String("v1.1.0");
 const protocolLookupsSlot = "0x769aa294c8d03dc2ae011ff448d15e722e87cfb823b4b4d6339267d1c690d900";
@@ -49,9 +49,11 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
   let facilitator: HardhatEthersSigner;
   let backfillingFacet: Contract;
   let tokenId: bigint;
+  let token2Id: bigint;
   // Test state
   let exchangeToken: string;
   let tokenIdStorageSlot: bigint;
+  let token2IdStorageSlot: bigint;
   // Storage slots
   let offerItemQuantitySlot: bigint;
   let offerFirstTokenIdSlot: bigint;
@@ -60,6 +62,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
   let fermionFeeAmountTokenLocation: bigint;
   let verifierFeeTokenLocation: bigint;
   let facilitatorFeeAmountTokenLocation: bigint;
+  let token2BosonProtocolFeeTokenLocation: bigint;
   beforeEach(async function () {
     // Load the fixture and assign all variables using destructuring
     ({
@@ -114,7 +117,7 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
     const mintReceipt = await mintTx.wait();
     const nftMintedEvent = mintReceipt.logs.find((log: any) => log.fragment && log.fragment.name === "NFTsMinted");
     tokenId = nftMintedEvent.args[1];
-
+    token2Id = tokenId + 1n;
     const minimalPrice = 1000n;
     const customItemPrice = 10000n;
     const selfSaleData = ethers.AbiCoder.defaultAbiCoder().encode(
@@ -137,6 +140,9 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
     fermionFeeAmountTokenLocation = tokenIdStorageSlot + 8n;
     verifierFeeTokenLocation = tokenIdStorageSlot + 9n;
     facilitatorFeeAmountTokenLocation = tokenIdStorageSlot + 10n;
+
+    token2IdStorageSlot = BigInt(getMappingStorageSlot(tokenLookupsSlot, tokenId + 1n));
+    token2BosonProtocolFeeTokenLocation = token2IdStorageSlot + 7n;
   });
 
   context("Backfilling", function () {
@@ -180,7 +186,19 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
           verifierFee: 50,
           facilitatorFeeAmount: 10,
         },
+        {
+          tokenId: token2Id,
+          bosonProtocolFee: 1000, // some random high value
+          fermionFeeAmount: 20,
+          verifierFee: 50,
+          facilitatorFeeAmount: 10,
+        },
       ];
+
+      // set non-zero fee for token2 to test that it is skipped
+      const token2BosonProtocolFee = BigInt(10);
+      await setStorageAt(fermionProtocolAddress, token2BosonProtocolFeeTokenLocation, token2BosonProtocolFee);
+
       const backFillTokenCalldata = backfillingFacet.interface.encodeFunctionData("backFillTokenFees", [tokenFeesData]);
 
       await executeBackfillingDiamondCut(
@@ -213,6 +231,11 @@ describe("Upgrade from 1.0.1 to 1.1.0", function () {
       expect(await getStorageAt(fermionProtocolAddress, offerFirstTokenIdSlot)).to.equal(offerData[0].firstTokenId);
       expect(BigInt(itemPriceAfterBackfill)).to.equal(
         BigInt(itemPriceBeforeBackfill) + BigInt(tokenFeesData[0].bosonProtocolFee),
+      );
+
+      // Verify token2 values have been skipped
+      expect(await getStorageAt(fermionProtocolAddress, token2BosonProtocolFeeTokenLocation)).to.equal(
+        token2BosonProtocolFee,
       );
     });
   });

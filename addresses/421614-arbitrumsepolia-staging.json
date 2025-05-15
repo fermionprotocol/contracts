@@ -1,0 +1,150 @@
+{
+  "chainId": 421614,
+  "network": "arbitrumSepolia",
+  "env": "staging",
+  "protocolVersion": "1.0.1",
+  "contracts": [
+    {
+      "name": "SeaportWrapper",
+      "address": "0xD580502c41E88b530Ec5e281765F21d1F1024aE0",
+      "args": [
+        "0x0BD0C8c91800A4444551c52f1eC0C3b6A129D2aB",
+        {
+          "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
+          "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
+          "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000"
+        }
+      ]
+    },
+    {
+      "name": "FermionFNFT",
+      "address": "0xcEAC5d357cD41c9F922A9c96a1573c365cB65c8C",
+      "args": [
+        "0x0BD0C8c91800A4444551c52f1eC0C3b6A129D2aB",
+        "0xD580502c41E88b530Ec5e281765F21d1F1024aE0",
+        "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73"
+      ]
+    },
+    {
+      "name": "DiamondCutFacet",
+      "address": "0xDa9e055b33E68B828A9f6237e8E70393db70dD56",
+      "args": []
+    },
+    {
+      "name": "DiamondLoupeFacet",
+      "address": "0xD211FEB768Aa4fb3a522Ba9BFcF5880D7C1Eb18f",
+      "args": []
+    },
+    {
+      "name": "AccessController",
+      "address": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
+      "args": []
+    },
+    {
+      "name": "InitializationFacet",
+      "address": "0xdE2522fd81d90cACF69229186792b5A0F2852FbF",
+      "args": []
+    },
+    {
+      "name": "FermionDiamond",
+      "address": "0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8",
+      "args": [
+        [
+          {
+            "facetAddress": "0xDa9e055b33E68B828A9f6237e8E70393db70dD56",
+            "action": 0,
+            "functionSelectors": ["0x1f931c1c"]
+          },
+          {
+            "facetAddress": "0xD211FEB768Aa4fb3a522Ba9BFcF5880D7C1Eb18f",
+            "action": 0,
+            "functionSelectors": [
+              "0xcdffacc6",
+              "0x52ef6b2c",
+              "0xadfca15e",
+              "0x7a0ed627",
+              "0x01ffc9a7"
+            ]
+          },
+          {
+            "facetAddress": "0xb25107E1aA88fAce01421000500A5a3adf141d2F",
+            "action": 0,
+            "functionSelectors": [
+              "0xa217fddf",
+              "0x248a9ca3",
+              "0x2f2ff15d",
+              "0x91d14854",
+              "0x36568abe",
+              "0xd547741f"
+            ]
+          },
+          {
+            "facetAddress": "0xdE2522fd81d90cACF69229186792b5A0F2852FbF",
+            "action": 0,
+            "functionSelectors": ["0x0d8e6e2c"]
+          }
+        ],
+        {
+          "init": "0xdE2522fd81d90cACF69229186792b5A0F2852FbF",
+          "initCalldata": "0x1e8c8776000000000000000000000000b25107e1aa88face01421000500a5a3adf141d2f0000000000000000000000002a91a0148ee62fa638be38c7ee05c29a3e568dd800000000000000000000000026f643746cbc918b46c2d47edca68c4a6c98ebe6000000000000000000000000ceac5d357cd41c9f922a9c96a1573c365cb65c8c"
+        }
+      ]
+    },
+    {
+      "name": "ConfigFacet",
+      "address": "0xD8971422F647B5124E8Ae110840475B30fb86b79",
+      "args": []
+    },
+    {
+      "name": "EntityFacet",
+      "address": "0xcdb3c63AAD72196a71896F83bBffA62D6cc1E5Ed",
+      "args": []
+    },
+    {
+      "name": "MetaTransactionFacet",
+      "address": "0x783c7e1Be12A072E062aE61aD904368034d4be35",
+      "args": ["0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"]
+    },
+    {
+      "name": "OfferFacet",
+      "address": "0xC1fD27785c958909F3Fee6403f6e0C8D425E3a91",
+      "args": ["0x26f643746cbc918b46c2d47edca68c4a6c98ebe6"]
+    },
+    {
+      "name": "VerificationFacet",
+      "address": "0x9a4d1e10eF41952d59A94e16e0e2378c69Cfdb39",
+      "args": ["0x26f643746cbc918b46c2d47edca68c4a6c98ebe6"]
+    },
+    {
+      "name": "CustodyFacet",
+      "address": "0x1b392C57e5c497B749f6Cacea277190b89B270C5",
+      "args": []
+    },
+    {
+      "name": "FundsFacet",
+      "address": "0x6Ceb36aDBDDC325Cb27F27d8B32B85b5256F537E",
+      "args": []
+    },
+    {
+      "name": "PauseFacet",
+      "address": "0xb5b31A717C7420E51E89A8188F9F63865573E4DF",
+      "args": []
+    },
+    {
+      "name": "CustodyVaultFacet",
+      "address": "0x101Cbc4C2232Ed84375B5e7f261d657c9ad10cB1",
+      "args": []
+    }
+  ],
+  "externalAddresses": {
+    "bosonProtocolAddress": "0x26f643746cbc918b46c2d47edca68c4a6c98ebe6",
+    "bosonPriceDiscoveryAddress": "0x0BD0C8c91800A4444551c52f1eC0C3b6A129D2aB",
+    "bosonTokenAddress": "0x9Aa2Be49567a2C86b30c703662E376146deD9B32",
+    "seaportConfig": {
+      "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
+      "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
+      "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000"
+    },
+    "wrappedNativeAddress": "0x980B62Da83eFf3D4576C647993b0c1D7faf17c73"
+  }
+}

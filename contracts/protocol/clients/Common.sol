@@ -4,8 +4,7 @@ pragma solidity 0.8.24;
 import { ERC721Upgradeable as ERC721 } from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FractionalisationErrors } from "../domain/Errors.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
+import { IFermionFractionsERC20 } from "../interfaces/IFermionFractionsERC20.sol";
 
 error InvalidStateOrCaller(uint256 tokenId, address sender, FermionTypes.TokenState state);
 event TokenStateChange(uint256 indexed tokenId, FermionTypes.TokenState state);
@@ -157,7 +156,7 @@ library Common {
         FermionTypes.BuyoutAuctionStorage storage $ = _getBuyoutAuctionStorage(_epoch);
 
         return
-            IERC20(erc20Clone).totalSupply() -
+            IFermionFractionsERC20(erc20Clone).totalSupply() -
             $.unrestricedRedeemableSupply -
             $.lockedRedeemableSupply -
             $.pendingRedeemableSupply;
@@ -175,9 +174,9 @@ library Common {
         address erc20Clone = fractionStorage.epochToClone[_epoch];
 
         if (_from == address(this)) {
-            FermionFractionsERC20(erc20Clone).transfer(_to, _amount);
+            IFermionFractionsERC20(erc20Clone).transfer(_to, _amount);
         } else {
-            FermionFractionsERC20(erc20Clone).transferFractionsFrom(_from, _to, _amount);
+            IFermionFractionsERC20(erc20Clone).transferFractionsFrom(_from, _to, _amount);
         }
     }
 }

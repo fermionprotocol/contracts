@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { BYTE_SIZE } from "../domain/Constants.sol";
+import { BYTE_SIZE, ANY_ENTITY_ROLE } from "../domain/Constants.sol";
 import { EntityErrors, FermionGeneralErrors, OfferErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../bases/mixins/Access.sol";
@@ -70,7 +70,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         address[] calldata _accounts,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.AccountRole[][][] calldata _accountRoles
-    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
+    ) external {
         addOrRemoveEntityAccounts(_entityId, _accounts, _entityRoles, _accountRoles, true);
     }
 
@@ -96,7 +96,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         address[] calldata _accounts,
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.AccountRole[][][] calldata _accountRoles
-    ) external notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
+    ) external {
         addOrRemoveEntityAccounts(_entityId, _accounts, _entityRoles, _accountRoles, false);
     }
 
@@ -123,7 +123,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         FermionTypes.EntityRole[][] calldata _entityRoles,
         FermionTypes.AccountRole[][][] calldata _accountRoles,
         bool _add
-    ) internal {
+    ) internal notPaused(FermionTypes.PausableRegion.Entity) nonReentrant {
         FermionStorage.ProtocolLookups storage pl = FermionStorage.protocolLookups();
         uint256 entityId = _entityId; // for some reason this solves the stack too deep error
         EntityLib.validateEntityId(entityId, pl);
@@ -134,13 +134,12 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
         FermionStorage.ProtocolEntities storage pe = FermionStorage.protocolEntities();
 
-        uint256 compactEntityRoles = pe.entityData[entityId].roles;
-        for (uint256 i = 0; i < _accounts.length; i++) {
+        for (uint256 i; i < _accounts.length; ++i) {
             address account = _accounts[i];
 
             uint256 compactAccountRole = getCompactAccountRole(
                 entityId,
-                compactEntityRoles,
+                pe.entityData[entityId].roles,
                 _entityRoles[i],
                 _accountRoles[i]
             );
@@ -340,7 +339,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity region is paused
      * - New and old account are the same
      * - Caller is the entity's admin
-     * - Caller is not a account for any enitity
+     * - Caller is not a account for any entity
      * - New account is already a account for an entity
      *
      * @param _newAccount - the new account address
@@ -536,7 +535,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-     * @notice Converts array of Permisions to compact account roles.
+     * @notice Converts array of permissions to compact account roles.
      *
      * Calculates the compact account roles as the sum of individual account roles.
      * Use "or" to get the correct value even if the same role is specified more than once.
@@ -544,7 +543,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _accountRole - the array of account roles
      * @return compactAccountRole - the compact representation of account roles
      */
-    function accountRoleToCompactAccountRoles(
+    function accountRoleToCompactAccountRole(
         FermionTypes.AccountRole[] calldata _accountRole
     ) internal pure returns (uint256 compactAccountRole) {
         if (_accountRole.length == 0) {
@@ -583,16 +582,10 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
             // To set entity-wide account roles, the caller must have entity-wide manager role
             if (
-                !EntityLib.hasAccountRole(
-                    _entityId,
-                    msgSender,
-                    FermionTypes.EntityRole(0),
-                    FermionTypes.AccountRole.Manager,
-                    true
-                )
+                !EntityLib.hasAccountRole(_entityId, msgSender, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Manager, true)
             ) revert NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Manager);
 
-            uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[0]);
+            uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRole(_accountRoles[0]);
             compactAccountRole = compactAccountRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
         } else {
             if (_entityRoles.length != _accountRoles.length)
@@ -606,7 +599,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                     !EntityLib.hasAccountRole(_entityId, msgSender, entityRole, FermionTypes.AccountRole.Manager, false)
                 ) revert NotRoleManager(msgSender, _entityId, entityRole);
 
-                uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[i]);
+                uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRole(_accountRoles[i]);
 
                 uint256 role = compactAccountRolePerEntityRole << (uint256(entityRole) * BYTE_SIZE); // put in the right byte.
                 compactAccountRole |= role;
@@ -676,7 +669,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
             _entityId,
             previousAdmin,
             0xff << (31 * BYTE_SIZE),
-            true,
+            false,
             pl,
             FermionStorage.protocolEntities()
         );
@@ -716,6 +709,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
         ) = getAssociatedLookups(_sellerId, _associatedRole, pl);
 
         mapping(uint256 => FermionTypes.EntityData) storage entityData = FermionStorage.protocolEntities().entityData;
+        bool found;
         for (uint256 i; i < _associatedEntitiesIds.length; ++i) {
             uint256 associatedEntityId = _associatedEntitiesIds[i];
             if (_add) {
@@ -737,11 +731,14 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                 uint256 facilitatorsLength = associatedEntities.length;
                 for (uint256 j; j < facilitatorsLength; ++j) {
                     if (associatedEntities[j] == associatedEntityId) {
-                        if (j != facilitatorsLength - 1)
-                            associatedEntities[j] = associatedEntities[facilitatorsLength - 1];
+                        unchecked {
+                            if (j != facilitatorsLength - 1)
+                                associatedEntities[j] = associatedEntities[facilitatorsLength - 1];
+                        }
                         associatedEntities.pop();
-
-                        emit AssociatedEntityRemoved(_associatedRole, _sellerId, associatedEntityId);
+                        found = true;
+                        // stack too deep workaround
+                        _emitAssociatedEntityRemoved(_associatedRole, _sellerId, associatedEntityId);
                         break;
                     }
                 }
@@ -749,6 +746,15 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
 
             isAssociatedRole[associatedEntityId] = _add;
         }
+        if (!_add && !found) revert NoEntitiesModified(_associatedRole, _sellerId);
+    }
+
+    function _emitAssociatedEntityRemoved(
+        FermionTypes.AssociatedRole _associatedRole,
+        uint256 _sellerId,
+        uint256 _associatedEntityId
+    ) private {
+        emit AssociatedEntityRemoved(_associatedRole, _sellerId, _associatedEntityId);
     }
 
     /** Returns the storage pointers to associated entities and the mapping of the associated role.

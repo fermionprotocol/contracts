@@ -36,8 +36,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
     address private immutable BOSON_TOKEN;
 
     constructor(address _bosonProtocol) {
-        if (_bosonProtocol == address(0)) revert FermionGeneralErrors.InvalidAddress();
-
         BOSON_PROTOCOL = IBosonProtocol(_bosonProtocol);
         BOSON_TOKEN = IBosonProtocol(_bosonProtocol).getTokenAddress();
     }
@@ -97,19 +95,16 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         RoyaltiesLib.validateRoyaltyInfo(sellerLookups, _offer.sellerId, _offer.royaltyInfo);
 
         // Create offer in Boson
-        uint256 bosonSellerId = FermionStorage.protocolStatus().bosonSellerId;
         IBosonProtocol.Offer memory bosonOffer;
-        bosonOffer.sellerId = bosonSellerId;
-        // bosonOffer.price = _offer.verifierFee; // Boson currently requires price to be 0; this will be enabled with 2.4.2 release
+        // bosonOffer.sellerId is intentionally no set as it will be handled in BOSON_PROTOCOL.createOffer call below
         bosonOffer.sellerDeposit = _offer.sellerDeposit;
-        // bosonOffer.buyerCancelPenalty = _offer.verifierFee; // Boson currently requires buyerCancelPenalty to be 0; this will be enabled with 2.4.2 release
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
         bosonOffer.priceType = IBosonProtocol.PriceType.Discovery;
         bosonOffer.metadataUri = _offer.metadata.URI;
         bosonOffer.metadataHash = _offer.metadata.hash;
         bosonOffer.royaltyInfo = new IBosonProtocol.RoyaltyInfo[](1);
-        // bosonOffer.voided and bosonOffer.collectionIndex are not set, the defaults are fine
+        // bosonOffer.voided, bosonOffer.collectionIndex, bosonOffer.price, and bosonOffer.buyerCancelPenalty are not set, the defaults are fine
 
         IBosonProtocol.OfferDates memory bosonOfferDates;
         bosonOfferDates.validUntil = type(uint256).max; // unlimited offer. Sellers can limit it when they list preminted vouchers on external marketplaces
@@ -126,7 +121,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             bosonOffer,
             bosonOfferDates,
             bosonOfferDurations,
-            bosonSellerId + BOSON_DR_ID_OFFSET,
+            FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET,
             0, // no agent
             type(uint256).max // no fee limit
         );
@@ -158,7 +153,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         FermionTypes.TokenMetadata memory _tokenMetadata
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
-        wrapNFTS(
+        wrapNFTs(
             _offerId,
             bosonVoucher,
             startingNFTId,
@@ -228,7 +223,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
     {
         IBosonVoucher bosonVoucher;
         (bosonVoucher, startingNFTId) = mintNFTs(_offerId, _quantity);
-        (wrapperAddress, exchangeToken) = wrapNFTS(
+        (wrapperAddress, exchangeToken) = wrapNFTs(
             _offerId,
             bosonVoucher,
             startingNFTId,
@@ -300,7 +295,6 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         for (uint256 i; i < royaltyInfo.recipients.length; ++i) {
             if (royaltyInfo.recipients[i] == address(0)) {
                 royaltyInfo.recipients[i] = payable(pe.entityData[offer.sellerId].admin);
-                break;
             }
         }
 
@@ -367,6 +361,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
      *
      * Emits VerificationInitiated and ItemPriceObserved events
      *
+     * N.B. If unwrapping using selfSale for an offer that was set up with both verifier fee and seller deposit, the seller deposit must be
+     * paid in advance using the depositFunds method.
+     *
      * Reverts if:
      * - Caller is not the seller's assistant or facilitator
      * - If seller deposit is non zero and there are not enough funds to cover it
@@ -419,7 +416,10 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             EntityLib.validateSellerAssistantOrFacilitator(sellerId, offer.facilitatorId);
             handleBosonSellerDeposit(sellerId, exchangeToken, offer.sellerDeposit);
 
-            // WrapType wrapType = _wrapType;
+            if (_wrapType != FermionTypes.WrapType.SELF_SALE && offer.sellerDeposit == 0 && msg.value != 0) {
+                revert FundsErrors.NativeNotAllowed();
+            }
+
             deriveAndValidatePriceDiscoveryData(tokenId, _priceDiscovery, exchangeToken, _data);
 
             uint256 bosonProtocolFee = getBosonProtocolFee(exchangeToken, _priceDiscovery.price);
@@ -497,6 +497,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         if (customItemPrice == 0) {
             revert InvalidCustomItemPrice();
         }
+
         if (exchangeAmount > 0) {
             validateIncomingPayment(exchangeToken, exchangeAmount);
             transferERC20FromProtocol(exchangeToken, payable(_priceDiscovery.priceDiscoveryContract), exchangeAmount);
@@ -544,11 +545,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         }
 
         _priceDiscovery.price = _buyerOrder.parameters.offer[0].startAmount;
-        unchecked {
-            for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
-                // reduce the price by the openSea fee and the royalties
-                _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
-            }
+        for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
+            // reduce the price by the openSea fee and the royalties
+            _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
         }
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
@@ -585,7 +584,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
     /**
      * Handle Boson seller deposit
      *
-     * If the seller deposit is non zero, the amount must be deposited into Boson so unwrapping can succed.
+     * If the seller deposit is non zero, the amount must be deposited into Boson so unwrapping can succeed.
      * It the seller has some available funds in Fermion, they are used first.
      * Otherwise, the seller must provide the missing amount.
      *
@@ -609,6 +608,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
             ];
 
             if (availableFunds >= _sellerDeposit) {
+                if (_exchangeToken != address(0) && msg.value > 0) revert FundsErrors.NativeNotAllowed();
                 decreaseAvailableFunds(_sellerId, _exchangeToken, _sellerDeposit);
             } else {
                 // For offers in native token, the seller deposit cannot be sent at the time of unwrapping.
@@ -766,7 +766,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
      * @param ps - the protocol status storage pointer
      * @param _tokenMetadata - optional token metadata (name and symbol)
      */
-    function wrapNFTS(
+    function wrapNFTs(
         uint256 _offerId,
         IBosonVoucher _bosonVoucher,
         uint256 _startingNFTId,

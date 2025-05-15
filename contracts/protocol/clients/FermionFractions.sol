@@ -9,11 +9,12 @@ import { IFermionFractions } from "../interfaces/IFermionFractions.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { FermionBuyoutAuction } from "./FermionBuyoutAuction.sol";
 import { FermionFractionsERC20 } from "./FermionFractionsERC20.sol";
-
+import { NativeClaims } from "../libs/NativeClaims.sol";
+import { ReentrancyGuard } from "../bases/mixins/ReentrancyGuard.sol";
 /**
  * @dev Fractionalisation and buyout auction
  */
-abstract contract FermionFractions is FermionErrors, IFermionFractions {
+abstract contract FermionFractions is FermionErrors, IFermionFractions, ReentrancyGuard {
     using Address for address;
 
     address private immutable FNFT_FRACTION_MINT;
@@ -190,9 +191,8 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      *      If caller of the function is not the current epoch's ERC20 clone contract, no votes are adjusted.
      *
      * @param from The address of the sender whose votes may need adjustment.
-     * @param amount The number of fractions being transferred.
      */
-    function adjustVotesOnTransfer(address from, uint256 amount) external {
+    function adjustVotesOnTransfer(address from) external {
         forwardCall(FNFT_PRICE_MANAGER);
     }
 
@@ -227,7 +227,7 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * @param _price The bidding price
      * @param _fractions The number of fractions to use for the bid, in addition to the fractions already locked during the votes
      */
-    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable {
+    function bid(uint256 _tokenId, uint256 _price, uint256 _fractions) external payable nonReentrant {
         forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
@@ -377,10 +377,11 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * - `NoVotingPower` if the caller has no fractions to vote with.
      * - `ConflictingVote` if the caller attempts to vote differently from their previous vote.
      * - `AlreadyVoted` if the caller has already voted and has no additional fractions to contribute.
-     *
+     * - `InvalidProposalId` if the provided proposalId doesn't match the current active proposal.
+     * @param _proposalId The ID of the proposal to vote on.
      * @param _voteYes True to vote YES, false to vote NO.
      */
-    function voteOnProposal(bool _voteYes) external {
+    function voteOnProposal(uint256 _proposalId, bool _voteYes) external {
         forwardCall(FNFT_PRICE_MANAGER);
     }
 
@@ -396,9 +397,21 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * - `ProposalNotActive` if the proposal is not active.
      * - `NoVotingPower` if the caller has no votes recorded on the active proposal.
      *
+     * @param _proposalId The ID of the proposal to remove the vote from.
      */
-    function removeVoteOnProposal() external {
+    function removeVoteOnProposal(uint256 _proposalId) external {
         forwardCall(FNFT_PRICE_MANAGER);
+    }
+
+    /**
+     * @notice Claim native funds stored from bid refunds
+     *
+     * Reverts if:
+     * - No native funds available to claim
+     * - Native transfer fails
+     */
+    function claimNativeBidFunds() external {
+        forwardCall(FNFT_BUYOUT_AUCTION);
     }
 
     /**
@@ -531,9 +544,8 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
     }
 
     /**
-     * @notice Returns the non-mapping details of the current active proposal.
+     * @notice Returns details of a specific proposal from current epoch.
      *
-     * @return proposalId The unique ID of the proposal.
      * @return newExitPrice The proposed exit price.
      * @return votingDeadline The deadline for voting.
      * @return quorumPercent The required quorum percentage.
@@ -541,11 +553,12 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * @return noVotes The number of votes against.
      * @return state The state of the proposal (Active, Executed, or Failed).
      */
-    function getCurrentProposalDetails()
+    function getProposalDetails(
+        uint256 _proposalId
+    )
         external
         view
         returns (
-            uint256 proposalId,
             uint256 newExitPrice,
             uint256 votingDeadline,
             uint256 quorumPercent,
@@ -556,9 +569,8 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
     {
         FermionTypes.PriceUpdateProposal storage proposal = Common
             ._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch)
-            .currentProposal;
+            .priceUpdateProposals[_proposalId];
         return (
-            proposal.proposalId,
             proposal.newExitPrice,
             proposal.votingDeadline,
             proposal.quorumPercent,
@@ -575,10 +587,7 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      * @return voterDetails The details of the voter's vote.
      */
     function getVoterDetails(address _voter) external view returns (FermionTypes.PriceUpdateVoter memory) {
-        return
-            Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch).currentProposal.voters[
-                _voter
-            ];
+        return Common._getBuyoutAuctionStorage(Common._getFermionFractionsStorage().currentEpoch).voters[_voter];
     }
 
     /**
@@ -586,6 +595,15 @@ abstract contract FermionFractions is FermionErrors, IFermionFractions {
      */
     function liquidSupply() public view returns (uint256) {
         return Common.liquidSupply(Common._getFermionFractionsStorage().currentEpoch);
+    }
+
+    /**
+     * @notice Get the amount of native funds available for claim from bid refunds
+     * @param _claimer The address to check
+     * @return The amount available for claim
+     */
+    function getNativeBidClaimAmount(address _claimer) external view returns (uint256) {
+        return NativeClaims._getClaimAmount(_claimer);
     }
 
     /**

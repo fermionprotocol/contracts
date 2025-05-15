@@ -90,9 +90,11 @@ abstract contract Custody is FundsManager {
 
         for (uint256 i = 0; i < _length; i++) {
             // temporary close individual vaults and transfer the amount for unused periods to the offer vault
-            uint256 tokenId = _firstTokenId + i;
+            uint256 tokenId;
+            unchecked {
+                tokenId = _firstTokenId + i;
+            }
             FermionTypes.CustodianFee storage itemVault = pl.tokenLookups[tokenId].vault;
-
             // when fractionalisation happens, the owner must pay for used period + 1 future period to prevent fee evasion
             uint256 balance = itemVault.amount;
             uint256 lastReleased = itemVault.period;
@@ -102,10 +104,15 @@ abstract contract Custody is FundsManager {
                 // In case of external fractionalisation, the caller can provide additional funds to cover the custodian fee. If not enough, revert.
                 if (_externalCall) {
                     // Full custodian payoff must be paid in order to fractionalise
-                    uint256 diff = custodianPayoff + custodianFee.amount - balance;
+                    uint256 diff;
+                    unchecked {
+                        diff = custodianPayoff + custodianFee.amount - balance;
+                    }
                     if (returnedAmount > diff) {
-                        returnedAmount -= diff;
-                        balance = custodianPayoff + custodianFee.amount;
+                        unchecked {
+                            returnedAmount -= diff;
+                            balance = custodianPayoff + custodianFee.amount;
+                        }
                     } else {
                         revert CustodianVaultErrors.InsufficientBalanceToFractionalise(tokenId, diff);
                     }
