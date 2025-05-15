@@ -103,7 +103,6 @@ interface IFermionFNFTPriceManager {
      *
      *
      * @param from The address of the sender whose votes may need adjustment.
-     * @param amount The number of fractions being transferred.
      */
-    function adjustVotesOnTransfer(address from, uint256 amount) external;
+    function adjustVotesOnTransfer(address from) external;
 }

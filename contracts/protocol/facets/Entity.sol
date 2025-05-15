@@ -339,7 +339,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * - Entity region is paused
      * - New and old account are the same
      * - Caller is the entity's admin
-     * - Caller is not a account for any enitity
+     * - Caller is not a account for any entity
      * - New account is already a account for an entity
      *
      * @param _newAccount - the new account address
@@ -535,7 +535,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
     }
 
     /**
-     * @notice Converts array of Permisions to compact account roles.
+     * @notice Converts array of permissions to compact account roles.
      *
      * Calculates the compact account roles as the sum of individual account roles.
      * Use "or" to get the correct value even if the same role is specified more than once.
@@ -543,7 +543,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
      * @param _accountRole - the array of account roles
      * @return compactAccountRole - the compact representation of account roles
      */
-    function accountRoleToCompactAccountRoles(
+    function accountRoleToCompactAccountRole(
         FermionTypes.AccountRole[] calldata _accountRole
     ) internal pure returns (uint256 compactAccountRole) {
         if (_accountRole.length == 0) {
@@ -585,7 +585,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                 !EntityLib.hasAccountRole(_entityId, msgSender, ANY_ENTITY_ROLE, FermionTypes.AccountRole.Manager, true)
             ) revert NotEntityWideRole(msgSender, _entityId, FermionTypes.AccountRole.Manager);
 
-            uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[0]);
+            uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRole(_accountRoles[0]);
             compactAccountRole = compactAccountRolePerEntityRole << (31 * BYTE_SIZE); // put in the first byte.
         } else {
             if (_entityRoles.length != _accountRoles.length)
@@ -599,7 +599,7 @@ contract EntityFacet is Context, EntityErrors, Access, IEntityEvents {
                     !EntityLib.hasAccountRole(_entityId, msgSender, entityRole, FermionTypes.AccountRole.Manager, false)
                 ) revert NotRoleManager(msgSender, _entityId, entityRole);
 
-                uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRoles(_accountRoles[i]);
+                uint256 compactAccountRolePerEntityRole = accountRoleToCompactAccountRole(_accountRoles[i]);
 
                 uint256 role = compactAccountRolePerEntityRole << (uint256(entityRole) * BYTE_SIZE); // put in the right byte.
                 compactAccountRole |= role;

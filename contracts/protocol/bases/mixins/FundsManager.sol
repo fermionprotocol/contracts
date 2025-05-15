@@ -214,7 +214,7 @@ contract FundsManager {
     }
 
     /**
-     * @notice Checks if the contract at the token address is FNFN or not.
+     * @notice Checks if the contract at the token address is FNFT or not.
      *
      * @dev override this function in the child contract does not need this check
      *

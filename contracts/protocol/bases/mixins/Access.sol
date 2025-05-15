@@ -5,8 +5,8 @@ import { IAccessControl } from "@openzeppelin/contracts/access/IAccessControl.so
 import { FermionTypes } from "../../domain/Types.sol";
 import { FermionStorage } from "../../libs/Storage.sol";
 import { PauseErrors, FermionGeneralErrors } from "../../domain/Errors.sol";
-import { Context } from "../../bases/mixins/Context.sol";
-import { ReentrancyGuard } from "../../bases/mixins/ReentrancyGuard.sol";
+import { Context } from "./Context.sol";
+import { ReentrancyGuard } from "./ReentrancyGuard.sol";
 
 /**
  * @title Access control

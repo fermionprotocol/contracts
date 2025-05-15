@@ -70,7 +70,7 @@ contract FermionFractionsERC20 is
         super._update(from, to, value);
 
         if (from != address(0)) {
-            IFermionFNFTPriceManager(owner()).adjustVotesOnTransfer(from, value);
+            IFermionFNFTPriceManager(owner()).adjustVotesOnTransfer(from);
         }
     }
 

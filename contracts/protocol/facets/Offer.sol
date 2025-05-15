@@ -153,7 +153,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         FermionTypes.TokenMetadata memory _tokenMetadata
     ) external notPaused(FermionTypes.PausableRegion.Offer) nonReentrant {
         (IBosonVoucher bosonVoucher, uint256 startingNFTId) = mintNFTs(_offerId, _quantity);
-        wrapNFTS(
+        wrapNFTs(
             _offerId,
             bosonVoucher,
             startingNFTId,
@@ -223,7 +223,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
     {
         IBosonVoucher bosonVoucher;
         (bosonVoucher, startingNFTId) = mintNFTs(_offerId, _quantity);
-        (wrapperAddress, exchangeToken) = wrapNFTS(
+        (wrapperAddress, exchangeToken) = wrapNFTs(
             _offerId,
             bosonVoucher,
             startingNFTId,
@@ -545,11 +545,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         }
 
         _priceDiscovery.price = _buyerOrder.parameters.offer[0].startAmount;
-        unchecked {
-            for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
-                // reduce the price by the openSea fee and the royalties
-                _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
-            }
+        for (uint256 i = 1; i < _buyerOrder.parameters.consideration.length; i++) {
+            // reduce the price by the openSea fee and the royalties
+            _priceDiscovery.price -= _buyerOrder.parameters.consideration[i].startAmount;
         }
 
         _priceDiscovery.priceDiscoveryData = abi.encodeCall(IFermionWrapper.unwrap, (_tokenId, _buyerOrder));
@@ -768,7 +766,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
      * @param ps - the protocol status storage pointer
      * @param _tokenMetadata - optional token metadata (name and symbol)
      */
-    function wrapNFTS(
+    function wrapNFTs(
         uint256 _offerId,
         IBosonVoucher _bosonVoucher,
         uint256 _startingNFTId,

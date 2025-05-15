@@ -420,9 +420,8 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
      *      no votes are adjusted.
      *
      * @param from The address of the sender whose votes may need adjustment.
-     * @param amount The number of fractions being transferred.
      */
-    function adjustVotesOnTransfer(address from, uint256 amount) external {
+    function adjustVotesOnTransfer(address from) external {
         FermionTypes.FermionFractionsStorage storage fractionStorage = Common._getFermionFractionsStorage();
         uint256 currentEpoch = fractionStorage.currentEpoch;
         address currentERC20Clone = fractionStorage.epochToClone[currentEpoch];

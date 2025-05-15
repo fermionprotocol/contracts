@@ -17,7 +17,7 @@ contract ReentrancyGuard {
     error Reentered();
 
     modifier nonReentrant() {
-        // NB: it's more optiomal to compare msg.sender to address(this) twice than storing it in a variable (e.g. _isSelf)
+        // NB: it's more optimal to compare msg.sender to address(this) twice than storing it in a variable (e.g. _isSelf)
         // - it's cheaper
         // - it does not add a variable to the stack and cause stack too deep errors
         if (msg.sender != address(this)) {
