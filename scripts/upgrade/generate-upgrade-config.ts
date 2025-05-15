@@ -4,6 +4,7 @@ import fs from "fs";
 import path from "path";
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
 import { getSelectors } from "../libraries/diamond";
+import { getFunctionSignatureDetails } from "../libraries/metaTransaction";
 
 const prefix = "contracts/";
 const sources = ["diamond", "protocol/facets", "protocol/clients", "protocol/bases", "protocol/libs"];
@@ -23,8 +24,15 @@ async function getContractSelectors(contractName: string): Promise<Record<string
   );
 }
 
-async function getBytecodes(version: string): Promise<Record<string, string>> {
-  const bytecodes: Record<string, string> = {};
+interface FunctionSignatureDetail {
+  name: string;
+  hash: string;
+}
+
+async function getBytecodes(
+  version: string,
+): Promise<Record<string, { bytecode: string; functionSignatures: FunctionSignatureDetail[] }>> {
+  const bytecodes: Record<string, { bytecode: string; functionSignatures: FunctionSignatureDetail[] }> = {};
   const cwd = process.cwd();
 
   try {
@@ -67,7 +75,15 @@ async function getBytecodes(version: string): Promise<Record<string, string>> {
       try {
         const artifact = await hre.artifacts.readArtifact(name);
         if (artifact.bytecode && artifact.bytecode !== "0x") {
-          bytecodes[name] = artifact.bytecode;
+          let functionSignatures: FunctionSignatureDetail[] = [];
+          if (name.endsWith("Facet")) {
+            try {
+              functionSignatures = await getFunctionSignatureDetails([name], ["initialize", "init"]);
+            } catch (e) {
+              console.warn(`Warning: Could not get function signature details for ${name} in version ${version}:`, e);
+            }
+          }
+          bytecodes[name] = { bytecode: artifact.bytecode, functionSignatures };
         }
       } catch {
         // Ignore errors for missing artifacts
@@ -97,7 +113,7 @@ async function generateUpgradeConfig(
     const removedContracts = Object.keys(referenceBytecodes).filter((contract) => !(contract in targetBytecodes));
     const newContracts = Object.keys(targetBytecodes).filter((contract) => !(contract in referenceBytecodes));
     const changedContracts = overlappingContracts.filter(
-      (contract) => referenceBytecodes[contract] !== targetBytecodes[contract],
+      (contract) => referenceBytecodes[contract].bytecode !== targetBytecodes[contract].bytecode,
     );
 
     // Get selectors for all facets
@@ -140,6 +156,20 @@ async function generateUpgradeConfig(
       }
     }
 
+    const metaTxAllowlistAdd = newContracts
+      .filter((contract) => contract.endsWith("Facet") && !contract.includes("/test/") && !contract.includes("Mock"))
+      .flatMap((contractName) => {
+        const details = targetBytecodes[contractName]?.functionSignatures || [];
+        return details.map((detail) => ({ facetName: contractName, functionName: detail.name, hash: detail.hash }));
+      });
+
+    const metaTxAllowlistRemove = removedContracts
+      .filter((contract) => contract.endsWith("Facet"))
+      .flatMap((contractName) => {
+        const details = referenceBytecodes[contractName]?.functionSignatures || [];
+        return details.map((detail) => ({ facetName: contractName, functionName: detail.name, hash: detail.hash }));
+      });
+
     const upgradeConfig = {
       description: `Upgrade to version ${version}`,
       facets: {
@@ -171,6 +201,10 @@ async function generateUpgradeConfig(
             );
           }),
         ],
+      },
+      metaTxAllowlist: {
+        add: metaTxAllowlistAdd,
+        remove: metaTxAllowlistRemove,
       },
     };
 

@@ -8,6 +8,12 @@ import { getSelectors, removeSelectors } from "../libraries/diamond";
 import readline from "readline";
 import { deploymentComplete, getDeploymentData, deploymentData } from "../deploy";
 
+interface MetaTxAllowlistItem {
+  facetName: string;
+  functionName: string;
+  hash: string;
+}
+
 interface FacetConfig {
   version: string;
   description: string;
@@ -20,6 +26,10 @@ interface FacetConfig {
     initializeData?: Record<string, any[]>;
   };
   initializationData?: string;
+  metaTxAllowlist?: {
+    add?: MetaTxAllowlistItem[];
+    remove?: MetaTxAllowlistItem[];
+  };
 }
 
 enum FacetCutAction {
@@ -548,6 +558,33 @@ async function prepareFacetCuts(
   };
 }
 
+async function processMetaTxAllowlistChanges(
+  metaTransactionFacet: any, // Consider using a more specific type if available (e.g., MetaTransactionFacet contract type)
+  items: MetaTxAllowlistItem[],
+  isAdding: boolean,
+) {
+  const logHeader = isAdding
+    ? `\n⚙️  Updating MetaTransactionFacet allowlist (Adding ${items.length} function(s)):`
+    : `\n⚙️  Updating MetaTransactionFacet allowlist (Removing ${items.length} function(s)):`;
+  console.log(logHeader);
+
+  items.forEach((item) => {
+    console.log(`    - Facet:    ${item.facetName}`);
+    console.log(`      Function: ${item.functionName}`);
+    console.log(`      Hash:     ${item.hash}`);
+    console.log("");
+  });
+
+  const hashes = items.map((item) => item.hash);
+  const tx = await metaTransactionFacet.setAllowlistedFunctions(hashes, isAdding);
+  await tx.wait();
+
+  const successMessage = isAdding
+    ? "✅ Functions added to allowlist successfully."
+    : "✅ Functions removed from allowlist successfully.";
+  console.log(successMessage);
+}
+
 async function executeFacetUpdates(
   config: FacetConfig,
   protocolAddress: string,
@@ -573,5 +610,18 @@ async function executeFacetUpdates(
     );
   } else {
     console.log("ℹ️  No facet cuts to execute");
+  }
+
+  // Update MetaTransactionFacet allowlist
+  if (config.metaTxAllowlist) {
+    const metaTransactionFacet = await hre.ethers.getContractAt("MetaTransactionFacet", protocolAddress);
+
+    if (config.metaTxAllowlist.add && config.metaTxAllowlist.add.length > 0) {
+      await processMetaTxAllowlistChanges(metaTransactionFacet, config.metaTxAllowlist.add, true);
+    }
+
+    if (config.metaTxAllowlist.remove && config.metaTxAllowlist.remove.length > 0) {
+      await processMetaTxAllowlistChanges(metaTransactionFacet, config.metaTxAllowlist.remove, false);
+    }
   }
 }

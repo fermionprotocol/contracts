@@ -139,3 +139,20 @@ export async function getStateModifyingFunctionsHashes(
 
   return stateModifyingFunctions.map((smf) => id(smf));
 }
+
+export async function getFunctionSignatureDetails(
+  facetNames: string[],
+  omitFunctions: string[] = [],
+  onlyFunctions: string[] = [],
+): Promise<Array<{ name: string; hash: string }>> {
+  const stateModifyingFunctionSignatures = await getStateModifyingFunctions(
+    facetNames,
+    [...omitFunctions, "initialize", "init"],
+    onlyFunctions,
+  );
+
+  return stateModifyingFunctionSignatures.map((sig) => ({
+    name: sig,
+    hash: id(sig),
+  }));
+}
