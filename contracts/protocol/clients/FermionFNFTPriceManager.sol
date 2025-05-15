@@ -455,10 +455,10 @@ contract FermionFNFTPriceManager is FermionErrors, ERC2771Context, IFermionFNFTP
             return;
         }
 
-        uint256 votesToRemove = voteCount - remainingBalance;
-        voter.voteCount = remainingBalance;
-
+        uint256 votesToRemove;
         unchecked {
+            votesToRemove = voteCount - remainingBalance;
+            voter.voteCount = remainingBalance;
             if (voter.votedYes) {
                 proposal.yesVotes -= votesToRemove;
             } else {
