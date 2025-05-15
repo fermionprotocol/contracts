@@ -9,6 +9,10 @@ import { getFunctionSignatureDetails } from "../libraries/metaTransaction";
 const prefix = "contracts/";
 const sources = ["diamond", "protocol/facets", "protocol/clients", "protocol/bases", "protocol/libs"];
 
+function isContractRelevantForAllowlist(name: string): boolean {
+  return name.endsWith("Facet") || name === "FermionFNFT" || name === "FermionFractionsERC20";
+}
+
 async function getContractSelectors(contractName: string): Promise<Record<string, string>> {
   const contract = await hre.ethers.getContractFactory(contractName);
   const selectors = await getSelectors(contract);
@@ -76,7 +80,7 @@ async function getBytecodes(
         const artifact = await hre.artifacts.readArtifact(name);
         if (artifact.bytecode && artifact.bytecode !== "0x") {
           let functionSignatures: FunctionSignatureDetail[] = [];
-          if (name.endsWith("Facet")) {
+          if (isContractRelevantForAllowlist(name)) {
             try {
               functionSignatures = await getFunctionSignatureDetails([name], ["initialize", "init"]);
             } catch (e) {
@@ -116,13 +120,13 @@ async function generateUpgradeConfig(
       (contract) => referenceBytecodes[contract].bytecode !== targetBytecodes[contract].bytecode,
     );
 
-    // Get selectors for all facets
+    // Get selectors for all facets (this part remains for general facet selector information, not specific to allowlist)
     const facetSelectors: Record<string, Record<string, string>> = {};
-    const allFacets = [...new Set([...overlappingContracts, ...newContracts])]
-      .filter((contract) => contract.endsWith("Facet"))
-      .filter((contract) => !contract.includes("/test/") && !contract.includes("Mock")); // Ignore test contracts
+    const allFacetsForSelectorInfo = [...new Set([...overlappingContracts, ...newContracts])]
+      .filter((contract) => contract.endsWith("Facet")) // Original facet filter for this specific purpose
+      .filter((contract) => !contract.includes("/test/") && !contract.includes("Mock"));
 
-    for (const facet of allFacets) {
+    for (const facet of allFacetsForSelectorInfo) {
       try {
         facetSelectors[facet] = await getContractSelectors(facet);
       } catch (error) {
@@ -132,7 +136,7 @@ async function generateUpgradeConfig(
 
     // Detect constructor arguments for facets
     const constructorArgs: Record<string, string[]> = {};
-    for (const facet of allFacets) {
+    for (const facet of allFacetsForSelectorInfo) {
       try {
         const factory = await hre.ethers.getContractFactory(facet);
         const fragment = factory.interface.deploy;
@@ -156,19 +160,66 @@ async function generateUpgradeConfig(
       }
     }
 
-    const metaTxAllowlistAdd = newContracts
-      .filter((contract) => contract.endsWith("Facet") && !contract.includes("/test/") && !contract.includes("Mock"))
-      .flatMap((contractName) => {
-        const details = targetBytecodes[contractName]?.functionSignatures || [];
-        return details.map((detail) => ({ facetName: contractName, functionName: detail.name, hash: detail.hash }));
-      });
+    const relevantNewContracts = newContracts.filter(
+      (contract) =>
+        isContractRelevantForAllowlist(contract) && !contract.includes("/test/") && !contract.includes("Mock"),
+    );
 
-    const metaTxAllowlistRemove = removedContracts
-      .filter((contract) => contract.endsWith("Facet"))
-      .flatMap((contractName) => {
-        const details = referenceBytecodes[contractName]?.functionSignatures || [];
-        return details.map((detail) => ({ facetName: contractName, functionName: detail.name, hash: detail.hash }));
-      });
+    const metaTxAllowlistAddFromNew = relevantNewContracts.flatMap((contractName) => {
+      const details = targetBytecodes[contractName]?.functionSignatures || [];
+      return details.map((detail) => ({ facetName: contractName, functionName: detail.name, hash: detail.hash }));
+    });
+
+    const relevantRemovedContracts = removedContracts.filter((contract) => isContractRelevantForAllowlist(contract)); // No need to filter for /test/ or /Mock/ here as they are already gone
+
+    const metaTxAllowlistRemoveFromOld = relevantRemovedContracts.flatMap((contractName) => {
+      const details = referenceBytecodes[contractName]?.functionSignatures || [];
+      return details.map((detail) => ({ facetName: contractName, functionName: detail.name, hash: detail.hash }));
+    });
+
+    // Process changed relevant contracts for added/removed functions
+    const relevantChangedContracts = changedContracts.filter(
+      (contract) =>
+        isContractRelevantForAllowlist(contract) && !contract.includes("/test/") && !contract.includes("Mock"),
+    );
+
+    let metaTxAllowlistAddFromChanged: { facetName: string; functionName: string; hash: string }[] = [];
+    let metaTxAllowlistRemoveFromChanged: { facetName: string; functionName: string; hash: string }[] = [];
+
+    for (const contractName of relevantChangedContracts) {
+      // Changed variable name from facetName to contractName for generality
+      const oldFunctionSignatures = referenceBytecodes[contractName]?.functionSignatures || [];
+      const newFunctionSignatures = targetBytecodes[contractName]?.functionSignatures || [];
+
+      const oldHashes = new Set(oldFunctionSignatures.map((sig) => sig.hash));
+      const newHashes = new Set(newFunctionSignatures.map((sig) => sig.hash));
+
+      const addedFunctionsInContract = newFunctionSignatures.filter((sig) => !oldHashes.has(sig.hash));
+      const removedFunctionsInContract = oldFunctionSignatures.filter((sig) => !newHashes.has(sig.hash));
+
+      if (addedFunctionsInContract.length > 0) {
+        metaTxAllowlistAddFromChanged = metaTxAllowlistAddFromChanged.concat(
+          addedFunctionsInContract.map((detail) => ({
+            facetName: contractName,
+            functionName: detail.name,
+            hash: detail.hash,
+          })),
+        );
+      }
+
+      if (removedFunctionsInContract.length > 0) {
+        metaTxAllowlistRemoveFromChanged = metaTxAllowlistRemoveFromChanged.concat(
+          removedFunctionsInContract.map((detail) => ({
+            facetName: contractName,
+            functionName: detail.name,
+            hash: detail.hash,
+          })),
+        );
+      }
+    }
+
+    const finalMetaTxAllowlistAdd = [...metaTxAllowlistAddFromNew, ...metaTxAllowlistAddFromChanged];
+    const finalMetaTxAllowlistRemove = [...metaTxAllowlistRemoveFromOld, ...metaTxAllowlistRemoveFromChanged];
 
     const upgradeConfig = {
       description: `Upgrade to version ${version}`,
@@ -203,8 +254,8 @@ async function generateUpgradeConfig(
         ],
       },
       metaTxAllowlist: {
-        add: metaTxAllowlistAdd,
-        remove: metaTxAllowlistRemove,
+        add: finalMetaTxAllowlistAdd,
+        remove: finalMetaTxAllowlistRemove,
       },
     };
 
