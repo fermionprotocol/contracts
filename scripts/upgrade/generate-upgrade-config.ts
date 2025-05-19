@@ -9,6 +9,22 @@ import { getFunctionSignatureDetails } from "../libraries/metaTransaction";
 const prefix = "contracts/";
 const sources = ["diamond", "protocol/facets", "protocol/clients", "protocol/bases", "protocol/libs"];
 
+const RESTRICTED_FUNCTIONS = [
+  "burn",
+  "mint",
+  "renounceOwnership",
+  "transferOwnership",
+  "setTransferValidator",
+  "transferFractionsFrom",
+  "addPriceOracle",
+  "removePriceOracle",
+  "adjustVotesOnTransfer",
+  "migrateFractions",
+  "setMaxRoyaltyPercentage",
+  "setOpenSeaFeePercentage",
+  "setProtocolFeeTable",
+];
+
 function isContractRelevantForAllowlist(name: string): boolean {
   return name.endsWith("Facet") || name === "FermionFNFT" || name === "FermionFractionsERC20";
 }
@@ -82,7 +98,7 @@ async function getBytecodes(
           let functionSignatures: FunctionSignatureDetail[] = [];
           if (isContractRelevantForAllowlist(name)) {
             try {
-              functionSignatures = await getFunctionSignatureDetails([name], ["initialize", "init"]);
+              functionSignatures = await getFunctionSignatureDetails([name], [...RESTRICTED_FUNCTIONS]);
             } catch (e) {
               console.warn(`Warning: Could not get function signature details for ${name} in version ${version}:`, e);
             }

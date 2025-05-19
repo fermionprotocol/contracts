@@ -559,7 +559,7 @@ async function prepareFacetCuts(
 }
 
 async function processMetaTxAllowlistChanges(
-  metaTransactionFacet: any, // Consider using a more specific type if available (e.g., MetaTransactionFacet contract type)
+  metaTransactionFacet: any,
   items: MetaTxAllowlistItem[],
   isAdding: boolean,
 ) {
@@ -568,21 +568,48 @@ async function processMetaTxAllowlistChanges(
     : `\n⚙️  Updating MetaTransactionFacet allowlist (Removing ${items.length} function(s)):`;
   console.log(logHeader);
 
-  items.forEach((item) => {
-    console.log(`    - Facet:    ${item.facetName}`);
-    console.log(`      Function: ${item.functionName}`);
-    console.log(`      Hash:     ${item.hash}`);
-    console.log("");
-  });
+  if (isAdding) {
+    // Check which functions are already allowlisted
+    const hashesToAdd = [];
+    for (const item of items) {
+      const isAllowlisted = await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](item.hash);
+      if (!isAllowlisted) {
+        console.log(`    📝 Adding new function to allowlist:`);
+        console.log(`      Contract: ${item.facetName}`);
+        console.log(`      Function: ${item.functionName}`);
+        console.log(`      Hash:     ${item.hash}`);
+        console.log("");
+        hashesToAdd.push(item.hash);
+      } else {
+        console.log(`    ℹ️  Function already in allowlist:`);
+        console.log(`      Contract: ${item.facetName}`);
+        console.log(`      Function: ${item.functionName}`);
+        console.log("");
+      }
+    }
 
-  const hashes = items.map((item) => item.hash);
-  const tx = await metaTransactionFacet.setAllowlistedFunctions(hashes, isAdding);
-  await tx.wait();
+    if (hashesToAdd.length === 0) {
+      console.log("ℹ️  No new functions to add to allowlist");
+      return;
+    }
 
-  const successMessage = isAdding
-    ? "✅ Functions added to allowlist successfully."
-    : "✅ Functions removed from allowlist successfully.";
-  console.log(successMessage);
+    const tx = await metaTransactionFacet.setAllowlistedFunctions(hashesToAdd, true);
+    await tx.wait();
+    console.log(`✅ Successfully added ${hashesToAdd.length} function(s) to allowlist`);
+  } else {
+    items.forEach((item) => {
+      console.log(`    📝 Removing function from allowlist:`);
+      console.log(`      Contract: ${item.facetName}`);
+      console.log(`      Function: ${item.functionName}`);
+      console.log(`      Hash:     ${item.hash}`);
+      console.log("");
+    });
+
+    const hashes = items.map((item) => item.hash);
+    const tx = await metaTransactionFacet.setAllowlistedFunctions(hashes, false);
+    await tx.wait();
+    console.log(`✅ Successfully removed ${items.length} function(s) from allowlist`);
+  }
 }
 
 async function executeFacetUpdates(
