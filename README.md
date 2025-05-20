@@ -89,6 +89,16 @@ yarn coverage
 
 Coverage report formats are "html", "json-summary", "lcov", "text" and the reports get written in `./coverage/`.
 
+#### Check Allowlisted Functions
+
+Check which functions are allowlisted for meta-transactions:
+
+```shell
+ENV=<environment> npx hardhat run scripts/check-allowlisted-functions.ts --network <network>
+```
+
+The script shows which functions from deployed contracts are allowlisted for meta-transactions, grouped by contract. It also provides a summary of total, allowlisted, and non-allowlisted functions.
+
 #### Integration test
 
 In addition to unit tests, we provide integration tests, found in `./test/integration`. We use the integration tests to ensure compatibility with already deployed contracts.
