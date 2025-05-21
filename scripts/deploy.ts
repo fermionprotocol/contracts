@@ -1,7 +1,7 @@
 import fs from "fs";
 import hre, { ethers, network } from "hardhat";
 import { FacetCutAction, getSelectors } from "./libraries/diamond";
-import { getStateModifyingFunctionsHashes } from "./libraries/metaTransaction";
+import { getStateModifyingFunctionsHashes, RESTRICTED_METATX_FUNCTIONS } from "./libraries/metaTransaction";
 import { writeContracts, readContracts, checkDeployerAddress, deployContract } from "./libraries/utils";
 import { vars } from "hardhat/config";
 
@@ -237,11 +237,16 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // grant upgrader role
     await accessController.grantRole(ethers.id("UPGRADER"), deployerAddress);
 
+    const metatxFacets = facetNames.filter((facet) => facet !== "ConfigFacet" && facet !== "PauseFacet");
+
     // Init other facets, using the initialization facet
     // Prepare init call
     const init = {
       MetaTransactionFacet: [
-        await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT", "FermionFractionsERC20"]),
+        await getStateModifyingFunctionsHashes(
+          [...metatxFacets, "FermionFNFT", "FermionFractionsERC20"],
+          RESTRICTED_METATX_FUNCTIONS,
+        ),
       ],
       ConfigFacet: [
         fermionConfig.protocolParameters.treasury,

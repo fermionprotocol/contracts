@@ -1,6 +1,6 @@
 import { readContracts, writeContracts } from "../libraries/utils";
 import { checkRole } from "../libraries/utils";
-import { setupDryRun } from "../dry-run";
+import { getBalance, setupDryRun } from "../dry-run";
 import fs from "fs";
 import path from "path";
 import hre from "hardhat";
@@ -61,7 +61,6 @@ export async function upgradeFacets(
 
   try {
     let balanceBefore: bigint = 0n;
-    const getBalance: () => Promise<bigint> = async () => 0n;
     const originalEnv = env;
     const originalNetwork = await ethers.provider.getNetwork();
     const originalChainId = originalNetwork.chainId;
@@ -612,6 +611,29 @@ async function processMetaTxAllowlistChanges(
   }
 }
 
+function deduplicateAllowlistChanges(config: FacetConfig): FacetConfig {
+  if (!config.metaTxAllowlist) {
+    return config;
+  }
+
+  const { add = [], remove = [] } = config.metaTxAllowlist;
+  const addHashes = new Set(add.map((item) => item.hash));
+  const removeHashes = new Set(remove.map((item) => item.hash));
+
+  // Remove items from add list if they are in remove list
+  const deduplicatedAdd = add.filter((item) => !removeHashes.has(item.hash));
+  // Remove items from remove list if they are in add list
+  const deduplicatedRemove = remove.filter((item) => !addHashes.has(item.hash));
+
+  return {
+    ...config,
+    metaTxAllowlist: {
+      add: deduplicatedAdd,
+      remove: deduplicatedRemove,
+    },
+  };
+}
+
 async function executeFacetUpdates(
   config: FacetConfig,
   protocolAddress: string,
@@ -642,13 +664,14 @@ async function executeFacetUpdates(
   // Update MetaTransactionFacet allowlist
   if (config.metaTxAllowlist) {
     const metaTransactionFacet = await hre.ethers.getContractAt("MetaTransactionFacet", protocolAddress);
+    const deduplicatedConfig = deduplicateAllowlistChanges(config);
 
-    if (config.metaTxAllowlist.add && config.metaTxAllowlist.add.length > 0) {
-      await processMetaTxAllowlistChanges(metaTransactionFacet, config.metaTxAllowlist.add, true);
+    if (deduplicatedConfig.metaTxAllowlist?.add && deduplicatedConfig.metaTxAllowlist.add.length > 0) {
+      await processMetaTxAllowlistChanges(metaTransactionFacet, deduplicatedConfig.metaTxAllowlist.add, true);
     }
 
-    if (config.metaTxAllowlist.remove && config.metaTxAllowlist.remove.length > 0) {
-      await processMetaTxAllowlistChanges(metaTransactionFacet, config.metaTxAllowlist.remove, false);
+    if (deduplicatedConfig.metaTxAllowlist?.remove && deduplicatedConfig.metaTxAllowlist.remove.length > 0) {
+      await processMetaTxAllowlistChanges(metaTransactionFacet, deduplicatedConfig.metaTxAllowlist.remove, false);
     }
   }
 }

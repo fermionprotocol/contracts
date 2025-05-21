@@ -4,29 +4,17 @@ import fs from "fs";
 import path from "path";
 import type { HardhatRuntimeEnvironment } from "hardhat/types";
 import { getSelectors } from "../libraries/diamond";
-import { getFunctionSignatureDetails } from "../libraries/metaTransaction";
+import { getFunctionSignatureDetails, RESTRICTED_METATX_FUNCTIONS } from "../libraries/metaTransaction";
 
 const prefix = "contracts/";
 const sources = ["diamond", "protocol/facets", "protocol/clients", "protocol/bases", "protocol/libs"];
 
-const RESTRICTED_FUNCTIONS = [
-  "burn",
-  "mint",
-  "renounceOwnership",
-  "transferOwnership",
-  "setTransferValidator",
-  "transferFractionsFrom",
-  "addPriceOracle",
-  "removePriceOracle",
-  "adjustVotesOnTransfer",
-  "migrateFractions",
-  "setMaxRoyaltyPercentage",
-  "setOpenSeaFeePercentage",
-  "setProtocolFeeTable",
-];
-
 function isContractRelevantForAllowlist(name: string): boolean {
-  return name.endsWith("Facet") || name === "FermionFNFT" || name === "FermionFractionsERC20";
+  return (
+    (name.endsWith("Facet") && name !== "ConfigFacet" && name !== "PauseFacet") ||
+    name === "FermionFNFT" ||
+    name === "FermionFractionsERC20"
+  );
 }
 
 async function getContractSelectors(contractName: string): Promise<Record<string, string>> {
@@ -98,7 +86,7 @@ async function getBytecodes(
           let functionSignatures: FunctionSignatureDetail[] = [];
           if (isContractRelevantForAllowlist(name)) {
             try {
-              functionSignatures = await getFunctionSignatureDetails([name], [...RESTRICTED_FUNCTIONS]);
+              functionSignatures = await getFunctionSignatureDetails([name], RESTRICTED_METATX_FUNCTIONS);
             } catch (e) {
               console.warn(`Warning: Could not get function signature details for ${name} in version ${version}:`, e);
             }
