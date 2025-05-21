@@ -1,12 +1,18 @@
 import { readContracts, writeContracts } from "../libraries/utils";
 import { checkRole } from "../libraries/utils";
-import { setupDryRun } from "../dry-run";
+import { getBalance, setupDryRun } from "../dry-run";
 import fs from "fs";
 import path from "path";
 import hre from "hardhat";
 import { getSelectors, removeSelectors } from "../libraries/diamond";
 import readline from "readline";
 import { deploymentComplete, getDeploymentData, deploymentData } from "../deploy";
+
+interface MetaTxAllowlistItem {
+  facetName: string;
+  functionName: string;
+  hash: string;
+}
 
 interface FacetConfig {
   version: string;
@@ -20,6 +26,10 @@ interface FacetConfig {
     initializeData?: Record<string, any[]>;
   };
   initializationData?: string;
+  metaTxAllowlist?: {
+    add?: MetaTxAllowlistItem[];
+    remove?: MetaTxAllowlistItem[];
+  };
 }
 
 enum FacetCutAction {
@@ -51,7 +61,6 @@ export async function upgradeFacets(
 
   try {
     let balanceBefore: bigint = 0n;
-    const getBalance: () => Promise<bigint> = async () => 0n;
     const originalEnv = env;
     const originalNetwork = await ethers.provider.getNetwork();
     const originalChainId = originalNetwork.chainId;
@@ -249,6 +258,10 @@ async function resolveSelectorCollision(
   remainingSelectors: string[] = [],
 ): Promise<{ shouldReplace: boolean; shouldSkip: boolean; skipAll: boolean; replaceAll: boolean }> {
   const functionName = newFacet.contract.interface.getFunction(selectorToAdd)?.format() || "Unknown function";
+
+  if (isForkTest) {
+    return { shouldReplace: true, shouldSkip: false, skipAll: false, replaceAll: true };
+  }
 
   if (isForkTest) {
     return { shouldReplace: true, shouldSkip: false, skipAll: false, replaceAll: true };
@@ -544,6 +557,83 @@ async function prepareFacetCuts(
   };
 }
 
+async function processMetaTxAllowlistChanges(
+  metaTransactionFacet: any,
+  items: MetaTxAllowlistItem[],
+  isAdding: boolean,
+) {
+  const logHeader = isAdding
+    ? `\n⚙️  Updating MetaTransactionFacet allowlist (Adding ${items.length} function(s)):`
+    : `\n⚙️  Updating MetaTransactionFacet allowlist (Removing ${items.length} function(s)):`;
+  console.log(logHeader);
+
+  if (isAdding) {
+    // Check which functions are already allowlisted
+    const hashesToAdd = [];
+    for (const item of items) {
+      const isAllowlisted = await metaTransactionFacet["isFunctionAllowlisted(bytes32)"](item.hash);
+      if (!isAllowlisted) {
+        console.log(`    📝 Adding new function to allowlist:`);
+        console.log(`      Contract: ${item.facetName}`);
+        console.log(`      Function: ${item.functionName}`);
+        console.log(`      Hash:     ${item.hash}`);
+        console.log("");
+        hashesToAdd.push(item.hash);
+      } else {
+        console.log(`    ℹ️  Function already in allowlist:`);
+        console.log(`      Contract: ${item.facetName}`);
+        console.log(`      Function: ${item.functionName}`);
+        console.log("");
+      }
+    }
+
+    if (hashesToAdd.length === 0) {
+      console.log("ℹ️  No new functions to add to allowlist");
+      return;
+    }
+
+    const tx = await metaTransactionFacet.setAllowlistedFunctions(hashesToAdd, true);
+    await tx.wait();
+    console.log(`✅ Successfully added ${hashesToAdd.length} function(s) to allowlist`);
+  } else {
+    items.forEach((item) => {
+      console.log(`    📝 Removing function from allowlist:`);
+      console.log(`      Contract: ${item.facetName}`);
+      console.log(`      Function: ${item.functionName}`);
+      console.log(`      Hash:     ${item.hash}`);
+      console.log("");
+    });
+
+    const hashes = items.map((item) => item.hash);
+    const tx = await metaTransactionFacet.setAllowlistedFunctions(hashes, false);
+    await tx.wait();
+    console.log(`✅ Successfully removed ${items.length} function(s) from allowlist`);
+  }
+}
+
+function deduplicateAllowlistChanges(config: FacetConfig): FacetConfig {
+  if (!config.metaTxAllowlist) {
+    return config;
+  }
+
+  const { add = [], remove = [] } = config.metaTxAllowlist;
+  const addHashes = new Set(add.map((item) => item.hash));
+  const removeHashes = new Set(remove.map((item) => item.hash));
+
+  // Remove items from add list if they are in remove list
+  const deduplicatedAdd = add.filter((item) => !removeHashes.has(item.hash));
+  // Remove items from remove list if they are in add list
+  const deduplicatedRemove = remove.filter((item) => !addHashes.has(item.hash));
+
+  return {
+    ...config,
+    metaTxAllowlist: {
+      add: deduplicatedAdd,
+      remove: deduplicatedRemove,
+    },
+  };
+}
+
 async function executeFacetUpdates(
   config: FacetConfig,
   protocolAddress: string,
@@ -569,5 +659,19 @@ async function executeFacetUpdates(
     );
   } else {
     console.log("ℹ️  No facet cuts to execute");
+  }
+
+  // Update MetaTransactionFacet allowlist
+  if (config.metaTxAllowlist) {
+    const metaTransactionFacet = await hre.ethers.getContractAt("MetaTransactionFacet", protocolAddress);
+    const deduplicatedConfig = deduplicateAllowlistChanges(config);
+
+    if (deduplicatedConfig.metaTxAllowlist?.add && deduplicatedConfig.metaTxAllowlist.add.length > 0) {
+      await processMetaTxAllowlistChanges(metaTransactionFacet, deduplicatedConfig.metaTxAllowlist.add, true);
+    }
+
+    if (deduplicatedConfig.metaTxAllowlist?.remove && deduplicatedConfig.metaTxAllowlist.remove.length > 0) {
+      await processMetaTxAllowlistChanges(metaTransactionFacet, deduplicatedConfig.metaTxAllowlist.remove, false);
+    }
   }
 }
