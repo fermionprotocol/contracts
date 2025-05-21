@@ -108,7 +108,7 @@ abstract contract Custody is FundsManager {
                     unchecked {
                         diff = custodianPayoff + custodianFee.amount - balance;
                     }
-                    if (returnedAmount > diff) {
+                    if (returnedAmount >= diff) {
                         unchecked {
                             returnedAmount -= diff;
                             balance = custodianPayoff + custodianFee.amount;
