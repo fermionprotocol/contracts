@@ -3,7 +3,7 @@ import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/src/si
 const { getContractFactory, id, isHexString, provider, randomBytes, toBeHex } = ethers;
 
 export const RESTRICTED_METATX_FUNCTIONS = [
-  "burn",
+  "burn(address,uint256)",
   "mint",
   "renounceOwnership",
   "transferOwnership",
