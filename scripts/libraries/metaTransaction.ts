@@ -2,7 +2,7 @@ import { ethers } from "hardhat";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/src/signers";
 const { getContractFactory, id, isHexString, provider, randomBytes, toBeHex } = ethers;
 
-const RESTRICTED_FUNCTIONS = [
+export const RESTRICTED_METATX_FUNCTIONS = [
   "burn",
   "mint",
   "renounceOwnership",
