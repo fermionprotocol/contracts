@@ -112,7 +112,7 @@ contract EIP712 is SignatureErrors {
         bytes32 typedMessageHash = toTypedMessageHash(_hashedMessage);
 
         // Check if user is a contract implementing ERC1271
-        bytes memory returnData;
+        bytes memory returnData; // Make this available for later if needed
         if (_user.code.length > 0) {
             bool success;
             (success, returnData) = _user.staticcall(
