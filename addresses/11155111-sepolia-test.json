@@ -2,7 +2,7 @@
   "chainId": 11155111,
   "network": "sepolia",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.1",
+  "protocolVersion": "1.1.0",
   "contracts": [
     {
       "name": "DiamondCutFacet",
@@ -114,7 +114,7 @@
     },
     {
       "name": "CustodyVaultFacet",
-      "address": "0x441081DCC99c408BAEA4ded7d42aaA94384539f0",
+      "address": "0xD7Bd339e5097A5C54c2565459B2492c9d8638eeD",
       "args": []
     },
     {
