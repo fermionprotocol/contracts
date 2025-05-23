@@ -2,7 +2,7 @@
   "chainId": 80002,
   "network": "amoy",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.1",
+  "protocolVersion": "1.1.0-rc.3",
   "contracts": [
     {
       "name": "DiamondCutFacet",
@@ -71,27 +71,27 @@
     },
     {
       "name": "ConfigFacet",
-      "address": "0x951996d69eCa83BB8310c2fAe20EaEF16Cd195F2",
+      "address": "0x53efbB6c6c999521DDf376Cc77B72D1861d8dF6E",
       "args": []
     },
     {
       "name": "EntityFacet",
-      "address": "0xFC7fBD9E98Cc0D975B6bDeB8c683Fd44da8BD8C3",
+      "address": "0xDBe5a71DaDE5E826Cd465b2CB638a0D49F367D0e",
       "args": []
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x1C545075357575007ce9B810F3afCB896a420320",
+      "address": "0x8FF031cee029300A722F6Ad3be4cff90aD5eb1a1",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
       "name": "OfferFacet",
-      "address": "0x201475AB1532d3de3A0987dcD91a4e7F45Ee0474",
+      "address": "0x0947421Cd1406dEB8628b9680D3B33a35B39287f",
       "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0xaf2ffe3cF617E659D42a61E1578C06BB449Cc08b",
+      "address": "0xc954508b20aB31CE2060514C25f570ab1dA737E9",
       "args": [
         "0x7de418a7ce94debd057c34ebac232e7027634ade",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"
@@ -99,12 +99,12 @@
     },
     {
       "name": "CustodyFacet",
-      "address": "0x84862d5bEF51BBe6620ffbf23ff10187412A0815",
+      "address": "0x7460179baF18Cc6c6B762FbdDEa8425AF38CD01d",
       "args": []
     },
     {
       "name": "FundsFacet",
-      "address": "0xf2de8ca40CBaB303700913c14A34b26603E35FeC",
+      "address": "0x1796B155D4A719d6eBe0496F4914c98a480e668C",
       "args": []
     },
     {
@@ -114,21 +114,21 @@
     },
     {
       "name": "CustodyVaultFacet",
-      "address": "0x9Fc75f1843323201EC23F1106C5e3DAC0B2686BC",
+      "address": "0x9d8A31D14610a03aC105799aA0E65DCD1c02dda8",
       "args": []
     },
     {
       "name": "FermionFNFT",
-      "address": "0x791A76E51BBaA792BE3EB5d764F643302A0e4E46",
+      "address": "0xCDc9611D8F1Ac67417d162a80b18d096a2b41dB8",
       "args": [
         "0xF4f02BAE43cf66fca47eBaC58657586Aa951D135",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585",
-        "0x04359C7142f1ae9AD3D70C9cD2e9357867514064",
+        "0xaB16Fafff1Cfbb734136335835AF1f05d08BA992",
         "0xA000027A9B2802E1ddf7000061001e5c005A0000",
         "0x113d6C5038832f567808677B4F0B89ffC62c18F7",
-        "0x03980b0EfEF67837fbEdfe471C0535D1A1C59Dc2",
-        "0x1F65939DA0028dc8D99F8C02bab1064738e8448C",
-        "0xAe9DFa094E37dAB02Cf057f0aDD0505a66AD2B4e"
+        "0x6dDe3392e864Ac0BEF6b267fe361f56df89eF22C",
+        "0xFf9b0247AD09B491fAbC37fB2E3fe5eC1C0b38b4",
+        "0x779e2be29D1838Cff070545ACF370DEe1065c058"
       ]
     },
     {
@@ -138,12 +138,12 @@
     },
     {
       "name": "RoyaltiesFacet",
-      "address": "0xEb84C1793Ac8ADb01000aD11fe9893dD067B6B41",
+      "address": "0xCA47D2a08D419e17d8946f6125C74A89B94797C2",
       "args": []
     },
     {
       "name": "SeaportWrapper",
-      "address": "0x04359C7142f1ae9AD3D70C9cD2e9357867514064",
+      "address": "0xaB16Fafff1Cfbb734136335835AF1f05d08BA992",
       "args": [
         "0xF4f02BAE43cf66fca47eBaC58657586Aa951D135",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585",
@@ -159,26 +159,26 @@
     },
     {
       "name": "FermionFractionsERC20",
-      "address": "0x7dA612fD6441316BdD9eb14d78151B045D6bc448",
+      "address": "0x03d1d32953E3c1EcA589480d119A979b496D45c1",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
       "name": "FermionFractionsMint",
-      "address": "0x03980b0EfEF67837fbEdfe471C0535D1A1C59Dc2",
+      "address": "0x6dDe3392e864Ac0BEF6b267fe361f56df89eF22C",
       "args": [
         "0xF4f02BAE43cf66fca47eBaC58657586Aa951D135",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585",
-        "0x7dA612fD6441316BdD9eb14d78151B045D6bc448"
+        "0x03d1d32953E3c1EcA589480d119A979b496D45c1"
       ]
     },
     {
       "name": "FermionFNFTPriceManager",
-      "address": "0x1F65939DA0028dc8D99F8C02bab1064738e8448C",
+      "address": "0xFf9b0247AD09B491fAbC37fB2E3fe5eC1C0b38b4",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
       "name": "FermionBuyoutAuction",
-      "address": "0xAe9DFa094E37dAB02Cf057f0aDD0505a66AD2B4e",
+      "address": "0x779e2be29D1838Cff070545ACF370DEe1065c058",
       "args": [
         "0xF4f02BAE43cf66fca47eBaC58657586Aa951D135",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"
