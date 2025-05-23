@@ -112,8 +112,10 @@ contract EIP712 is SignatureErrors {
         bytes32 typedMessageHash = toTypedMessageHash(_hashedMessage);
 
         // Check if user is a contract implementing ERC1271
-        if (_user.code.length > 0 && _sig.v == 0) {
-            (bool success, bytes memory returnData) = _user.staticcall(
+        bytes memory returnData;
+        if (_user.code.length > 0) {
+            bool success;
+            (success, returnData) = _user.staticcall(
                 abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encode(_sig)))
             );
             if (success) {
@@ -130,15 +132,6 @@ contract EIP712 is SignatureErrors {
 
                     return;
                 }
-            } else {
-                if (returnData.length == 0) {
-                    revert SignatureValidationFailed();
-                } else {
-                    /// @solidity memory-safe-assembly
-                    assembly {
-                        revert(add(SLOT_SIZE, returnData), mload(returnData))
-                    }
-                }
             }
         }
 
@@ -151,6 +144,17 @@ contract EIP712 is SignatureErrors {
 
         address signer = ecrecover(typedMessageHash, _sig.v, _sig.r, _sig.s);
         if (signer == address(0)) revert InvalidSignature();
-        if (signer != _user) revert SignatureValidationFailed();
+        if (signer != _user) {
+            if (returnData.length > 0) {
+                // In case 1271 verification failed with a revert reason, bubble it up
+
+                /// @solidity memory-safe-assembly
+                assembly {
+                    revert(add(SLOT_SIZE, returnData), mload(returnData))
+                }
+            }
+
+            revert SignatureValidationFailed();
+        }
     }
 }
