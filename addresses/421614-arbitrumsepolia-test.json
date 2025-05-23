@@ -2,7 +2,7 @@
   "chainId": 421614,
   "network": "arbitrumSepolia",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.1",
+  "protocolVersion": "1.1.0-rc.2",
   "contracts": [
     {
       "name": "SeaportWrapper",
