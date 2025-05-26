@@ -2,7 +2,7 @@
   "chainId": 421614,
   "network": "arbitrumSepolia",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.3",
+  "protocolVersion": "1.1.0-rc.4",
   "contracts": [
     {
       "name": "SeaportWrapper",
@@ -111,7 +111,7 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x63698D50A658f2Fcc3723a618bF626d65220a76A",
+      "address": "0xDDcE3Eaf5b0114bEbcabF55Daea043bB367655BE",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
@@ -121,7 +121,7 @@
     },
     {
       "name": "VerificationFacet",
-      "address": "0x8409774D139729cd3A60D263D4b8E8e18cC27653",
+      "address": "0xeD2C5Fc86Ef2adE0e5A0965E275c4da489FB519F",
       "args": [
         "0x7de418a7ce94debd057c34ebac232e7027634ade",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"
