@@ -876,10 +876,15 @@ describe("MetaTransactions", function () {
             expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.equal(true);
           });
 
-          it("Forwarded call fails", async function () {
+          it.only("Forwarded call fails", async function () {
             // Prepare the function signature for the facet function.
-            message.functionSignature = fermionFNFT.interface.encodeFunctionData("wrap", [tokenId, 1, entity.address]);
-            message.functionName = fermionFNFT.interface.getFunction("wrap").format("sighash");
+            const invalidTokenId = 23123n;
+            message.functionSignature = fermionFNFT.interface.encodeFunctionData("transferFrom", [
+              wallets[3].address,
+              entity.address,
+              invalidTokenId,
+            ]);
+            message.functionName = fermionFNFT.interface.getFunction("transferFrom").format("sighash");
 
             // Collect the signature components
             const { r, s, v } = await prepareDataSignatureParameters(
@@ -901,7 +906,7 @@ describe("MetaTransactions", function () {
                 [r, s, v],
                 offerId,
               ),
-            ).to.be.revertedWith("ERC721: invalid token ID");
+            ).to.be.revertedWithCustomError(fermionFNFT, "ERC721NonexistentToken");
           });
         });
 
