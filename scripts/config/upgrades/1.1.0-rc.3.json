@@ -1,0 +1,76 @@
+{
+  "description": "Upgrade to version 1.1.0-rc.3",
+  "facets": {
+    "add": [],
+    "replace": [
+      "ConfigFacet",
+      "CustodyFacet",
+      "CustodyVaultFacet",
+      "EntityFacet",
+      "FundsFacet",
+      "MetaTransactionFacet",
+      "OfferFacet",
+      "RoyaltiesFacet",
+      "VerificationFacet"
+    ],
+    "remove": [],
+    "constructorArgs": {
+      "MetaTransactionFacet": ["$FERMION_PROTOCOL_ADDRESS"],
+      "OfferFacet": ["$BOSON_PROTOCOL_ADDRESS"],
+      "VerificationFacet": [
+        "$BOSON_PROTOCOL_ADDRESS",
+        "$FERMION_PROTOCOL_ADDRESS"
+      ]
+    }
+  },
+  "clients": {
+    "fermionFNFT": [
+      "FermionBuyoutAuction",
+      "FermionFNFT",
+      "FermionFNFTPriceManager",
+      "FermionFractionsERC20",
+      "FermionFractionsMint"
+    ]
+  },
+  "metaTxAllowlist": {
+    "add": [
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "claimNativeBidFunds()",
+        "hash": "0x3638b9bc4940e45eddfbb3d9767615fed996a85d9aa1a25baafd6630e613a6dd"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "removeVoteOnProposal(uint256)",
+        "hash": "0x05251880bf938a0ff946af7d41ff940f5ffbbc1d18bba9e0e452edc5a8f8eb5f"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "voteOnProposal(uint256,bool)",
+        "hash": "0x1614665c3e0907e98f58aa44341b89aaa708507158782c7275f04b423c1db31f"
+      },
+      {
+        "facetName": "CustodyFacet",
+        "functionName": "clearCheckoutRequest(uint256,uint256)",
+        "hash": "0x871edcb9e28b130a6e4c79f33c9d82b52982cdad69e9df71ba352bd52fbf9631"
+      }
+    ],
+    "remove": [
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "removeVoteOnProposal()",
+        "hash": "0xec48f8e4560db4618a17e316331569bca2c6af39f3a48c5111f9371d10e4e4fd"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "voteOnProposal(bool)",
+        "hash": "0xe3ccb809556327c31335a72182eaea50dd9b21f9053d94d3417fd17f54871aa4"
+      },
+      {
+        "facetName": "CustodyFacet",
+        "functionName": "clearCheckoutRequest(uint256)",
+        "hash": "0x543b48221985a65e5f8693d7e47b82f0a79066907e413ee182c04def77aa50fe"
+      }
+    ]
+  }
+}

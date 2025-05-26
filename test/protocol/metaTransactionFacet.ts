@@ -3,7 +3,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
-import { EntityRole, PausableRegion, TokenState, VerificationStatus, WrapType } from "../utils/enums";
+import { EntityRole, PausableRegion, VerificationStatus, WrapType } from "../utils/enums";
 import { deployFermionProtocolFixture, deriveTokenId, deployMockTokens } from "../utils/common";
 import {
   getStateModifyingFunctions,
@@ -878,8 +878,13 @@ describe("MetaTransactions", function () {
 
           it("Forwarded call fails", async function () {
             // Prepare the function signature for the facet function.
-            message.functionSignature = fermionFNFT.interface.encodeFunctionData("burn", [tokenId]);
-            message.functionName = fermionFNFT.interface.getFunction("burn").format("sighash");
+            const invalidTokenId = 23123n;
+            message.functionSignature = fermionFNFT.interface.encodeFunctionData("transferFrom", [
+              wallets[3].address,
+              entity.address,
+              invalidTokenId,
+            ]);
+            message.functionName = fermionFNFT.interface.getFunction("transferFrom").format("sighash");
 
             // Collect the signature components
             const { r, s, v } = await prepareDataSignatureParameters(
@@ -901,9 +906,7 @@ describe("MetaTransactions", function () {
                 [r, s, v],
                 offerId,
               ),
-            )
-              .to.be.revertedWithCustomError(fermionFNFT, "InvalidStateOrCaller")
-              .withArgs(tokenId, entity.address, TokenState.Unverified);
+            ).to.be.revertedWithCustomError(fermionFNFT, "ERC721NonexistentToken");
           });
         });
 
@@ -1326,8 +1329,11 @@ describe("MetaTransactions", function () {
 
           it("Forwarded call fails", async function () {
             // Prepare the function signature for the facet function.
-            message.functionSignature = fermionFractions.interface.encodeFunctionData("burn", [buyer.address, 10n]);
-            message.functionName = fermionFractions.interface.getFunction("burn").format("sighash");
+            message.functionSignature = fermionFractions.interface.encodeFunctionData("transfer", [
+              fermionProtocolAddress,
+              MaxUint256,
+            ]);
+            message.functionName = fermionFractions.interface.getFunction("transfer").format("sighash");
 
             // Collect the signature components
             const { r, s, v } = await prepareDataSignatureParameters(
@@ -1349,9 +1355,7 @@ describe("MetaTransactions", function () {
                 [r, s, v],
                 offerIdWithEpoch,
               ),
-            )
-              .to.be.revertedWithCustomError(fermionFractions, "OwnableUnauthorizedAccount")
-              .withArgs(buyer.address);
+            ).to.be.revertedWithCustomError(fermionFractions, "ERC20InsufficientBalance");
           });
         });
 
