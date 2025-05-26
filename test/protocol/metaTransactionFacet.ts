@@ -876,7 +876,7 @@ describe("MetaTransactions", function () {
             expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.equal(true);
           });
 
-          it.only("Forwarded call fails", async function () {
+          it("Forwarded call fails", async function () {
             // Prepare the function signature for the facet function.
             const invalidTokenId = 23123n;
             message.functionSignature = fermionFNFT.interface.encodeFunctionData("transferFrom", [
