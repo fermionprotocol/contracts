@@ -2,7 +2,7 @@
   "chainId": 11155111,
   "network": "sepolia",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.3",
+  "protocolVersion": "1.1.0-rc.4",
   "contracts": [
     {
       "name": "DiamondCutFacet",
@@ -81,7 +81,7 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0xB793932B8186B7aCB09795941EF891ac9442e8Aa",
+      "address": "0xcbFb8951836B8905B5B7176d5B0dceDB251b8F92",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
@@ -91,7 +91,7 @@
     },
     {
       "name": "VerificationFacet",
-      "address": "0x9756A80E814aFE97d86272D062f9977Ef64565D2",
+      "address": "0x3C8535c4767E6244ef783b1406D6692F4072B419",
       "args": [
         "0x7de418a7ce94debd057c34ebac232e7027634ade",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"
