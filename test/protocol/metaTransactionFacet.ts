@@ -640,7 +640,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(entity, "UnknownValidity");
@@ -654,7 +658,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWith("Error string");
@@ -668,7 +676,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.reverted;
@@ -682,7 +694,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x12");
@@ -696,7 +712,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x32");
@@ -772,7 +792,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
