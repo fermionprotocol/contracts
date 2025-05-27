@@ -28,6 +28,9 @@
     },
     "11155420": {
       "subgraphUrl": "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-optimism/latest/gn"
+    },
+    "421614": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/bc2d0937-fe5a-4a0c-97f5-b90b8428f989/subgraphs/fermion-staging-arbitrum/latest/gn"
     }
   },
   "prod": {
