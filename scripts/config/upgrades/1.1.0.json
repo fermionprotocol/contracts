@@ -1,0 +1,277 @@
+{
+  "description": "Upgrade to version 1.1.0",
+  "facets": {
+    "add": ["PriceOracleRegistryFacet", "RoyaltiesFacet"],
+    "replace": [
+      "ConfigFacet",
+      "CustodyFacet",
+      "CustodyVaultFacet",
+      "EntityFacet",
+      "FundsFacet",
+      "MetaTransactionFacet",
+      "OfferFacet",
+      "VerificationFacet"
+    ],
+    "remove": [],
+    "constructorArgs": {
+      "MetaTransactionFacet": ["$FERMION_PROTOCOL_ADDRESS"],
+      "OfferFacet": ["$BOSON_PROTOCOL_ADDRESS"],
+      "VerificationFacet": [
+        "$BOSON_PROTOCOL_ADDRESS",
+        "$FERMION_PROTOCOL_ADDRESS"
+      ]
+    }
+  },
+  "clients": {
+    "fermionFNFT": [
+      "FermionFNFT",
+      "SeaportWrapper",
+      "CreatorToken",
+      "FermionBuyoutAuction",
+      "FermionFNFTPriceManager",
+      "FermionFractionsERC20",
+      "FermionFractionsMint"
+    ]
+  },
+  "metaTxAllowlist": {
+    "add": [
+      {
+        "facetName": "FermionFractionsERC20",
+        "functionName": "approve(address,uint256)",
+        "hash": "0x095ea7b334ae44009aa867bfb386f5c3b4b443ac6f0ee573fa91c4608fbadfba"
+      },
+      {
+        "facetName": "FermionFractionsERC20",
+        "functionName": "permit(address,address,uint256,uint256,uint8,bytes32,bytes32)",
+        "hash": "0xd505accfee7b46ac3ce97322c21f328b64073d188137e16f7ef87f8de076b51c"
+      },
+      {
+        "facetName": "FermionFractionsERC20",
+        "functionName": "transfer(address,uint256)",
+        "hash": "0xa9059cbb2ab09eb219583f4a59a5d0623ade346d962bcd4e46b11da047c9049b"
+      },
+      {
+        "facetName": "FermionFractionsERC20",
+        "functionName": "transferFrom(address,address,uint256)",
+        "hash": "0x23b872dd7302113369cda2901243429419bec145408fa8b352b3dd92b66c680b"
+      },
+      {
+        "facetName": "RoyaltiesFacet",
+        "functionName": "updateOfferRoyaltyRecipients(uint256[],(address[],uint256[]))",
+        "hash": "0xaf8c5829d8f675ca98b965d8612d5959860df8b8e8cacbb2ed40e5af48812546"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "claimFromEpoch(uint256,uint256)",
+        "hash": "0x5851a66e116464eab9507b14d82c453065f3835ab719028db3b124424bb63fc4"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "claimNativeBidFunds()",
+        "hash": "0x3638b9bc4940e45eddfbb3d9767615fed996a85d9aa1a25baafd6630e613a6dd"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "getTransferValidationFunction()",
+        "hash": "0x0d705df608b636b8866241b1d0eedfbf412de7edd287599f10217572482120af"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "migrateFractions(address[])",
+        "hash": "0xd0949da63c37b496bf1d89e91eabf1f808e960aa5f2263d0797c05525bf269bf"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "removeVoteOnProposal(uint256)",
+        "hash": "0x05251880bf938a0ff946af7d41ff940f5ffbbc1d18bba9e0e452edc5a8f8eb5f"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "setTransferValidator(address)",
+        "hash": "0xa9fc664e80826d3a6d305fec0e8497ad1c53d82c4b4381b34732df28c166c423"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "startAuction(uint256)",
+        "hash": "0x065de74cd4ce52cc85bb7144d75ff2732371c9551ab1489fb21d034fa8a6c005"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "updateExitPrice(uint256,uint256,uint256)",
+        "hash": "0x3f48049fea27118c9f6b0726ab52308b5ee7cf2d2ebfeb9f2a527768e5bf0ab0"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "voteOnProposal(uint256,bool)",
+        "hash": "0x1614665c3e0907e98f58aa44341b89aaa708507158782c7275f04b423c1db31f"
+      },
+      {
+        "facetName": "CustodyFacet",
+        "functionName": "acceptCustodianUpdate(uint256)",
+        "hash": "0x7c8839fc32d04d398b0d0af3f4c9a9e8a2ec3de4f82c503eb68f191803375018"
+      },
+      {
+        "facetName": "CustodyFacet",
+        "functionName": "clearCheckoutRequest(uint256,uint256)",
+        "hash": "0x871edcb9e28b130a6e4c79f33c9d82b52982cdad69e9df71ba352bd52fbf9631"
+      },
+      {
+        "facetName": "CustodyFacet",
+        "functionName": "emergencyCustodianUpdate(uint256,uint256,bool)",
+        "hash": "0xc71cae475741404a239a6ce558a76f60c2f29f3b8e28254234d52ea2e66ffd53"
+      },
+      {
+        "facetName": "CustodyFacet",
+        "functionName": "requestCustodianUpdate(uint256,uint256,(uint256,uint256),(uint256,uint256,uint256,uint256))",
+        "hash": "0x0bf53fc13f75ae6f43c79fac3adf9dac736f559ce70956bb9783e76ac4000022"
+      },
+      {
+        "facetName": "EntityFacet",
+        "functionName": "addRoyaltyRecipients(uint256,uint256[])",
+        "hash": "0x8c6bf11d75fc866cb6922673963deb5d45508816f5699da0aa09b62cf1b5c77c"
+      },
+      {
+        "facetName": "EntityFacet",
+        "functionName": "removeRoyaltyRecipients(uint256,uint256[])",
+        "hash": "0xd993f833f3570473c8de7a5adf8045e86d2455318441b2103270da50f4d1e66b"
+      },
+      {
+        "facetName": "EntityFacet",
+        "functionName": "renounceAccountRole(uint256,uint8,uint8)",
+        "hash": "0x7741a0413940bb5a6d27b05b9a7d7150a13de823ef512c4fe458d70ab1c19c23"
+      },
+      {
+        "facetName": "FundsFacet",
+        "functionName": "depositPhygitals(uint256[],(address,uint256)[][])",
+        "hash": "0xb396ec64641fc628b02cf5a2aa969e522e8add7ef2a9b4366707e70cb8654201"
+      },
+      {
+        "facetName": "FundsFacet",
+        "functionName": "withdrawPhygitals(uint256[],(address,uint256)[][])",
+        "hash": "0x4cc7ed6f5b4a75883976cc72dff48d04574dba4a175870acb644f3c07940c6bc"
+      },
+      {
+        "facetName": "FundsFacet",
+        "functionName": "withdrawPhygitals(uint256[],address)",
+        "hash": "0xc47af42d12c2a052bad2caa84029115fc2b717cbaa538e22e77d5a0aaf9cc993"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "cancelFixedPriceOrders(uint256,(address,address,(uint8,address,uint256,uint256,uint256)[],(uint8,address,uint256,uint256,uint256,address)[],uint8,uint256,uint256,bytes32,uint256,bytes32,uint256)[])",
+        "hash": "0x34e3dc53a6dd43428bed68ff49990825f862c0c93681c41bfe68569cd919d0d8"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "createOffer((uint256,uint256,uint256,uint256,uint256,(uint256,uint256),uint256,uint256,address,bool,(string,string),(address[],uint256[])))",
+        "hash": "0x9a62774f2924848032667697364b7851dbc8102d400fa7ea545ae894133f313f"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "listFixedPriceOrders(uint256,uint256[],uint256[])",
+        "hash": "0x05dd1b37df03100f2607e235740d7d6164a8d4de0cb445926a72f86c1e5bcbbd"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "unwrapNFT(uint256,uint8,bytes)",
+        "hash": "0xfd6929f9665aed2575c6862f7d78aa30d33b3f226c53636e0fe123ce3a37d494"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "unwrapNFTAndSetVerificationTimeout(uint256,uint8,bytes,uint256)",
+        "hash": "0xdc8fbf479c363b3f2d37c86f7688113a396e0e30bdd29ef264c3660edd40b594"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "removeRevisedMetadataAndSubmitVerdict(uint256,uint8,(string,string))",
+        "hash": "0xd2fea1db67b5791756ec3e1babc2f0ac8c0ab616cea114ed9fbea2d88fa0b673"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "submitProposal(uint256,uint16,bytes32)",
+        "hash": "0x02953c416c81e43b13a4f7e5e3f1abcd95b3f46e5f388aff18c5cdf58c507a62"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "submitRevisedMetadata(uint256,string,(string,string))",
+        "hash": "0x0d9bf0c8cab254bdb5c8c3558f35265e2afb13003a2cec69e5a7c166dac670f6"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "submitSignedProposal(uint256,uint16,bytes32,address,(bytes32,bytes32,uint8))",
+        "hash": "0x9b8290f33fe4601cf79497c39a21cbb03feb5759124bac8ce5f3dbd289d55da7"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "submitVerdict(uint256,uint8,(string,string))",
+        "hash": "0xe8e3a29f1b817271977ed8b1867bbb0776e682a03d1f3d8f1cf48f20ed3a55d0"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "verifyPhygitals(uint256,bytes32)",
+        "hash": "0x8f50104292cceb21a725942df9268da3394061bf3bc255e22fea21ccf3164923"
+      }
+    ],
+    "remove": [
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "setName(string)",
+        "hash": "0xc47f00276f2f257a0d6e08fde7692b09d811f0ee9b5a09ef0807a6ba46c7db94"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "setNameAndSymbol(string,string)",
+        "hash": "0x5a446215c57c09a8e985a6ba52c5f5aa1b915dd90d5dd9644227947903236d3e"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "setSymbol(string)",
+        "hash": "0xb84c82465850ce875c6133a6ebc7b108e7c2670c154ab13675a3c664385c3e34"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "transfer(address,uint256)",
+        "hash": "0xa9059cbb2ab09eb219583f4a59a5d0623ade346d962bcd4e46b11da047c9049b"
+      },
+      {
+        "facetName": "FermionFNFT",
+        "functionName": "wrapForAuction(uint256,uint256,address)",
+        "hash": "0xdfff87d72169f63ca8006be00e4cc5d808a39d442fa2b7dfdcc544e354fba0a4"
+      },
+      {
+        "facetName": "CustodyFacet",
+        "functionName": "clearCheckoutRequest(uint256)",
+        "hash": "0x543b48221985a65e5f8693d7e47b82f0a79066907e413ee182c04def77aa50fe"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "createOffer((uint256,uint256,uint256,uint256,uint256,(uint256,uint256),uint256,uint256,address,string,string))",
+        "hash": "0x5edfff4ec4a658f359fc6fc038db04f2d807ff7781fda75f6812f34430c732e5"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "unwrapNFT(uint256,((address,address,(uint8,address,uint256,uint256,uint256)[],(uint8,address,uint256,uint256,uint256,address)[],uint8,uint256,uint256,bytes32,uint256,bytes32,uint256),uint120,uint120,bytes,bytes))",
+        "hash": "0x27aa0389386d20afa930d891744b674dad6faf69cbfdad119e4358a1e47a8a75"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "unwrapNFTAndSetVerificationTimeout(uint256,((address,address,(uint8,address,uint256,uint256,uint256)[],(uint8,address,uint256,uint256,uint256,address)[],uint8,uint256,uint256,bytes32,uint256,bytes32,uint256),uint120,uint120,bytes,bytes),uint256)",
+        "hash": "0x4c15376b5ee7282c0dbba19770795aef93c9e05e3cbafcb0ad8fecedb85e21bb"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "unwrapNFTToSelf(uint256)",
+        "hash": "0x3a4befcd407aaa665a9bdc9e3982b3115714687bfb439034365f974745139174"
+      },
+      {
+        "facetName": "OfferFacet",
+        "functionName": "unwrapNFTToSelfAndSetVerificationTimeout(uint256,uint256)",
+        "hash": "0x5e4572c324e567c502acce3559d49e884b5a1ab13a803b6dab5b0f3fc46743d3"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "submitVerdict(uint256,uint8)",
+        "hash": "0x43e6ca8ae61cb3e7b8d7fc638caad4044e96c151dd6637d7e1fa5e294018a57b"
+      }
+    ]
+  }
+}
