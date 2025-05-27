@@ -2,7 +2,7 @@
   "chainId": 80002,
   "network": "amoy",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.3",
+  "protocolVersion": "1.1.0-rc.4",
   "contracts": [
     {
       "name": "DiamondCutFacet",
@@ -81,7 +81,7 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x8FF031cee029300A722F6Ad3be4cff90aD5eb1a1",
+      "address": "0x4ea72e99d2271C8a60A8e4F362B8B1aD84B2AC11",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
@@ -91,7 +91,7 @@
     },
     {
       "name": "VerificationFacet",
-      "address": "0xc954508b20aB31CE2060514C25f570ab1dA737E9",
+      "address": "0x37c68D0b6ec5d2E483133F03223608CFa6530233",
       "args": [
         "0x7de418a7ce94debd057c34ebac232e7027634ade",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"
