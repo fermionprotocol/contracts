@@ -178,6 +178,15 @@
       "name": "RoyaltiesFacet",
       "address": "0x8865c67808188F4F8b7022a45f5e8b2Ea4f749bA",
       "args": []
+    },
+    {
+      "name": "FermionFNFT",
+      "address": "0x7863eF87f7d2a9f15f2A7175cC4d044Ea3E81DDc",
+      "args": [
+        "0x789d8727b9ae0A8546489232EB55b6fBE86b21Ac",
+        "0x2062C92447Ac78B977221E9bA2Be258AE90B6A3E",
+        "0x7b79995e5f793A07Bc00c21412e50Ecae098E7f9"
+      ]
     }
   ],
   "externalAddresses": {
