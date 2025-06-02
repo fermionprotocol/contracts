@@ -45,6 +45,9 @@
     },
     "8453": {
       "subgraphUrl": "https://api.0xgraph.xyz/api/public/e6db8da4-6f65-4c76-b2bd-e0399856a6ae/subgraphs/fermion-production-base/latest/gn"
+    },
+    "42161": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/e6db8da4-6f65-4c76-b2bd-e0399856a6ae/subgraphs/fermion-production-arbitrum/latest/gn"
     }
   },
   "local": {
