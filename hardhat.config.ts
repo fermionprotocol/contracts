@@ -180,52 +180,7 @@ const config: HardhatUserConfig = {
     }),
   },
   etherscan: {
-    apiKey: {
-      polygonAmoy: vars.get("POLYGONSCAN_API_KEY", ""),
-      sepolia: vars.get("ETHERSCAN_API_KEY", ""),
-      polygon: vars.get("POLYGONSCAN_API_KEY", ""),
-      mainnet: vars.get("ETHERSCAN_API_KEY", ""),
-      base: vars.get("BASESCAN_API_KEY", ""),
-      baseSepolia: vars.get("BASESCAN_API_KEY", ""),
-      optimism: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
-      optimismSepolia: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
-      arbitrum: vars.get("ARBITRUM_ETHERSCAN_API_KEY", ""),
-      arbitrumSepolia: vars.get("ARBITRUM_ETHERSCAN_API_KEY", ""),
-    },
-    customChains: [
-      {
-        network: "optimism",
-        chainId: 10,
-        urls: {
-          apiURL: "https://api-optimistic.etherscan.io/api",
-          browserURL: "https://optimistic.etherscan.io/",
-        },
-      },
-      {
-        network: "optimismSepolia",
-        chainId: 11155420,
-        urls: {
-          apiURL: "https://api-sepolia-optimistic.etherscan.io/api",
-          browserURL: "https://sepolia-optimism.etherscan.io",
-        },
-      },
-      {
-        network: "arbitrumSepolia",
-        chainId: 421614,
-        urls: {
-          apiURL: "https://api-sepolia.arbiscan.io/api",
-          browserURL: "https://sepolia.arbiscan.io",
-        },
-      },
-      {
-        network: "arbitrum",
-        chainId: 42161,
-        urls: {
-          apiURL: "https://api.arbiscan.io/api",
-          browserURL: "https://arbiscan.io",
-        },
-      },
-    ],
+    apiKey: vars.get("ETHERSCAN_API_KEY", ""),
   },
   mocha: {
     timeout: 100000,
