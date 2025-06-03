@@ -1,18 +1,34 @@
 {
-  "chainId": 137,
-  "network": "polygon",
+  "chainId": 42161,
+  "network": "arbitrum",
   "env": "prod",
   "protocolVersion": "1.1.0",
   "contracts": [
     {
+      "name": "SeaportWrapper",
+      "address": "0x8369433f08dbE24553dCAfAB39e4E727fe9dcE8E",
+      "args": [
+        "0xd8C3B2232B3d597156148f757Bb2bd665843aABd",
+        "0x93b330001bcaad603e21e2639fb041cdea472449",
+        {
+          "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
+          "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
+          "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
+          "openSeaSignedZone": "0x000056F7000000EcE9003ca63978907a00FFD100",
+          "openSeaZoneHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "openSeaRecipient": "0x0000a26b00c1F0DF003000390027140000fAa719"
+        }
+      ]
+    },
+    {
       "name": "FermionFNFT",
       "address": "0xbe892d93455CF958C4453F15b25bB62E2c573B95",
       "args": [
-        "0xb60cf39Fb18e5111174f346d0f39521ef6531fD4",
+        "0xd8C3B2232B3d597156148f757Bb2bd665843aABd",
         "0x93b330001bcaad603e21e2639fb041cdea472449",
         "0x8369433f08dbE24553dCAfAB39e4E727fe9dcE8E",
         "0xA000027A9B2802E1ddf7000061001e5c005A0000",
-        "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+        "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
         "0xff28e641A39BCc3088B75E6A7ED2D739329DBed9",
         "0x18AcBBF4C30a5D56B9cf696799a1A94a6e011C89",
         "0x6577B3522C8528D60146D67B62180c4C4584548f"
@@ -20,22 +36,22 @@
     },
     {
       "name": "DiamondCutFacet",
-      "address": "0x721812fc5a76425d665F0C7DfE6F14c6db8CE592",
+      "address": "0xeE5EAD6302e2a621f3Bb2FAB6Fab1cb64FbfE9e5",
       "args": []
     },
     {
       "name": "DiamondLoupeFacet",
-      "address": "0xB90ABb00192eA91C3Aa5AA5c1d5068dc19C142d1",
+      "address": "0x854bBa1FDf96f76D5dA5a0164F1f62087c909541",
       "args": []
     },
     {
       "name": "AccessController",
-      "address": "0x4f5bdfad001F8E1E69e98eFbd2045Bbb0925b011",
+      "address": "0x56436fD67f34c1d5ba67286c5265c8a63D046C4D",
       "args": []
     },
     {
       "name": "InitializationFacet",
-      "address": "0x9834A7c720911470582BC9BB1A311267485D6981",
+      "address": "0xb0EdC851087FEe63C995F9EC402Cd92592CA3f7e",
       "args": []
     },
     {
@@ -44,12 +60,12 @@
       "args": [
         [
           {
-            "facetAddress": "0x721812fc5a76425d665F0C7DfE6F14c6db8CE592",
+            "facetAddress": "0xeE5EAD6302e2a621f3Bb2FAB6Fab1cb64FbfE9e5",
             "action": 0,
             "functionSelectors": ["0x1f931c1c"]
           },
           {
-            "facetAddress": "0xB90ABb00192eA91C3Aa5AA5c1d5068dc19C142d1",
+            "facetAddress": "0x854bBa1FDf96f76D5dA5a0164F1f62087c909541",
             "action": 0,
             "functionSelectors": [
               "0xcdffacc6",
@@ -60,7 +76,7 @@
             ]
           },
           {
-            "facetAddress": "0x4f5bdfad001F8E1E69e98eFbd2045Bbb0925b011",
+            "facetAddress": "0x56436fD67f34c1d5ba67286c5265c8a63D046C4D",
             "action": 0,
             "functionSelectors": [
               "0xa217fddf",
@@ -72,14 +88,14 @@
             ]
           },
           {
-            "facetAddress": "0x9834A7c720911470582BC9BB1A311267485D6981",
+            "facetAddress": "0xb0EdC851087FEe63C995F9EC402Cd92592CA3f7e",
             "action": 0,
             "functionSelectors": ["0x0d8e6e2c"]
           }
         ],
         {
-          "init": "0x9834A7c720911470582BC9BB1A311267485D6981",
-          "initCalldata": "0x1e8c87760000000000000000000000004f5bdfad001f8e1e69e98efbd2045bbb0925b0110000000000000000000000009ea7c926abebcba7ad0d2954b8e41ba6828cd51600000000000000000000000059a4c19b55193d5a2ead0065c54af4d516e18cb500000000000000000000000065b0e33fa96ac3d34ee3c2afdf773fe751ca7cfc"
+          "init": "0xb0EdC851087FEe63C995F9EC402Cd92592CA3f7e",
+          "initCalldata": "0x1e8c877600000000000000000000000056436fd67f34c1d5ba67286c5265c8a63d046c4d0000000000000000000000009ea7c926abebcba7ad0d2954b8e41ba6828cd51600000000000000000000000059a4c19b55193d5a2ead0065c54af4d516e18cb5000000000000000000000000a6916ced80247ba8752d859ccc4176965bdbee6a"
         }
       ]
     },
@@ -123,7 +139,7 @@
     },
     {
       "name": "PauseFacet",
-      "address": "0x7014b3216F732814c219f8B0f8556932E751D500",
+      "address": "0x721812fc5a76425d665F0C7DfE6F14c6db8CE592",
       "args": []
     },
     {
@@ -142,22 +158,6 @@
       "args": []
     },
     {
-      "name": "SeaportWrapper",
-      "address": "0x8369433f08dbE24553dCAfAB39e4E727fe9dcE8E",
-      "args": [
-        "0xb60cf39Fb18e5111174f346d0f39521ef6531fD4",
-        "0x93b330001bcaad603e21e2639fb041cdea472449",
-        {
-          "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
-          "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
-          "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000",
-          "openSeaSignedZone": "0x000056F7000000EcE9003ca63978907a00FFD100",
-          "openSeaZoneHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-          "openSeaRecipient": "0x0000a26b00c1F0DF003000390027140000fAa719"
-        }
-      ]
-    },
-    {
       "name": "FermionFractionsERC20",
       "address": "0x1A79eDCbED29Fa8A91F49cF092bdb7E9Ba8884b2",
       "args": ["0x93b330001bcaad603e21e2639fb041cdea472449"]
@@ -166,7 +166,7 @@
       "name": "FermionFractionsMint",
       "address": "0xff28e641A39BCc3088B75E6A7ED2D739329DBed9",
       "args": [
-        "0xb60cf39Fb18e5111174f346d0f39521ef6531fD4",
+        "0xd8C3B2232B3d597156148f757Bb2bd665843aABd",
         "0x93b330001bcaad603e21e2639fb041cdea472449",
         "0x1A79eDCbED29Fa8A91F49cF092bdb7E9Ba8884b2"
       ]
@@ -180,20 +180,20 @@
       "name": "FermionBuyoutAuction",
       "address": "0x6577B3522C8528D60146D67B62180c4C4584548f",
       "args": [
-        "0xb60cf39Fb18e5111174f346d0f39521ef6531fD4",
+        "0xd8C3B2232B3d597156148f757Bb2bd665843aABd",
         "0x93b330001bcaad603e21e2639fb041cdea472449"
       ]
     }
   ],
   "externalAddresses": {
     "bosonProtocolAddress": "0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5",
-    "bosonPriceDiscoveryAddress": "0xb60cf39Fb18e5111174f346d0f39521ef6531fD4",
-    "bosonTokenAddress": "0x9B3B0703D392321AD24338Ff1f846650437A43C9",
+    "bosonPriceDiscoveryAddress": "0xd8C3B2232B3d597156148f757Bb2bd665843aABd",
+    "bosonTokenAddress": "0x54B334d68cf5382feE7FBBE496FCf1e76D9BA000",
     "seaportConfig": {
       "seaport": "0x0000000000000068F116a894984e2DB1123eB395",
       "openSeaConduit": "0x1E0049783F008A0085193E00003D00cd54003c71",
       "openSeaConduitKey": "0x0000007b02230091a7ed01230072f7006a004d60a8d4e71d599b8104250f0000"
     },
-    "wrappedNativeAddress": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"
+    "wrappedNativeAddress": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
   }
 }
