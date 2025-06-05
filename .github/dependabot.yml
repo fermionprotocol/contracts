@@ -17,4 +17,3 @@ updates:
         update-types:
           - "minor"
           - "patch"
-    target-branch: "develop-**"
