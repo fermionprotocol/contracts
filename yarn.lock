@@ -27,8 +27,8 @@
   integrity sha512-Ed61U6XJc3CVRfkERJWDz4dJwKe7iLmmJsbOGu9wSloNSFttHV0I8g6UAgb7qnK5ly5bGLPd4oXZlxCdANBOWQ==
 
 "@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.4.2":
-  version "2.4.1"
-  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#e7d1e9ab01d84ecf8deaefe248764398ac03235a"
+  version "2.4.2"
+  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#9665a3ae30b87381bbaa3752b79361b7b1d27dd5"
   dependencies:
     "@openzeppelin/contracts" "^4.9.6"
     "@openzeppelin/contracts-upgradeable" "4.9.3"
