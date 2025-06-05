@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { FermionGeneralErrors, CustodianVaultErrors } from "../domain/Errors.sol";
-import { FermionTypes } from "../domain/Types.sol";
-import { FermionStorage } from "../libs/Storage.sol";
-import { FundsLib } from "../libs/FundsLib.sol";
-import { ICustodyEvents } from "../interfaces/events/ICustodyEvents.sol";
+import { FermionGeneralErrors, CustodianVaultErrors } from "../../domain/Errors.sol";
+import { FermionTypes } from "../../domain/Types.sol";
+import { FermionStorage } from "../../libs/Storage.sol";
+import { FundsManager } from "./FundsManager.sol";
+import { ICustodyEvents } from "../../interfaces/events/ICustodyEvents.sol";
 
 /**
- * @title EntityLib
+ * @title Custody Base Mixin Contract
  *
- * @notice Custody methods used by multiple facets.
+ * @notice Base contract providing custody methods used by multiple facets
  */
-library CustodyLib {
+abstract contract Custody is FundsManager {
     /**
      * @notice Creates a custodian vault for a tokenId
      * The amount for first period is encumbered (it is available in the protocol since the verification time).
@@ -39,7 +39,7 @@ library CustodyLib {
     function closeCustodianItemVault(uint256 _tokenId, uint256 _custodianId, address _exchangeToken) internal {
         FermionTypes.CustodianFee storage vault = FermionStorage.protocolLookups().tokenLookups[_tokenId].vault;
 
-        FundsLib.increaseAvailableFunds(_custodianId, _exchangeToken, vault.amount);
+        increaseAvailableFunds(_custodianId, _exchangeToken, vault.amount);
 
         vault.period = 0;
         vault.amount = 0;
@@ -90,9 +90,11 @@ library CustodyLib {
 
         for (uint256 i = 0; i < _length; i++) {
             // temporary close individual vaults and transfer the amount for unused periods to the offer vault
-            uint256 tokenId = _firstTokenId + i;
+            uint256 tokenId;
+            unchecked {
+                tokenId = _firstTokenId + i;
+            }
             FermionTypes.CustodianFee storage itemVault = pl.tokenLookups[tokenId].vault;
-
             // when fractionalisation happens, the owner must pay for used period + 1 future period to prevent fee evasion
             uint256 balance = itemVault.amount;
             uint256 lastReleased = itemVault.period;
@@ -102,10 +104,15 @@ library CustodyLib {
                 // In case of external fractionalisation, the caller can provide additional funds to cover the custodian fee. If not enough, revert.
                 if (_externalCall) {
                     // Full custodian payoff must be paid in order to fractionalise
-                    uint256 diff = custodianPayoff + custodianFee.amount - balance;
-                    if (returnedAmount > diff) {
-                        returnedAmount -= diff;
-                        balance = custodianPayoff + custodianFee.amount;
+                    uint256 diff;
+                    unchecked {
+                        diff = custodianPayoff + custodianFee.amount - balance;
+                    }
+                    if (returnedAmount >= diff) {
+                        unchecked {
+                            returnedAmount -= diff;
+                            balance = custodianPayoff + custodianFee.amount;
+                        }
                     } else {
                         revert CustodianVaultErrors.InsufficientBalanceToFractionalise(tokenId, diff);
                     }
@@ -125,7 +132,7 @@ library CustodyLib {
         offerVault.amount += amountToTransferToOfferVault;
 
         if (_externalCall && returnedAmount > 0) {
-            FundsLib.transferFundsFromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
+            transferERC20FromProtocol(exchangeToken, payable(msg.sender), returnedAmount); // not using msgSender() since caller is FermionFNFT contract
         }
         emit ICustodyEvents.VaultBalanceUpdated(offerId, offerVault.amount);
     }

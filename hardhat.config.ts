@@ -43,6 +43,41 @@ task("verify-suite", "Verify contracts on the block explorer")
     await verifySuite(env, contracts && contracts.split(","));
   });
 
+task("generate-upgrade-config", "Generate upgrade config by comparing contract changes between versions")
+  .addParam("currentVersion", "Branch/tag/commit of the current version")
+  .addOptionalParam("newVersion", "Branch/tag/commit of the new version. If not provided, current branch will be used")
+  .addParam("targetVersion", "Version number for the upgrade config (e.g., 1.1.0)")
+  .setAction(async (args, hre) => {
+    console.log("Starting generate-upgrade-config task...");
+    console.log(`Current version: ${args.currentVersion}`);
+    console.log(`New version: ${args.newVersion || "HEAD"}`);
+    console.log(`Target version: ${args.targetVersion}`);
+
+    const { generateUpgradeConfig } = await import("./scripts/upgrade/generate-upgrade-config");
+    await generateUpgradeConfig(hre, args.currentVersion, args.newVersion || "HEAD", args.targetVersion);
+  });
+
+task(
+  "upgrade-facets",
+  "Upgrade facets performs protocol upgrade including pre-upgrade and post-upgrade hooks for protocol diamond",
+)
+  .addParam("env", "The deployment environment")
+  .addParam("targetVersion", "The version to upgrade to")
+  .addFlag("dryRun", "Test the upgrade without actually upgrading")
+  .setAction(async ({ env, targetVersion, dryRun }) => {
+    const { upgradeFacets } = await import("./scripts/upgrade/upgrade-facets");
+    await upgradeFacets(env, targetVersion, dryRun);
+  });
+
+task("upgrade-clients", "Upgrade client contracts including FermionFNFT and its dependencies")
+  .addParam("env", "The deployment environment")
+  .addParam("targetVersion", "The version to upgrade to")
+  .addFlag("dryRun", "Test the upgrade without actually upgrading")
+  .setAction(async ({ env, targetVersion, dryRun }) => {
+    const { upgradeClients } = await import("./scripts/upgrade/upgrade-clients");
+    await upgradeClients(env, targetVersion, dryRun);
+  });
+
 const config: HardhatUserConfig = {
   networks: {
     hardhat: {
@@ -81,6 +116,14 @@ const config: HardhatUserConfig = {
     optimism: {
       url: vars.get("RPC_PROVIDER_OPTIMISM", "https://optimism.llamarpc.com"),
       accounts: [vars.get("DEPLOYER_KEY_OPTIMISM", DEFAULT_DEPLOYER_KEY)],
+    },
+    arbitrumSepolia: {
+      url: vars.get("RPC_PROVIDER_ARBITRUM_SEPOLIA", "https://arbitrum-sepolia.drpc.org"),
+      accounts: [vars.get("DEPLOYER_KEY_ARBITRUM_SEPOLIA", DEFAULT_DEPLOYER_KEY)],
+    },
+    arbitrum: {
+      url: vars.get("RPC_PROVIDER_ARBITRUM", "https://arb1.arbitrum.io/rpc"),
+      accounts: [vars.get("DEPLOYER_KEY_ARBITRUM", DEFAULT_DEPLOYER_KEY)],
     },
   },
   solidity: {
@@ -137,34 +180,7 @@ const config: HardhatUserConfig = {
     }),
   },
   etherscan: {
-    apiKey: {
-      polygonAmoy: vars.get("POLYGONSCAN_API_KEY", ""),
-      sepolia: vars.get("ETHERSCAN_API_KEY", ""),
-      polygon: vars.get("POLYGONSCAN_API_KEY", ""),
-      mainnet: vars.get("ETHERSCAN_API_KEY", ""),
-      base: vars.get("BASESCAN_API_KEY", ""),
-      baseSepolia: vars.get("BASESCAN_API_KEY", ""),
-      optimism: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
-      optimismSepolia: vars.get("OPTIMISTIC_ETHERSCAN_API_KEY", ""),
-    },
-    customChains: [
-      {
-        network: "optimism",
-        chainId: 10,
-        urls: {
-          apiURL: "https://api-optimistic.etherscan.io/api",
-          browserURL: "https://optimistic.etherscan.io/",
-        },
-      },
-      {
-        network: "optimismSepolia",
-        chainId: 11155420,
-        urls: {
-          apiURL: "https://api-sepolia-optimistic.etherscan.io/api",
-          browserURL: "https://sepolia-optimism.etherscan.io",
-        },
-      },
-    ],
+    apiKey: vars.get("ETHERSCAN_API_KEY", ""),
   },
   mocha: {
     timeout: 100000,

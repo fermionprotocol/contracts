@@ -22,13 +22,15 @@ interface IFermionFNFT is IFermionWrapper, IFermionFractions {
      * @param _exchangeToken The address of the exchange token
      * @param _offerId The offer id
      * @param _metadataUri The metadata URI, used for all tokens and contract URI
+     * @param _tokenMetadata - optional token metadata (name and symbol)
      */
     function initialize(
         address _voucherAddress,
         address _owner,
         address _exchangeToken,
         uint256 _offerId,
-        string memory _metadataUri
+        string memory _metadataUri,
+        FermionTypes.TokenMetadata memory _tokenMetadata
     ) external;
 
     /**
@@ -54,4 +56,23 @@ interface IFermionFNFT is IFermionWrapper, IFermionFractions {
      * @param _tokenId The token id.
      */
     function pushToNextTokenState(uint256 _tokenId, FermionTypes.TokenState _newState) external;
+
+    function tokenState(uint256 _tokenId) external view returns (FermionTypes.TokenState);
+
+    /**
+     * @notice Returns the address of the ERC20 clone for a specific epoch
+     * Users should interact with this contract directly for ERC20 operations
+     *
+     * @param _epoch The epoch
+     * @return The address of the ERC20 clone
+     */
+    function getERC20FractionsClone(uint256 _epoch) external view returns (address);
+
+    /**
+     * @notice Returns the address of the ERC20 clone for the current epoch
+     * Users should interact with this contract directly for ERC20 operations
+     *
+     * @return The address of the ERC20 clone
+     */
+    function getERC20FractionsClone() external view returns (address);
 }

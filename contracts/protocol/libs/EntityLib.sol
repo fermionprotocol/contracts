@@ -6,7 +6,7 @@ import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
 import { EntityErrors } from "../domain/Errors.sol";
 import { IEntityEvents } from "../interfaces/events/IEntityEvents.sol";
-import { ContextLib } from "../libs/Context.sol";
+import { ContextLib } from "./ContextLib.sol";
 
 /**
  * @title EntityLib
@@ -14,6 +14,9 @@ import { ContextLib } from "../libs/Context.sol";
  * @notice Entity methods used by multiple facets.
  */
 library EntityLib {
+    uint256 private constant TOTAL_ROLE_COUNT = uint256(type(FermionTypes.EntityRole).max) + 1;
+    uint256 private constant ENTITY_ROLE_MASK = (1 << TOTAL_ROLE_COUNT) - 1;
+
     /**
      * @notice Creates an entity.
      *
@@ -135,10 +138,41 @@ library EntityLib {
      * @return compactRole - the compact representation of roles
      */
     function rolesToCompactRole(FermionTypes.EntityRole[] memory _roles) internal pure returns (uint256 compactRole) {
-        for (uint256 i = 0; i < _roles.length; i++) {
+        for (uint256 i; i < _roles.length; ++i) {
             // Get enum value as power of 2
-            uint256 role = 1 << uint256(_roles[i]);
-            compactRole |= role;
+            compactRole |= (1 << uint256(_roles[i]));
+        }
+    }
+
+    /**
+     * @notice Converts compact role to array of Roles.
+     *
+     * @param _compactRole - the compact representation of roles
+     * @return roles - the array of roles
+     */
+    function compactRoleToRoles(uint256 _compactRole) internal pure returns (FermionTypes.EntityRole[] memory roles) {
+        // max number of roles an entity can have
+        roles = new FermionTypes.EntityRole[](TOTAL_ROLE_COUNT);
+
+        // Return the roles
+        if (_compactRole == ENTITY_ROLE_MASK) {
+            for (uint256 i = 0; i < TOTAL_ROLE_COUNT; i++) {
+                roles[i] = FermionTypes.EntityRole(i);
+            }
+        } else {
+            uint256 count;
+            for (uint256 i; i < TOTAL_ROLE_COUNT; ++i) {
+                // Check if the entity has role by bitwise AND operation with shifted 1
+                if (_compactRole & (1 << i) != 0) {
+                    roles[count] = FermionTypes.EntityRole(i);
+                    count++;
+                }
+            }
+
+            // setting the correct number of roles
+            assembly {
+                mstore(roles, count)
+            }
         }
     }
 
@@ -321,16 +355,38 @@ library EntityLib {
         }
     }
 
-    function getOrCreateBuyerId(
-        address _buyerAddress,
+    /** @notice Returns the entity id for the account address. If the entity not exist, it creates one with the provided role.
+     * If the entity exists, but does not have the role, it adds the role to the entity.
+     *
+     * @param _entityAddress - the entity's address
+     * @param _role - the entity's role
+     * @param pl - the protocol lookups storage
+     * @return entityId - the entity's id
+     */
+    function getOrCreateEntityId(
+        address _entityAddress,
+        FermionTypes.EntityRole _role,
         FermionStorage.ProtocolLookups storage pl
-    ) internal returns (uint256 buyerId) {
-        buyerId = pl.accountId[_buyerAddress];
+    ) internal returns (uint256 entityId) {
+        entityId = pl.entityId[_entityAddress];
 
-        if (buyerId == 0) {
+        if (entityId == 0) {
             FermionTypes.EntityRole[] memory _roles = new FermionTypes.EntityRole[](1);
-            _roles[0] = FermionTypes.EntityRole.Buyer;
-            buyerId = createEntity(_buyerAddress, _roles, "", pl);
+            _roles[0] = _role;
+            entityId = createEntity(_entityAddress, _roles, "", pl);
+        } else {
+            FermionTypes.EntityData storage entityData = FermionStorage.protocolEntities().entityData[entityId];
+            uint256 compactEntityRoles = entityData.roles;
+            if (!checkEntityRole(compactEntityRoles, _role)) {
+                compactEntityRoles |= (1 << uint256(_role));
+                entityData.roles = compactEntityRoles;
+                emit IEntityEvents.EntityStored(
+                    entityId,
+                    _entityAddress,
+                    compactRoleToRoles(compactEntityRoles),
+                    entityData.metadataURI
+                );
+            }
         }
     }
 }

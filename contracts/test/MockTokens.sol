@@ -6,6 +6,22 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 
 contract MockERC20 is ERC20 {
     uint256 private burnAmount;
+    TrustedForwarderReturnData private trustedForwarderReturnData;
+    TransferReturnData private transferReturnData;
+
+    enum TrustedForwarderReturnData {
+        Default, // returns address(0)
+        TooShort, // returns 1 byte
+        TooLong, // returns 33 bytes
+        Polluted // returns 32 bytes with unexpected data
+    }
+
+    enum TransferReturnData {
+        Success, // returns true (1)
+        Failure, // returns false (0)
+        NoReturn, // returns nothing
+        InvalidReturn // returns unexpected value
+    }
 
     constructor() ERC20("MockERC20", "MCK_20") {}
 
@@ -25,6 +41,51 @@ contract MockERC20 is ERC20 {
         burnAmount = _burnAmount;
     }
 
+    function setTrustedForwarderReturnData(TrustedForwarderReturnData _returnData) external {
+        trustedForwarderReturnData = _returnData;
+    }
+
+    function setTransferReturnData(TransferReturnData _returnData) external {
+        transferReturnData = _returnData;
+    }
+
+    function trustedForwarder() public view returns (address) {
+        if (trustedForwarderReturnData == TrustedForwarderReturnData.Default) {
+            return address(0);
+        } else if (trustedForwarderReturnData == TrustedForwarderReturnData.TooShort) {
+            assembly {
+                return(0, 1)
+            }
+        } else if (trustedForwarderReturnData == TrustedForwarderReturnData.TooLong) {
+            assembly {
+                mstore(0, 0x0000000000000000000000000000000000000000000000000000000000000001) //  true
+                return(0, 33) // return 33 bytes
+            }
+        } else if (trustedForwarderReturnData == TrustedForwarderReturnData.Polluted) {
+            assembly {
+                mstore(0, 0x1626ba7e000000000000000abcde000000000000000000000000000000000001) //  true with some other data
+                return(0, 32)
+            }
+        }
+    }
+
+    function transferFrom(address from, address to, uint256 amount) public virtual override returns (bool) {
+        if (transferReturnData == TransferReturnData.Success) {
+            return super.transferFrom(from, to, amount);
+        } else if (transferReturnData == TransferReturnData.Failure) {
+            return false;
+        } else if (transferReturnData == TransferReturnData.NoReturn) {
+            assembly {
+                return(0, 0)
+            }
+        } else if (transferReturnData == TransferReturnData.InvalidReturn) {
+            assembly {
+                mstore(0, 0x0000000000000000000000000000000000000000000000000000000000000002) // return 2
+                return(0, 32)
+            }
+        }
+    }
+
     function _update(address from, address to, uint256 amount) internal override {
         if (burnAmount > 0 && to != address(0)) {
             _burn(from, burnAmount);
@@ -35,7 +96,7 @@ contract MockERC20 is ERC20 {
 }
 
 contract MockERC721 is ERC721 {
-    uint256 private burnAmount;
+    bool private holdTransfer;
 
     constructor() ERC721("MockERC20", "MCK_20") {}
 
@@ -49,6 +110,20 @@ contract MockERC721 is ERC721 {
         for (uint256 i = 0; i < _amount; i++) {
             _mint(_account, _startTokenId + i);
         }
+    }
+
+    function transferFrom(address from, address to, uint256 tokenId) public virtual override {
+        if (revertReason == RevertReason.CustomError) {
+            revert CustomError();
+        }
+
+        if (!holdTransfer) {
+            super.transferFrom(from, to, tokenId);
+        }
+    }
+
+    function setHoldTransfer(bool _holdTransfer) public {
+        holdTransfer = _holdTransfer;
     }
 
     enum RevertReason {

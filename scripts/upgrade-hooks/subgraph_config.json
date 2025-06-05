@@ -1,0 +1,58 @@
+{
+  "test": {
+    "80002": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-amoy/latest/gn"
+    },
+    "84532": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-base/latest/gn"
+    },
+    "11155111": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-sepolia/latest/gn"
+    },
+    "11155420": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-optimism/latest/gn"
+    },
+    "421614": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/5792d73a-e6d4-4d72-af3c-ea2c96638408/subgraphs/fermion-testing-arbitrum/latest/gn"
+    }
+  },
+  "staging": {
+    "80002": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/f8f9f132-3725-435c-943b-575b22447910/subgraphs/fermion-staging-amoy/latest/gn"
+    },
+    "84532": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/f8f9f132-3725-435c-943b-575b22447910/subgraphs/fermion-staging-base/latest/gn"
+    },
+    "11155111": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/f8f9f132-3725-435c-943b-575b22447910/subgraphs/fermion-staging-sepolia/latest/gn"
+    },
+    "11155420": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/f8f9f132-3725-435c-943b-575b22447910/subgraphs/fermion-staging-optimism/latest/gn"
+    },
+    "421614": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/f8f9f132-3725-435c-943b-575b22447910/subgraphs/fermion-staging-arbitrum/latest/gn"
+    }
+  },
+  "prod": {
+    "1": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/e6db8da4-6f65-4c76-b2bd-e0399856a6ae/subgraphs/fermion-production-ethereum/latest/gn"
+    },
+    "10": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/e6db8da4-6f65-4c76-b2bd-e0399856a6ae/subgraphs/fermion-production-optimism/latest/gn"
+    },
+    "137": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/e6db8da4-6f65-4c76-b2bd-e0399856a6ae/subgraphs/fermion-production-polygon/latest/gn"
+    },
+    "8453": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/e6db8da4-6f65-4c76-b2bd-e0399856a6ae/subgraphs/fermion-production-base/latest/gn"
+    },
+    "42161": {
+      "subgraphUrl": "https://api.0xgraph.xyz/api/public/e6db8da4-6f65-4c76-b2bd-e0399856a6ae/subgraphs/fermion-production-arbitrum/latest/gn"
+    }
+  },
+  "local": {
+    "31337": {
+      "subgraphUrl": "http://127.0.0.1:8000/subgraphs/name/fermion/corecomponents"
+    }
+  }
+}

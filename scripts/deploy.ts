@@ -1,7 +1,7 @@
 import fs from "fs";
 import hre, { ethers, network } from "hardhat";
 import { FacetCutAction, getSelectors } from "./libraries/diamond";
-import { getStateModifyingFunctionsHashes } from "./libraries/metaTransaction";
+import { getStateModifyingFunctionsHashes, RESTRICTED_METATX_FUNCTIONS } from "./libraries/metaTransaction";
 import { writeContracts, readContracts, checkDeployerAddress, deployContract } from "./libraries/utils";
 import { vars } from "hardhat/config";
 
@@ -11,7 +11,7 @@ import { BaseContract, Contract, ZeroAddress } from "ethers";
 import fermionConfig from "./../fermion.config";
 
 const version = "1.0.1";
-let deploymentData: any[] = [];
+export let deploymentData: any[] = [];
 
 export async function deploySuite(env: string = "", modules: string[] = [], create3: boolean = false) {
   if (create3) {
@@ -39,7 +39,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   let wrappedNativeAddress: string;
   const isForking = hre.config.networks["hardhat"].forking;
   const networkName = isForking ? isForking.originalChain.name : network.name;
-  const { seaportConfig, wrappedNative } = fermionConfig.externalContracts[networkName];
+  const { seaportConfig, wrappedNative, strictAuthorizedTransferSecurityRegistry } =
+    fermionConfig.externalContracts[networkName];
   if ((network.name === "hardhat" && !isForking) || network.name === "localhost") {
     let weth: BaseContract;
     ({ bosonProtocolAddress, bosonPriceDiscoveryAddress, bosonTokenAddress, weth } =
@@ -105,15 +106,50 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
   // deploy wrapper implementation
   let wrapperImplementationAddress: string;
   if (allModules || modules.includes("fnft")) {
-    const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, seaportConfig];
+    const predictedFermionDiamondAddress = await predictFermionDiamondAddress(create3, 10); // Diamond will be deployed 10 tx from now
+    const seaportWrapperConstructorArgs = [bosonPriceDiscoveryAddress, predictedFermionDiamondAddress, seaportConfig];
     const FermionSeaportWrapper = await ethers.getContractFactory("SeaportWrapper");
     const fermionSeaportWrapper = await FermionSeaportWrapper.deploy(...seaportWrapperConstructorArgs);
+    const FermionFNFTPriceManager = await ethers.getContractFactory("FermionFNFTPriceManager");
+    const fermionFNFTPriceManager = await FermionFNFTPriceManager.deploy(predictedFermionDiamondAddress);
+    const FermionFractionsERC20 = await ethers.getContractFactory("FermionFractionsERC20");
+    const fermionFractionsERC20 = await FermionFractionsERC20.deploy(predictedFermionDiamondAddress);
+    const FermionFractionsMint = await ethers.getContractFactory("FermionFractionsMint");
+    const fermionFractionsMint = await FermionFractionsMint.deploy(
+      bosonPriceDiscoveryAddress,
+      predictedFermionDiamondAddress,
+      await fermionFractionsERC20.getAddress(),
+    );
+    const FermionBuyoutAuction = await ethers.getContractFactory("FermionBuyoutAuction");
+    const fermionBuyoutAuction = await FermionBuyoutAuction.deploy(
+      bosonPriceDiscoveryAddress,
+      predictedFermionDiamondAddress,
+    );
+
     deploymentComplete("SeaportWrapper", await fermionSeaportWrapper.getAddress(), seaportWrapperConstructorArgs, true);
+    deploymentComplete("FermionFNFTPriceManager", await fermionFNFTPriceManager.getAddress(), [], true);
+    deploymentComplete(
+      "FermionFractionsMint",
+      await fermionFractionsMint.getAddress(),
+      [bosonPriceDiscoveryAddress, predictedFermionDiamondAddress],
+      true,
+    );
+    deploymentComplete(
+      "FermionBuyoutAuction",
+      await fermionBuyoutAuction.getAddress(),
+      [bosonPriceDiscoveryAddress, predictedFermionDiamondAddress],
+      true,
+    );
 
     const fermionFNFTConstructorArgs = [
       bosonPriceDiscoveryAddress,
+      predictedFermionDiamondAddress,
       await fermionSeaportWrapper.getAddress(),
+      strictAuthorizedTransferSecurityRegistry,
       wrappedNativeAddress,
+      await fermionFractionsMint.getAddress(),
+      await fermionFNFTPriceManager.getAddress(),
+      await fermionBuyoutAuction.getAddress(),
     ];
     const FermionFNFT = await ethers.getContractFactory("FermionFNFT");
     const fermionWrapper = await FermionFNFT.deploy(...fermionFNFTConstructorArgs);
@@ -168,6 +204,8 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     "FundsFacet",
     "PauseFacet",
     "CustodyVaultFacet",
+    "PriceOracleRegistryFacet",
+    "RoyaltiesFacet",
   ];
   let facets = {};
 
@@ -175,7 +213,7 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     const constructorArgs = {
       MetaTransactionFacet: [diamondAddress],
       OfferFacet: [bosonProtocolAddress],
-      VerificationFacet: [bosonProtocolAddress],
+      VerificationFacet: [bosonProtocolAddress, diamondAddress],
     };
     facets = await deployFacets(facetNames, constructorArgs, true);
     await writeContracts(deploymentData, env, version, externalContracts);
@@ -199,11 +237,26 @@ export async function deploySuite(env: string = "", modules: string[] = [], crea
     // grant upgrader role
     await accessController.grantRole(ethers.id("UPGRADER"), deployerAddress);
 
+    const metatxFacets = facetNames.filter((facet) => facet !== "ConfigFacet" && facet !== "PauseFacet");
+
     // Init other facets, using the initialization facet
     // Prepare init call
     const init = {
-      MetaTransactionFacet: [await getStateModifyingFunctionsHashes([...facetNames, "FermionFNFT"])],
-      ConfigFacet: [fermionConfig.protocolParameters],
+      MetaTransactionFacet: [
+        await getStateModifyingFunctionsHashes(
+          [...metatxFacets, "FermionFNFT", "FermionFractionsERC20"],
+          RESTRICTED_METATX_FUNCTIONS,
+        ),
+      ],
+      ConfigFacet: [
+        fermionConfig.protocolParameters.treasury,
+        fermionConfig.protocolParameters.protocolFeePercentage,
+        fermionConfig.protocolParameters.maxRoyaltyPercentage,
+        fermionConfig.protocolParameters.maxVerificationTimeout,
+        fermionConfig.protocolParameters.defaultVerificationTimeout,
+        fermionConfig.protocolParameters.openSeaFeePercentage,
+      ],
+      OfferFacet: [],
     };
     const initAddresses = await Promise.all(Object.keys(init).map((facetName) => facets[facetName].getAddress()));
     const initCalldatas = Object.keys(init).map((facetName) =>
@@ -334,16 +387,36 @@ export async function makeDiamondCut(diamondAddress, facetCuts, initAddress = et
   return tx;
 }
 
-function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
-  // ToDo: calculate interfaceId?
-  if (save) deploymentData.push({ name, address, args });
+export function deploymentComplete(name: string, address: string, args: any[], save: boolean = false) {
+  if (save) {
+    const existingIndex = deploymentData.findIndex((contract) => contract.name === name);
+    if (existingIndex >= 0) {
+      deploymentData[existingIndex] = { name, address, args };
+    } else {
+      deploymentData.push({ name, address, args });
+    }
+  }
   console.log(`✅ ${name} deployed to: ${address}`);
 }
 
-async function getDeploymentData(env: string) {
+export async function getDeploymentData(env: string) {
   if (deploymentData.length === 0) {
     const contractsFile = await readContracts(env);
     deploymentData = contractsFile.contracts;
   }
   return deploymentData;
+}
+
+export async function predictFermionDiamondAddress(create3: boolean, transactionOffset: number = 0) {
+  if (create3) {
+    throw Error(`Create3 address calculation is not supported yet.`);
+  }
+
+  const accounts = await ethers.getSigners();
+  const deployer = accounts[0];
+
+  const currentNonce = await ethers.provider.getTransactionCount(deployer.address, "latest");
+  const diamondDeployNonce = currentNonce + transactionOffset;
+
+  return ethers.getCreateAddress({ from: deployer.address, nonce: diamondDeployNonce });
 }

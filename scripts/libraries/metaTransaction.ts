@@ -2,6 +2,17 @@ import { ethers } from "hardhat";
 import type { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/src/signers";
 const { getContractFactory, id, isHexString, provider, randomBytes, toBeHex } = ethers;
 
+export const RESTRICTED_METATX_FUNCTIONS = [
+  "burn",
+  "mint",
+  "renounceOwnership",
+  "transferOwnership",
+  "transferFractionsFrom",
+  "addPriceOracle",
+  "removePriceOracle",
+  "adjustVotesOnTransfer",
+];
+
 // Generic meta transaction type
 export const metaTransactionType = [
   { name: "nonce", type: "uint256" },
@@ -138,4 +149,21 @@ export async function getStateModifyingFunctionsHashes(
   );
 
   return stateModifyingFunctions.map((smf) => id(smf));
+}
+
+export async function getFunctionSignatureDetails(
+  facetNames: string[],
+  omitFunctions: string[] = [],
+  onlyFunctions: string[] = [],
+): Promise<Array<{ name: string; hash: string }>> {
+  const stateModifyingFunctionSignatures = await getStateModifyingFunctions(
+    facetNames,
+    [...omitFunctions, "initialize", "init"],
+    onlyFunctions,
+  );
+
+  return stateModifyingFunctionSignatures.map((sig) => ({
+    name: sig,
+    hash: id(sig),
+  }));
 }

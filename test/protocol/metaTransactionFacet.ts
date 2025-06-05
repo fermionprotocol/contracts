@@ -3,7 +3,7 @@ import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
 import { expect } from "chai";
 import { ethers } from "hardhat";
 import { Contract } from "ethers";
-import { EntityRole, PausableRegion, TokenState } from "../utils/enums";
+import { EntityRole, PausableRegion, VerificationStatus, WrapType } from "../utils/enums";
 import { deployFermionProtocolFixture, deriveTokenId, deployMockTokens } from "../utils/common";
 import {
   getStateModifyingFunctions,
@@ -18,7 +18,12 @@ import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 const { id, getContractAt, getContractFactory, MaxUint256, toBeHex, ZeroAddress, ZeroHash, parseEther } = ethers;
 
 describe("MetaTransactions", function () {
-  let entityFacet: Contract, metaTransactionFacet: Contract, pauseFacet: Contract, offerFacet: Contract;
+  let entityFacet: Contract,
+    metaTransactionFacet: Contract,
+    pauseFacet: Contract,
+    offerFacet: Contract,
+    verificationFacet: Contract,
+    custodyFacet: Contract;
   let mockToken: Contract;
   let wallets: HardhatEthersSigner[], defaultSigner: HardhatEthersSigner, buyer: HardhatEthersSigner;
   let fermionErrors: Contract;
@@ -52,21 +57,22 @@ describe("MetaTransactions", function () {
       verifierFee,
       custodianId: sellerId,
       custodianFee: {
-        amount: parseEther("0.05"),
+        amount: parseEther("0.00"),
         period: 30n * 24n * 60n * 60n, // 30 days
       },
       facilitatorId: sellerId,
       facilitatorFeePercent: "0",
       exchangeToken: await mockToken.getAddress(),
-      metadataURI: "https://example.com/offer-metadata.json",
-      metadataHash: ZeroHash,
+      withPhygital: false,
+      metadata: { URI: "https://example.com/offer-metadata.json", hash: ZeroHash },
+      royaltyInfo: { recipients: [], bps: [] },
     };
 
     await offerFacet.createOffer(fermionOffer);
 
     // Mint and wrap some NFTs
     const quantity = "1";
-    await offerFacet.mintAndWrapNFTs(offerId, quantity); // offerId = 1; exchangeId = 2
+    await offerFacet.mintAndWrapNFTs(offerId, quantity, { name: "test FNFT", symbol: "tFNFT" }); // offerId = 1; exchangeId = 2
 
     // Unwrap some NFTs - normal sale and sale with self-verification
     buyer = wallets[5];
@@ -74,7 +80,7 @@ describe("MetaTransactions", function () {
     await mockToken.approve(fermionProtocolAddress, 2n * sellerDeposit); // approve to transfer seller deposit during the unwrapping
     const createBuyerAdvancedOrder = createBuyerAdvancedOrderClosure(wallets, seaportAddress, mockToken, offerFacet);
     const { buyerAdvancedOrder, tokenId } = await createBuyerAdvancedOrder(buyer, offerId, exchangeId);
-    await offerFacet.unwrapNFT(tokenId, buyerAdvancedOrder);
+    await offerFacet.unwrapNFT(tokenId, WrapType.OS_AUCTION, buyerAdvancedOrder);
   }
 
   before(async function () {
@@ -85,6 +91,8 @@ describe("MetaTransactions", function () {
         MetaTransactionFacet: metaTransactionFacet,
         PauseFacet: pauseFacet,
         OfferFacet: offerFacet,
+        VerificationFacet: verificationFacet,
+        CustodyFacet: custodyFacet,
       },
       fermionErrors,
       wallets,
@@ -632,7 +640,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(entity, "UnknownValidity");
@@ -646,7 +658,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWith("Error string");
@@ -660,7 +676,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.reverted;
@@ -674,7 +694,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x12");
@@ -688,7 +712,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x32");
@@ -764,7 +792,11 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                [
+                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
+                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
+                  28,
+                ], // use something that does not fail with invalidSignature
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
@@ -846,8 +878,13 @@ describe("MetaTransactions", function () {
 
           it("Forwarded call fails", async function () {
             // Prepare the function signature for the facet function.
-            message.functionSignature = fermionFNFT.interface.encodeFunctionData("burn", [tokenId]);
-            message.functionName = fermionFNFT.interface.getFunction("burn").format("sighash");
+            const invalidTokenId = 23123n;
+            message.functionSignature = fermionFNFT.interface.encodeFunctionData("transferFrom", [
+              wallets[3].address,
+              entity.address,
+              invalidTokenId,
+            ]);
+            message.functionName = fermionFNFT.interface.getFunction("transferFrom").format("sighash");
 
             // Collect the signature components
             const { r, s, v } = await prepareDataSignatureParameters(
@@ -869,9 +906,7 @@ describe("MetaTransactions", function () {
                 [r, s, v],
                 offerId,
               ),
-            )
-              .to.be.revertedWithCustomError(fermionFNFT, "InvalidStateOrCaller")
-              .withArgs(tokenId, entity.address, TokenState.Unverified);
+            ).to.be.revertedWithCustomError(fermionFNFT, "ERC721NonexistentToken");
           });
         });
 
@@ -1124,17 +1159,20 @@ describe("MetaTransactions", function () {
 
         beforeEach(async function () {
           const [mockConduit, mockBosonPriceDiscovery] = wallets.slice(9, 11);
+          trustedForwarder = wallets[1];
 
           seaportWrapperConstructorArgs = [
             mockBosonPriceDiscovery.address,
+            trustedForwarder,
             {
               seaport: wallets[10].address, // dummy address
               openSeaConduit: mockConduit.address,
               openSeaConduitKey: ZeroHash,
+              openSeaSignedZone: ZeroAddress,
+              openSeaZoneHash: ZeroHash,
+              openSeaRecipient: ZeroAddress,
             },
           ];
-
-          trustedForwarder = wallets[1];
         });
 
         it("msg.data includes the sender, _msgData() does not - fermion FNFT", async function () {
@@ -1146,7 +1184,12 @@ describe("MetaTransactions", function () {
 
           const metaTxTest = await MetaTxTestFactory.deploy(
             dummyAddress,
+            trustedForwarder.address,
             await fermionSeaportWrapper.getAddress(),
+            ZeroAddress,
+            dummyAddress,
+            dummyAddress,
+            dummyAddress,
             dummyAddress,
           );
 
@@ -1155,7 +1198,10 @@ describe("MetaTransactions", function () {
           const metaTxTestProxy = await ethers.getContractAt("MetaTxTest", await proxy.getAddress());
           await metaTxTestProxy
             .connect(trustedForwarder)
-            .initialize(dummyAddress, dummyAddress, dummyAddress, "1", "http://metadata");
+            .initialize(dummyAddress, dummyAddress, dummyAddress, "1", "http://metadata", {
+              name: "test FNFT",
+              symbol: "tFNFT",
+            });
 
           data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
           dataWithAddress = data + buyer.address.slice(2).toLowerCase();
@@ -1170,6 +1216,306 @@ describe("MetaTransactions", function () {
 
           // Verify the state
           expect(await metaTxTestProxy.data()).to.equal(dataWithAddress);
+        });
+      });
+    });
+
+    context("executeMetaTransaction - fermionFractions metatx", function () {
+      let fermionFNFT: Contract;
+      let fermionFNFTAddress: string;
+      let fermionFractions: Contract;
+      let fermionFractionsAddress: string;
+      const tokenId = deriveTokenId(offerId, exchangeId).toString();
+      const offerIdWithEpoch = (BigInt(1) << 128n) | BigInt(offerId);
+
+      before(async function () {
+        fermionFNFTAddress = await offerFacet.predictFermionFNFTAddress(offerId);
+        fermionFNFT = await ethers.getContractAt("FermionFNFT", fermionFNFTAddress);
+      });
+
+      beforeEach(async function () {
+        await loadFixture(setupFermionFNFTs);
+
+        const fractionsAmount = 5000n * 10n ** 18n;
+        const auctionParameters = {
+          exitPrice: parseEther("0.1"),
+          duration: 60n * 60n * 24n * 7n, // 1 week
+          unlockThreshold: 7500n, // 75%
+          topBidLockTime: 60n * 60n * 24n * 2n, // two days
+        };
+        const custodianFee = {
+          amount: parseEther("0.05"),
+          period: 30n * 24n * 60n * 60n, // 30 days
+        };
+        const custodianVaultParameters = {
+          partialAuctionThreshold: custodianFee.amount * 15n,
+          partialAuctionDuration: custodianFee.period / 2n,
+          liquidationThreshold: custodianFee.amount * 2n,
+          newFractionsPerAuction: fractionsAmount * 5n,
+        };
+
+        const verificationMetadata = {
+          URI: "https://example.com/verification-metadata.json",
+          hash: id("metadata"),
+        };
+        await verificationFacet.submitVerdict(tokenId, VerificationStatus.Verified, verificationMetadata);
+        await custodyFacet.checkIn(tokenId);
+
+        await fermionFNFT
+          .connect(buyer)
+          .mintFractions(tokenId, 1, fractionsAmount, auctionParameters, custodianVaultParameters, 0n, ZeroAddress);
+
+        fermionFractionsAddress = await fermionFNFT.getERC20FractionsClone();
+        fermionFractions = await ethers.getContractAt("FermionFractionsERC20", fermionFractionsAddress);
+      });
+
+      context("Externally owned account", function () {
+        let entity, message;
+        const approval = parseEther("1");
+
+        beforeEach(async function () {
+          const nonce = randomNonce();
+          entity = buyer;
+
+          // Prepare the message
+          message = {
+            nonce: nonce,
+            from: entity.address,
+            contractAddress: fermionFractionsAddress,
+            functionName: fermionFractions.interface.getFunction("approve").format("sighash"),
+            functionSignature: fermionFractions.interface.encodeFunctionData("approve", [
+              fermionProtocolAddress,
+              approval,
+            ]),
+          };
+        });
+
+        context("Forwards a generic meta transaction", async function () {
+          it("Forwarded call succeeds", async function () {
+            // Collect the signature components
+            const { r, s, v } = await prepareDataSignatureParameters(
+              entity,
+              {
+                MetaTransaction: metaTransactionType,
+              },
+              "MetaTransaction",
+              message,
+              await metaTransactionFacet.getAddress(),
+            );
+
+            // Send as meta transaction
+            const tx = await metaTransactionFacet.executeMetaTransaction(
+              entity.address,
+              message.functionName,
+              message.functionSignature,
+              message.nonce,
+              [r, s, v],
+              offerIdWithEpoch,
+            );
+
+            // Verify the event
+            await expect(tx)
+              .to.emit(metaTransactionFacet, "MetaTransactionExecuted")
+              .withArgs(entity.address, defaultSigner.address, message.functionName, message.nonce);
+            await expect(tx)
+              .to.emit(fermionFractions, "Approval")
+              .withArgs(entity.address, fermionProtocolAddress, approval);
+
+            // Verify the state
+            expect(await fermionFractions.allowance(entity.address, fermionProtocolAddress)).to.be.equal(approval);
+
+            expect(await metaTransactionFacet.isUsedNonce(entity.address, message.nonce)).to.be.equal(true);
+          });
+
+          it("Forwarded call fails", async function () {
+            // Prepare the function signature for the facet function.
+            message.functionSignature = fermionFractions.interface.encodeFunctionData("transfer", [
+              fermionProtocolAddress,
+              MaxUint256,
+            ]);
+            message.functionName = fermionFractions.interface.getFunction("transfer").format("sighash");
+
+            // Collect the signature components
+            const { r, s, v } = await prepareDataSignatureParameters(
+              entity,
+              {
+                MetaTransaction: metaTransactionType,
+              },
+              "MetaTransaction",
+              message,
+              await metaTransactionFacet.getAddress(),
+            );
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                [r, s, v],
+                offerIdWithEpoch,
+              ),
+            ).to.be.revertedWithCustomError(fermionFractions, "ERC20InsufficientBalance");
+          });
+        });
+
+        context("Revert reasons", function () {
+          it("Metatransaction region is paused", async function () {
+            await pauseFacet.pause([PausableRegion.MetaTransaction]);
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                ZeroAddress,
+                "testFunction",
+                ZeroHash,
+                ZeroHash,
+                [ZeroHash, ZeroHash, 0],
+                offerIdWithEpoch,
+              ),
+            )
+              .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
+              .withArgs(PausableRegion.MetaTransaction);
+          });
+
+          it("Nonce is already used by the msg.sender for another transaction", async function () {
+            // Collect the signature components
+            const { r, s, v } = await prepareDataSignatureParameters(
+              entity,
+              {
+                MetaTransaction: metaTransactionType,
+              },
+              "MetaTransaction",
+              message,
+              await metaTransactionFacet.getAddress(),
+            );
+
+            // First transaction should succeed
+            await metaTransactionFacet.executeMetaTransaction(
+              entity.address,
+              message.functionName,
+              message.functionSignature,
+              message.nonce,
+              [r, s, v],
+              offerIdWithEpoch,
+            );
+
+            // Second transaction should fail
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                [r, s, v],
+                offerIdWithEpoch,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
+          });
+
+          it("Sender does not match the recovered signer", async function () {
+            // Use a different signer
+            const { r, s, v } = await prepareDataSignatureParameters(
+              defaultSigner,
+              {
+                MetaTransaction: metaTransactionType,
+              },
+              "MetaTransaction",
+              message,
+              await metaTransactionFacet.getAddress(),
+            );
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                [r, s, v],
+                offerIdWithEpoch,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+          });
+
+          it("Signature is invalid", async function () {
+            const { r, s, v } = await prepareDataSignatureParameters(
+              entity,
+              {
+                MetaTransaction: metaTransactionType,
+              },
+              "MetaTransaction",
+              message,
+              await metaTransactionFacet.getAddress(),
+            );
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                [
+                  r,
+                  toBeHex(MaxUint256), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
+                  v,
+                ],
+                offerIdWithEpoch,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                [
+                  r,
+                  toBeHex(0n, 32), // s must be non-zero
+                  v,
+                ],
+                offerIdWithEpoch,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                [r, s, 32], // v is valid only if it is 27 or 28
+                offerIdWithEpoch,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+          });
+        });
+      });
+
+      context("Test msgData", function () {
+        let trustedForwarder: HardhatEthersSigner;
+        let data: string, dataWithAddress: string;
+
+        beforeEach(async function () {
+          trustedForwarder = wallets[1];
+        });
+
+        it("msg.data includes the sender, _msgData() does not - fermion FNFT", async function () {
+          const MetaTxTestFactory = await getContractFactory("MetaTxTestFractions");
+          const metaTxTest = await MetaTxTestFactory.deploy(trustedForwarder);
+
+          data = metaTxTest.interface.encodeFunctionData("testMsgData", ["0xdeadbeef"]);
+          dataWithAddress = data + buyer.address.slice(2).toLowerCase();
+
+          const tx = await trustedForwarder.sendTransaction({
+            to: metaTxTest.getAddress(),
+            data: dataWithAddress,
+          });
+
+          // Verify the event
+          await expect(tx).to.emit(metaTxTest, "IncomingData").withArgs(data);
+
+          // Verify the state
+          expect(await metaTxTest.data()).to.equal(dataWithAddress);
         });
       });
     });

@@ -2,29 +2,20 @@
 pragma solidity 0.8.24;
 
 import { ADMIN, SLOT_SIZE } from "../domain/Constants.sol";
-import { MetaTransactionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
+import { MetaTransactionErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { FermionStorage } from "../libs/Storage.sol";
-import { Access } from "../libs/Access.sol";
-import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import { Access } from "../bases/mixins/Access.sol";
 import { IMetaTransactionEvents } from "../interfaces/events/IMetaTransactionEvents.sol";
+import { EIP712 } from "../libs/EIP712.sol";
+import { IFermionFNFT } from "../interfaces/IFermionFNFT.sol";
 
 /**
  * @title MetaTransactionFacet
  *
  * @notice Handles meta-transaction requests.
  */
-contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransactionEvents {
-    struct Signature {
-        bytes32 r;
-        bytes32 s;
-        uint8 v;
-    }
-
-    string private constant PROTOCOL_NAME = "Fermion Protocol";
-    string private constant PROTOCOL_VERSION = "V0";
-    bytes32 private constant EIP712_DOMAIN_TYPEHASH =
-        keccak256(bytes("EIP712Domain(string name,string version,address verifyingContract,bytes32 salt)"));
+contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTransactionEvents {
     bytes32 private constant META_TRANSACTION_TYPEHASH =
         keccak256(
             bytes(
@@ -32,24 +23,13 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
             )
         );
 
-    bytes32 private immutable DOMAIN_SEPARATOR_CACHED;
-    uint256 private immutable CHAIN_ID_CACHED;
-    address private immutable FERMION_PROTOCOL_ADDRESS;
-
     /**
      * @notice Constructor.
      * Store the immutable values and build the domain separator.
      *
      * @param _fermionProtocolAddress - the address of the Fermion Protocol contract
      */
-    constructor(address _fermionProtocolAddress) {
-        if (_fermionProtocolAddress == address(0)) revert FermionGeneralErrors.InvalidAddress();
-
-        FERMION_PROTOCOL_ADDRESS = _fermionProtocolAddress;
-        CHAIN_ID_CACHED = block.chainid;
-
-        DOMAIN_SEPARATOR_CACHED = buildDomainSeparator(PROTOCOL_NAME, PROTOCOL_VERSION, FERMION_PROTOCOL_ADDRESS);
-    }
+    constructor(address _fermionProtocolAddress) EIP712(_fermionProtocolAddress) {}
 
     /**
      * @notice Initializes Facet.
@@ -79,7 +59,9 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
      * @param _functionSignature - the function signature
      * @param _nonce - the nonce value of the transaction
      * @param _sig - meta transaction signature, r, s, v
-     * @param _offerId - the offer ID, if FermionFNFT is called. 0 for this contract.
+     * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
+     * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
+     * associated with offerId and epoch.
      */
     function executeMetaTransaction(
         address _userAddress,
@@ -87,7 +69,7 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         bytes calldata _functionSignature,
         uint256 _nonce,
         Signature calldata _sig,
-        uint256 _offerId
+        uint256 _offerIdWithEpoch
     ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
         address userAddress = _userAddress; // stack too deep workaround.
         validateTx(_functionName, _functionSignature, _nonce, userAddress);
@@ -95,15 +77,38 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
         FermionTypes.MetaTransaction memory metaTx;
         metaTx.nonce = _nonce;
         metaTx.from = userAddress;
-        metaTx.contractAddress = _offerId == 0
-            ? address(this)
-            : FermionStorage.protocolLookups().offerLookups[_offerId].fermionFNFTAddress;
+        metaTx.contractAddress = getContractAddress(_offerIdWithEpoch);
         metaTx.functionName = _functionName;
         metaTx.functionSignature = _functionSignature;
 
-        if (!verify(userAddress, hashMetaTransaction(metaTx), _sig)) revert SignatureValidationFailed();
+        verify(userAddress, hashMetaTransaction(metaTx), _sig);
 
         return executeTx(metaTx.contractAddress, userAddress, _functionName, _functionSignature, _nonce);
+    }
+
+    /**
+     * @notice Gets the destination contract address from the storage.
+     *
+     * If the offerIdWithEpoch is 0, returns the address of this contract.
+     * If upper 128 bits are 0, returns the address of the FermionFNFT contract.
+     * Otherwise, subtracts 1 from upper 128 bits to get the epoch and
+     * returns the address of the corresponding ERC20 clone.
+     *
+     * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
+     * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
+     * associated with offerId and epoch.
+     */
+    function getContractAddress(uint256 _offerIdWithEpoch) internal view returns (address) {
+        if (_offerIdWithEpoch == 0) return address(this);
+
+        uint256 epoch = _offerIdWithEpoch >> 128;
+        uint256 offerId = _offerIdWithEpoch & type(uint128).max;
+
+        address FNFTAddress = FermionStorage.protocolLookups().offerLookups[offerId].fermionFNFTAddress;
+
+        if (epoch == 0) return FNFTAddress;
+
+        return IFermionFNFT(FNFTAddress).getERC20FractionsClone(epoch - 1);
     }
 
     /**
@@ -276,116 +281,5 @@ contract MetaTransactionFacet is Access, MetaTransactionErrors, IMetaTransaction
 
         // Notify external observers
         emit FunctionsAllowlisted(_functionNameHashes, _isAllowlisted, _msgSender());
-    }
-
-    /**
-     * @notice Generates the domain separator hash.
-     * @dev Using the chainId as the salt enables the client to be active on one chain
-     * while a metatx is signed for a contract on another chain. That could happen if the client is,
-     * for instance, a metaverse scene that runs on one chain while the contracts it interacts with are deployed on another chain.
-     *
-     * @param _name - the name of the protocol
-     * @param _version -  The version of the protocol
-     * @param _contract - the address of the contract
-     * @return the domain separator hash
-     */
-    function buildDomainSeparator(
-        string memory _name,
-        string memory _version,
-        address _contract
-    ) internal view returns (bytes32) {
-        return
-            keccak256(
-                abi.encode(
-                    EIP712_DOMAIN_TYPEHASH,
-                    keccak256(bytes(_name)),
-                    keccak256(bytes(_version)),
-                    _contract,
-                    CHAIN_ID_CACHED
-                )
-            );
-    }
-
-    /**
-     * @notice Recovers the Signer from the Signature components.
-     *
-     * Reverts if:
-     * - Signer is the zero address
-     *
-     * @param _user  - the sender of the transaction
-     * @param _hashedMetaTx - hashed meta transaction
-     * @param _sig - meta transaction signature, r, s, v
-     * @return true if signer is same as _user parameter
-     */
-    function verify(address _user, bytes32 _hashedMetaTx, Signature memory _sig) internal view returns (bool) {
-        bytes32 typedMessageHash = toTypedMessageHash(_hashedMetaTx);
-
-        // Check if user is a contract implementing ERC1271
-        if (_user.code.length > 0) {
-            (bool success, bytes memory returnData) = _user.staticcall(
-                abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encode(_sig)))
-            );
-
-            if (success) {
-                if (returnData.length != SLOT_SIZE) {
-                    revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
-                } else {
-                    // Make sure that the lowest 224 bits (28 bytes) are not set
-                    if (uint256(bytes32(returnData)) & type(uint224).max != 0) {
-                        revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
-                    }
-                    return abi.decode(returnData, (bytes4)) == IERC1271.isValidSignature.selector;
-                }
-            } else {
-                if (returnData.length == 0) {
-                    revert SignatureValidationFailed();
-                } else {
-                    /// @solidity memory-safe-assembly
-                    assembly {
-                        revert(add(SLOT_SIZE, returnData), mload(returnData))
-                    }
-                }
-            }
-        }
-
-        // Ensure signature is unique
-        // See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/04695aecbd4d17dddfd55de766d10e3805d6f42f/contracts/cryptography/ECDSA.sol#63
-        if (
-            uint256(_sig.s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
-            (_sig.v != 27 && _sig.v != 28)
-        ) revert InvalidSignature();
-
-        address signer = ecrecover(typedMessageHash, _sig.v, _sig.r, _sig.s);
-        if (signer == address(0)) revert InvalidSignature();
-        return signer == _user;
-    }
-
-    /**
-     * @notice Gets the domain separator from storage if matches with the chain id and diamond address, else, build new domain separator.
-     *
-     * @return the domain separator
-     */
-    function getDomainSeparator() internal view returns (bytes32) {
-        if (address(this) == FERMION_PROTOCOL_ADDRESS && block.chainid == CHAIN_ID_CACHED) {
-            return DOMAIN_SEPARATOR_CACHED;
-        }
-
-        return buildDomainSeparator(PROTOCOL_NAME, PROTOCOL_VERSION, address(this));
-    }
-
-    /**
-     * @notice Generates EIP712 compatible message hash.
-     *
-     * @dev Accepts message hash and returns hash message in EIP712 compatible form
-     * so that it can be used to recover signer from signature signed using EIP712 formatted data
-     * https://eips.ethereum.org/EIPS/eip-712
-     * "\\x19" makes the encoding deterministic
-     * "\\x01" is the version byte to make it compatible to EIP-191
-     *
-     * @param _messageHash  - the message hash
-     * @return the EIP712 compatible message hash
-     */
-    function toTypedMessageHash(bytes32 _messageHash) internal view returns (bytes32) {
-        return keccak256(abi.encodePacked("\x19\x01", getDomainSeparator(), _messageHash));
     }
 }

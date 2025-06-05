@@ -14,7 +14,7 @@ import { getBosonProtocolFees } from "../utils/boson-protocol";
 import fermionConfig from "./../../fermion.config";
 
 const { ZeroAddress, parseEther } = ethers;
-const { percentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
+const { protocolFeePercentage: bosonProtocolFeePercentage } = getBosonProtocolFees();
 
 describe("[@skip-on-coverage] Seaport integration test", function () {
   this.timeout(100000000);

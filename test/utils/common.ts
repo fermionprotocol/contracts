@@ -4,7 +4,7 @@ import { glob } from "glob";
 import { ethers } from "hardhat";
 import { deploySuite } from "../../scripts/deploy";
 import { HardhatEthersSigner } from "@nomicfoundation/hardhat-ethers/signers";
-import { BigNumberish, Contract, Interface, toBeHex } from "ethers";
+import { BigNumberish, Contract, Interface, toBeHex, TransactionResponse } from "ethers";
 import { subtask } from "hardhat/config";
 import { EntityRole, AccountRole } from "./enums";
 import { expect } from "chai";
@@ -196,4 +196,102 @@ export async function setNextBlockTimestamp(timestamp: string | number | BigNumb
 
 export function applyPercentage(amount: BigNumberish, percentage: BigNumberish | number) {
   return (BigInt(amount) * BigInt(percentage)) / 10000n;
+}
+
+// TODO: refactor this function to take into account in bosonFee is percentage based or flat fee (in case of BOSON token), because after boson v2.4.2,boson flat fee could be higher than 0
+export function calculateMinimalPrice(
+  verifierFee: BigNumberish,
+  facilitatorFeePercent: BigNumberish,
+  bosonProtocolFee: BigNumberish,
+  fermionFeePercentage: BigNumberish,
+  isBosonFlatFee: boolean = false,
+): bigint {
+  // Convert everything to BigInt for safety and precision
+  const verifierFeeBigInt = BigInt(verifierFee);
+  const facilitatorFeePercentBigInt = BigInt(facilitatorFeePercent);
+  const bosonProtocolFeePercentageBigInt = isBosonFlatFee ? 0n : BigInt(bosonProtocolFee);
+  const bosonProtocolFeeFlatBigInt = isBosonFlatFee ? BigInt(bosonProtocolFee) : 0n;
+  const fermionFeePercentageBigInt = BigInt(fermionFeePercentage);
+
+  // Sum the percentage-based fees
+  const totalPercentFee = facilitatorFeePercentBigInt + bosonProtocolFeePercentageBigInt + fermionFeePercentageBigInt;
+
+  // Calculate the minimal price to cover both absolute verifierFee and percentage-based fees
+  let minimalPrice = (100_00n * (verifierFeeBigInt + bosonProtocolFeeFlatBigInt)) / (100_00n - totalPercentFee);
+
+  // Due to rounding, the true minimal price can lower than the calculated one. Calculate it iteratively
+  let actualFees =
+    applyPercentage(minimalPrice, facilitatorFeePercentBigInt) +
+    applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) +
+    applyPercentage(minimalPrice, fermionFeePercentageBigInt) +
+    verifierFeeBigInt +
+    bosonProtocolFeeFlatBigInt;
+
+  while (actualFees < minimalPrice) {
+    minimalPrice = actualFees;
+    actualFees =
+      applyPercentage(minimalPrice, facilitatorFeePercentBigInt) +
+      applyPercentage(minimalPrice, bosonProtocolFeePercentageBigInt) +
+      applyPercentage(minimalPrice, fermionFeePercentageBigInt) +
+      verifierFeeBigInt +
+      bosonProtocolFeeFlatBigInt;
+  }
+
+  return minimalPrice;
+}
+
+export async function getBlockTimestampFromTransaction(tx: TransactionResponse): Promise<number> {
+  const receipt = await tx.wait(); // Wait for the transaction to be mined
+  const block = await ethers.provider.getBlock(receipt.blockNumber); // Fetch the block details
+  return block.timestamp; // Return the block timestamp
+}
+
+// Helper functions for interacting with ERC20 clones
+export async function getERC20Clone(fermionFNFTProxy: Contract, epoch: bigint = 0n) {
+  if (epoch === 0n) {
+    const cloneAddress = await fermionFNFTProxy.getERC20FractionsClone();
+    return await ethers.getContractAt("FermionFractionsERC20", cloneAddress);
+  } else {
+    const cloneAddress = await fermionFNFTProxy.getERC20FractionsClone(epoch);
+    return await ethers.getContractAt("FermionFractionsERC20", cloneAddress);
+  }
+}
+
+export async function balanceOfERC20(fermionFNFTProxy: Contract, address: string, epoch: bigint = 0n) {
+  const cloneAddress = await getERC20Clone(fermionFNFTProxy, epoch);
+  return await cloneAddress.balanceOf(address);
+}
+
+export async function totalSupplyERC20(fermionFNFTProxy: Contract, epoch: bigint = 0n) {
+  const cloneAddress = await getERC20Clone(fermionFNFTProxy, epoch);
+  return await cloneAddress.totalSupply();
+}
+
+/**
+ * Impersonates an account and returns a signer for it
+ * Also funds the account with 1 ETH to pay for gas
+ * @param address The address to impersonate
+ * @returns A signer for the impersonated account
+ */
+export async function impersonateAccount(address: string) {
+  // Import hardhat at runtime to avoid circular dependencies
+  const hre = await import("hardhat");
+
+  // Impersonate the account
+  await hre.default.network.provider.request({
+    method: "hardhat_impersonateAccount",
+    params: [address],
+  });
+
+  // Get a signer for the impersonated account
+  const signer = await ethers.getSigner(address);
+
+  // Fund the account with some ETH to pay for gas
+  const [fundingAccount] = await ethers.getSigners();
+  await fundingAccount.sendTransaction({
+    to: address,
+    value: ethers.parseEther("1.0"),
+  });
+
+  return signer;
 }

@@ -89,6 +89,16 @@ yarn coverage
 
 Coverage report formats are "html", "json-summary", "lcov", "text" and the reports get written in `./coverage/`.
 
+#### Check Allowlisted Functions
+
+Check which functions are allowlisted for meta-transactions:
+
+```shell
+ENV=<environment> npx hardhat run scripts/check-allowlisted-functions.ts --network <network>
+```
+
+The script shows which functions from deployed contracts are allowlisted for meta-transactions, grouped by contract. It also provides a summary of total, allowlisted, and non-allowlisted functions.
+
 #### Integration test
 
 In addition to unit tests, we provide integration tests, found in `./test/integration`. We use the integration tests to ensure compatibility with already deployed contracts.
@@ -120,6 +130,120 @@ npx hardhat test <testFile> --network <network>
 For example, to run seaport integration test on ethereum, call `npx hardhat test ./test/integration/seaport.ts --network mainnet`
 
 NB: Normal tests and coverage reports skip integration reports.
+
+### Upgrades
+
+The protocol can be upgraded using the upgrade suite. The upgrade process includes two main steps:
+
+1. Generating an upgrade configuration by comparing contract changes between versions
+2. Executing the required upgrades based on your needs:
+   - Protocol facets upgrade
+   - Client contracts upgrade
+
+#### Step 1: Generate Upgrade Configuration
+
+First, generate an upgrade config by comparing contract changes between versions:
+
+```shell
+npx hardhat generate-upgrade-config --current-version <current-version> [--new-version <new-version>] --target-version <version>
+```
+
+- `current-version`: branch/tag/commit of the current version (e.g., v1.0.0)
+- `new-version`: optional branch/tag/commit of the new version (e.g., v1.1.0). If not provided, current branch will be used
+- `version`: version number for the upgrade config (e.g., 1.1.0)
+
+The script will:
+
+- Compare contract bytecodes between versions
+- Detect constructor arguments for facets
+- Generate a configuration file with:
+  - Facets to add, replace, or remove
+  - Constructor arguments for new facets
+  - Initialization data for facets
+
+Example:
+
+```shell
+# Compare two specific versions
+npx hardhat generate-upgrade-config --current-version v1.0.0 --new-version v1.1.0 --target-version 1.1.0
+
+# Compare current branch with a specific version
+npx hardhat generate-upgrade-config --current-version v1.0.0 --target-version 1.1.0
+```
+
+#### Step 2: Execute Required Upgrades
+
+After generating and reviewing the upgrade configuration, you should execute the upgrades based on your needs:
+
+##### Protocol Facets Upgrade
+
+Use this command when you need to upgrade the protocol facets (add, remove, replace) and execute pre/post-upgrade hooks:
+
+```shell
+npx hardhat upgrade-facets --env <environment> --target-version <version> [--dry-run] [--network <network>]
+```
+
+- `environment`: name of the environment to upgrade (e.g., test, staging, production)
+- `version`: target version to upgrade to (e.g., 1.1.0)
+- `dry-run`: optional flag to simulate the upgrade without actually executing it
+- `network`: network to run the upgrade on (must be defined in `hardhat.config.ts`)
+
+The upgrade process will:
+
+1. Execute pre-upgrade hooks if available
+2. Deploy new facets with their constructor arguments
+3. Execute diamond cuts to add/replace/remove facets
+4. Execute initialization data if configured
+5. Execute post-upgrade hooks if available
+6. Update the protocol version
+7. Save the new contract addresses
+
+##### Client Contracts Upgrade
+
+Use this command when you need to upgrade the FermionFNFT contract and its dependencies:
+
+```shell
+npx hardhat upgrade-clients --env <environment> --target-version <version> [--dry-run] [--network <network>]
+```
+
+- `environment`: name of the environment to upgrade (e.g., test, staging, production)
+- `version`: target version to upgrade to (e.g., 1.1.0)
+- `dry-run`: optional flag to simulate the upgrade without actually executing it
+- `network`: network to run the upgrade on (must be defined in `hardhat.config.ts`)
+
+The upgrade process will:
+
+1. Deploy new FermionFNFT contract and its dependencies
+2. Update the FermionFNFT implementation in the diamond through `ConfigFacet.setFNFTImplementationAddress`
+3. Save the new contract addresses
+
+Example:
+
+```shell
+# Upgrade only protocol facets on test environment
+npx hardhat upgrade-facets --env test --target-version 1.1.0 --dry-run --network sepolia
+
+# Upgrade only clients on test environment
+npx hardhat upgrade-clients --env test --target-version 1.1.0 --dry-run --network sepolia
+```
+
+### Fork Tests
+
+Fork tests are used to simulate upgrades and other operations on a forked version of a network. They are located in the `fork-tests` directory.
+
+To run a fork test:
+
+```shell
+npx hardhat test <testFile> --network <network>
+```
+
+Example:
+
+```shell
+npx hardhat test fork-tests/upgrade/1.0.0-1.1.0.ts --network sepolia
+```
+
+The fork tests use the same configuration and hooks as the actual upgrade process, making them perfect for testing upgrades before executing them on the mainnet.
 
 ## Deployment
 
