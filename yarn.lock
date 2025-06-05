@@ -26,9 +26,9 @@
   resolved "https://registry.yarnpkg.com/@babel/helper-validator-identifier/-/helper-validator-identifier-7.25.9.tgz#24b64e2c3ec7cd3b3c547729b8d16871f22cbdc7"
   integrity sha512-Ed61U6XJc3CVRfkERJWDz4dJwKe7iLmmJsbOGu9wSloNSFttHV0I8g6UAgb7qnK5ly5bGLPd4oXZlxCdANBOWQ==
 
-"@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#f099648a49045c8bad1a1bdb8e2c4ffcf67b69da":
-  version "2.4.1"
-  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#f099648a49045c8bad1a1bdb8e2c4ffcf67b69da"
+"@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.4.2":
+  version "2.4.2"
+  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#9665a3ae30b87381bbaa3752b79361b7b1d27dd5"
   dependencies:
     "@openzeppelin/contracts" "^4.9.6"
     "@openzeppelin/contracts-upgradeable" "4.9.3"
