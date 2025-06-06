@@ -1,7 +1,6 @@
 import { createClient, fetchExchange } from "@urql/core";
 import { encodeBytes32String } from "ethers";
 import hre from "hardhat";
-import fetch from "node-fetch";
 import fs from "fs";
 import path from "path";
 import { readContracts, checkRole } from "../libraries/utils";

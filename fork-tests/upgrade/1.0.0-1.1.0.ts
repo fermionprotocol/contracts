@@ -4,7 +4,6 @@ import { keccak256, toBeHex, concat } from "ethers";
 import { getStorageAt } from "@nomicfoundation/hardhat-network-helpers";
 import { upgradeFacets } from "../../scripts/upgrade/upgrade-facets";
 import { createClient, fetchExchange } from "@urql/core";
-import fetch from "node-fetch";
 import fs from "fs";
 import path from "path";
 import { readContracts } from "../../scripts/libraries/utils";
