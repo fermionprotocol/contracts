@@ -6,7 +6,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: "@fermionprotocol/${{ github.repository }}/hardhat-node"
+  IMAGE_NAME: "${{ github.repository }}/hardhat-node"
 
 jobs:
   push_to_registries:
