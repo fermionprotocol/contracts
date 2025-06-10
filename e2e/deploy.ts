@@ -1,13 +1,9 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import * as hre from "hardhat";
-import { cpSync } from "fs";
-import { resolve } from "path";
 import {
   deployFermionProtocolFixture,
   deployMockTokens
 } from "../test/utils/common";
 import { Contract } from "ethers";
-import shelljs from "shelljs";
 
 async function main() {
   // const bosonProtocol = "0x0";

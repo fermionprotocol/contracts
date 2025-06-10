@@ -1,6 +1,6 @@
 FROM node:20-alpine3.22
 RUN apk update
-RUN apk add git
+RUN apk add git supervisor
 
 WORKDIR /app
 
@@ -19,6 +19,10 @@ RUN npx hardhat compile
 
 COPY . .
 
+COPY ./e2e/supervisord.conf /etc/supervisord.conf
+
 EXPOSE 8545
 
-CMD ["sh", "./e2e/launch-container.sh"]
+ENV SUPERVISOR_LOG_LEVEL debug
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
