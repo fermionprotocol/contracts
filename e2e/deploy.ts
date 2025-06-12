@@ -10,7 +10,7 @@ async function main() {
   // await deployDiamond(bosonProtocol);
   const defaultSigner = (await hre.ethers.getSigners())[1];
   const { bosonProtocolAddress } =
-    await deployFermionProtocolFixture(defaultSigner);
+    await deployFermionProtocolFixture.bind({ env: "test" })(defaultSigner);
 
   // deploy an ERC20 contract
   const [erc20] = await deployMockTokens(["ERC20"]);
