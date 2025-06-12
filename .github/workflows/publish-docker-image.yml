@@ -6,10 +6,10 @@ on:
 
 env:
   GH_REGISTRY: ghcr.io
-  IMAGE_NAME: "${{ github.repository }}/hardhat-node"
+  GH_IMAGE_NAME: "${{ github.repository }}/fermion-protocol-node"
   DH_REGISTRY: docker.io
   DH_NAMESPACE: levalleuxludordm
-  DH_REPOSITORY: fermion-contracts
+  DH_REPOSITORY: fermion-protocol-node
 
 jobs:
   push_to_registries:
@@ -42,7 +42,7 @@ jobs:
         uses: docker/metadata-action@9ec57ed1fcdbf14dcef7dfbe97b2010124a938b7
         with:
           images: |
-            ${{ env.GH_REGISTRY }}/${{ env.IMAGE_NAME }}
+            ${{ env.GH_REGISTRY }}/${{ env.GH_IMAGE_NAME }}
             ${{ env.DH_NAMESPACE }}/${{ env.DH_REPOSITORY }}
 
       - name: Build and push Docker images
@@ -58,7 +58,7 @@ jobs:
       - name: Generate artifact attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-name: ${{ env.GH_REGISTRY }}/${{ env.IMAGE_NAME }}
+          subject-name: ${{ env.GH_REGISTRY }}/${{ env.GH_IMAGE_NAME }}
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
           github-token: ${{ secrets.GITHUB_TOKEN }}
