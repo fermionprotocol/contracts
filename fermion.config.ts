@@ -59,7 +59,7 @@ const fermionConfig: FermionConfig = {
         openSeaConduitKey: ZeroHash,
         openSeaSignedZone: ZeroAddress,
         openSeaZoneHash: ZeroHash,
-        openSeaRecipient: ZeroAddress,
+        openSeaRecipient: "0x1111122222333334444455555666667777788888", // dummy
       },
       strictAuthorizedTransferSecurityRegistry: ZeroAddress,
       wrappedNative: ZeroAddress,
