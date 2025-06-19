@@ -3805,10 +3805,10 @@ onetime@^5.1.2:
   dependencies:
     mimic-fn "^2.1.0"
 
-opensea-js@^7.1.20:
-  version "7.1.20"
-  resolved "https://registry.yarnpkg.com/opensea-js/-/opensea-js-7.1.20.tgz#37ccb11fc504c4bb3abbc4eb4a96a4172ad6ae1c"
-  integrity sha512-axZne1v6caB4Bn7O+OT0SKSfHfTwn1fMJhlH+8CQiLFo5r7SHNOOpHm/ZYaWzTo2ScoTefPWo/Id6FN0XA7W4Q==
+opensea-js@^7.1.21:
+  version "7.1.21"
+  resolved "https://registry.yarnpkg.com/opensea-js/-/opensea-js-7.1.21.tgz#ab51835d3c5f79f9cabd8aad1a11a2fc037d4c07"
+  integrity sha512-LUv2i4qs1YzD6dMV7vlcVM7Ko/MZqqzNTzTlZM2U0yJddDoYY6avjHLJIe6t7/nJ2oh2eGfYfRqzAnTKiRK9Rg==
   dependencies:
     "@opensea/seaport-js" "^4.0.5"
     ethers "^6.9.0"
