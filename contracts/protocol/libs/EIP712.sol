@@ -109,6 +109,8 @@ contract EIP712 is SignatureErrors {
      * @param _signature - signature. If the signer is EOA, it must be ECDSA signature in the format of (r,s,v) struct, otherwise, it must be a valid ERC1271 signature.
      */
     function verify(address _user, bytes32 _hashedMessage, bytes calldata _signature) internal view {
+        if (_user == address(0)) revert FermionGeneralErrors.InvalidAddress();
+
         bytes32 typedMessageHash = toTypedMessageHash(_hashedMessage);
 
         // Check if user is a contract implementing ERC1271

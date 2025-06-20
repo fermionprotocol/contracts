@@ -2779,6 +2779,14 @@ describe("Verification", function () {
           .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
       });
 
+      it("Signer is the zero address", async function () {
+        await expect(
+          verificationFacet
+            .connect(buyer)
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, ZeroAddress, ZeroHash),
+        ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
+      });
+
       it("Sender does not match the recovered signer", async function () {
         const signature = await prepareDataSignature(
           defaultSigner,

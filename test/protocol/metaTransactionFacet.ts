@@ -321,6 +321,22 @@ describe("MetaTransactions", function () {
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidFunctionName");
           });
 
+          it("Signer is the zero address", async function () {
+            // Prepare the function signature for the facet function.
+            message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                ZeroAddress,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                diamondMetaTxOfferIdIndex,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
+          });
+
           it("Sender does not match the recovered signer", async function () {
             // Prepare the function signature for the facet function.
             message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
@@ -984,6 +1000,19 @@ describe("MetaTransactions", function () {
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidFunctionName");
           });
 
+          it("Signer is the zero address", async function () {
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                ZeroAddress,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                offerId,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
+          });
+
           it("Sender does not match the recovered signer", async function () {
             // Use a different signer
             const signature = await prepareDataSignature(
@@ -1369,6 +1398,19 @@ describe("MetaTransactions", function () {
                 offerIdWithEpoch,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
+          });
+
+          it("Signer is the zero address", async function () {
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                ZeroAddress,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                offerIdWithEpoch,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
           });
 
           it("Sender does not match the recovered signer", async function () {
