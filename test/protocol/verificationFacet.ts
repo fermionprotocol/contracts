@@ -17,7 +17,7 @@ import { getBosonProtocolFees } from "../utils/boson-protocol";
 import { getBosonHandler } from "../utils/boson-protocol";
 import { createBuyerAdvancedOrderClosure } from "../utils/seaport";
 import fermionConfig from "./../../fermion.config";
-import { prepareDataSignatureParameters } from "../../scripts/libraries/metaTransaction";
+import { prepareDataSignature } from "../../scripts/libraries/metaTransaction";
 
 const abiCoder = new ethers.AbiCoder();
 
@@ -2464,7 +2464,7 @@ describe("Verification", function () {
       const buyerId = "5"; // new buyer in fermion
 
       it("Buyer submits seller's signed proposal first", async function () {
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2476,7 +2476,7 @@ describe("Verification", function () {
 
         const tx = await verificationFacet
           .connect(buyer)
-          .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v });
+          .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, signature);
 
         // Events
         // Fermion
@@ -2543,7 +2543,7 @@ describe("Verification", function () {
       it("Seller submits buyer's signed proposal", async function () {
         message.buyerPercent = String(buyerProposal);
 
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           buyer,
           {
             SignedProposal: signedProposalType,
@@ -2555,7 +2555,7 @@ describe("Verification", function () {
 
         const tx = await verificationFacet
           .connect(defaultSigner)
-          .submitSignedProposal(exchange.tokenId, buyerProposal, metadataDigest, buyer.address, { r, s, v });
+          .submitSignedProposal(exchange.tokenId, buyerProposal, metadataDigest, buyer.address, signature);
 
         // Events
         // Fermion
@@ -2622,7 +2622,7 @@ describe("Verification", function () {
 
     context("Revert reasons", function () {
       it("Verification region is paused", async function () {
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2637,7 +2637,7 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, signature),
         )
           .to.be.revertedWithCustomError(fermionErrors, "RegionPaused")
           .withArgs(PausableRegion.Verification);
@@ -2647,7 +2647,7 @@ describe("Verification", function () {
         const sellerProposal = 100_01n; // 100.01%
         message.buyerPercent = String(sellerProposal);
 
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2660,7 +2660,7 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, signature),
         )
           .to.be.revertedWithCustomError(fermionErrors, "InvalidPercentage")
           .withArgs(sellerProposal);
@@ -2670,7 +2670,7 @@ describe("Verification", function () {
         const wrongMetadataDigest = id("https://example.com/wrong-metadata.json");
         message.metadataURIDigest = wrongMetadataDigest;
 
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2683,11 +2683,13 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, wrongMetadataDigest, defaultSigner.address, {
-              r,
-              s,
-              v,
-            }),
+            .submitSignedProposal(
+              exchange.tokenId,
+              sellerProposal,
+              wrongMetadataDigest,
+              defaultSigner.address,
+              signature,
+            ),
         )
           .to.be.revertedWithCustomError(fermionErrors, "DigestMismatch")
           .withArgs(metadataDigest, wrongMetadataDigest);
@@ -2697,7 +2699,7 @@ describe("Verification", function () {
         const tokenId = deriveTokenId("15", "4");
         message.tokenId = String(tokenId);
 
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2710,7 +2712,7 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+            .submitSignedProposal(tokenId, sellerProposal, metadataDigest, defaultSigner.address, signature),
         ).to.be.revertedWithCustomError(fermionErrors, "EmptyMetadata");
       });
 
@@ -2718,7 +2720,7 @@ describe("Verification", function () {
         const tokenId = deriveTokenId("3", "4"); // token that was wrapped but not unwrapped yet
         message.tokenId = String(tokenId);
 
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2731,7 +2733,7 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+            .submitSignedProposal(tokenId, sellerProposal, metadataDigest, defaultSigner.address, signature),
         ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
       });
 
@@ -2739,7 +2741,7 @@ describe("Verification", function () {
         await setNextBlockTimestamp(itemVerificationTimeout);
         await verificationFacet.verificationTimeout(exchange.tokenId);
 
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2752,12 +2754,12 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, signature),
         ).to.be.revertedWithCustomError(verificationFacet, "EmptyMetadata");
       });
 
       it("Caller is not the buyer nor the seller", async function () {
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2771,14 +2773,14 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(wallet)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, signature),
         )
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(sellerId, wallet.address, EntityRole.Seller, AccountRole.Assistant);
       });
 
       it("Sender does not match the recovered signer", async function () {
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2792,25 +2794,27 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, wallets[9].address, { r, s, v }),
+            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, wallets[9].address, signature),
         ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
 
         // wrong tokenId
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(deriveTokenId(999, 999), sellerProposal, metadataDigest, defaultSigner.address, {
-              r,
-              s,
-              v,
-            }),
+            .submitSignedProposal(
+              deriveTokenId(999, 999),
+              sellerProposal,
+              metadataDigest,
+              defaultSigner.address,
+              signature,
+            ),
         ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
 
         // wrong percentage
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, buyerProposal, metadataDigest, defaultSigner.address, { r, s, v }),
+            .submitSignedProposal(exchange.tokenId, buyerProposal, metadataDigest, defaultSigner.address, signature),
         ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
 
         // wrong metadata
@@ -2822,13 +2826,13 @@ describe("Verification", function () {
               sellerProposal,
               id("https://example.com/wrong-metadata.json"),
               defaultSigner.address,
-              { r, s, v },
+              signature,
             ),
         ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
       });
 
       it("Signature is invalid", async function () {
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2839,40 +2843,40 @@ describe("Verification", function () {
         );
 
         await expect(
-          verificationFacet
-            .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, {
-              r,
-              s: toBeHex(MaxUint256),
-              v,
-            }),
+          verificationFacet.connect(buyer).submitSignedProposal(
+            exchange.tokenId,
+            sellerProposal,
+            metadataDigest,
+            defaultSigner.address,
+            signature.slice(0, 66) + toBeHex(MaxUint256).slice(2) + signature.slice(-2), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
+          ),
         ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
 
         await expect(
-          verificationFacet
-            .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, {
-              r,
-              s: toBeHex(0n, 32),
-              v,
-            }),
+          verificationFacet.connect(buyer).submitSignedProposal(
+            exchange.tokenId,
+            sellerProposal,
+            metadataDigest,
+            defaultSigner.address,
+            signature.slice(0, 66) + toBeHex(0n, 32).slice(2) + signature.slice(-2), //  s must be non-zero
+          ),
         ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
 
         await expect(
-          verificationFacet
-            .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, sellerProposal, metadataDigest, defaultSigner.address, {
-              r,
-              s,
-              v: 32,
-            }),
+          verificationFacet.connect(buyer).submitSignedProposal(
+            exchange.tokenId,
+            sellerProposal,
+            metadataDigest,
+            defaultSigner.address,
+            signature.slice(0, 130) + "aa", // v is valid only if it is 27 or 28
+          ),
         ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
       });
 
       it("Buyer submits a proposal, not signed by the seller", async function () {
         message.buyerPercent = String(buyerProposal);
 
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           buyer,
           {
             SignedProposal: signedProposalType,
@@ -2885,14 +2889,14 @@ describe("Verification", function () {
         await expect(
           verificationFacet
             .connect(buyer)
-            .submitSignedProposal(exchange.tokenId, buyerProposal, metadataDigest, buyer.address, { r, s, v }),
+            .submitSignedProposal(exchange.tokenId, buyerProposal, metadataDigest, buyer.address, signature),
         )
           .to.be.revertedWithCustomError(fermionErrors, "AccountHasNoRole")
           .withArgs(sellerId, buyer.address, EntityRole.Seller, AccountRole.Assistant);
       });
 
       it("Seller submits a proposal, not signed by the buyer", async function () {
-        const { r, s, v } = await prepareDataSignatureParameters(
+        const signature = await prepareDataSignature(
           defaultSigner,
           {
             SignedProposal: signedProposalType,
@@ -2908,7 +2912,7 @@ describe("Verification", function () {
             sellerProposal,
             metadataDigest,
             defaultSigner.address,
-            { r, s, v },
+            signature,
           ),
         )
           .to.be.revertedWithCustomError(fermionErrors, "InvalidSigner")

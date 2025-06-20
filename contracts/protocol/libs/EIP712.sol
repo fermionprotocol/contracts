@@ -135,18 +135,26 @@ contract EIP712 is SignatureErrors {
             }
         }
 
-        // try decoding the signature. It might fail if the signature is not in the expected format
-        ECDSASignature memory ecdsaSig = abi.decode(_signature, (ECDSASignature));
+        address signer;
+        // If the user is not a contract or the call to ERC1271 failed, we assume it's an ECDSA signature
+        if (_signature.length == 65) {
+            ECDSASignature memory ecdsaSig = ECDSASignature({
+                r: bytes32(_signature[0:32]),
+                s: bytes32(_signature[32:64]),
+                v: uint8(_signature[64])
+            });
 
-        // Ensure signature is unique
-        // See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/04695aecbd4d17dddfd55de766d10e3805d6f42f/contracts/cryptography/ECDSA.sol#63
-        if (
-            uint256(ecdsaSig.s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
-            (ecdsaSig.v != 27 && ecdsaSig.v != 28)
-        ) revert InvalidSignature();
+            // Ensure signature is unique
+            // See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/04695aecbd4d17dddfd55de766d10e3805d6f42f/contracts/cryptography/ECDSA.sol#63
+            if (
+                uint256(ecdsaSig.s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
+                (ecdsaSig.v != 27 && ecdsaSig.v != 28)
+            ) revert InvalidSignature();
 
-        address signer = ecrecover(typedMessageHash, ecdsaSig.v, ecdsaSig.r, ecdsaSig.s);
-        if (signer == address(0)) revert InvalidSignature();
+            signer = ecrecover(typedMessageHash, ecdsaSig.v, ecdsaSig.r, ecdsaSig.s);
+            if (signer == address(0)) revert InvalidSignature();
+        }
+
         if (signer != _user) {
             if (returnData.length > 0) {
                 // In case 1271 verification failed with a revert reason, bubble it up
