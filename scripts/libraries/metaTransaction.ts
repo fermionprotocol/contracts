@@ -4,7 +4,8 @@ const { getContractFactory, id, isHexString, provider, randomBytes, toBeHex } = 
 
 export const RESTRICTED_METATX_FUNCTIONS = [
   "burn",
-  "mint",
+  "mint(address,uint256)",
+  "mintAdditionalFractions",
   "renounceOwnership",
   "transferOwnership",
   "transferFractionsFrom",
