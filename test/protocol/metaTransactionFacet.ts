@@ -9,7 +9,7 @@ import {
   getStateModifyingFunctions,
   getStateModifyingFunctionsHashes,
   metaTransactionType,
-  prepareDataSignatureParameters,
+  prepareDataSignature,
   randomNonce,
 } from "../../scripts/libraries/metaTransaction";
 import { deployDiamond, prepareFacetCuts, makeDiamondCut } from "../../scripts/deploy";
@@ -137,7 +137,7 @@ describe("MetaTransactions", function () {
             ]);
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -153,7 +153,7 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              [r, s, v],
+              signature,
               diamondMetaTxOfferIdIndex,
             );
 
@@ -182,7 +182,7 @@ describe("MetaTransactions", function () {
             message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -198,7 +198,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "EntityAlreadyExists");
@@ -215,7 +215,7 @@ describe("MetaTransactions", function () {
                 "testFunction",
                 ZeroHash,
                 ZeroHash,
-                [ZeroHash, ZeroHash, 0],
+                ZeroHash,
                 diamondMetaTxOfferIdIndex,
               ),
             )
@@ -234,7 +234,7 @@ describe("MetaTransactions", function () {
             ]);
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -250,7 +250,7 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              [r, s, v],
+              signature,
               diamondMetaTxOfferIdIndex,
             );
 
@@ -261,7 +261,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
@@ -272,7 +272,7 @@ describe("MetaTransactions", function () {
             message.functionName = "createEntity";
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -288,7 +288,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "FunctionNotAllowlisted");
@@ -299,7 +299,7 @@ describe("MetaTransactions", function () {
             message.functionSignature = entityFacet.interface.encodeFunctionData("updateEntity", ["0", [], ""]);
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -315,10 +315,26 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidFunctionName");
+          });
+
+          it("Signer is the zero address", async function () {
+            // Prepare the function signature for the facet function.
+            message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                ZeroAddress,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                diamondMetaTxOfferIdIndex,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
           });
 
           it("Sender does not match the recovered signer", async function () {
@@ -326,7 +342,7 @@ describe("MetaTransactions", function () {
             message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
 
             // Use a different signer
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               defaultSigner,
               {
                 MetaTransaction: metaTransactionType,
@@ -342,7 +358,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
@@ -353,7 +369,7 @@ describe("MetaTransactions", function () {
             message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
 
             // Use a different signer
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -369,11 +385,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  r,
-                  toBeHex(MaxUint256), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
-                  v,
-                ],
+                signature.slice(0, 66) + toBeHex(MaxUint256).slice(2) + signature.slice(-2), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
@@ -384,11 +396,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  r,
-                  toBeHex(0n, 32), // s must be non-zero
-                  v,
-                ],
+                signature.slice(0, 66) + toBeHex(0n, 32).slice(2) + signature.slice(-2), //  s must be non-zero
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
@@ -399,11 +407,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  r,
-                  s,
-                  32, // v is valid only if it is 27 or 28
-                ],
+                signature.slice(0, 130) + "aa", // v is valid only if it is 27 or 28
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
@@ -413,7 +417,7 @@ describe("MetaTransactions", function () {
             // Get the existing facet address
             const diamondLoupe = await getContractAt("DiamondLoupeFacet", await metaTransactionFacet.getAddress());
             const functionFragment = metaTransactionFacet.interface.getFunction(
-              "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)",
+              "executeMetaTransaction(address,string,bytes,uint256,bytes,uint256)",
             );
             const metaTransactionFacetAddress = await diamondLoupe.facetAddress(functionFragment.selector);
 
@@ -449,7 +453,7 @@ describe("MetaTransactions", function () {
             message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
 
             // Use a different signer
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -463,8 +467,8 @@ describe("MetaTransactions", function () {
               metaTransactionFacet
                 .attach(diamondAddress)
                 [
-                  "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
-                ](entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], diamondMetaTxOfferIdIndex),
+                  "executeMetaTransaction(address,string,bytes,uint256,bytes,uint256)"
+                ](entity.address, message.functionName, message.functionSignature, message.nonce, signature, diamondMetaTxOfferIdIndex),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
@@ -487,7 +491,7 @@ describe("MetaTransactions", function () {
             message.functionName = "revertWithoutReason()";
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -504,7 +508,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "FunctionCallFailed");
@@ -552,7 +556,7 @@ describe("MetaTransactions", function () {
             message.functionName,
             message.functionSignature,
             message.nonce,
-            [ZeroHash, ZeroHash, 0],
+            ZeroHash,
             diamondMetaTxOfferIdIndex,
           );
 
@@ -575,6 +579,9 @@ describe("MetaTransactions", function () {
         });
 
         context("Revert reasons", function () {
+          const randomValidSignature =
+            "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c1c"; // for test where other revert reasons are tested
+
           it("Nonce is already used by the msg.sender for another transaction", async function () {
             const metadataURI = "https://example.com/metadata.json";
             const entityRoles = [EntityRole.Verifier, EntityRole.Custodian];
@@ -593,7 +600,7 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              [ZeroHash, ZeroHash, 0],
+              ZeroHash,
               diamondMetaTxOfferIdIndex,
             );
 
@@ -604,7 +611,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                ZeroHash,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
@@ -621,7 +628,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                ZeroHash,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
@@ -640,11 +647,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
-                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
-                  28,
-                ], // use something that does not fail with invalidSignature
+                randomValidSignature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(entity, "UnknownValidity");
@@ -658,11 +661,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
-                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
-                  28,
-                ], // use something that does not fail with invalidSignature
+                randomValidSignature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWith("Error string");
@@ -676,11 +675,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
-                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
-                  28,
-                ], // use something that does not fail with invalidSignature
+                randomValidSignature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.reverted;
@@ -694,11 +689,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
-                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
-                  28,
-                ], // use something that does not fail with invalidSignature
+                randomValidSignature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x12");
@@ -712,11 +703,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
-                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
-                  28,
-                ], // use something that does not fail with invalidSignature
+                randomValidSignature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithPanic("0x32");
@@ -736,7 +723,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                ZeroHash,
                 diamondMetaTxOfferIdIndex,
               ),
             )
@@ -752,7 +739,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                ZeroHash,
                 diamondMetaTxOfferIdIndex,
               ),
             )
@@ -768,7 +755,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [ZeroHash, ZeroHash, 0],
+                ZeroHash,
                 diamondMetaTxOfferIdIndex,
               ),
             )
@@ -792,11 +779,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  "0x84ddd3eaf623d5beffc2a66af9525f5cebbe080046f772e1b70df2b7eae63daa",
-                  "0x791058df09489d531c6bff71091b3a8a5f22488aa2812366e3b063732747033c",
-                  28,
-                ], // use something that does not fail with invalidSignature
+                randomValidSignature,
                 diamondMetaTxOfferIdIndex,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
@@ -842,7 +825,7 @@ describe("MetaTransactions", function () {
         context("Forwards a generic meta transaction", async function () {
           it("Forwarded call succeeds", async function () {
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -858,7 +841,7 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              [r, s, v],
+              signature,
               offerId,
             );
 
@@ -887,7 +870,7 @@ describe("MetaTransactions", function () {
             message.functionName = fermionFNFT.interface.getFunction("transferFrom").format("sighash");
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -903,7 +886,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 offerId,
               ),
             ).to.be.revertedWithCustomError(fermionFNFT, "ERC721NonexistentToken");
@@ -920,7 +903,7 @@ describe("MetaTransactions", function () {
                 "testFunction",
                 ZeroHash,
                 ZeroHash,
-                [ZeroHash, ZeroHash, 0],
+                ZeroHash,
                 offerId,
               ),
             )
@@ -930,7 +913,7 @@ describe("MetaTransactions", function () {
 
           it("Nonce is already used by the msg.sender for another transaction", async function () {
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -946,7 +929,7 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              [r, s, v],
+              signature,
               offerId,
             );
 
@@ -957,7 +940,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 offerId,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
@@ -968,7 +951,7 @@ describe("MetaTransactions", function () {
             message.functionName = "setApprovalForAll";
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -984,7 +967,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 offerId,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "FunctionNotAllowlisted");
@@ -995,7 +978,7 @@ describe("MetaTransactions", function () {
             message.functionSignature = entityFacet.interface.encodeFunctionData("updateEntity", ["0", [], ""]);
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -1011,15 +994,28 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 offerId,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidFunctionName");
           });
 
+          it("Signer is the zero address", async function () {
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                ZeroAddress,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                offerId,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
+          });
+
           it("Sender does not match the recovered signer", async function () {
             // Use a different signer
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               defaultSigner,
               {
                 MetaTransaction: metaTransactionType,
@@ -1035,14 +1031,14 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 offerId,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
           it("Signature is invalid", async function () {
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -1058,11 +1054,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  r,
-                  toBeHex(MaxUint256), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
-                  v,
-                ],
+                signature.slice(0, 66) + toBeHex(MaxUint256).slice(2) + signature.slice(-2), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
                 offerId,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
@@ -1073,11 +1065,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  r,
-                  toBeHex(0n, 32), // s must be non-zero
-                  v,
-                ],
+                signature.slice(0, 66) + toBeHex(0n, 32).slice(2) + signature.slice(-2), //  s must be non-zero
                 offerId,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
@@ -1088,7 +1076,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, 32], // v is valid only if it is 27 or 28
+                signature.slice(0, 130) + "aa", // v is valid only if it is 27 or 28
                 offerId,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
@@ -1098,7 +1086,7 @@ describe("MetaTransactions", function () {
             // Get the existing facet address
             const diamondLoupe = await getContractAt("DiamondLoupeFacet", await metaTransactionFacet.getAddress());
             const functionFragment = metaTransactionFacet.interface.getFunction(
-              "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)",
+              "executeMetaTransaction(address,string,bytes,uint256,bytes,uint256)",
             );
             const metaTransactionFacetAddress = await diamondLoupe.facetAddress(functionFragment.selector);
 
@@ -1130,7 +1118,7 @@ describe("MetaTransactions", function () {
               functionCall,
             );
 
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -1144,8 +1132,8 @@ describe("MetaTransactions", function () {
               metaTransactionFacet
                 .attach(diamondAddress)
                 [
-                  "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)"
-                ](entity.address, message.functionName, message.functionSignature, message.nonce, [r, s, v], 0),
+                  "executeMetaTransaction(address,string,bytes,uint256,bytes,uint256)"
+                ](entity.address, message.functionName, message.functionSignature, message.nonce, signature, 0),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
         });
@@ -1293,7 +1281,7 @@ describe("MetaTransactions", function () {
         context("Forwards a generic meta transaction", async function () {
           it("Forwarded call succeeds", async function () {
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -1309,7 +1297,7 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              [r, s, v],
+              signature,
               offerIdWithEpoch,
             );
 
@@ -1336,7 +1324,7 @@ describe("MetaTransactions", function () {
             message.functionName = fermionFractions.interface.getFunction("transfer").format("sighash");
 
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -1352,7 +1340,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 offerIdWithEpoch,
               ),
             ).to.be.revertedWithCustomError(fermionFractions, "ERC20InsufficientBalance");
@@ -1369,7 +1357,7 @@ describe("MetaTransactions", function () {
                 "testFunction",
                 ZeroHash,
                 ZeroHash,
-                [ZeroHash, ZeroHash, 0],
+                ZeroHash,
                 offerIdWithEpoch,
               ),
             )
@@ -1379,7 +1367,7 @@ describe("MetaTransactions", function () {
 
           it("Nonce is already used by the msg.sender for another transaction", async function () {
             // Collect the signature components
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -1395,7 +1383,7 @@ describe("MetaTransactions", function () {
               message.functionName,
               message.functionSignature,
               message.nonce,
-              [r, s, v],
+              signature,
               offerIdWithEpoch,
             );
 
@@ -1406,15 +1394,28 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 offerIdWithEpoch,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "NonceUsedAlready");
           });
 
+          it("Signer is the zero address", async function () {
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                ZeroAddress,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                ZeroHash,
+                offerIdWithEpoch,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "InvalidAddress");
+          });
+
           it("Sender does not match the recovered signer", async function () {
             // Use a different signer
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               defaultSigner,
               {
                 MetaTransaction: metaTransactionType,
@@ -1430,14 +1431,14 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, v],
+                signature,
                 offerIdWithEpoch,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
           it("Signature is invalid", async function () {
-            const { r, s, v } = await prepareDataSignatureParameters(
+            const signature = await prepareDataSignature(
               entity,
               {
                 MetaTransaction: metaTransactionType,
@@ -1453,11 +1454,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  r,
-                  toBeHex(MaxUint256), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
-                  v,
-                ],
+                signature.slice(0, 66) + toBeHex(MaxUint256).slice(2) + signature.slice(-2), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
                 offerIdWithEpoch,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
@@ -1468,11 +1465,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [
-                  r,
-                  toBeHex(0n, 32), // s must be non-zero
-                  v,
-                ],
+                signature.slice(0, 66) + toBeHex(0n, 32).slice(2) + signature.slice(-2), //  s must be non-zero
                 offerIdWithEpoch,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
@@ -1483,7 +1476,7 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                [r, s, 32], // v is valid only if it is 27 or 28
+                signature.slice(0, 130) + "aa", // v is valid only if it is 27 or 28
                 offerIdWithEpoch,
               ),
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
