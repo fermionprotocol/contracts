@@ -99,10 +99,16 @@ contract EIP712 is SignatureErrors {
     }
 
     /**
-     * @notice Recovers the Signer from the Signature components.
+     * @notice Verifies that the signer really signed the message.
+     * It works for both ECDSA signatures and ERC1271 signatures.
      *
      * Reverts if:
      * - Signer is the zero address
+     * - Signer is a contract that does not implement ERC1271
+     * - Signer is a contract that implements ERC1271 but returns an unexpected value
+     * - Signer is a contract that reverts when called with the signature
+     * - Signer is an EOA but the signature is not a valid ECDSA signature
+     * - Recovered signer does not match the user address
      *
      * @param _user  - the message signer
      * @param _hashedMessage - hashed message
