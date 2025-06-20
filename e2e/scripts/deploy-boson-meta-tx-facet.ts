@@ -16,7 +16,7 @@ export async function deployBosonMetaTransactionFacet(bosonProtocolAddress: stri
   let selectors = 
     getSelectors(MetaTransactionsHandlerFacet)
     .remove(["init", "initialize"]);
-  const allSelectors = facetsBefore.flatMap((facet) => facet[1]);
+  const allSelectors = facetsBefore.flatMap((facet) => facet.functionSelectors);
   selectors = selectors.filter((sel) => !allSelectors.includes(sel));
   if (selectors.length === 0) {
     console.log("MetaTransactionsHandlerFacet already deployed and registered in Boson Protocol");
@@ -27,7 +27,7 @@ export async function deployBosonMetaTransactionFacet(bosonProtocolAddress: stri
     "createSeller((uint256,address,address,address,address,bool,string),(uint256,uint8),(string,uint256,bytes32))"
   ];
   const metaTransactionsHandlerFacetInitArgs = allowedFunctions.map((smf) =>
-    ethers.keccak256(ethers.toUtf8Bytes(smf))
+    ethers.id(smf)
   );
   const facets = await deployFacets(["MetaTransactionsHandlerFacet"], {});
   const metaTxFacet = facets["MetaTransactionsHandlerFacet"];
