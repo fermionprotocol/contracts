@@ -177,14 +177,14 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
      * @param _buyerPercent - the percentage the buyer will receive
      * @param _metadataURIDigest - keccak256 of the revised metadata URI
      * @param _signer - the signer of the proposal
-     * @param _signature - the signature of the proposal
+     * @param _signature - the signature of the proposal. If the signer is EOA, it must be ECDSA signature in the format of (r,s,v) struct, otherwise, it must be a valid ERC1271 signature.
      */
     function submitSignedProposal(
         uint256 _tokenId,
         uint16 _buyerPercent,
         bytes32 _metadataURIDigest,
         address _signer,
-        Signature memory _signature
+        bytes calldata _signature
     ) external {
         // verify signature
         bytes32 messageHash = keccak256(

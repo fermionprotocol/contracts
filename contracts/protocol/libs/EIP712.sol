@@ -11,7 +11,7 @@ import { SignatureErrors, FermionGeneralErrors } from "../domain/Errors.sol";
  * @notice
  */
 contract EIP712 is SignatureErrors {
-    struct Signature {
+    struct ECDSASignature {
         bytes32 r;
         bytes32 s;
         uint8 v;
@@ -106,9 +106,9 @@ contract EIP712 is SignatureErrors {
      *
      * @param _user  - the message signer
      * @param _hashedMessage - hashed message
-     * @param _sig - signature, r, s, v
+     * @param _signature - signature. If the signer is EOA, it must be ECDSA signature in the format of (r,s,v) struct, otherwise, it must be a valid ERC1271 signature.
      */
-    function verify(address _user, bytes32 _hashedMessage, Signature memory _sig) internal view {
+    function verify(address _user, bytes32 _hashedMessage, bytes calldata _signature) internal view {
         bytes32 typedMessageHash = toTypedMessageHash(_hashedMessage);
 
         // Check if user is a contract implementing ERC1271
@@ -116,7 +116,7 @@ contract EIP712 is SignatureErrors {
         if (_user.code.length > 0) {
             bool success;
             (success, returnData) = _user.staticcall(
-                abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encode(_sig)))
+                abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, _signature))
             );
             if (success) {
                 if (returnData.length != SLOT_SIZE) {
@@ -135,14 +135,17 @@ contract EIP712 is SignatureErrors {
             }
         }
 
+        // try decoding the signature. It might fail if the signature is not in the expected format
+        ECDSASignature memory ecdsaSig = abi.decode(_signature, (ECDSASignature));
+
         // Ensure signature is unique
         // See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/04695aecbd4d17dddfd55de766d10e3805d6f42f/contracts/cryptography/ECDSA.sol#63
         if (
-            uint256(_sig.s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
-            (_sig.v != 27 && _sig.v != 28)
+            uint256(ecdsaSig.s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
+            (ecdsaSig.v != 27 && ecdsaSig.v != 28)
         ) revert InvalidSignature();
 
-        address signer = ecrecover(typedMessageHash, _sig.v, _sig.r, _sig.s);
+        address signer = ecrecover(typedMessageHash, ecdsaSig.v, ecdsaSig.r, ecdsaSig.s);
         if (signer == address(0)) revert InvalidSignature();
         if (signer != _user) {
             if (returnData.length > 0) {
