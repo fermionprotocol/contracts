@@ -24,8 +24,6 @@ async function setBosonContractsCompilationFolder() {
 }
 
 async function main() {
-  // const bosonProtocol = "0x0";
-  // await deployDiamond(bosonProtocol);
   const defaultSigner = (await hre.ethers.getSigners())[1];
   const { bosonProtocolAddress } =
     await deployFermionProtocolFixture.bind({ env: "test" })(defaultSigner);

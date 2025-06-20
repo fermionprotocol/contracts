@@ -45,6 +45,4 @@ export async function deployBosonMetaTransactionFacet(bosonProtocolAddress: stri
     metaTxFacetAddress,
     functionCall
   );
-  // const facetsAfter = await diamondLoupeFacet.facets();
-  // console.log("facets", JSON.stringify(facetsAfter));
 }
