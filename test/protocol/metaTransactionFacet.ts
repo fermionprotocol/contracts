@@ -413,6 +413,46 @@ describe("MetaTransactions", function () {
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
           });
 
+          it("Wrong signature length", async function () {
+            // Prepare the function signature for the facet function.
+            message.functionSignature = entityFacet.interface.encodeFunctionData("createEntity", [[], ""]);
+
+            // Use a different signer
+            const signature = await prepareDataSignature(
+              entity,
+              {
+                MetaTransaction: metaTransactionType,
+              },
+              "MetaTransaction",
+              message,
+              await metaTransactionFacet.getAddress(),
+            );
+
+            // signature too long
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                signature + "00112233",
+                diamondMetaTxOfferIdIndex,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+
+            // signature too short
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                signature.slice(0, 10),
+                diamondMetaTxOfferIdIndex,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+          });
+
           it("Calling the facet from another diamond [test domain separator]", async function () {
             // Get the existing facet address
             const diamondLoupe = await getContractAt("DiamondLoupeFacet", await metaTransactionFacet.getAddress());
@@ -1082,6 +1122,40 @@ describe("MetaTransactions", function () {
             ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
           });
 
+          it("Wrong signature length", async function () {
+            const signature = await prepareDataSignature(
+              entity,
+              {
+                MetaTransaction: metaTransactionType,
+              },
+              "MetaTransaction",
+              message,
+              await metaTransactionFacet.getAddress(),
+            );
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                signature + "00112233",
+                offerId,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+
+            await expect(
+              metaTransactionFacet.executeMetaTransaction(
+                entity.address,
+                message.functionName,
+                message.functionSignature,
+                message.nonce,
+                signature.slice(0, 10),
+                offerId,
+              ),
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+          });
+
           it("Calling the facet from another diamond [test domain separator]", async function () {
             // Get the existing facet address
             const diamondLoupe = await getContractAt("DiamondLoupeFacet", await metaTransactionFacet.getAddress());
@@ -1437,7 +1511,7 @@ describe("MetaTransactions", function () {
             ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
           });
 
-          it("Signature is invalid", async function () {
+          it("Wrong signature length", async function () {
             const signature = await prepareDataSignature(
               entity,
               {
@@ -1454,10 +1528,10 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                signature.slice(0, 66) + toBeHex(MaxUint256).slice(2) + signature.slice(-2), // s is valid only if <= 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0
+                signature + "00112233",
                 offerIdWithEpoch,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
@@ -1465,10 +1539,10 @@ describe("MetaTransactions", function () {
                 message.functionName,
                 message.functionSignature,
                 message.nonce,
-                signature.slice(0, 66) + toBeHex(0n, 32).slice(2) + signature.slice(-2), //  s must be non-zero
+                signature.slice(0, 10),
                 offerIdWithEpoch,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "InvalidSignature");
+            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
 
             await expect(
               metaTransactionFacet.executeMetaTransaction(
