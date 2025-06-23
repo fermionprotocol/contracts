@@ -3,14 +3,22 @@ pragma solidity 0.8.24;
 
 import { Common } from "./Common.sol";
 import { FermionGeneralErrors, FractionalisationErrors, FermionErrors } from "../domain/Errors.sol";
-import { HUNDRED_PERCENT, MIN_QUORUM_PERCENT, DEFAULT_GOV_VOTE_DURATION, MIN_GOV_VOTE_DURATION, MAX_GOV_VOTE_DURATION } from "../domain/Constants.sol";
+import {
+    HUNDRED_PERCENT,
+    MIN_QUORUM_PERCENT,
+    DEFAULT_GOV_VOTE_DURATION,
+    MIN_GOV_VOTE_DURATION,
+    MAX_GOV_VOTE_DURATION
+} from "../domain/Constants.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { IPriceOracle } from "../interfaces/IPriceOracle.sol";
 import { IPriceOracleRegistry } from "../interfaces/IPriceOracleRegistry.sol";
 import { IFermionFNFTPriceManager } from "../interfaces/IFermionFNFTPriceManager.sol";
 import { IFermionFractionsEvents } from "../interfaces/events/IFermionFractionsEvents.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { ERC2771ContextUpgradeable as ERC2771Context } from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
+import {
+    ERC2771ContextUpgradeable as ERC2771Context
+} from "@openzeppelin/contracts-upgradeable/metatx/ERC2771ContextUpgradeable.sol";
 
 /**
  * @title FermionFNFTPriceManager

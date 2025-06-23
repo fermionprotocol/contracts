@@ -49,7 +49,6 @@ contract PriceOracleRegistryFacet is Access, FermionErrors, IPriceOracleRegistry
         } catch {
             revert OracleValidationFailed();
         }
-
         registry.priceOracles[oracleAddress] = identifier;
 
         emit PriceOracleAdded(oracleAddress, identifier);
