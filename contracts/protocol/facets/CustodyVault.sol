@@ -1,7 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity 0.8.24;
 
-import { HUNDRED_PERCENT, AUCTION_END_BUFFER, MINIMAL_BID_INCREMENT, DEFAULT_FRACTION_AMOUNT, PARTIAL_THRESHOLD_MULTIPLIER, LIQUIDATION_THRESHOLD_MULTIPLIER, PARTIAL_AUCTION_DURATION_DIVISOR } from "../domain/Constants.sol";
+import {
+    HUNDRED_PERCENT,
+    AUCTION_END_BUFFER,
+    MINIMAL_BID_INCREMENT,
+    DEFAULT_FRACTION_AMOUNT,
+    PARTIAL_THRESHOLD_MULTIPLIER,
+    LIQUIDATION_THRESHOLD_MULTIPLIER,
+    PARTIAL_AUCTION_DURATION_DIVISOR
+} from "../domain/Constants.sol";
 import { FundsErrors, CustodianVaultErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Access } from "../bases/mixins/Access.sol";

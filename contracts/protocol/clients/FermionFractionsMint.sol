@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import { HUNDRED_PERCENT, MIN_FRACTIONS, MAX_FRACTIONS, TOP_BID_LOCK_TIME, AUCTION_DURATION, UNLOCK_THRESHOLD } from "../domain/Constants.sol";
+import {
+    HUNDRED_PERCENT,
+    MIN_FRACTIONS,
+    MAX_FRACTIONS,
+    TOP_BID_LOCK_TIME,
+    AUCTION_DURATION,
+    UNLOCK_THRESHOLD
+} from "../domain/Constants.sol";
 import { FermionErrors, FermionGeneralErrors } from "../domain/Errors.sol";
 import { FermionTypes } from "../domain/Types.sol";
 import { Common, InvalidStateOrCaller } from "./Common.sol";
