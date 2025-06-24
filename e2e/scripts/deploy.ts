@@ -36,8 +36,11 @@ async function main() {
   console.log("tokenAddress", tokenAddress);
   console.log("priceDiscoveryClient", priceDiscoveryClient);
 
+  // NOTE: DO NOT SET THE BOSON FLAT FEE UNTIL THE BOSON CONTRACTS ARE UPGRADED POST v2.4.1
+  // AS IT CAUSES ISSUES WITH PRICE DISCOVERY OFFERS (INCL FERMION OFFERS)
   // set Boson Protocol flat fee to a non zero value
-  const bosonProtocolFlatFee = "1000000000000000"; // = 0.001
+  // const bosonProtocolFlatFee = "1000000000000000"; // = 0.001
+  const bosonProtocolFlatFee = "0";
   await setBosonConfig(bosonProtocolAddress, { bosonProtocolFlatFee });
 
   console.log("Switch Hardhat Compilation Folder to Boson Protocol....");
