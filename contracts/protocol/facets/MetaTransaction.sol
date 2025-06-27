@@ -58,7 +58,7 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
      * @param _functionName - the name of the function to be executed
      * @param _functionSignature - the function signature
      * @param _nonce - the nonce value of the transaction
-     * @param _sig - meta transaction signature, r, s, v
+     * @param _sig - meta transaction signature. If the signer is EOA, it must be ECDSA signature in the format of (r,s,v) struct, otherwise, it must be a valid ERC1271 signature.
      * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
      * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
      * associated with offerId and epoch.
@@ -68,7 +68,7 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
         string calldata _functionName,
         bytes calldata _functionSignature,
         uint256 _nonce,
-        Signature calldata _sig,
+        bytes calldata _sig,
         uint256 _offerIdWithEpoch
     ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
         address userAddress = _userAddress; // stack too deep workaround.
