@@ -272,6 +272,7 @@ To deploy the Fermion protocol on a public blockchain:
   ```shell
   npx hardhat deploy-suite --network <network> --env <environment> --modules <modules> [--dry-run] [--create3]
   ```
+
   - `network`: the network to deploy to. The Network must be defined in `./hardhat.config.ts` and must have corresponding Seaport parameters set in `./fermion.config.ts`
   - `environment`: an optional name for the environment to deploy to. Useful to manage multiple instances on the same network. Value can be anything, typical values are `test`, `staging` and `production`.
   - `modules`: the deployment script is modular and can be deployed step by step. Possible values are `fnft`, `diamond`, `facets`, `initialize` and their combinations.
