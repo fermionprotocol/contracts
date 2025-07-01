@@ -8,6 +8,7 @@ import { readBosonConfig } from "./read-boson-config";
 import { setBosonConfig } from "./set-boson-config";
 import { deployBosonMetaTransactionFacet } from "./deploy-boson-meta-tx-facet";
 import { deployForwarderForBosonVouchers } from "./deploy-forwarder-for-boson-vouchers";
+import { ensureTokensAreSupported } from "./ensure-supported-tokens";
 
 // Set the Boson Protocol contracts compilation folder to the Boson Protocol contracts and compiles them.
 // Used to avoid artifacts clashes.
@@ -25,7 +26,7 @@ async function setBosonContractsCompilationFolder() {
 
 async function main() {
   const defaultSigner = (await hre.ethers.getSigners())[1];
-  const { bosonProtocolAddress } =
+  const { diamondAddress: fermionProtocolAddress, bosonProtocolAddress } =
     await deployFermionProtocolFixture.bind({ env: "test" })(defaultSigner);
 
   // deploy an ERC20 contract
@@ -49,8 +50,11 @@ async function main() {
   console.log("Deploy MetaTransactionHandlerFacet on Boson....");
   await deployBosonMetaTransactionFacet(bosonProtocolAddress);
 
-  console.log("Deploy a MockForwarder")
+  console.log("Deploy a MockForwarder");
   await deployForwarderForBosonVouchers(bosonProtocolAddress);
+
+  console.log("Ensure the deployed ERC20 tokens are supported");
+  await ensureTokensAreSupported(fermionProtocolAddress, [await erc20.getAddress(), tokenAddress]);
 }
 
 main()
