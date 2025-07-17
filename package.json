@@ -25,7 +25,7 @@
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.0.14",
     "@opensea/seaport-js": "^4.0.5",
-    "@openzeppelin/contracts-upgradeable": "^5.3.0",
+    "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
