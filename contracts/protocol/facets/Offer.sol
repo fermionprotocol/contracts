@@ -536,9 +536,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         if (
             _buyerOrder.parameters.offer.length != 1 ||
             _buyerOrder.parameters.consideration[1].startAmount >
-            (_buyerOrder.parameters.offer[0].startAmount * FermionStorage.protocolConfig().openSeaFeePercentage) /
-                HUNDRED_PERCENT +
-                1 || // allow +1 in case they round up; minimal exposure
+                (_buyerOrder.parameters.offer[0].startAmount * FermionStorage.protocolConfig().openSeaFeePercentage) /
+                    HUNDRED_PERCENT +
+                    1 || // allow +1 in case they round up; minimal exposure
             _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
         ) {
             revert InvalidOpenSeaOrder();
