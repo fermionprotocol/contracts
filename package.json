@@ -42,7 +42,7 @@
     "hardhat-contract-sizer": "^2.10.0",
     "hardhat-gas-reporter": "^1.0.8",
     "hardhat-preprocessor": "^0.1.5",
-    "opensea-js": "^7.2.0",
+    "opensea-js": "^7.2.1",
     "prettier": "^3.6.2",
     "prettier-plugin-solidity": "^2.1.0",
     "seaport": "git+https://github.com/ProjectOpenSea/seaport#1.6",
@@ -52,7 +52,7 @@
     "solidity-coverage": "^0.8.16",
     "ts-node": "^10.9.2",
     "typechain": "^8.3.0",
-    "typescript": ">=5.8.3",
+    "typescript": ">=5.9.2",
     "typescript-eslint": "^8.38.0",
     "urql": "^4.2.2"
   },
