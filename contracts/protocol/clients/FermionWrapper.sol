@@ -337,8 +337,7 @@ abstract contract FermionWrapper is FermionFNFTBase, CreatorToken, IFermionWrapp
      */
     function isFixedPriceSale(uint256 _tokenId) internal returns (bool isFixedPrice) {
         isFixedPrice =
-            (ownerOf(_tokenId) == address(this)) &&
-            (Common._getFermionCommonStorage().fixedPrice[_tokenId] > 0);
+            (ownerOf(_tokenId) == address(this)) && (Common._getFermionCommonStorage().fixedPrice[_tokenId] > 0);
 
         if (isFixedPrice) {
             emit FixedPriceSale(_tokenId);

@@ -311,7 +311,7 @@ contract CustodyVaultFacet is Context, CustodianVaultErrors, Access, Custody, IF
             coveredPeriods < numberOfPeriods ||
             (isOfferVault &&
                 vault.amount <
-                offerLookups.custodianVaultItems * offerLookups.custodianVaultParameters.partialAuctionThreshold)
+                    offerLookups.custodianVaultItems * offerLookups.custodianVaultParameters.partialAuctionThreshold)
         ) {
             startFractionalAuction(offerId, tokenOrOfferId, isOfferVault, custodianFee);
         }
