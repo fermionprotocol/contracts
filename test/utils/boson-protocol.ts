@@ -77,7 +77,12 @@ export async function initBosonProtocolFixture(resetAfter: boolean = true) {
     "ConfigHandlerFacet",
     "PriceDiscoveryHandlerFacet",
   ];
-  const constructorArgs = { ExchangeHandlerFacet: [1], PriceDiscoveryHandlerFacet: [await weth.getAddress()] };
+  const wethAddress = await weth.getAddress();
+  const constructorArgs = {
+    ExchangeHandlerFacet: [1, wethAddress],
+    PriceDiscoveryHandlerFacet: [wethAddress],
+    DisputeHandlerFacet: [wethAddress],
+  };
   const facets = await deployFacets(facetNames, constructorArgs);
   const initializationFacet = facets["ProtocolInitializationHandlerFacet"];
 

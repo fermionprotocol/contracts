@@ -47,6 +47,13 @@
     "@openzeppelin/contracts" "^4.9.6"
     "@openzeppelin/contracts-upgradeable" "4.9.6"
 
+"@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.5.0-rc.2":
+  version "2.4.2"
+  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#efd5d1a8f23c3bca7c25273ea4c912a367250119"
+  dependencies:
+    "@openzeppelin/contracts" "^4.9.6"
+    "@openzeppelin/contracts-upgradeable" "4.9.6"
+
 "@bosonprotocol/common@1.31.1-alpha.2":
   version "1.31.1-alpha.2"
   resolved "https://registry.yarnpkg.com/@bosonprotocol/common/-/common-1.31.1-alpha.2.tgz#653ac714b304cc6ac1b5e95808347f8948d1db70"
