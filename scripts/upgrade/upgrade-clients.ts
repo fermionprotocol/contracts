@@ -1,4 +1,4 @@
-import { readContracts, writeContracts } from "../libraries/utils";
+import { readContracts, writeContracts, recompileContracts } from "../libraries/utils";
 import { checkRole } from "../libraries/utils";
 import { setupDryRun, getBalance } from "../dry-run";
 import fs from "fs";
@@ -97,6 +97,9 @@ async function getUserResponse(question: string, validResponses: string[]): Prom
 
 export async function upgradeClients(env: string, targetVersion: string, dryRun: boolean = false) {
   const { ethers } = hre;
+
+  await recompileContracts();
+
   let balanceBefore: bigint = 0n;
   const originalNetworkName = hre.network.name;
   let currentEnv = env;
