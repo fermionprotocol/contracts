@@ -96,7 +96,7 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
 
         // Create offer in Boson
         IBosonProtocol.Offer memory bosonOffer;
-        // bosonOffer.sellerId is intentionally no set as it will be handled in BOSON_PROTOCOL.createOffer call below
+        // bosonOffer.sellerId is intentionally not set as it will be handled in BOSON_PROTOCOL.createOffer call below
         bosonOffer.sellerDeposit = _offer.sellerDeposit;
         bosonOffer.quantityAvailable = type(uint256).max; // unlimited offer
         bosonOffer.exchangeToken = _offer.exchangeToken;
@@ -104,7 +104,8 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         bosonOffer.metadataUri = _offer.metadata.URI;
         bosonOffer.metadataHash = _offer.metadata.hash;
         bosonOffer.royaltyInfo = new IBosonProtocol.RoyaltyInfo[](1);
-        // bosonOffer.voided, bosonOffer.collectionIndex, bosonOffer.price, and bosonOffer.buyerCancelPenalty are not set, the defaults are fine
+        // bosonOffer.voided, bosonOffer.collectionIndex, bosonOffer.price, bosonOffer.buyerCancelPenalty,
+        // bosonOffer.creator and bosonOffer.buyerId are not set, the defaults are fine
 
         IBosonProtocol.OfferDates memory bosonOfferDates;
         bosonOfferDates.validUntil = type(uint256).max; // unlimited offer. Sellers can limit it when they list preminted vouchers on external marketplaces
@@ -115,13 +116,17 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         bosonOfferDurations.voucherValid = 1; // It could be 0, since in fermion offers, commit and redeem happen atomically, but Boson does not allow it
         bosonOfferDurations.resolutionPeriod = 7 days; // Not needed for fermion, but Boson requires it
 
+        IBosonProtocol.DRParameters memory bosonDRParameters;
+        bosonDRParameters.disputeResolverId = FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET; // protocol is it's own DR; never used.
+        bosonDRParameters.mutualizerAddress = payable(address(0)); // no mutualizer
+
         uint256 bosonOfferId = BOSON_PROTOCOL.getNextOfferId();
 
         BOSON_PROTOCOL.createOffer(
             bosonOffer,
             bosonOfferDates,
             bosonOfferDurations,
-            FermionStorage.protocolStatus().bosonSellerId + BOSON_DR_ID_OFFSET,
+            bosonDRParameters,
             0, // no agent
             type(uint256).max // no fee limit
         );
@@ -536,9 +541,9 @@ contract OfferFacet is Context, OfferErrors, Access, FundsManager, IOfferEvents 
         if (
             _buyerOrder.parameters.offer.length != 1 ||
             _buyerOrder.parameters.consideration[1].startAmount >
-            (_buyerOrder.parameters.offer[0].startAmount * FermionStorage.protocolConfig().openSeaFeePercentage) /
-                HUNDRED_PERCENT +
-                1 || // allow +1 in case they round up; minimal exposure
+                (_buyerOrder.parameters.offer[0].startAmount * FermionStorage.protocolConfig().openSeaFeePercentage) /
+                    HUNDRED_PERCENT +
+                    1 || // allow +1 in case they round up; minimal exposure
             _buyerOrder.parameters.offer[0].startAmount < _buyerOrder.parameters.consideration[1].startAmount // in most cases, previous check will catch this, except if the offer is 0 and the consideration is 1
         ) {
             revert InvalidOpenSeaOrder();

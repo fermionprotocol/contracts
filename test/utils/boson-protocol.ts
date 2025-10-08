@@ -4,6 +4,7 @@ import { resetCompilationFolder, setCompilationFolder } from "./common";
 
 import protocolConfig from "@bosonprotocol/boson-protocol-contracts/scripts/config/protocol-parameters.js";
 import Role from "@bosonprotocol/boson-protocol-contracts/scripts/domain/Role.js";
+import { abis } from "@bosonprotocol/common";
 
 import { deployFacets, prepareFacetCuts, makeDiamondCut } from "../../scripts/deploy";
 
@@ -68,6 +69,7 @@ export async function initBosonProtocolFixture(resetAfter: boolean = true) {
     "AgentHandlerFacet",
     "DisputeResolverHandlerFacet",
     "ExchangeHandlerFacet",
+    "ExchangeCommitFacet",
     "OfferHandlerFacet",
     "FundsHandlerFacet",
     "AccountHandlerFacet",
@@ -75,7 +77,12 @@ export async function initBosonProtocolFixture(resetAfter: boolean = true) {
     "ConfigHandlerFacet",
     "PriceDiscoveryHandlerFacet",
   ];
-  const constructorArgs = { ExchangeHandlerFacet: [1], PriceDiscoveryHandlerFacet: [await weth.getAddress()] };
+  const wethAddress = await weth.getAddress();
+  const constructorArgs = {
+    ExchangeHandlerFacet: [1, wethAddress],
+    PriceDiscoveryHandlerFacet: [wethAddress],
+    DisputeHandlerFacet: [wethAddress],
+  };
   const facets = await deployFacets(facetNames, constructorArgs);
   const initializationFacet = facets["ProtocolInitializationHandlerFacet"];
 
@@ -120,12 +127,7 @@ export async function getBosonHandler(handlerName: string, bosonProtocolAddressO
     ({ bosonProtocolAddress } = await initBosonProtocolFixture());
   }
 
-  const { abi: facetABI } = JSON.parse(
-    fs.readFileSync(
-      `node_modules/@bosonprotocol/boson-protocol-contracts/addresses/abis/sepolia/test/interfaces/handlers/${handlerName}.sol/${handlerName}.json`,
-      "utf8",
-    ),
-  );
+  const facetABI = abis[`${handlerName}ABI`] as string;
 
   const facet = await ethers.getContractAt(facetABI, bosonProtocolAddressOverride || bosonProtocolAddress);
 
