@@ -164,7 +164,7 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
      * @notice Submit a proposal for the buyer and seller split if the item has been revised, using the other party's signature
      *
      * Reverts if:
-     * - The signature verification fails
+     * - The signature verification fails (see EIP712.verify for details)
      * - Verification region is paused
      * - Buyer percentage is invalid (greater than 100%)
      * - The item has not been revised
@@ -177,7 +177,10 @@ contract VerificationFacet is Context, Access, FundsManager, EIP712, Verificatio
      * @param _buyerPercent - the percentage the buyer will receive
      * @param _metadataURIDigest - keccak256 of the revised metadata URI
      * @param _signer - the signer of the proposal
-     * @param _signature - the signature of the proposal. If the signer is EOA, it must be ECDSA signature in the format of (r,s,v) struct, otherwise, it must be a valid ERC1271 signature.
+     * @param _signature - signature. 
+                           If the user is ordinary EOA, it must be ECDSA signature in the format of concatenated r,s,v values. 
+                           If the user is a contract, it must be a valid ERC1271 signature.
+                           If the user is a EIP-7702 smart account, it can be either a valid ERC1271 signature or a valid ECDSA signature.
      */
     function submitSignedProposal(
         uint256 _tokenId,

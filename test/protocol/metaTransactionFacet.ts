@@ -671,7 +671,9 @@ describe("MetaTransactions", function () {
                 ZeroHash,
                 diamondMetaTxOfferIdIndex,
               ),
-            ).to.be.revertedWithCustomError(fermionErrors, "SignatureValidationFailed");
+            )
+              .to.be.revertedWithCustomError(fermionErrors, "UnexpectedDataReturned")
+              .withArgs("0xffffffff00000000000000000000000000000000000000000000000000000000");
           });
 
           it("Contract reverts", async function () {
