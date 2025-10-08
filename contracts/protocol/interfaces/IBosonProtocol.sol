@@ -35,6 +35,11 @@ interface IBosonProtocol {
         Wrapper // Side is not relevant from the protocol perspective
     }
 
+    enum OfferCreator {
+        Seller, // Default should always be at index 0. Never change this value.
+        Buyer
+    }
+
     struct Seller {
         uint256 id;
         address assistant;
@@ -93,11 +98,13 @@ interface IBosonProtocol {
         uint256 quantityAvailable;
         address exchangeToken;
         PriceType priceType;
+        OfferCreator creator;
         string metadataUri;
         string metadataHash;
         bool voided;
         uint256 collectionIndex;
         RoyaltyInfo[] royaltyInfo;
+        uint256 buyerId;
     }
 
     struct OfferDates {
@@ -111,6 +118,11 @@ interface IBosonProtocol {
         uint256 disputePeriod;
         uint256 voucherValid;
         uint256 resolutionPeriod;
+    }
+
+    struct DRParameters {
+        uint256 disputeResolverId;
+        address payable mutualizerAddress;
     }
 
     struct RoyaltyInfo {
@@ -215,7 +227,7 @@ interface IBosonProtocol {
      * @param _offer - the fully populated struct with offer id set to 0x0 and voided set to false
      * @param _offerDates - the fully populated offer dates struct
      * @param _offerDurations - the fully populated offer durations struct
-     * @param _disputeResolverId - the id of chosen dispute resolver (can be 0)
+     * @param _drParameters - the id of chosen dispute resolver (can be 0) and mutualizer address (0 for self-mutualization)
      * @param _agentId - the id of agent
      * @param _feeLimit - the maximum fee that seller is willing to pay per exchange (for static offers)
      */
@@ -223,7 +235,7 @@ interface IBosonProtocol {
         Offer memory _offer,
         OfferDates calldata _offerDates,
         OfferDurations calldata _offerDurations,
-        uint256 _disputeResolverId,
+        DRParameters calldata _drParameters,
         uint256 _agentId,
         uint256 _feeLimit
     ) external;
