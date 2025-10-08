@@ -1,4 +1,3 @@
-import hre from "hardhat";
 import path from "path";
 import { glob } from "glob";
 import { ethers } from "hardhat";
@@ -9,6 +8,7 @@ import { subtask } from "hardhat/config";
 import { EntityRole, AccountRole } from "./enums";
 import { expect } from "chai";
 import fermionConfig from "./../../fermion.config";
+import { recompileContracts } from "../../scripts/libraries/utils";
 
 import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from "hardhat/builtin-tasks/task-names";
 
@@ -127,21 +127,6 @@ export async function resetCompilationFolder() {
   });
 
   await recompileContracts();
-}
-
-export async function recompileContracts() {
-  await hre.run("clean");
-
-  // Right after compilation, Hardhat sometimes wrongly reports missing artifacts.
-  // Ignore this error, but throw any other error.
-  try {
-    await hre.run("compile");
-  } catch (e) {
-    if (e?.message.includes("HH700: Artifact for contract") && e?.message.includes("not found")) {
-      return;
-    }
-    throw e;
-  }
 }
 
 export function verifySellerAssistantRoleClosure(

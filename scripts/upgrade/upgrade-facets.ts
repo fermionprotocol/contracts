@@ -1,4 +1,4 @@
-import { readContracts, writeContracts } from "../libraries/utils";
+import { readContracts, writeContracts, recompileContracts } from "../libraries/utils";
 import { checkRole } from "../libraries/utils";
 import { getBalance, setupDryRun } from "../dry-run";
 import fs from "fs";
@@ -58,6 +58,8 @@ export async function upgradeFacets(
   isForkTest: boolean = false,
 ) {
   const { ethers } = hre;
+
+  await recompileContracts();
 
   try {
     let balanceBefore: bigint = 0n;
