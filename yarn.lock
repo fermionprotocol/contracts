@@ -40,13 +40,6 @@
   resolved "https://registry.yarnpkg.com/@babel/helper-validator-identifier/-/helper-validator-identifier-7.27.1.tgz#a7054dcc145a967dd4dc8fee845a57c1316c9df8"
   integrity sha512-D2hP9eA+Sqx1kBZgzxZh0y1trbuU+JoDkiEwqhQ36nodYqJwyEIhPSdMNd7lOm/4io72luTPWH20Yda0xOuUow==
 
-"@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.5.0-rc.1":
-  version "2.4.2"
-  resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#6a14c31bead936ed03b2d51ab82010ecd1047f40"
-  dependencies:
-    "@openzeppelin/contracts" "^4.9.6"
-    "@openzeppelin/contracts-upgradeable" "4.9.6"
-
 "@bosonprotocol/boson-protocol-contracts@git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.5.0-rc.2":
   version "2.4.2"
   resolved "git+https://github.com/bosonprotocol/boson-protocol-contracts#efd5d1a8f23c3bca7c25273ea4c912a367250119"
