@@ -2,7 +2,13 @@ import fs from "fs";
 import hre, { ethers, network } from "hardhat";
 import { FacetCutAction, getSelectors } from "./libraries/diamond";
 import { getStateModifyingFunctionsHashes, RESTRICTED_METATX_FUNCTIONS } from "./libraries/metaTransaction";
-import { writeContracts, readContracts, checkDeployerAddress, deployContract } from "./libraries/utils";
+import {
+  writeContracts,
+  readContracts,
+  checkDeployerAddress,
+  deployContract,
+  recompileContracts,
+} from "./libraries/utils";
 import { vars } from "hardhat/config";
 
 import { initBosonProtocolFixture, getBosonHandler } from "./../test/utils/boson-protocol";
@@ -14,6 +20,8 @@ const version = "1.0.1";
 export let deploymentData: any[] = [];
 
 export async function deploySuite(env: string = "", modules: string[] = [], create3: boolean = false) {
+  await recompileContracts();
+
   if (create3) {
     if (!vars.has(`CREATE3_ADDRESS`)) {
       throw Error(

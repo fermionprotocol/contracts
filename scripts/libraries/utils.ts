@@ -138,3 +138,18 @@ export async function checkRole(contracts: any, role: string, address: string) {
     process.exit(1);
   }
 }
+
+export async function recompileContracts() {
+  await hre.run("clean");
+
+  // Right after compilation, Hardhat sometimes wrongly reports missing artifacts.
+  // Ignore this error, but throw any other error.
+  try {
+    await hre.run("compile");
+  } catch (e) {
+    if (e?.message.includes("HH700: Artifact for contract") && e?.message.includes("not found")) {
+      return;
+    }
+    throw e;
+  }
+}
