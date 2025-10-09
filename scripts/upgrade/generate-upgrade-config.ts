@@ -59,11 +59,11 @@ async function getBytecodes(
     // package.json was checked out to store the list of production dependencies
     const packageJsonFile = fs.readFileSync(path.join(cwd, "package.json"), "utf-8");
     const packageJson = JSON.parse(packageJsonFile);
-    const {dependencies} = packageJson;
+    const { dependencies } = packageJson;
 
     // before installing them again with exact versions, checkout the current package.json again
     // to avoid any potential issues with other dependencies
-    shell.exec(`git checkout HEAD package.json`, { silent: true })
+    shell.exec(`git checkout HEAD package.json`, { silent: true });
 
     for (const [dep, ver] of Object.entries(dependencies)) {
       console.log(`Installing ${dep}@${ver.replace("^", "")}`);
