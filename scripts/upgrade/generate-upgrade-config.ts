@@ -19,7 +19,7 @@ function isContractRelevantForAllowlist(name: string): boolean {
 
 async function getContractSelectors(contractName: string): Promise<Record<string, string>> {
   const contract = await hre.ethers.getContractFactory(contractName);
-  const selectors = await getSelectors(contract);
+  const selectors = getSelectors(contract);
   return selectors.reduce(
     (acc, selector) => {
       const func = contract.interface.getFunction(selector);
@@ -51,13 +51,25 @@ async function getBytecodes(
 
     // Checkout the version's contracts
     shell.exec(`rm -rf contracts`);
-    const checkoutResult = shell.exec(`git checkout ${version} contracts`, { silent: true });
+    const checkoutResult = shell.exec(`git checkout ${version} contracts package.json`, { silent: true });
     if (checkoutResult.code !== 0) {
       throw new Error(`Version ${version} does not exist in the repository`);
     }
 
-    // Install dependencies and compile
-    shell.exec("yarn install");
+    // package.json was checked out to store the list of production dependencies
+    const packageJsonFile = fs.readFileSync(path.join(cwd, "package.json"), "utf-8");
+    const packageJson = JSON.parse(packageJsonFile);
+    const { dependencies } = packageJson;
+
+    // before installing them again with exact versions, checkout the current package.json again
+    // to avoid any potential issues with other dependencies
+    shell.exec(`git checkout HEAD package.json`, { silent: true });
+
+    for (const [dep, ver] of Object.entries(dependencies)) {
+      console.log(`Installing ${dep}@${ver.replace("^", "")}`);
+      shell.exec(`yarn add ${dep}@${ver.replace("^", "")} --exact`, { silent: true });
+    }
+
     await hre.run("clean");
     try {
       await hre.run("compile");

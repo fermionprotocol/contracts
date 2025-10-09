@@ -16,7 +16,8 @@
     "postinstall": "npx ts-node-transpile-only ./scripts/postinstall.ts"
   },
   "devDependencies": {
-    "@bosonprotocol/boson-protocol-contracts": "git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.5.0-rc.2",
+    "@bosonprotocol/boson-protocol-contracts": "git+https://github.com/bosonprotocol/boson-protocol-contracts#v2.5.0-rc.3",
+    "@bosonprotocol/common": "1.31.1-alpha.2",
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.0",
     "@nomicfoundation/hardhat-ethers": "^3.1.0",
     "@nomicfoundation/hardhat-ignition": "^0.15.13",
@@ -25,7 +26,6 @@
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@nomicfoundation/hardhat-verify": "^2.1.1",
     "@opensea/seaport-js": "^4.0.5",
-    "@openzeppelin/contracts-upgradeable": "^5.4.0",
     "@typechain/ethers-v6": "^0.5.0",
     "@typechain/hardhat": "^9.0.0",
     "@types/chai": "^4.2.0",
@@ -57,7 +57,7 @@
     "urql": "^5.0.0"
   },
   "dependencies": {
-    "@bosonprotocol/common": "1.31.1-alpha.2",
-    "@openzeppelin/contracts": "^5.4.0"
+    "@openzeppelin/contracts": "5.2.0",
+    "@openzeppelin/contracts-upgradeable": "5.2.0"
   }
 }

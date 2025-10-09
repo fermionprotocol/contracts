@@ -1,0 +1,45 @@
+{
+  "description": "Upgrade to version 1.1.1",
+  "facets": {
+    "add": [],
+    "replace": ["MetaTransactionFacet", "OfferFacet", "VerificationFacet"],
+    "remove": [],
+    "constructorArgs": {
+      "MetaTransactionFacet": ["$FERMION_PROTOCOL_ADDRESS"],
+      "OfferFacet": ["$BOSON_PROTOCOL_ADDRESS"],
+      "VerificationFacet": [
+        "$BOSON_PROTOCOL_ADDRESS",
+        "$FERMION_PROTOCOL_ADDRESS"
+      ]
+    }
+  },
+  "clients": {
+    "fermionFNFT": []
+  },
+  "metaTxAllowlist": {
+    "add": [
+      {
+        "facetName": "MetaTransactionFacet",
+        "functionName": "executeMetaTransaction(address,string,bytes,uint256,bytes,uint256)",
+        "hash": "0x57b97cdb2fce0dee666819ee1160c69d7ccfb5c8e76df2aace281cbce2bb3caf"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "submitSignedProposal(uint256,uint16,bytes32,address,bytes)",
+        "hash": "0x520e63cfbd93b984b82d9fb3cec62cd0b8be9ee20aa123df492cd9dc448849b3"
+      }
+    ],
+    "remove": [
+      {
+        "facetName": "MetaTransactionFacet",
+        "functionName": "executeMetaTransaction(address,string,bytes,uint256,(bytes32,bytes32,uint8),uint256)",
+        "hash": "0xedb488173b6de59edb22e805aa39856285d4034a1ec670b83aa9a4d5108e79d2"
+      },
+      {
+        "facetName": "VerificationFacet",
+        "functionName": "submitSignedProposal(uint256,uint16,bytes32,address,(bytes32,bytes32,uint8))",
+        "hash": "0x9b8290f33fe4601cf79497c39a21cbb03feb5759124bac8ce5f3dbd289d55da7"
+      }
+    ]
+  }
+}
