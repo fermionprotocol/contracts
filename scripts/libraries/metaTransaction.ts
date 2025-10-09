@@ -55,13 +55,13 @@ export const metaTransactionType = [
   { name: "functionSignature", type: "bytes" },
 ];
 
-// Prepare the signature parameters
-export async function prepareDataSignatureParameters(
+// Prepare the signature
+export async function prepareDataSignature(
   user: HardhatEthersSigner,
   customTransactionTypes: object,
   primaryType: string,
   message: object,
-  forwarderAddress,
+  forwarderAddress: string,
   domainName = "Fermion Protocol",
   domainVersion = "V0",
   type = "Protocol",
@@ -113,36 +113,11 @@ export async function prepareDataSignatureParameters(
   // Sign the data
   const signature = await provider.send("eth_signTypedData_v4", [await user.getAddress(), dataToSign]);
 
-  // Collect the Signature components
-  const { r, s, v } = getSignatureParameters(signature);
-
-  return {
-    r: r,
-    s: s,
-    v: v,
-    signature,
-  };
+  return signature;
 }
 
 export function randomNonce() {
   return parseInt(randomBytes(8).toString());
-}
-
-function getSignatureParameters(signature: string) {
-  if (!isHexString(signature)) {
-    throw new Error('Given value "'.concat(signature, '" is not a valid hex string.'));
-  }
-
-  signature = signature.substring(2);
-  const r = "0x" + signature.substring(0, 64);
-  const s = "0x" + signature.substring(64, 128);
-  const v = parseInt(signature.substring(128, 130), 16);
-
-  return {
-    r: r,
-    s: s,
-    v: v,
-  };
 }
 
 export async function getStateModifyingFunctions(

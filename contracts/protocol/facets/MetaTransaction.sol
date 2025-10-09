@@ -50,15 +50,17 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
      * - Nonce is already used by the msg.sender for another transaction
      * - Function is not allowlisted to be called using metatransactions
      * - Function name does not match the bytes4 version of the function signature
-     * - Sender does not match the recovered signer
      * - Any code executed in the signed transaction reverts
-     * - Signature is invalid
+     * - The signature verification fails (see EIP712.verify for details)
      *
      * @param _userAddress - the sender of the transaction
      * @param _functionName - the name of the function to be executed
      * @param _functionSignature - the function signature
      * @param _nonce - the nonce value of the transaction
-     * @param _sig - meta transaction signature, r, s, v
+     * @param _sig - meta transaction signature. 
+                     If the user is ordinary EOA, it must be ECDSA signature in the format of concatenated r,s,v values. 
+                     If the user is a contract, it must be a valid ERC1271 signature.
+                     If the user is a EIP-7702 smart account, it can be either a valid ERC1271 signature or a valid ECDSA signature.
      * @param _offerIdWithEpoch - determines where the call is forwarded to. 0 is for Fermion Protocol,
      * a plain offerId is for FermionFNFT associated with offerId, and {epoch+1}{offerId} is for FermionFractions
      * associated with offerId and epoch.
@@ -68,7 +70,7 @@ contract MetaTransactionFacet is Access, EIP712, MetaTransactionErrors, IMetaTra
         string calldata _functionName,
         bytes calldata _functionSignature,
         uint256 _nonce,
-        Signature calldata _sig,
+        bytes calldata _sig,
         uint256 _offerIdWithEpoch
     ) external payable notPaused(FermionTypes.PausableRegion.MetaTransaction) nonReentrant returns (bytes memory) {
         address userAddress = _userAddress; // stack too deep workaround.
