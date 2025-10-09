@@ -11,7 +11,7 @@ import { SignatureErrors, FermionGeneralErrors } from "../domain/Errors.sol";
  * @notice
  */
 contract EIP712 is SignatureErrors {
-    struct Signature {
+    struct ECDSASignature {
         bytes32 r;
         bytes32 s;
         uint8 v;
@@ -99,55 +99,76 @@ contract EIP712 is SignatureErrors {
     }
 
     /**
-     * @notice Recovers the Signer from the Signature components.
+     * @notice Verifies that the signer really signed the message.
+     * It works for both ECDSA signatures and ERC1271 signatures.
      *
      * Reverts if:
-     * - Signer is the zero address
+     * - User is the zero address
+     * - User is a contract that does not implement ERC1271.isValidSignature or fallback
+     * - User is a contract that implements ERC1271.isValidSignature or fallback, but returns an unexpected value (including wrong magic value, wrong return data size, etc.)
+     * - User is a contract that reverts when called with the signature
+     * - User is an EOA (including smart accounts that do not implement ERC1271) but the signature is not a valid ECDSA signature
+     * - Recovered signer does not match the user address
      *
      * @param _user  - the message signer
      * @param _hashedMessage - hashed message
-     * @param _sig - signature, r, s, v
+     * @param _signature - signature. 
+                           If the user is ordinary EOA, it must be ECDSA signature in the format of concatenated r,s,v values. 
+                           If the user is a contract, it must be a valid ERC1271 signature.
+                           If the user is a EIP-7702 smart account, it can be either a valid ERC1271 signature or a valid ECDSA signature.
      */
-    function verify(address _user, bytes32 _hashedMessage, Signature memory _sig) internal view {
+    function verify(address _user, bytes32 _hashedMessage, bytes calldata _signature) internal view {
+        if (_user == address(0)) revert FermionGeneralErrors.InvalidAddress();
+
         bytes32 typedMessageHash = toTypedMessageHash(_hashedMessage);
 
         // Check if user is a contract implementing ERC1271
         bytes memory returnData; // Make this available for later if needed
+        bool isValidSignatureCallSuccess;
         if (_user.code.length > 0) {
-            bool success;
-            (success, returnData) = _user.staticcall(
-                abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, abi.encode(_sig)))
+            (isValidSignatureCallSuccess, returnData) = _user.staticcall(
+                abi.encodeCall(IERC1271.isValidSignature, (typedMessageHash, _signature))
             );
-            if (success) {
-                if (returnData.length != SLOT_SIZE) {
-                    revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
-                } else {
-                    // Make sure that the lowest 224 bits (28 bytes) are not set
-                    if (uint256(bytes32(returnData)) & type(uint224).max != 0) {
-                        revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
-                    }
 
-                    if (abi.decode(returnData, (bytes4)) != IERC1271.isValidSignature.selector)
-                        revert SignatureValidationFailed();
-
-                    return;
-                }
+            // if the call succeeded, check the return value, only if it's correctly formatted (bytes4)
+            // if the returned value matches the expected selector, the signature is valid.
+            // in all other cases, try the ECDSA signature verification below and if that fails, bubble up the error
+            if (
+                isValidSignatureCallSuccess &&
+                returnData.length == SLOT_SIZE &&
+                (uint256(bytes32(returnData)) & type(uint224).max) == 0 &&
+                abi.decode(returnData, (bytes4)) == IERC1271.isValidSignature.selector
+            ) {
+                return;
             }
         }
 
-        // Ensure signature is unique
-        // See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/04695aecbd4d17dddfd55de766d10e3805d6f42f/contracts/cryptography/ECDSA.sol#63
-        if (
-            uint256(_sig.s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
-            (_sig.v != 27 && _sig.v != 28)
-        ) revert InvalidSignature();
+        address signer;
+        // If the user is not a contract or the call to ERC1271 failed, we assume it's an ECDSA signature
+        if (_signature.length == 65) {
+            ECDSASignature memory ecdsaSig = ECDSASignature({
+                r: bytes32(_signature[0:32]),
+                s: bytes32(_signature[32:64]),
+                v: uint8(_signature[64])
+            });
 
-        address signer = ecrecover(typedMessageHash, _sig.v, _sig.r, _sig.s);
-        if (signer == address(0)) revert InvalidSignature();
+            // Ensure signature is unique
+            // See https://github.com/OpenZeppelin/openzeppelin-contracts/blob/04695aecbd4d17dddfd55de766d10e3805d6f42f/contracts/cryptography/ECDSA.sol#63
+            if (
+                uint256(ecdsaSig.s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0 ||
+                (ecdsaSig.v != 27 && ecdsaSig.v != 28)
+            ) revert InvalidSignature();
+
+            signer = ecrecover(typedMessageHash, ecdsaSig.v, ecdsaSig.r, ecdsaSig.s);
+            if (signer == address(0)) revert InvalidSignature();
+        }
+
         if (signer != _user) {
-            if (returnData.length > 0) {
-                // In case 1271 verification failed with a revert reason, bubble it up
+            // ECDSA failed, while EIP-1271 verification call succeeded but returned something different than the magic value
+            if (isValidSignatureCallSuccess) revert FermionGeneralErrors.UnexpectedDataReturned(returnData);
 
+            // If both ECDSA and EIP-1271 verification call failed, bubble up the revert reason
+            if (returnData.length > 0) {
                 /// @solidity memory-safe-assembly
                 assembly {
                     revert(add(SLOT_SIZE, returnData), mload(returnData))
