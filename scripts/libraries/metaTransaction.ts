@@ -44,6 +44,7 @@ export const RESTRICTED_METATX_FUNCTIONS = [
   "startAuctionInternal(uint256)",
   "transferFractionsFrom(address,address,uint256)",
   "renounceOwnership()",
+  "executeMetaTransaction"
 ];
 
 // Generic meta transaction type
