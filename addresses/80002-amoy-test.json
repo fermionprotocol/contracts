@@ -2,7 +2,7 @@
   "chainId": 80002,
   "network": "amoy",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.4",
+  "protocolVersion": "1.1.1",
   "contracts": [
     {
       "name": "DiamondCutFacet",
@@ -81,17 +81,17 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x4ea72e99d2271C8a60A8e4F362B8B1aD84B2AC11",
+      "address": "0x4BAa027A10FeBbb5ca124388db3C8e6EC2a6d475",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
       "name": "OfferFacet",
-      "address": "0x0947421Cd1406dEB8628b9680D3B33a35B39287f",
+      "address": "0x7a6DDD5e6805e2fd62687AFc8747cD7B506a830C",
       "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0x37c68D0b6ec5d2E483133F03223608CFa6530233",
+      "address": "0x5344d8709Bd9404aaE980b534554D6622f5E7FE7",
       "args": [
         "0x7de418a7ce94debd057c34ebac232e7027634ade",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"
