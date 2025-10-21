@@ -46,9 +46,7 @@
           {
             "facetAddress": "0x18F0c981E599042FB9C944561AA032961FAD9A53",
             "action": 0,
-            "functionSelectors": [
-              "0x1f931c1c"
-            ]
+            "functionSelectors": ["0x1f931c1c"]
           },
           {
             "facetAddress": "0xAfa3BDb593AcfeD6C70DE079bf16151c8Fb33C73",
@@ -76,9 +74,7 @@
           {
             "facetAddress": "0x00e400F45C85B38D21AEb76928f06bc317C2320d",
             "action": 0,
-            "functionSelectors": [
-              "0x0d8e6e2c"
-            ]
+            "functionSelectors": ["0x0d8e6e2c"]
           }
         ],
         {
@@ -100,16 +96,12 @@
     {
       "name": "MetaTransactionFacet",
       "address": "0x06632Ed3fFFd70fe775E1C8cA03f6C5b377e4cf7",
-      "args": [
-        "0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"
-      ]
+      "args": ["0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"]
     },
     {
       "name": "OfferFacet",
       "address": "0x7f3641A1ab40F6CbFbaC5D5D20BeE389721B2CF2",
-      "args": [
-        "0x26f643746cbc918b46c2d47edca68c4a6c98ebe6"
-      ]
+      "args": ["0x26f643746cbc918b46c2d47edca68c4a6c98ebe6"]
     },
     {
       "name": "VerificationFacet",
@@ -168,9 +160,7 @@
     {
       "name": "FermionFractionsERC20",
       "address": "0xc49725B14bf67cac22D3438D7Cbdc29F54C1f83A",
-      "args": [
-        "0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"
-      ]
+      "args": ["0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"]
     },
     {
       "name": "FermionFractionsMint",
@@ -184,9 +174,7 @@
     {
       "name": "FermionFNFTPriceManager",
       "address": "0x55c44a99Fd6495802624d9A35Ee4BFc8F8104DFC",
-      "args": [
-        "0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"
-      ]
+      "args": ["0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"]
     },
     {
       "name": "FermionBuyoutAuction",
