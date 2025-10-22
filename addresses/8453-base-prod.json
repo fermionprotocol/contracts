@@ -2,7 +2,7 @@
   "chainId": 8453,
   "network": "base",
   "env": "prod",
-  "protocolVersion": "1.1.0",
+  "protocolVersion": "1.1.1",
   "contracts": [
     {
       "name": "SeaportWrapper",
@@ -111,17 +111,17 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x16839583F26228EF344217CA153A2a32e091E155",
+      "address": "0xffEa4EC2be94A42C20cA2D899A7086770e1a9206",
       "args": ["0x93b330001bcaad603e21e2639fb041cdea472449"]
     },
     {
       "name": "OfferFacet",
-      "address": "0x05f2b314CDeF513F9e51Bc762E7db315b99661DC",
+      "address": "0x64a70f3495A9A16084be9e68116E6bCB059E6E09",
       "args": ["0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0xd6115b0b7289EE6e7Ad3256BF11d8789A9dCFd96",
+      "address": "0xEE469a05F6249aC97fdfBF714a0Fa2fBdfa5a756",
       "args": [
         "0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5",
         "0x93b330001bcaad603e21e2639fb041cdea472449"
