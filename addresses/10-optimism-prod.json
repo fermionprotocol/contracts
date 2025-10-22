@@ -2,7 +2,7 @@
   "chainId": 10,
   "network": "optimism",
   "env": "prod",
-  "protocolVersion": "1.1.0",
+  "protocolVersion": "1.1.1",
   "contracts": [
     {
       "name": "FermionFNFT",
@@ -95,17 +95,17 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0xDC7e4D34b27a7BB7f775177EdcF03a3C65921359",
+      "address": "0x64a70f3495A9A16084be9e68116E6bCB059E6E09",
       "args": ["0x93b330001bcaad603e21e2639fb041cdea472449"]
     },
     {
       "name": "OfferFacet",
-      "address": "0x8Ef739f1cc3bA6ED8c06b0559feDDE6C3192EAC3",
+      "address": "0xc0DF5b8aE83AbB6481388Ff568698c597bfe9f04",
       "args": ["0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0x1b9eE289514A285da0f92418D686378D4AD65E86",
+      "address": "0x050cc33100408dfA102600bD490BCC76692F0993",
       "args": [
         "0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5",
         "0x93b330001bcaad603e21e2639fb041cdea472449"

@@ -2,7 +2,7 @@
   "chainId": 84532,
   "network": "baseSepolia",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.4",
+  "protocolVersion": "1.1.1",
   "contracts": [
     {
       "name": "FermionFNFT",
@@ -95,17 +95,17 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x5ff802b0e7995c5CbDe1A3d88dDcC6f690726AC6",
+      "address": "0xA0C4183e042f18D2f6205978AF52f73a29D0a985",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
       "name": "OfferFacet",
-      "address": "0x423646D50C460E060f64384C1f8559e158a36Fd1",
+      "address": "0xDE31FBB4A7670F9F6A8cE7df0879116250ee78C5",
       "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0x0346FCb5f30C0c639C5bed3cBD53A8423743775D",
+      "address": "0x9d7679d6A478fCD577227Fcd99DE362e746A100C",
       "args": [
         "0x7de418a7ce94debd057c34ebac232e7027634ade",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"

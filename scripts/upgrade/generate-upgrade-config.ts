@@ -176,6 +176,9 @@ async function generateUpgradeConfig(
       }
     }
 
+    // Prepare initialization data for facets with init functions
+    const initializationData: string = "0x"; // Placeholder, can be extended to include actual init calls if needed
+
     const relevantNewContracts = newContracts.filter(
       (contract) =>
         isContractRelevantForAllowlist(contract) && !contract.includes("/test/") && !contract.includes("Mock"),
@@ -269,6 +272,7 @@ async function generateUpgradeConfig(
           }),
         ],
       },
+      initializationData: initializationData,
       metaTxAllowlist: {
         add: finalMetaTxAllowlistAdd,
         remove: finalMetaTxAllowlistRemove,

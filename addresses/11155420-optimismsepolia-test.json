@@ -2,7 +2,7 @@
   "chainId": 11155420,
   "network": "optimismSepolia",
   "env": "test",
-  "protocolVersion": "1.1.0-rc.4",
+  "protocolVersion": "1.1.1",
   "contracts": [
     {
       "name": "FermionFNFT",
@@ -95,17 +95,17 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x743FEA9EBf0cA04b9d8F33A7EDb25124d443553f",
+      "address": "0xb984d98405a65bFc97bd535c07996C02CFEa6032",
       "args": ["0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"]
     },
     {
       "name": "OfferFacet",
-      "address": "0xFDbDE16F5631ee830aD314C744c68d07739E5665",
+      "address": "0xc06F2C0c5AB5739AcB95356f12ef6AeA8337F925",
       "args": ["0x7de418a7ce94debd057c34ebac232e7027634ade"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0x70120Bf8605851b6015493397FeCB1C67CD60e28",
+      "address": "0x072e44B295Fd0fAeAA9C76237164b01dea92d239",
       "args": [
         "0x7de418a7ce94debd057c34ebac232e7027634ade",
         "0x855a579601fb936eea4bc9c9ad7aa5d87d1b7585"

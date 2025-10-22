@@ -2,7 +2,7 @@
   "chainId": 80002,
   "network": "amoy",
   "env": "staging",
-  "protocolVersion": "1.1.0",
+  "protocolVersion": "1.1.1",
   "contracts": [
     {
       "name": "FermionFNFT",
@@ -95,17 +95,17 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x3c79831F56231150Fd9c2A59eD627412F5578638",
+      "address": "0xe95952f770F0729FdAdD02498E3528b190B4122d",
       "args": ["0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"]
     },
     {
       "name": "OfferFacet",
-      "address": "0xDE307A82bE1b8929D59204153333C8f57d8D059c",
+      "address": "0xF404f39F36Af010a4AB0155149A92ca4B644b38B",
       "args": ["0x26f643746cbc918b46c2d47edca68c4a6c98ebe6"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0x4A3280F53d1D1cB9ab1D6Cfe1a6E003c4F9f2520",
+      "address": "0x062c0A98b6CdA7b599aD7A96aA78D2F17ed85262",
       "args": [
         "0x26f643746cbc918b46c2d47edca68c4a6c98ebe6",
         "0xe6434c187b1c0ed9e7fd2f54cf2d497378d9a2d8"

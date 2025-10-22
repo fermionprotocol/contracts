@@ -7,6 +7,7 @@ import hre from "hardhat";
 import { getSelectors, removeSelectors } from "../libraries/diamond";
 import readline from "readline";
 import { deploymentComplete, getDeploymentData, deploymentData } from "../deploy";
+import { ZeroAddress } from "ethers";
 
 interface MetaTxAllowlistItem {
   facetName: string;
@@ -14,7 +15,7 @@ interface MetaTxAllowlistItem {
   hash: string;
 }
 
-interface FacetConfig {
+export interface FacetConfig {
   version: string;
   description: string;
   facets: {
@@ -25,6 +26,7 @@ interface FacetConfig {
     constructorArgs?: Record<string, any[]>;
     initializeData?: Record<string, any[]>;
   };
+  initializationAddress?: string;
   initializationData?: string;
   metaTxAllowlist?: {
     add?: MetaTxAllowlistItem[];
@@ -100,7 +102,7 @@ export async function upgradeFacets(
       console.log(`ℹ️  No upgrade config found for version ${version}, will only execute hooks if available`);
     }
 
-    await executePreUpgradeHook(version, protocolAddress, originalChainId, originalEnv, dryRun);
+    await executePreUpgradeHook(version, protocolAddress, originalChainId, originalEnv, config, dryRun);
 
     if (config) {
       await executeFacetUpdates(config, protocolAddress, contracts, contractsFile, isForkTest);
@@ -354,6 +356,7 @@ async function executePreUpgradeHook(
   protocolAddress: string,
   originalChainId: bigint,
   originalEnv: string,
+  config: FacetConfig | undefined,
   dryRun: boolean,
 ) {
   try {
@@ -370,7 +373,7 @@ async function executePreUpgradeHook(
     }
 
     console.log("\n⚙️  Executing pre-upgrade hook...");
-    await preUpgrade(protocolAddress, Number(originalChainId), originalEnv, version, dryRun);
+    await preUpgrade(protocolAddress, Number(originalChainId), originalEnv, version, config, dryRun);
     console.log("✅ Pre-upgrade hook completed");
   } catch (error: any) {
     console.error("❌ Pre-upgrade hook execution failed:", error);
@@ -410,15 +413,7 @@ async function prepareFacetCuts(
 ): Promise<{
   cuts: [string, FacetCutAction, string[]][];
   facetContracts: Map<string, any>;
-  initFacetAddress: string;
 }> {
-  const initializationFacet = await hre.ethers.getContractAt("InitializationFacet", protocolAddress);
-  const initFacetAddress = await initializationFacet.getAddress();
-
-  if (!initFacetAddress) {
-    throw new Error("InitializationFacet address not found in protocol");
-  }
-
   const allFacetsToDeploy = [...config.facets.add, ...config.facets.replace];
   const validDeployedFacets: DeployedFacet[] = [];
 
@@ -555,7 +550,6 @@ async function prepareFacetCuts(
   return {
     cuts: Array.from(consolidatedCuts.values()),
     facetContracts,
-    initFacetAddress,
   };
 }
 
@@ -643,7 +637,7 @@ async function executeFacetUpdates(
   contractsFile: any,
   isForkTest: boolean = false,
 ) {
-  const { cuts, facetContracts, initFacetAddress } = await prepareFacetCuts(
+  const { cuts, facetContracts } = await prepareFacetCuts(
     config,
     protocolAddress,
     contracts,
@@ -655,7 +649,7 @@ async function executeFacetUpdates(
     await executeDiamondCut(
       await hre.ethers.getContractAt("DiamondCutFacet", protocolAddress),
       cuts,
-      initFacetAddress,
+      config.initializationAddress || ZeroAddress,
       config.initializationData || "0x",
       facetContracts,
     );

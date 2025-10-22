@@ -2,7 +2,7 @@
   "chainId": 137,
   "network": "polygon",
   "env": "prod",
-  "protocolVersion": "1.1.0",
+  "protocolVersion": "1.1.1",
   "contracts": [
     {
       "name": "FermionFNFT",
@@ -95,17 +95,17 @@
     },
     {
       "name": "MetaTransactionFacet",
-      "address": "0x0Bfb0BFffB4Fd23E61f5eeAfb6E48FcB9f79F6A1",
+      "address": "0xffEa4EC2be94A42C20cA2D899A7086770e1a9206",
       "args": ["0x93b330001bcaad603e21e2639fb041cdea472449"]
     },
     {
       "name": "OfferFacet",
-      "address": "0x5eaCFbAe319231F6E43b27F96ad7Af210d176CF2",
+      "address": "0x64a70f3495A9A16084be9e68116E6bCB059E6E09",
       "args": ["0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5"]
     },
     {
       "name": "VerificationFacet",
-      "address": "0xa023CB2B3270D5DA1bf927F7ba7D0E53F71Ce399",
+      "address": "0xEE469a05F6249aC97fdfBF714a0Fa2fBdfa5a756",
       "args": [
         "0x59A4C19b55193D5a2EAD0065c54af4d516E18Cb5",
         "0x93b330001bcaad603e21e2639fb041cdea472449"
